@@ -17,7 +17,23 @@ when YouTube stops responding — and it always tells you what it changed.
 
 ---
 
-## What you need to build it (one time)
+## Download the ready-made app (no building needed)
+
+The easiest way is to skip building entirely: go to the repo's **Releases** page on
+GitHub and download `younblock.exe` from the latest release. That one file is the
+whole app — no installer, nothing else to download.
+
+Two things to know about the downloaded file:
+
+- It is **not signed** (a code-signing certificate costs money), so the first time you
+  run it Windows may show a blue "Windows protected your PC" screen. Click
+  **More info → Run anyway**. If you prefer to check first, the release page lists the
+  SHA-256 number for the file; compare it with
+  `certutil -hashfile younblock.exe SHA256` in a Command Prompt.
+- It needs the WebView2 part of Windows, which Windows 11 (and any Windows 10 with
+  Edge installed) already has.
+
+## Building it yourself (optional)
 
 You need three free tools installed on your Windows PC:
 

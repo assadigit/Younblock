@@ -224,3 +224,22 @@ and this stays within it.
 **D36 — Svelte 5 mount().** The template's legacy `new App()` instantiation breaks
 runes-based components ($effect orphan errors); `mount(App, { target })` is the supported
 Svelte 5 API and is what ships.
+
+**D37 — Distribution via GitHub Releases; binaries never enter the repo.**
+Ali asked for a single testable exe. Release tag `v0.1.0` carries `younblock.exe`
+(the app — the one to run) and `younblock-core.exe` (the headless engine with
+`--selftest`/`--restore-proxy`). The repo stays source-only (`dist/`, `build/bin/`
+git-ignored) so clones stay small and the release page is the one source of truth
+for binaries and checksums. The exes are unsigned (no code-signing certificate was
+bought), so SmartScreen will show "Windows protected your PC"; the release notes and
+README both explain **More info → Run anyway** and how to verify the SHA-256 with
+`certutil` instead. Wails apps need the WebView2 runtime, present on Windows 11 and
+any Windows 10 with Edge — noted in the release notes.
+
+**D38 — Correction of the Phase 5 core-exe record.**
+Rebuilding for the release proved the Phase 5 `dist/younblock-core.exe` was a Linux
+ELF binary named `.exe` (built without `GOOS=windows`; a stripped Linux build is
+byte-count identical to the old log entry). It would not have run on Windows. The
+release build uses the explicit `GOOS=windows GOARCH=amd64` and `file` confirms
+PE32+; the correct numbers are recorded in the v0.1.0 PROGRESS entry. Logged openly
+here rather than quietly replacing the old entry: the log is append-only.

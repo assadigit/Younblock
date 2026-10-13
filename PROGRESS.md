@@ -422,3 +422,49 @@ YouTube (all four steps OK).
   autostart after a real restart; kill-while-on leaving the internet working. All are
   compiled, wired per the documented APIs and logic-tested with fakes, but they need a
   real Windows session — that is exactly Ali's 7-step manual check in the README.
+
+## Release v0.1.0 — first Windows test build, published to GitHub Releases
+
+Date: 2026-10-13 (Asia/Tehran). Trigger: Ali asked for a single executable he can
+test on his Windows PC, published to the repo's GitHub Releases.
+
+### Gates re-run on the unchanged Phase 5 tree (all green)
+
+```
+$ go vet ./...                          -> exit 0
+$ go test -race ./...                   -> all packages ok
+$ GOOS=windows GOARCH=amd64 go build ./... -> exit 0
+```
+
+### Fresh builds with the required flags (no UPX)
+
+```
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> PE32+ console, 9,550,336 bytes (9.11 MB)   target <= 12 MB  PASS
+      SHA-256 f22426881f9bd6c5922d67b5cd2e1b19470156b1f8c7526bfbf72df6b9b348c6
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> PE32+ GUI, 12,720,128 bytes (12.13 MB)     target <= 20 MB  PASS
+      SHA-256 fb61818fd4dc659d82e4267083b45c15af91d228957f565603ff068cbac908ec
+      (byte-identical to the Phase 5 build — the app build is reproducible)
+$ /tmp/younblock-core --selftest (Linux build of the same tree, live network)
+   -> listener OK, dns OK (RethinkDNS), youtube OK, video OK — all four steps pass
+```
+
+### Correction to the Phase 5 record (found during this rebuild, nothing silent)
+
+The Phase 5 line "dist/younblock-core.exe 6.98 MB (7,315,719 bytes)" was wrong about
+what the file was: a stripped Linux build of the same command is **exactly**
+7,315,719 bytes, which proves the old file was a Linux ELF binary named `.exe` — it
+was built without `GOOS=windows` and would not have run on Windows. The exe attached
+to this release is the first genuinely-Windows core exe; the numbers above replace
+the Phase 5 core line. `build.bat` was always correct (it runs on Windows, where
+GOOS is windows by default). The app exe was and is correct.
+
+### Release
+
+- Tag `v0.1.0` on `main`, release title "Younblock v0.1.0 — first Windows test
+  build", both exes attached, plain-English notes: which file to run, the 2-minute
+  quick test, the unsigned-file SmartScreen instructions, the WebView2 note, the
+  SHA-256 numbers, and the honest what-is-only-provable-on-real-Windows list.
+- The repository stays source-only: `dist/` and `build/bin/` are git-ignored, so the
+  release page is the single source of truth for binaries and checksums.
