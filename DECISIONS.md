@@ -182,3 +182,21 @@ writes it to settings.json immediately (and announces it). R23's remaining part
 From degraded, recovery happens through the watchdog's success path (one later success
 returns to on) or the user's Fix connection button (AutoFix), per R14. The watchdog's
 failure counter resets on success.
+
+**D30 — Static ProxyServer fallback not implemented.**
+File 01 §8 says: if PAC-via-registry is not honored on the test machine, fall back to a
+static ProxyServer for all mode and report that youtube mode needs another method. That
+fallback is contingent on a real-Windows test result (whether Chrome honors
+AutoConfigURL on Ali's machine), which cannot be observed from this sandbox. The primary
+PAC path is implemented and tested; if Ali's manual check shows PAC is not honored, the
+static fallback is the documented next change. The backup format already records
+ProxyEnable/ProxyServer/ProxyOverride so the undo data exists.
+
+**D31 — Windows platform notifications before phase 4.**
+Platform.Notify on Windows currently logs only; phase 4 wires the toast through the tray
+library (or reports if none works, per file 01 §9). The engine's notification logic is
+complete and test-proven; only the toast surface is pending.
+
+**D32 — Platform factory falls back to the stub.**
+If the Windows adapter cannot initialize (config dir unavailable), the factory returns
+the stub so the app still runs without system-proxy support, and says so on stderr.

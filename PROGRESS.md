@@ -211,3 +211,63 @@ Phase 2 acceptance tests (fake networks that only accept one preset):
 
 Could not verify: nothing new beyond Phase 1's Windows-only limits; the real 35 s and
 120 s timings only matter on Ali's machine, but their logic is test-proven with overrides.
+
+## Phase 3 — Windows adapters
+
+**Status: COMPLETE (all acceptance criteria green).**
+
+Built: `internal/platform/windows` with the platform-neutral logic files
+(`sysproxy_logic.go`, `autostart_logic.go` — no build tag, unit-tested on this Linux
+machine against an in-memory fake registry) and the windows-only glue (`windows.go`,
+`//go:build windows`: real registry via `golang.org/x/sys/windows/registry`, the
+InternetSetOptionW 39/37 refresh via `wininet.dll`, the Platform implementation with
+capabilities tray/startWithOS/systemProxy, crash recovery at construction, autostart
+path rewrite at launch). The platform factory is now build-tagged: real adapter on
+Windows, stub elsewhere. `cmd/pacgen` prints the generated PAC so `scripts/pac-test.mjs`
+can evaluate the real JavaScript.
+
+Behavior implemented (file 01 §8): backup of AutoConfigURL/ProxyEnable/ProxyServer/
+ProxyOverride to `%APPDATA%\Younblock\sysproxy-backup.json` with `weSetIt: true` BEFORE
+any change; AutoConfigURL set to `http://127.0.0.1:<port>/proxy.pac`; restore on Stop,
+on exit, at every app start (crash recovery), and behind `--restore-proxy` and the Help
+button; restore only values we changed and only when they are still ours; a second
+Enable keeps the original backup; autostart value `Younblock` under the Run key set to
+`"...\younblock.exe" --minimized`, removed when off, never duplicated (one named value),
+rewritten when the exe moves; manual mode touches nothing.
+
+### Verification (exact commands and real results)
+
+```
+$ go vet ./...                                  -> exit 0
+$ go test -race ./...                           -> all packages ok (platform/windows 1.0s)
+$ GOOS=windows GOARCH=amd64 go build ./...      -> exit 0 (registry + wininet code compiles)
+$ ./scripts/check-platform-neutral              -> OK
+$ GOOS=linux GOARCH=arm64 go build ./internal/… -> exit 0
+$ node scripts/pac-test.mjs                     -> PAC behavior test: OK (43 checks)
+```
+
+Unit tests against the in-memory fake registry: enable writes the PAC URL, records the
+previous values (old PAC, ProxyEnable=1) and refreshes once; enable with nothing
+pre-existing restores by deleting; double-enable keeps the ORIGINAL backup; restore puts
+back the old value, removes the backup file and refreshes; crash recovery restores a
+leftover setting; a foreign value is left untouched (and logged); restore without backup
+is a no-op; a corrupt backup is ignored safely; autostart command format
+`"C:\...\younblock.exe" --minimized`; enable/disable cycles; no duplicates; rewrite after
+a move; enabled reads back.
+
+PAC behavior (real JS): youtube.com and every subdomain of all seven domains -> PROXY;
+notyoutube.com, youtube.com.evil.example, evilyoutube.com, youtubecom, x-youtube.com,
+example.com, google.com -> DIRECT; case-insensitive; all mode: public hosts PROXY,
+plain names/*.local DIRECT, 127/8, 10/8, 172.16/12, 192.168/16, 169.254/16 DIRECT,
+172.32.0.1 PROXY (just outside the range), 8.8.8.8 PROXY; manual: everything DIRECT.
+
+### Windows-only behaviors that could NOT be run here (honest list)
+
+- The real effect of writing AutoConfigURL + InternetSetOptionW(39/37): whether Chrome
+  on Ali's machine picks up the PAC with no manual setup (file 01 §8's verification).
+- The Run-key autostart actually launching the app at Windows start, and `--minimized`
+  starting hidden in the tray (the flag is parsed by the phase 4 app shell).
+- wininet.dll loading and the syscall return values (compiled and reasoned, not run).
+- The one-shot fallback to a static ProxyServer for `all` mode is NOT implemented: the
+  spec makes it conditional on PAC not being honored on the test machine, which only
+  Ali's manual Windows check can show (DECISIONS.md D30).

@@ -57,11 +57,11 @@ Scope: sysproxy, PAC, autostart. P1 items R16 and the Run-key half of R18.
 
 Acceptance criteria (copied from file 01 §11):
 
-- [ ] PAC tests (YouTube hosts match including subdomains and not look-alikes such as `notyoutube.com`; everything else `DIRECT`)
-- [ ] Registry code compiles for Windows
-- [ ] Backup and restore logic is unit-tested against an in-memory fake
-- [ ] Autostart path-rewrite logic tested
-- [ ] State clearly which Windows-only behaviors could not be run here
+- [x] PAC tests (YouTube hosts match including subdomains and not look-alikes such as `notyoutube.com`; everything else `DIRECT`)
+- [x] Registry code compiles for Windows
+- [x] Backup and restore logic is unit-tested against an in-memory fake
+- [x] Autostart path-rewrite logic tested
+- [x] State clearly which Windows-only behaviors could not be run here (see PROGRESS.md Phase 3)
 
 ## Phase 4 — Wails app, tray, first run
 
