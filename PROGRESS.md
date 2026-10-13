@@ -348,3 +348,77 @@ Windows-runtime behaviors that could not be verified on this sandbox (below).
 - The screenshots were taken from the production bundle served by `vite preview`,
   driven through an automated browser; the app had to be mounted with Svelte 5's
   `mount()` API (the legacy `new App()` instantiation broke $effect).
+
+## Phase 5 — Remaining P1 items, build script, README, final deliverables
+
+**Status: COMPLETE.**
+
+Built: the R21 automated privacy scan (engine tests that run a real session, generate
+the diagnostic report and log files, and scan every sample for visited-site hostnames
+and non-loopback IPs — nothing is found with the default settings; the opt-in
+"logDomains" setting round-trips), `build.bat` (builds both executables with
+`-trimpath -ldflags "-s -w"`, prints the exact output paths and SHA-256 checksums),
+and `README.md` in plain English (what the app is and is not, tool installation,
+build, run, uninstall, the built-in test, privacy, and Ali's 7-step manual Windows
+check from file 01 section 11).
+
+### Final deliverables and their verification
+
+```
+dist/younblock-core.exe   6.98 MB (7,315,719 bytes)   target <= 12 MB  PASS
+dist/younblock.exe       12.13 MB (12,720,128 bytes)  target <= 20 MB  PASS
+SHA-256  core: 4ebcd15580509afd3a8ce0d8ada6f5359df724a43784d95c7072f355ba070d2f
+SHA-256  app : fb61818fd4dc659d82e4267083b45c15af91d228957f565603ff068cbac908ec
+launch-to-listening      12 ms                          target <= 300 ms PASS
+```
+
+Both were built with `-trimpath -ldflags "-s -w"`, no UPX. The complete final
+verification run (all green): `go vet ./...`; `go test -race ./...` (all packages,
+including the new privacy tests); `GOOS=windows GOARCH=amd64 go build ./...`;
+`scripts/check-platform-neutral`; the `GOOS=linux GOARCH=arm64` neutral-package build;
+`node scripts/pac-test.mjs` (43 checks); `scripts/soak.sh` (5,000 tunnels, baseline
+goroutines/fds, flat heap); a 30 s fuzz spot-check (the full 60 s run was done in
+Phase 1 with 482,339 executions); the live `--selftest` against real RethinkDNS and
+YouTube (all four steps OK).
+
+### The complete P0 review (file 03, section 1) — all done
+
+| # | Item | Status and the check that ran |
+|---|---|---|
+| R1 | Loopback only | Done — `ListenHost = 127.0.0.1` asserted in config tests; no other bind exists. |
+| R2 | Sockets closed on every path | Done — one `tunnelCloser` per tunnel; soak test: 5,000 tunnels, goroutines 4→4, fds 11→11. |
+| R3 | No hidden errors | Done — typed codes (PORT_BUSY, DNS_* …) with tests per code; empty error handling appears nowhere. |
+| R4 | Every DNS address tried | Done — `TestDialHostTriesEveryAddressInOrder`. |
+| R5 | TTL cache, DoH direct | Done — cache tests (clamp, stale, negative) and DoH transport has `Proxy: nil` with bootstrap dialing. |
+| R6 | Idle 300 s / dial 5 s | Done — `TestIdleTimeoutClosesSilentTunnel`, dialer timeout tests. |
+| R7 | No per-IP maps | Done — atomic counters only; soak heap flat. |
+| R8 | Connection cap 1024 | Done — `TestConnectionCapReturns503` (reduced cap, same code path) + default asserted. |
+| R9 | Fewer/larger default pieces | Done — balanced default; piece-count table tests; measured sleep logged and in the report. |
+| R10 | TCP_NODELAY never disabled | Done — `SetNoDelay(false)` appears nowhere (verified by search); Go default kept. |
+| R11 | Real HTTP parsing + fuzz | Done — http.ReadRequest + net.SplitHostPort; fuzz 482,339 execs, no panic. |
+
+### The complete P1 review (file 03, section 2) — all done
+
+| # | Item | Status and the check that ran |
+|---|---|---|
+| R12 | Built-in self-test | Done — 4 steps with hints; `--selftest` CLI; health tests + live run (all OK). |
+| R13 | Self-healing that announces | Done — fake-network tests assert the METHOD_SWITCHED notice, the 35 s cap and the cooldown; every change is also logged and notified. |
+| R14 | Watchdog and "Check needed" | Done — `TestWatchdogHealsAndRecovers` covers on→degraded→on with notifications. |
+| R15 | Several secure-DNS providers | Done — RethinkDNS/Cloudflare/Google with sticky fallback (`TestResolverFallbackAfterFirstServerFails`). |
+| R16 | Windows proxy safety | Done — PAC with DIRECT fallback, backup-before-change, restore-only-ours, crash recovery (all unit-tested with the fake registry); kill-while-on remains Ali's manual test. |
+| R17 | Lifecycle hygiene | Done — single-instance lock (Wails), port busy auto-pick, Stop ≤ 3 s with open tunnels, recover() per connection (soak panics = 0). |
+| R18 | Tray and autostart safety | Done — close→tray with the one-time notice, Quit stops+restores, Run-key dedupe/rewrite logic tested; `--minimized` starts hidden; the restart test is Ali's. |
+| R19 | Network changes and sleep | Done — interface polling resets DNS and re-checks (`TestNetworkChangeResetsDNSAndRechecks`). |
+| R20 | Settings file robustness | Done — truncated/corrupt/wrong-type/future-version tests with atomic writes. |
+| R21 | Privacy by default | Done — strict CSP (no inline script, no eval), local-only network panel check, ring cleared on Stop, automated report/log hostname+IP scan (new test). |
+| R22 | Android-ready core | Done — `scripts/check-platform-neutral` + the arm64 build ran green in every phase. |
+
+### Honest limits (what only Ali can verify)
+
+- Whether YouTube actually loads on the filtered network (the whole point) — the
+  self-test and repair machinery is proven; the filtering behavior is not.
+- Tray icon and toast rendering beside the Wails window; the 360 x 560 window chrome;
+  the single-instance lock with a real second launch; Chrome honoring the PAC;
+  autostart after a real restart; kill-while-on leaving the internet working. All are
+  compiled, wired per the documented APIs and logic-tested with fakes, but they need a
+  real Windows session — that is exactly Ali's 7-step manual check in the README.

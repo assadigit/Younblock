@@ -11,11 +11,11 @@ each phase ends with a commit, a `phase-N` tag, and a push to `main`.
 
 ## Global checks (every phase, all must pass)
 
-- [ ] `go vet ./...`
-- [ ] `go test -race ./...`
-- [ ] `GOOS=windows GOARCH=amd64 go build ./...`
-- [ ] `scripts/check-platform-neutral` (forbidden-import scan for the neutral packages)
-- [ ] `GOOS=linux GOARCH=arm64 go build ./internal/engine/... ./internal/config/... ./internal/netx/... ./internal/fragment/... ./internal/doh/... ./internal/proxy/... ./internal/health/... ./internal/stats/... ./internal/logx/...`
+- [x] `go vet ./...` (green in phases 1-5)
+- [x] `go test -race ./...` (green in phases 1-5)
+- [x] `GOOS=windows GOARCH=amd64 go build ./...` (green in phases 1-5)
+- [x] `scripts/check-platform-neutral` (green in phases 1-5)
+- [x] `GOOS=linux GOARCH=arm64 go build ./internal/…` (green in phases 1-5)
 
 ## Phase 1 — Headless engine (`cmd/core`)
 
@@ -87,12 +87,12 @@ Acceptance criteria (file 01 §11 plus file 02 §10):
 
 Scope: every P1 item not finished in an earlier phase, plus final deliverables.
 
-- [ ] R19 — network change and sleep: poll interface addresses every 5 s while On; on change flush the DNS cache, reset the DoH client, run the watchdog check immediately (unit test with a fake interface list)
-- [ ] R21 — privacy: automated scan of report and log samples for hostnames and IPs; strict CSP (`default-src 'self'`, no inline script, no `eval`) in the shipped frontend; ring cleared on Stop
-- [ ] Final P1 review: every item R12–R22 listed as done or not done with the check that ran
-- [ ] `build.bat` builds `younblock-core.exe` and the Wails app and prints the exact output paths
-- [ ] `README.md` in plain English: what the app is, how to install the tools, how to build, how to run, how to uninstall, and Ali's manual Windows check (numbered steps from file 01 §11)
-- [ ] Size and speed targets: `younblock-core.exe` ≤ 12 MB and Wails app ≤ 20 MB built with `-trimpath -ldflags "-s -w"` (no UPX); proxy listening within 300 ms of launch
+- [x] R19 — network change and sleep: poll interface addresses every 5 s while On; on change flush the DNS cache, reset the DoH client, run the watchdog check immediately (unit test with a fake interface list) — landed in Phase 2
+- [x] R21 — privacy: automated scan of report and log samples for hostnames and IPs; strict CSP (`default-src 'self'`, no inline script, no `eval`) in the shipped frontend; ring cleared on Stop
+- [x] Final P1 review: every item R12–R22 (and R1–R11) listed as done with the check that ran (PROGRESS.md Phase 5 tables)
+- [x] `build.bat` builds `younblock-core.exe` and the Wails app and prints the exact output paths (+ SHA-256)
+- [x] `README.md` in plain English: what the app is, how to install the tools, how to build, how to run, how to uninstall, and Ali's manual Windows check (numbered steps from file 01 §11)
+- [x] Size and speed targets: `younblock-core.exe` 6.98 MB (≤ 12 MB) and Wails app 12.13 MB (≤ 20 MB) built with `-trimpath -ldflags "-s -w"` (no UPX); proxy listening within 12 ms of launch (≤ 300 ms)
 
 ## Out of scope for this run
 
