@@ -243,3 +243,57 @@ byte-count identical to the old log entry). It would not have run on Windows. Th
 release build uses the explicit `GOOS=windows GOARCH=amd64` and `file` confirms
 PE32+; the correct numbers are recorded in the v0.1.0 PROGRESS entry. Logged openly
 here rather than quietly replacing the old entry: the log is append-only.
+
+**D39 — Phase 6 scope: post-spec features requested by Ali after v0.1.0.**
+Ali tested v0.1.0 on real Windows ("the backend and frontend both works") and
+asked for five additions. The specs (files 01–03) are complete and frozen, so
+these are recorded as user-requested extensions, each with its own decision
+below, all default-off or additive so the spec'd default behavior is unchanged.
+
+**D40 — The optional dedicated Chrome session (request #2).**
+File 01 §8 deliberately replaced the old app's "launch a dedicated Chrome with
+--proxy-server" approach with the system PAC setting. Ali asked for the old
+behavior as an option. Implementation: a new `openBrowserOnConnect` setting
+(default off, so the spec behavior stays the default); the pure command-line
+and lookup logic lives in the neutral `internal/browser` package (tested with
+injected fakes); the actual spawn lives in the shell (`browser_windows.go`,
+registry + standard-path lookup) with a no-op counterpart for development
+builds, following the D12 pattern. The flags replicate `legacy/frontend.py`
+exactly (user-data-dir under `%LOCALAPPDATA%\Younblock\chrome-profile`,
+`--proxy-server=127.0.0.1:<port>`, `--proxy-bypass-list=<-loopback>`,
+`--no-first-run`, `--disable-gpu`, `--disable-software-rasterizer`,
+youtube.com as the start URL). Because that Chrome is hard-wired to our port,
+turning the app off ends the session (the legacy app did the same); the shell
+announces every launch/close/failure in the log, the UI notice toasts and a
+`browser:*` event (R13). Chrome-not-found is announced, never fatal.
+
+**D41 — The "ping" is a full-chain response time (request #4).**
+ICMP ping needs raw sockets and is meaningless for HTTPS through a relay.
+The honest number Ali can act on is the round-trip of the app's own YouTube
+check (secure lookup + connect + request) — the same measurement the
+connection test already reports per step. Every successful health check
+(start quick-check, watchdog tick, network-change re-check, full test)
+records it; it appears in the state JSON as `latencyMs`, under the timer as
+"NN ms · … used", and in the diagnostic report as "response time". It resets
+on Stop (a live metric, not history).
+
+**D42 — The background texture (request #3).**
+File 02 section 2 specifies the flat `--neutral-950` background. Ali asked
+for texture. The change is two soft radial brand glows (red top, green
+bottom, ~5% alpha) plus a fine fractal-noise SVG grain at 4.5% opacity,
+entirely inline (a data-URI, no fetches — the CSP already allows `img-src
+data:`; R21's "frontend loads nothing remote" still holds). Kept subtle so
+the file 02 layout, contrast and copy are unchanged; all 17 screenshots were
+re-taken and vision-checked.
+
+**D43 — "Route all browsers through this DNS" maps to the existing mode (request #1).**
+The app already had the "All websites" mode (PAC: every public host through
+the proxy, which resolves via the secure DoH) — it was just buried in
+Advanced. Rather than a new mechanism (changing the system's DNS servers
+would need admin rights and a local DNS server — a much bigger, riskier
+subsystem the specs never ask for), the setting is surfaced as a top-level
+switch in Settings that toggles mode `all`/`youtube`. The Advanced radio
+group stays in sync and remains the way to pick Manual. Noted in the README.
+Ali's `icon.ico` upload moved to `assets/icon.ico` (D1 layout) and is
+installed as `build/windows/icon.ico` + `build/appicon.png`; the tray keeps
+its state icons per file 01 §9.

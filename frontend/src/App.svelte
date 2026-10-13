@@ -82,6 +82,12 @@
         backend.hideWindow();
       }
     });
+    // R13: the shell announces every automatic Chrome-session action.
+    backend.onBrowserEvent((kind) => {
+      if (kind === "opened") toast(copy.toast.browserOpened);
+      else if (kind === "closed") toast(copy.toast.browserClosed);
+      else toast(copy.toast.browserFailed);
+    });
     settings = backend.settings;
     state = backend.state;
     version = backend.appInfo.version;

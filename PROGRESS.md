@@ -468,3 +468,68 @@ GOOS is windows by default). The app exe was and is correct.
   SHA-256 numbers, and the honest what-is-only-provable-on-real-Windows list.
 - The repository stays source-only: `dist/` and `build/bin/` are git-ignored, so the
   release page is the single source of truth for binaries and checksums.
+
+## Phase 6 — Ali's five post-test requests (v1.1.0)
+
+**Status: COMPLETE (all five features built, tested, screenshotted).**
+
+Ali ran v0.1.0 on real Windows: "the backend and frontend both works." He then
+asked for five additions; all five shipped, default-off or additive.
+
+1. **Route-all switch** — the existing "All websites" mode surfaced as a
+   top-level Settings switch (DECISIONS.md D43).
+2. **Dedicated Chrome session** — new `openBrowserOnConnect` setting
+   (default off); neutral `internal/browser` package with the exact legacy
+   command line; Windows shell launcher with registry + standard-path lookup;
+   session ends on off/error/quit; every action logged, toasted and emitted
+   as a `browser:*` event (D40).
+3. **Background texture** — two soft brand glows + a 4.5%-opacity SVG noise
+   grain, all inline, no network (D42).
+4. **Response time ("ping")** — every successful health check records the
+   YouTube round-trip; shown as `latencyMs` in the state, "NN ms · … used"
+   under the timer, and "response time:" in the diagnostic report; resets on
+   Stop (D41).
+5. **Ali's icon.ico** — moved to `assets/icon.ico`, installed as
+   `build/windows/icon.ico` (exe/window icon) and `build/appicon.png`;
+   tray keeps its state icons per file 01 §9.
+
+### Verification (exact commands and real results)
+
+```
+$ go vet ./...                                    -> exit 0
+$ go test -race ./...                             -> all packages ok, including
+                                                     the new internal/browser
+                                                     tests (legacy command-line
+                                                     parity, candidate paths,
+                                                     lookup order) and the new
+                                                     latency lifecycle test
+                                                     (present after start/test,
+                                                     absent before/after stop,
+                                                     report line present)
+$ GOOS=windows GOARCH=amd64 go build ./...        -> exit 0 (includes
+                                                     browser_windows.go)
+$ ./scripts/check-platform-neutral                -> OK
+$ GOOS=linux GOARCH=arm64 go build ./internal/... -> exit 0 (internal/browser
+                                                     is neutral like the rest)
+$ npm run build                                   -> 87.1 KB JS + 24.2 KB CSS
+                                                     (target <= 250 KB excl. fonts)
+```
+
+Screenshots: all 19 re-taken at 360x560 (plus 320x568 and 480x900) from the
+production bundle; DOM checks confirmed the "84 ms · 12.7 MB used" quiet line
+and both new Settings rows; a vision model confirmed the textured background,
+the ping line, the styled toggles and the absence of glitches on the key
+screens.
+
+New settings field round-trips through settings.json (`openBrowserOnConnect`
+in TestSaveLoadRoundTrip); old v0.1.0 settings files simply default it to off.
+
+### Could not verify in Phase 6 (honest list)
+
+- The dedicated Chrome window actually appearing on Windows (compiled and
+  logic-tested; the spawn path runs only on a real Windows session).
+- Chrome lookup via the App Paths registry key on a real machine.
+- The exe icon showing in the Windows taskbar/exe properties (the .ico is
+  installed in the Wails build assets; rendering is Windows-side).
+- The toast for "Chrome opened in a separate session" rendering beside the
+  tray (same Windows-only surface as the Phase 4 toasts).

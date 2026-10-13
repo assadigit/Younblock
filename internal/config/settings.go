@@ -33,16 +33,19 @@ type Advanced struct {
 
 // Settings is everything persisted in settings.json (file 01, section 4).
 type Settings struct {
-	Version          int      `json:"version"`
-	Mode             Mode     `json:"mode"`
-	Method           Method   `json:"method"`
-	Port             int      `json:"port"`
-	AutoPort         bool     `json:"autoPort"`
-	StartWithWindows bool     `json:"startWithWindows"`
-	ConnectOnLaunch  bool     `json:"connectOnLaunch"`
-	FirstRunDone     bool     `json:"firstRunDone"`
-	CloseNoticeShown bool     `json:"closeNoticeShown"`
-	Advanced         Advanced `json:"advanced"`
+	Version          int    `json:"version"`
+	Mode             Mode   `json:"mode"`
+	Method           Method `json:"method"`
+	Port             int    `json:"port"`
+	AutoPort         bool   `json:"autoPort"`
+	StartWithWindows bool   `json:"startWithWindows"`
+	ConnectOnLaunch  bool   `json:"connectOnLaunch"`
+	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
+	// profile, proxy flags) when the engine turns on. Default off.
+	OpenBrowserOnConnect bool     `json:"openBrowserOnConnect"`
+	FirstRunDone         bool     `json:"firstRunDone"`
+	CloseNoticeShown     bool     `json:"closeNoticeShown"`
+	Advanced             Advanced `json:"advanced"`
 }
 
 // DefaultSettings returns the built-in settings.

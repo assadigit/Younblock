@@ -22,6 +22,7 @@ type App struct {
 	ctx      context.Context
 	eng      *engine.Engine
 	platform engine.Platform
+	browser  browserSession
 	quitting bool
 }
 
@@ -63,6 +64,7 @@ func (a *App) domReady(ctx context.Context) {
 
 // shutdown stops the engine (Quit always stops and restores first).
 func (a *App) shutdown(ctx context.Context) {
+	a.stopBrowserSession() // end the dedicated Chrome session before the engine
 	a.stopTray()
 	a.eng.Shutdown()
 }
@@ -97,10 +99,62 @@ func (a *App) hideWindow() {
 // tray icon).
 func (a *App) OnEvent(name string, json string) {
 	a.trayOnEvent(name, json)
+	if name == "state" {
+		a.onStateEvent(json)
+	}
 	if a.ctx == nil {
 		return
 	}
 	runtime.EventsEmit(a.ctx, name, json)
+}
+
+// onStateEvent reacts to phase changes for shell-level behavior that must
+// stay out of the neutral engine: the optional dedicated Chrome session
+// (user-requested; DECISIONS.md D40). "on" launches it when the setting is
+// set; "off" and "error" end it (that Chrome is hard-wired to our proxy,
+// which just stopped).
+func (a *App) onStateEvent(payload string) {
+	var st struct {
+		Phase string `json:"phase"`
+		Port  int    `json:"port"`
+	}
+	if err := jsonUnmarshalStrict(payload, &st); err != nil {
+		return
+	}
+	switch st.Phase {
+	case "on":
+		var s struct {
+			OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
+		}
+		if err := jsonUnmarshalStrict(a.eng.GetSettingsJSON(), &s); err == nil && s.OpenBrowserOnConnect {
+			port := st.Port
+			go a.launchBrowserSession(port)
+		}
+	case "off", "error":
+		go a.stopBrowserSession()
+	}
+}
+
+// emitBrowserEvent tells the UI what happened to the dedicated Chrome
+// session (R13: nothing changes silently).
+func (a *App) emitBrowserEvent(name, arg string) {
+	if a.ctx == nil {
+		return
+	}
+	payload := `""`
+	if arg != "" {
+		payload = marshalString(arg)
+	}
+	runtime.EventsEmit(a.ctx, name, payload)
+}
+
+// marshalString renders s as a JSON string.
+func marshalString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return `""`
+	}
+	return string(b)
 }
 
 // ---- The JSON API surface (mirrors engine/jsonapi.go exactly) ----

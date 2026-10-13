@@ -35,7 +35,14 @@ body {
 }
 
 body {
-  background: var(--color-bg);
+  /* Textured background (user-requested; DECISIONS.md D42): the flat
+     --neutral-950 base with two soft brand glows and a fine noise grain.
+     Everything is inline CSS/SVG-data — nothing is fetched. */
+  background:
+    radial-gradient(120% 55% at 50% -12%, rgba(206, 32, 31, 0.055), transparent 62%),
+    radial-gradient(130% 60% at 50% 112%, rgba(52, 199, 123, 0.045), transparent 58%),
+    var(--color-bg);
+  background-attachment: fixed;
   color: var(--color-text);
   font-family: var(--font);
   font-size: var(--text-sm);
@@ -43,6 +50,19 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow: hidden;
+}
+
+/* The grain: a tiled 160 px fractal-noise SVG at very low opacity, over
+   the content but under the dialogs (they sit at z-index 100). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
 }
 
 #app {

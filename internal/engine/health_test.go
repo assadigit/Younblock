@@ -649,3 +649,69 @@ func TestRunConnectionTestEmitsProgress(t *testing.T) {
 		t.Errorf("diagnostic report missing the self-test summary")
 	}
 }
+
+func TestLatencyInStateAfterTestAndGoneAfterStop(t *testing.T) {
+	env := newLocalNet(t)
+	dir := t.TempDir()
+	plat := stub.NewWithDir(dir)
+	settings := config.DefaultSettings()
+	settings.Advanced.DoHServers = []config.DoHServer{{
+		Name: "FakeDoH", URL: env.dohURL + "/dns-query?dns={dns}", Bootstrap: []string{"127.0.0.1"},
+	}}
+	if err := config.Save(dir, settings); err != nil {
+		t.Fatal(err)
+	}
+	// No fake Checker here on purpose: the production health checker must
+	// run so the latency capture path is the real one.
+	eng, err := engine.New(engine.Options{
+		Platform:            plat,
+		LogDir:              dir + "/logs",
+		AllowPrivateTargets: true,
+		ResolverTLS:         &tls.Config{RootCAs: env.pool},
+		HealthOverrides: func(hc *health.Config) {
+			hc.PrimaryURL = env.primaryURL
+			hc.FallbackURL = env.fallback
+			hc.VideoHost = env.videoHost
+			hc.WebTLS = &tls.Config{RootCAs: env.pool}
+			hc.VideoTLS = &tls.Config{RootCAs: env.pool}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(eng.Shutdown)
+
+	// Before anything ran there is no latency value.
+	if st := eng.GetState(); st.LatencyMs != nil {
+		t.Fatalf("latency present before any check: %d", *st.LatencyMs)
+	}
+
+	if err := eng.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, eng, 5*time.Second, phaseOn)
+
+	// The quick check during Start already measured a round-trip.
+	if st := eng.GetState(); st.LatencyMs == nil || *st.LatencyMs <= 0 {
+		t.Fatalf("latency missing after start: %+v", st)
+	}
+
+	// Running the full test refreshes it and the report carries it.
+	_ = eng.RunConnectionTestJSON()
+	st := eng.GetState()
+	if st.LatencyMs == nil || *st.LatencyMs <= 0 {
+		t.Fatalf("latency missing after the connection test: %+v", st)
+	}
+	if rep := eng.GetDiagnosticReport(); !strings.Contains(rep, "response time: ") {
+		t.Errorf("diagnostic report missing the response-time line:\n%s", rep)
+	}
+
+	// After Stop the live metric is gone again.
+	if err := eng.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, eng, 5*time.Second, phaseOff)
+	if st := eng.GetState(); st.LatencyMs != nil {
+		t.Fatalf("latency present after stop: %d", *st.LatencyMs)
+	}
+}

@@ -12,7 +12,7 @@ import "time"
 const AppName = "Younblock"
 
 // AppVersion — shown in the UI and reported by --version.
-const AppVersion = "1.0.0"
+const AppVersion = "1.1.0"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"
@@ -81,6 +81,12 @@ const StartWithWindows = false
 
 // ConnectOnLaunch — turn on automatically when the app opens (default off).
 const ConnectOnLaunch = false
+
+// OpenBrowserOnConnect — open a dedicated Chrome window (its own session,
+// pointed at this app's proxy) when the app turns on. This is the old Python
+// app's behavior; the new default is off because the spec's approach sets
+// the system proxy instead (user-requested option; DECISIONS.md D40).
+const OpenBrowserOnConnect = false
 
 // SelfTestURL — what the built-in test fetches through the proxy (expects 204).
 const SelfTestURL = "https://www.youtube.com/generate_204"

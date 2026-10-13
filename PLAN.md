@@ -94,6 +94,20 @@ Scope: every P1 item not finished in an earlier phase, plus final deliverables.
 - [x] `README.md` in plain English: what the app is, how to install the tools, how to build, how to run, how to uninstall, and Ali's manual Windows check (numbered steps from file 01 §11)
 - [x] Size and speed targets: `younblock-core.exe` 6.98 MB (≤ 12 MB) and Wails app 12.13 MB (≤ 20 MB) built with `-trimpath -ldflags "-s -w"` (no UPX); proxy listening within 12 ms of launch (≤ 300 ms)
 
+## Phase 6 — Ali's five post-test requests (v1.1.0, after the real-Windows test)
+
+Scope: five user-requested additions on top of the completed spec work. All default-off or additive; the spec'd behavior stays the default.
+
+- [x] Route-all switch in Settings mapping the existing "All websites" mode (D43)
+- [x] `openBrowserOnConnect` setting + neutral internal/browser package with the exact legacy Chrome command line (D40)
+- [x] Windows shell launcher (registry + standard paths), session ended on off/error/quit, every action logged + toasted + emitted as browser:* events (R13) (D40)
+- [x] Response-time metric: recorded by every successful health check, in state JSON (`latencyMs`), under the timer, in the diagnostic report; resets on Stop (D41)
+- [x] Background texture: two soft brand glows + inline SVG noise grain, no network fetches (D42)
+- [x] Ali's icon.ico at assets/icon.ico, installed as build/windows/icon.ico + build/appicon.png; tray keeps state icons (D43)
+- [x] Gates re-run green: go vet, go test -race (incl. new browser + latency tests), GOOS=windows build, platform-neutral check, arm64 neutral build, npm run build (87 KB JS)
+- [x] All 19 screenshots re-taken; DOM + vision checks of the new UI
+- [x] README updated (What's new in 1.1.0; notes on the two new switches)
+
 ## Out of scope for this run
 
 - File 04 (Android). Obey only the Android-ready rules (file 01 §3) so the later run stays cheap.

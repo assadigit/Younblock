@@ -50,7 +50,8 @@
     "quit": "Quit Younblock"
   },
   "stats": {
-    "used": "{n} used"
+    "used": "{n} used",
+    "ping": "{n} ms"
   },
   "firstRun": {
     "title": "Welcome",
@@ -64,6 +65,10 @@
     "title": "Settings",
     "startWithWindows": "Open Younblock when Windows starts",
     "connectOnLaunch": "Turn on automatically when the app opens",
+    "routeAll": "Send all browser traffic through Younblock",
+    "routeAllHint": "Every website, not just YouTube, goes through the app and its secure DNS. Off means YouTube only.",
+    "openBrowserOnConnect": "Open a separate Chrome when it turns on",
+    "openBrowserOnConnectHint": "A dedicated Chrome window with its own session, routed through the app. It closes when you turn the app off.",
     "advanced": "Advanced",
     "advancedHint": "For troubleshooting",
     "mode": "Unblock mode",
@@ -167,7 +172,10 @@
   },
   "toast": {
     "copied": "Copied",
-    "restored": "Internet settings restored"
+    "restored": "Internet settings restored",
+    "browserOpened": "Chrome opened in a separate session",
+    "browserClosed": "Chrome session closed",
+    "browserFailed": "Chrome could not be opened"
   },
   "a11y": {
     "powerButton": "Unblock YouTube",

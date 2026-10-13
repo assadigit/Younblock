@@ -52,8 +52,13 @@ type State struct {
 	Port   int           `json:"port"`
 	Mode   config.Mode   `json:"mode"`
 	Method config.Method `json:"method"`
-	Notice *Notice       `json:"notice,omitempty"`
-	Error  *StateError   `json:"error,omitempty"`
+	// LatencyMs is the last measured YouTube round-trip through the whole
+	// chain (secure lookup + connect + request), refreshed by every health
+	// check while on (user-requested "ping"; DECISIONS.md D41). Nil when no
+	// measurement exists (off, or nothing succeeded yet).
+	LatencyMs *int64      `json:"latencyMs,omitempty"`
+	Notice    *Notice     `json:"notice,omitempty"`
+	Error     *StateError `json:"error,omitempty"`
 }
 
 // EventSink receives events for the UI (one JSON contract, file 01 §3 rule 4).
@@ -133,6 +138,7 @@ type Engine struct {
 	lastNotifyAt   time.Time
 	episodeStart   time.Time
 	lastSteps      []health.Step
+	latencyMs      int64
 
 	events EventSink
 	onQuit func()
@@ -368,6 +374,7 @@ func (e *Engine) cancelStart() {
 		e.logger.Warn("detach after cancel failed", "reason", errKind(err))
 	}
 	e.mu.Lock()
+	e.latencyMs = 0
 	e.setPhaseLocked(PhaseOff, "")
 	e.mu.Unlock()
 	e.emitState()
@@ -399,6 +406,7 @@ func (e *Engine) Stop() error {
 	// R21: the in-memory ring is cleared on Stop.
 	e.logger.Ring.Clear()
 	e.mu.Lock()
+	e.latencyMs = 0 // a live metric; it stops with the proxy
 	e.setPhaseLocked(PhaseOff, "")
 	e.mu.Unlock()
 	e.emitState()
@@ -496,6 +504,16 @@ func (e *Engine) noticeVisibleLocked() *Notice {
 	return &n
 }
 
+// setLatency records the last successful YouTube check duration (ms).
+func (e *Engine) setLatency(ms int64) {
+	if ms <= 0 {
+		return
+	}
+	e.mu.Lock()
+	e.latencyMs = ms
+	e.mu.Unlock()
+}
+
 // GetState returns the current state.
 func (e *Engine) GetState() State {
 	e.mu.Lock()
@@ -510,6 +528,10 @@ func (e *Engine) GetState() State {
 		Port:   port,
 		Mode:   mode,
 		Method: method,
+	}
+	if (e.phase == PhaseOn || e.phase == PhaseDegraded) && e.latencyMs > 0 {
+		ms := e.latencyMs
+		st.LatencyMs = &ms
 	}
 	if n := e.noticeVisibleLocked(); n != nil {
 		st.Notice = n

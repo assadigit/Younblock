@@ -58,6 +58,7 @@
       method: "auto",
       port: 4525,
       autoPort: true,
+      openBrowserOnConnect: false,
       advanced: {
         ...local.advanced,
         pieceSizeMin: 0,
@@ -103,6 +104,40 @@
           type="checkbox"
           checked={local.connectOnLaunch}
           onchange={(e) => save({ connectOnLaunch: e.currentTarget.checked })}
+        />
+        <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+      </label>
+    </div>
+
+    <div class="row">
+      <div class="row-text">
+        <p class="row-title">{copy.settings.routeAll}</p>
+        <p class="row-hint">{copy.settings.routeAllHint}</p>
+      </div>
+      <label class="switch">
+        <!-- Maps the existing mode: on = "all", off = "youtube" (or manual,
+             which stays set in Advanced below). -->
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label={copy.settings.routeAll}
+          checked={local.mode === "all"}
+          onchange={(e) => save({ mode: e.currentTarget.checked ? "all" : "youtube" })}
+        />
+        <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+      </label>
+    </div>
+
+    <div class="row">
+      <div class="row-text">
+        <p class="row-title">{copy.settings.openBrowserOnConnect}</p>
+        <p class="row-hint">{copy.settings.openBrowserOnConnectHint}</p>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          checked={local.openBrowserOnConnect}
+          onchange={(e) => save({ openBrowserOnConnect: e.currentTarget.checked })}
         />
         <span class="track" aria-hidden="true"><span class="thumb"></span></span>
       </label>

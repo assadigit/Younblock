@@ -68,7 +68,7 @@ export class MockBackend implements Backend {
     };
     this.info = {
       name: "Younblock",
-      version: "1.0.0",
+      version: "1.1.0",
       platform: "windows",
       capabilities: { tray: true, startWithOS: true, systemProxy: true, perAppRouting: false },
       configPath: "C:\\Users\\Ali\\AppData\\Roaming\\Younblock\\settings.json",
@@ -119,11 +119,11 @@ export class MockBackend implements Backend {
     switch (mode) {
       case "on":
       case "notice":
-        return { ...base, phase: "on" };
+        return { ...base, phase: "on", latencyMs: 84 };
       case "stopping":
         return { ...base, phase: "stopping" };
       case "degraded":
-        return { ...base, phase: "degraded", error: { code: "SELFTEST_FAILED" } };
+        return { ...base, phase: "degraded", latencyMs: 84, error: { code: "SELFTEST_FAILED" } };
       case "error":
         return { ...base, phase: "error", error: { code: "PORT_BUSY" } };
       case "connecting":
@@ -286,6 +286,11 @@ export class MockBackend implements Backend {
     return () => this.closeListeners.delete(cb);
   }
 
+  onBrowserEvent(_cb: (kind: "opened" | "closed" | "failed") => void): () => void {
+    // The mock shell never launches a browser.
+    return () => {};
+  }
+
   hideWindow(): void {
     // In a browser there is nothing to hide.
   }
@@ -300,6 +305,7 @@ function defaultSettings(): Settings {
     autoPort: true,
     startWithWindows: false,
     connectOnLaunch: false,
+    openBrowserOnConnect: false,
     firstRunDone: true,
     closeNoticeShown: false,
     advanced: {

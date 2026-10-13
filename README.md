@@ -15,6 +15,24 @@ It is made for Google Chrome and follows the normal Windows proxy setting, so Ch
 needs no extra setup. It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.1.0** (asked for after the first real-Windows test):
+
+- **Settings now has two new switches near the top.** "Send all browser traffic
+  through Younblock" routes every website — not just YouTube — through the app and
+  its secure DNS (this was already possible under Advanced; it is now one switch
+  away). "Open a separate Chrome when it turns on" gives you the old app's
+  behavior: a dedicated Chrome window with its own session, routed through
+  Younblock, that closes again when you turn the app off.
+- **A response-time number** ("84 ms · …") appears under the timer while the app
+  is on. It is the real round-trip time of the app's own YouTube check — the same
+  measurement the connection test uses — refreshed automatically while the app
+  runs. It is a response time, not a network ping.
+- **A textured background** — soft brand-colored glows and a fine grain instead
+  of a flat dark panel.
+- **The app icon is now the icon file you provided** (the exe, the window and the
+  taskbar use it; the tray keeps its separate on/off/attention icons so it can
+  show the state at a glance).
+
 ---
 
 ## Download the ready-made app (no building needed)
@@ -108,6 +126,18 @@ Double-click `dist\younblock.exe` (or make a shortcut to it).
 The technical settings live behind the collapsed **Advanced** section in Settings:
 which sites go through the app (YouTube only, everything, or manual), the connection
 method, the port, and the secure-DNS providers.
+
+Notes on the two new switches:
+
+- "Send all browser traffic" and the Advanced "Unblock mode" are the same setting:
+  the switch is on when the mode is "All websites". Every browser that follows the
+  Windows proxy setting (Chrome, Edge, …) then sends everything except local
+  addresses through Younblock.
+- The separate Chrome window uses its own profile folder
+  (`%LOCALAPPDATA%\Younblock\chrome-profile`), so your normal Chrome — its tabs,
+  logins and history — is never touched. That window is hard-wired to Younblock's
+  port, so when you turn Younblock off, the window closes with it (the app says so
+  with a small note). If Chrome is not found, the app says that too and carries on.
 
 ## The built-in test and the headless engine
 

@@ -51,6 +51,7 @@ func (c *healthChecker) QuickCheck(ctx context.Context, method config.Method) bo
 			return false
 		}
 	}
+	c.eng.recordLatency(steps) // the "ping" display (DECISIONS.md D41)
 	return true
 }
 
@@ -62,7 +63,19 @@ func (c *healthChecker) HealCheck(ctx context.Context, method config.Method) boo
 			return false
 		}
 	}
+	c.eng.recordLatency(steps)
 	return true
+}
+
+// recordLatency stores the duration of a successful "youtube" step as the
+// live response-time metric. It looks at the last successful youtube step
+// so both the watchdog's light check and the full self-test feed it.
+func (e *Engine) recordLatency(steps []health.Step) {
+	for _, s := range steps {
+		if s.ID == "youtube" && s.OK && s.MS > 0 {
+			e.setLatency(s.MS)
+		}
+	}
 }
 
 // quickCheckBudget derives a per-step budget from the context deadline.
@@ -534,6 +547,7 @@ func (e *Engine) RunConnectionTestJSON() string {
 	e.mu.Lock()
 	e.lastSteps = steps
 	e.mu.Unlock()
+	e.recordLatency(steps)
 	return marshalJSON(steps)
 }
 

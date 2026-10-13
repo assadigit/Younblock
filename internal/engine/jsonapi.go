@@ -201,6 +201,9 @@ func (e *Engine) GetDiagnosticReport() string {
 	s := e.GetState()
 	fmt.Fprintf(&b, "state: %s (detail %q)\n", s.Phase, s.Detail)
 	fmt.Fprintf(&b, "mode: %s method: %s port: %d\n", s.Mode, s.Method, s.Port)
+	if s.LatencyMs != nil {
+		fmt.Fprintf(&b, "response time: %d ms\n", *s.LatencyMs)
+	}
 	fmt.Fprintf(&b, "measured sleep for 1ms request: %d ms\n", e.measuredSleep.Milliseconds())
 	d := e.stats.Diagnostic()
 	fmt.Fprintf(&b, "counters: conns total %d, live %d, errors %d, panics %d\n",

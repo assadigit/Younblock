@@ -21,6 +21,15 @@
   const used = $derived(
     stats ? formatBytes((stats.bytesDown ?? 0) + (stats.bytesUp ?? 0)) : null,
   );
+  // The quiet line: response time first (when known), then usage.
+  const quietText = $derived.by(() => {
+    if (!stats) return "";
+    const usage = fill(copy.stats.used, { n: used ?? "0 B" });
+    if (state.latencyMs != null && state.latencyMs > 0) {
+      return `${fill(copy.stats.ping, { n: String(state.latencyMs) })} · ${usage}`;
+    }
+    return usage;
+  });
   const errorCopy = $derived(
     state.phase === "error" && state.error ? errorText ?? "" : null,
   );
@@ -47,7 +56,7 @@
       {stats ? formatTimer(stats.uptimeSec) : "00:00:00"}
     </p>
     <p class="quiet" class:visible={showTimer} aria-hidden={!showTimer}>
-      {stats ? fill(copy.stats.used, { n: used ?? "0 B" }) : ""}
+      {quietText}
     </p>
   </div>
   {#if state.phase === "error" && errorCopy}

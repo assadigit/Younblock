@@ -19,6 +19,8 @@ export interface BackendState {
   port: number;
   mode: "youtube" | "all" | "manual";
   method: string;
+  /** Last measured YouTube round-trip in ms (only while on/degraded). */
+  latencyMs?: number | null;
   notice?: Notice | null;
   error?: StateError | null;
 }
@@ -46,6 +48,7 @@ export interface Settings {
   autoPort: boolean;
   startWithWindows: boolean;
   connectOnLaunch: boolean;
+  openBrowserOnConnect: boolean;
   firstRunDone: boolean;
   closeNoticeShown: boolean;
   advanced: {
@@ -121,6 +124,8 @@ export interface Backend {
   onStats(cb: (stats: Stats) => void): () => void;
   onTestProgress(cb: (step: TestStep) => void): () => void;
   onCloseRequested(cb: () => void): () => void;
+  /** Shell notices about the optional dedicated Chrome session. */
+  onBrowserEvent(cb: (kind: "opened" | "closed" | "failed") => void): () => void;
 
   hideWindow(): void;
 }

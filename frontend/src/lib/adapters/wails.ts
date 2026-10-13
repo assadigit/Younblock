@@ -90,6 +90,12 @@ export class WailsBackend implements Backend {
     this.runtimeApi?.EventsOn("close-requested", () => {
       for (const cb of this.closeListeners) cb();
     });
+    // Shell notices about the optional dedicated Chrome session (R13).
+    for (const kind of ["opened", "closed", "failed"] as const) {
+      this.runtimeApi?.EventsOn(`browser:${kind}`, () => {
+        for (const cb of this.browserListeners) cb(kind);
+      });
+    }
   }
 
   get state(): BackendState {
@@ -177,6 +183,7 @@ export class WailsBackend implements Backend {
   private statsListeners = new Set<(s: Stats) => void>();
   private testListeners = new Set<(s: TestStep) => void>();
   private closeListeners = new Set<() => void>();
+  private browserListeners = new Set<(kind: "opened" | "closed" | "failed") => void>();
 
   onState(cb: (state: BackendState) => void): () => void {
     this.stateListeners.add(cb);
@@ -196,6 +203,11 @@ export class WailsBackend implements Backend {
   onCloseRequested(cb: () => void): () => void {
     this.closeListeners.add(cb);
     return () => this.closeListeners.delete(cb);
+  }
+
+  onBrowserEvent(cb: (kind: "opened" | "closed" | "failed") => void): () => void {
+    this.browserListeners.add(cb);
+    return () => this.browserListeners.delete(cb);
   }
 
   hideWindow(): void {
