@@ -163,3 +163,22 @@ A port change while On applies on the next Start (a listener cannot be re-bound
 mid-flight without dropping every tunnel); mode and method changes apply immediately, as
 file 01 §10 requires. The engine clears the DNS cache when the secure-DNS list changes so
 answers come from the new servers.
+
+**D27 — Notification rate limiting is episode-based.**
+File 01 §9 wants the pair "YouTube stopped responding. Trying to fix it…" followed by
+"Fixed" or "Couldn't fix it. Open Younblock." with a one-per-10-minutes rate limit.
+Limiting every individual message would swallow the outcome of a pair that was just
+announced, so the 10-minute window throttles notification EPISODES: a message within
+60 s of the previous one belongs to the same episode and is delivered; a new episode
+inside the 10-minute window is suppressed. Repeated flapping is throttled; the pair the
+spec describes is always shown.
+
+**D28 — A sweep's winner is persisted as the method.**
+File 01 §10 says a passing sweep result is "saved as the working method"; the engine
+writes it to settings.json immediately (and announces it). R23's remaining part
+(persisting the last good DoH server) stays P2.
+
+**D29 — Sweeps only trigger automatically from On (or a Start press).**
+From degraded, recovery happens through the watchdog's success path (one later success
+returns to on) or the user's Fix connection button (AutoFix), per R14. The watchdog's
+failure counter resets on success.

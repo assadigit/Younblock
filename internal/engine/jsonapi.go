@@ -207,6 +207,7 @@ func (e *Engine) GetDiagnosticReport() string {
 		d.ConnsTotal, d.ConnsLive, d.ConnErrors, d.Panics)
 	fmt.Fprintf(&b, "counters: dns ok %d, fail %d, up %s, down %s\n",
 		d.DnsOK, d.DnsFail, config.FormatBytes(d.BytesUp), config.FormatBytes(d.BytesDown))
+	fmt.Fprintf(&b, "%s\n", e.lastSelfTestSummary())
 	lines := e.logger.Ring.Lines()
 	if len(lines) > 100 {
 		lines = lines[len(lines)-100:]

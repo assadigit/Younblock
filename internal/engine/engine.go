@@ -2,11 +2,15 @@ package engine
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/assadigit/Younblock/internal/health"
 
 	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/doh"
@@ -73,6 +77,26 @@ type Options struct {
 	// MethodOverride forces the fragmentation preset (cmd/core --preset).
 	// Empty = setting. It is not persisted.
 	MethodOverride config.Method
+	// Checker overrides the health probes (tests inject fake networks).
+	Checker Checker
+	// WatchdogInterval overrides the watchdog period (0 = config default).
+	WatchdogInterval time.Duration
+	// WatchdogFailLimit overrides the consecutive-failure trigger.
+	WatchdogFailLimit int
+	// HealCooldown overrides the automatic-sweep cooldown.
+	HealCooldown time.Duration
+	// StartTimeout overrides the total start budget (the 35 s cap).
+	StartTimeout time.Duration
+	// NetworkPollInterval overrides the interface polling period.
+	NetworkPollInterval time.Duration
+	// InterfaceLister overrides the interface address source (R19 tests).
+	InterfaceLister func() ([]net.Addr, error)
+	// HealthOverrides rewrites the health.Config used by the built-in
+	// checks (tests point them at local fakes).
+	HealthOverrides func(*health.Config)
+	// ResolverTLS overrides the DoH client TLS config (tests inject a
+	// trust pool for a local fake DoH server).
+	ResolverTLS *tls.Config
 	// Now is the clock (tests).
 	Now func() time.Time
 }
@@ -88,15 +112,27 @@ type Engine struct {
 	rng      *fragment.SafeRNG
 	dialer   *netx.Dialer
 
-	mu       sync.Mutex
-	phase    Phase
-	detail   string
-	since    time.Time
-	notice   *Notice
-	errCode  string
-	port     int
-	server   *proxy.Server
-	statsCtx context.CancelFunc
+	mu          sync.Mutex
+	phase       Phase
+	detail      string
+	since       time.Time
+	notice      *Notice
+	noticeUntil time.Time
+	errCode     string
+	port        int
+	server      *proxy.Server
+	statsCtx    context.CancelFunc
+
+	checker        Checker
+	runCancel      context.CancelFunc
+	runAborted     bool
+	watchdogCancel context.CancelFunc
+	wdFails        int
+	netMonCancel   context.CancelFunc
+	lastAutoSweep  time.Time
+	lastNotifyAt   time.Time
+	episodeStart   time.Time
+	lastSteps      []health.Step
 
 	events EventSink
 	onQuit func()
@@ -159,6 +195,10 @@ func New(opts Options) (*Engine, error) {
 	)
 	e.rebuildResolver()
 	e.dialer = netx.New(config.DialTimeoutPerIP, config.DialTimeoutOverall, opts.Platform.DialControl())
+	e.checker = opts.Checker
+	if e.checker == nil {
+		e.checker = &healthChecker{eng: e}
+	}
 	return e, nil
 }
 
@@ -176,6 +216,7 @@ func (e *Engine) rebuildResolver() {
 		LogHostnames:   e.settings.Advanced.LogDomains,
 		Stats:          e.stats,
 		Now:            e.opts.Now,
+		TLS:            e.opts.ResolverTLS,
 	}
 	e.resolver = doh.New(cfg)
 }
@@ -252,28 +293,7 @@ func (e *Engine) Start() error {
 	e.mu.Unlock()
 	e.emitState()
 
-	go func() {
-		if err := e.startListener(); err != nil {
-			e.failStart(err)
-			return
-		}
-		if err := e.platform.Attach(e.port, e.settings); err != nil {
-			e.logger.Error("platform attach failed", "reason", errKind(err))
-			e.stopListener()
-			e.mu.Lock()
-			e.errCode = "PROXY_SETTING_FAILED"
-			e.setPhaseLocked(PhaseError, "")
-			e.mu.Unlock()
-			e.emitState()
-			return
-		}
-		e.mu.Lock()
-		e.setPhaseLocked(PhaseOn, "")
-		e.mu.Unlock()
-		e.emitState()
-		e.startStatsLoop()
-		e.prewarm()
-	}()
+	go e.connectSequence()
 	return nil
 }
 
@@ -342,6 +362,7 @@ func (e *Engine) failStart(err error) {
 // connecting): undo what was done and go back to off.
 func (e *Engine) cancelStart() {
 	e.logger.Info("connect canceled by the user")
+	e.cancelCurrentRun()
 	e.stopListener()
 	if err := e.platform.Detach(); err != nil {
 		e.logger.Warn("detach after cancel failed", "reason", errKind(err))
@@ -367,7 +388,10 @@ func (e *Engine) Stop() error {
 	e.mu.Unlock()
 	e.emitState()
 
+	e.cancelCurrentRun()
 	e.stopStatsLoop()
+	e.stopWatchdog()
+	e.stopNetMon()
 	e.stopListener()
 	if err := e.platform.Detach(); err != nil {
 		e.logger.Warn("detach failed", "reason", errKind(err))
@@ -459,6 +483,19 @@ func (e *Engine) setPhaseLocked(p Phase, detail string) {
 	}
 }
 
+// noticeVisibleLocked applies the notice expiry; caller holds e.mu.
+func (e *Engine) noticeVisibleLocked() *Notice {
+	if e.notice == nil {
+		return nil
+	}
+	if !e.opts.Now().Before(e.noticeUntil) {
+		e.notice = nil
+		return nil
+	}
+	n := *e.notice
+	return &n
+}
+
 // GetState returns the current state.
 func (e *Engine) GetState() State {
 	e.mu.Lock()
@@ -474,11 +511,10 @@ func (e *Engine) GetState() State {
 		Mode:   mode,
 		Method: method,
 	}
-	if e.notice != nil {
-		n := *e.notice
-		st.Notice = &n
+	if n := e.noticeVisibleLocked(); n != nil {
+		st.Notice = n
 	}
-	if e.errCode != "" && e.phase == PhaseError {
+	if e.errCode != "" && (e.phase == PhaseError || e.phase == PhaseDegraded) {
 		st.Error = &StateError{Code: e.errCode}
 	}
 	return st

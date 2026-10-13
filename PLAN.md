@@ -46,10 +46,10 @@ Scope: self-test, heal sweep, watchdog, cooldowns, notices. P1 items R12, R13, R
 
 Acceptance criteria (copied from file 01 §11):
 
-- [ ] Tests use fake networks that only accept one preset
-- [ ] Assert the announced `notice`
-- [ ] Assert the 35 s cap
-- [ ] Assert the cooldown
+- [x] Tests use fake networks that only accept one preset
+- [x] Assert the announced `notice`
+- [x] Assert the 35 s cap
+- [x] Assert the cooldown
 
 ## Phase 3 — Windows adapters
 

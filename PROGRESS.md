@@ -158,3 +158,56 @@ OpenLogsFolder returns the path and the shell opens the browser; terminating rep
 Content-Length/Connection: close; first-record units cap at 16 KB + 5; health tests inject
 trust pools via WebTLS/VideoTLS; CLI overrides (--port/--preset) are not persisted.
 
+
+## Phase 2 — Health and self-healing
+
+**Status: COMPLETE (all acceptance criteria green).**
+
+Built: the full Start sequence (file 01 §10): connecting/starting (listener + platform
+attach) -> connecting/checking (quick check, self-test steps 1-3, max 8 s) -> pass: on;
+fail: one automatic heal sweep over balanced, strong, light, legacy (steps 3-4, 6 s each,
+`trying:<preset>` detail announced per attempt) -> first pass becomes the working method
+with a METHOD_SWITCHED notice for 10 s and is persisted; none pass: degraded with error
+SELFTEST_FAILED and the listener keeps running. Total budget capped at 35 s (test-proven
+with a 1.2 s override). Watchdog while On: steps 2-3 every 120 s; three consecutive
+failures trigger one automatic sweep (respecting the 10-minute cooldown); success from
+degraded returns to on with a RECOVERED notice. Notifications only for failure/recovery,
+rate-limited as episodes (see DECISIONS.md D27). R19: interface addresses polled every 5 s
+while On; on change the DNS cache and DoH client reset and the watchdog check runs
+immediately. RunConnectionTest emits `test:progress` per step; AutoFix runs the sweep on
+demand; the diagnostic report now carries the self-test summary.
+
+### Verification (exact commands and real results)
+
+```
+$ go vet ./...                                        -> exit 0
+$ go test -race ./...                                 -> all 9 packages ok (engine 4.08s)
+$ GOOS=windows GOARCH=amd64 go build ./...            -> exit 0
+$ ./scripts/check-platform-neutral                    -> OK
+$ GOOS=linux GOARCH=arm64 go build ./internal/...     -> exit 0
+$ /tmp/younblock-core --selftest (live, real services)
+   -> State: on; listener OK; dns 0 ms RethinkDNS answered;
+      youtube 84 ms; video 81 ms; Self-test passed. (exit 0)
+```
+
+Phase 2 acceptance tests (fake networks that only accept one preset):
+- only-strong network: Start switches to strong, announces `METHOD_SWITCHED(strong)`,
+  shows `trying:` details, persists strong. PASS
+- nothing-works network: degraded + `SELFTEST_FAILED`, listener stays up, failure
+  notification sent. PASS
+- 35 s cap: with a 1.2 s override and 400 ms checks the engine produces its final
+  degraded answer inside ~1.2 s (no hang). PASS
+- cooldown: a second automatic sweep inside the window is skipped (heal-call count
+  frozen); after the window a new sweep runs. PASS
+- watchdog: network breaks -> notifications ("Trying to fix it…", "Couldn't fix it"),
+  degraded; network returns -> `RECOVERED` notice, back to on, "Fixed" notification. PASS
+- watchdog sweep switching method announces `METHOD_SWITCHED(light)` and persists it. PASS
+- AutoFix from degraded returns {"method":"light"} and turns on; AutoFix from off starts. PASS
+- pressing the button while connecting cancels cleanly (final state off, no drift). PASS
+- notice expires after 10 s (fake clock advanced 11 s). PASS
+- R19: interface change -> resolver reset (ResetCount grows) + immediate check. PASS
+- RunConnectionTest on a fully local fake internet (DoH + web + video): 4 steps OK,
+  4 `test:progress` events, report contains the self-test summary. PASS
+
+Could not verify: nothing new beyond Phase 1's Windows-only limits; the real 35 s and
+120 s timings only matter on Ali's machine, but their logic is test-proven with overrides.

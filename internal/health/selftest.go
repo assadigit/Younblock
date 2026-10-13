@@ -58,6 +58,13 @@ type Config struct {
 // as it completes (nil onStep is allowed). The returned slice is the final
 // result, also used by the diagnostic report.
 func RunSelfTest(ctx context.Context, cfg Config, onStep func(Step)) []Step {
+	return RunSteps(ctx, cfg, nil, onStep)
+}
+
+// RunSteps runs only the requested step ids (in canonical order); nil ids
+// means all four. The engine uses it for the quick check (steps 1-3) and
+// the heal check (steps 3-4).
+func RunSteps(ctx context.Context, cfg Config, ids []string, onStep func(Step)) []Step {
 	if cfg.PrimaryURL == "" {
 		cfg.PrimaryURL = config.SelfTestURL
 	}
@@ -73,15 +80,28 @@ func RunSelfTest(ctx context.Context, cfg Config, onStep func(Step)) []Step {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 8 * time.Second
 	}
-	steps := []Step{
-		testListener(cfg),
-		testDNS(ctx, cfg),
-		testYouTube(ctx, cfg),
-		testVideo(ctx, cfg),
+	all := []struct {
+		id  string
+		run func() Step
+	}{
+		{"listener", func() Step { return testListener(cfg) }},
+		{"dns", func() Step { return testDNS(ctx, cfg) }},
+		{"youtube", func() Step { return testYouTube(ctx, cfg) }},
+		{"video", func() Step { return testVideo(ctx, cfg) }},
 	}
-	for _, s := range steps {
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	var steps []Step
+	for _, s := range all {
+		if ids != nil && !want[s.id] {
+			continue
+		}
+		step := s.run()
+		steps = append(steps, step)
 		if onStep != nil {
-			onStep(s)
+			onStep(step)
 		}
 	}
 	return steps

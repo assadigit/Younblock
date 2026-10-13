@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"strconv"
@@ -26,6 +27,12 @@ func (r *recordingSink) OnEvent(name string, payload string) {
 	r.events = append(r.events, struct{ name, payload string }{name, payload})
 }
 
+func (r *recordingSink) all() []struct{ name, payload string } {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]struct{ name, payload string }{}, r.events...)
+}
+
 func (r *recordingSink) states() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -38,13 +45,83 @@ func (r *recordingSink) states() []string {
 	return out
 }
 
-func newTestEngine(t *testing.T) (*engine.Engine, *stub.Platform, *recordingSink) {
+// fakeNetwork is a programmable Checker: a fake network that can be
+// configured to accept only specific methods (file 01, section 11).
+type fakeNetwork struct {
+	mu        sync.Mutex
+	accept    map[config.Method]bool
+	calls     int
+	healCalls int
+	delay     time.Duration
+}
+
+func (f *fakeNetwork) acceptAll(ok bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.accept = map[config.Method]bool{
+		config.MethodAuto: ok, config.MethodLight: ok, config.MethodBalanced: ok,
+		config.MethodStrong: ok, config.MethodLegacy: ok,
+	}
+}
+
+func (f *fakeNetwork) acceptsOnly(m config.Method) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.accept = map[config.Method]bool{m: true}
+}
+
+func (f *fakeNetwork) result(m config.Method) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	if f.delay > 0 {
+		time.Sleep(f.delay)
+	}
+	return f.accept[m]
+}
+
+func (f *fakeNetwork) healResult(m config.Method) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.healCalls++
+	if f.delay > 0 {
+		time.Sleep(f.delay)
+	}
+	return f.accept[m]
+}
+
+func (f *fakeNetwork) QuickCheck(ctx context.Context, m config.Method) bool {
+	return f.result(m)
+}
+
+func (f *fakeNetwork) HealCheck(ctx context.Context, m config.Method) bool {
+	return f.healResult(m)
+}
+
+func (f *fakeNetwork) healCallsCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.healCalls
+}
+
+func (f *fakeNetwork) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+// newTestEngine builds an engine with a fake network that accepts everything.
+func newTestEngine(t *testing.T) (*engine.Engine, *stub.Platform, *recordingSink, *fakeNetwork) {
 	t.Helper()
 	dir := t.TempDir()
 	plat := stub.NewWithDir(dir)
+	net := &fakeNetwork{}
+	net.acceptAll(true)
 	eng, err := engine.New(engine.Options{
 		Platform: plat,
 		LogDir:   dir + "/logs",
+		Checker:  net,
 	})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
@@ -52,7 +129,7 @@ func newTestEngine(t *testing.T) (*engine.Engine, *stub.Platform, *recordingSink
 	sink := &recordingSink{}
 	eng.SetEventSink(sink)
 	t.Cleanup(eng.Shutdown)
-	return eng, plat, sink
+	return eng, plat, sink, net
 }
 
 // waitForPhase polls until the engine reaches one of the wanted phases.
@@ -73,7 +150,7 @@ func waitForPhase(t *testing.T, eng *engine.Engine, want ...engine.Phase) engine
 }
 
 func TestEngineStartStopCycle(t *testing.T) {
-	eng, plat, sink := newTestEngine(t)
+	eng, plat, sink, _ := newTestEngine(t)
 
 	if err := eng.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -119,7 +196,7 @@ func TestEngineStartStopCycle(t *testing.T) {
 }
 
 func TestEngineToggle(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	if err := eng.Toggle(); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +208,7 @@ func TestEngineToggle(t *testing.T) {
 }
 
 func TestEngineStartIsIdempotent(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	if err := eng.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +230,7 @@ func TestEngineStartIsIdempotent(t *testing.T) {
 }
 
 func TestEnginePortBusyGivesErrorPhase(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	// Occupy a port and configure the engine to require it.
 	blocker, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -195,7 +272,7 @@ func TestEnginePortBusyGivesErrorPhase(t *testing.T) {
 }
 
 func TestEngineSaveSettingsAppliesMethod(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	if err := eng.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +303,7 @@ func TestEngineSaveSettingsAppliesMethod(t *testing.T) {
 }
 
 func TestEngineSettingsNormalizationRoundTrip(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	// Nonsense values come back clamped.
 	bad := `{"mode":"bogus","method":"bogus","port":99999,"version":1}`
 	out := eng.SaveSettingsJSON(bad)
@@ -240,7 +317,7 @@ func TestEngineSettingsNormalizationRoundTrip(t *testing.T) {
 }
 
 func TestEngineAutostartFlipCallsPlatform(t *testing.T) {
-	eng, plat, _ := newTestEngine(t)
+	eng, plat, _, _ := newTestEngine(t)
 	var s config.Settings
 	if err := json.Unmarshal([]byte(eng.GetSettingsJSON()), &s); err != nil {
 		t.Fatal(err)
@@ -253,7 +330,7 @@ func TestEngineAutostartFlipCallsPlatform(t *testing.T) {
 }
 
 func TestEngineGetAppInfo(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	var info struct {
 		Name         string              `json:"name"`
 		Version      string              `json:"version"`
@@ -279,7 +356,7 @@ func TestEngineGetAppInfo(t *testing.T) {
 }
 
 func TestEngineDiagnosticReportRedacted(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	if err := eng.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +377,7 @@ func TestEngineDiagnosticReportRedacted(t *testing.T) {
 }
 
 func TestEngineRingClearedOnStop(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	if err := eng.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +392,7 @@ func TestEngineRingClearedOnStop(t *testing.T) {
 }
 
 func TestEngineQuitInvokesCallback(t *testing.T) {
-	eng, _, _ := newTestEngine(t)
+	eng, _, _, _ := newTestEngine(t)
 	called := make(chan struct{}, 1)
 	eng.SetOnQuit(func() { called <- struct{}{} })
 	eng.QuitJSON()

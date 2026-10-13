@@ -95,6 +95,8 @@ type Resolver struct {
 	fragMu     sync.Mutex
 	fragPreset fragment.Preset
 	fragConfig fragment.Config
+
+	resets atomic.Int32
 }
 
 // New builds a ready resolver.
@@ -219,7 +221,11 @@ func (r *Resolver) Reset() {
 	r.cache.reset()
 	r.sticky.Store(0)
 	r.lastGood = atomic.Value{}
+	r.resets.Add(1)
 }
+
+// ResetCount reports how many times Reset ran (tests and diagnostics).
+func (r *Resolver) ResetCount() int32 { return r.resets.Load() }
 
 // Len reports the cache entry count (diagnostics only).
 func (r *Resolver) Len() int { return r.cache.len() }
