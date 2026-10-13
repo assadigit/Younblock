@@ -1,0 +1,95 @@
+# Younblock — Delivery Plan
+
+Phases and acceptance criteria come from `01-go-backend-rewrite-spec.md` (file 01) section 11,
+scoped by `00-start-here.md`. This file copies each phase's acceptance criteria as checklists
+and tracks their completion. Running details (commands, real outputs, blockers) live in
+`PROGRESS.md`. Interpretations and deviations live in `DECISIONS.md`.
+
+Working style: one phase at a time, in order. A phase is done only when every box below is
+checked with real command output recorded in `PROGRESS.md`. Small commits are preferred;
+each phase ends with a commit, a `phase-N` tag, and a push to `main`.
+
+## Global checks (every phase, all must pass)
+
+- [ ] `go vet ./...`
+- [ ] `go test -race ./...`
+- [ ] `GOOS=windows GOARCH=amd64 go build ./...`
+- [ ] `scripts/check-platform-neutral` (forbidden-import scan for the neutral packages)
+- [ ] `GOOS=linux GOARCH=arm64 go build ./internal/engine/... ./internal/config/... ./internal/netx/... ./internal/fragment/... ./internal/doh/... ./internal/proxy/... ./internal/health/... ./internal/stats/... ./internal/logx/...`
+
+## Phase 1 — Headless engine (`cmd/core`)
+
+Scope (file 01 §11): config, netx, fragment, doh, proxy, stats, logx, engine skeleton with
+the stub platform. P0 items R1–R11 and P1 items R15, R20, R22 land here.
+
+Acceptance criteria (copied from file 01 §11):
+
+- [ ] `go vet ./...`, `go test -race ./...`, `GOOS=windows GOARCH=amd64 go build ./...` pass
+- [ ] The platform-neutral check and the `GOOS=linux GOARCH=arm64` build from file 01 §3 pass
+- [ ] Unit tests: planner (sums, no empty piece, size range, `legacy` at most 299 pieces, deterministic with a seeded source)
+- [ ] DoH resolver against an `httptest` fake server (A parsing, TTL clamp, cache hit, fallback after first server fails, private-IP filtering, stale serving)
+- [ ] Request parser including a fuzz test (`go test -fuzz`, 60 s, no panic)
+- [ ] Integration: fake DoH + local TLS echo server (with `AllowPrivateTargets`); an `http.Client` through the proxy completes an HTTPS request
+- [ ] A recording TCP listener shows the ClientHello arrived in at least 2 separate reads **and** the handshake still succeeded
+- [ ] Behavior: idle timeout closes a silent tunnel; the 1025th connection gets `503`; `Stop` returns within 3 s with open tunnels; byte counters match transferred bytes
+- [ ] Soak (script included): 5,000 short tunnels including failing ones; goroutine and handle counts return to baseline and memory stays flat
+
+## Phase 2 — Health and self-healing
+
+Scope: self-test, heal sweep, watchdog, cooldowns, notices. P1 items R12, R13, R14, and R19.
+
+Acceptance criteria (copied from file 01 §11):
+
+- [ ] Tests use fake networks that only accept one preset
+- [ ] Assert the announced `notice`
+- [ ] Assert the 35 s cap
+- [ ] Assert the cooldown
+
+## Phase 3 — Windows adapters
+
+Scope: sysproxy, PAC, autostart. P1 items R16 and the Run-key half of R18.
+
+Acceptance criteria (copied from file 01 §11):
+
+- [ ] PAC tests (YouTube hosts match including subdomains and not look-alikes such as `notyoutube.com`; everything else `DIRECT`)
+- [ ] Registry code compiles for Windows
+- [ ] Backup and restore logic is unit-tested against an in-memory fake
+- [ ] Autostart path-rewrite logic tested
+- [ ] State clearly which Windows-only behaviors could not be run here
+
+## Phase 4 — Wails app, tray, first run
+
+Scope: bindings over `jsonapi`, events, single-instance lock, tray and notifications,
+first-run flow, and the whole UI from file 02. P1 items R17 (single instance), the tray half
+of R18, and the frontend part of R21.
+
+Acceptance criteria (file 01 §11 plus file 02 §10):
+
+- [ ] `npm run build` passes
+- [ ] `wails build` passes (Windows target from this machine if the toolchain allows; otherwise everything short of the final link, stated honestly)
+- [ ] Single-instance lock (`SingleInstanceLock` in Wails v2; verified against the installed version)
+- [ ] Tray: three icons differing by shape, tooltip states, left-click show/hide, right-click menu (Turn on/off, Open Younblock, Quit), closing hides to tray, first-time close notice
+- [ ] Notifications only for failure and recovery, rate-limited to one per 10 minutes
+- [ ] Screenshots from file 02 §10 in `docs/screenshots/`: Connect in all six phases; Connect with a notice line; menu open; first-run; Settings (Advanced closed and open); Help (before test, mid-test, failed, passed); About; Connect `on` at 320 x 568 and at 480 x 900 — all with the mock backend
+- [ ] Power button is the largest and most contrasting element in every phase; Off/On distinguishable in grayscale
+- [ ] Keyboard only: Tab reaches every control; Space toggles the button; focus ring always visible; Esc closes the menu
+- [ ] Reduced-motion removes the ripple and spinner motion
+- [ ] No network requests except to the local backend; fonts and icons local
+- [ ] No hard-coded strings; logical CSS properties only
+
+## Phase 5 — Remaining P1 items from file 03
+
+Scope: every P1 item not finished in an earlier phase, plus final deliverables.
+
+- [ ] R19 — network change and sleep: poll interface addresses every 5 s while On; on change flush the DNS cache, reset the DoH client, run the watchdog check immediately (unit test with a fake interface list)
+- [ ] R21 — privacy: automated scan of report and log samples for hostnames and IPs; strict CSP (`default-src 'self'`, no inline script, no `eval`) in the shipped frontend; ring cleared on Stop
+- [ ] Final P1 review: every item R12–R22 listed as done or not done with the check that ran
+- [ ] `build.bat` builds `younblock-core.exe` and the Wails app and prints the exact output paths
+- [ ] `README.md` in plain English: what the app is, how to install the tools, how to build, how to run, how to uninstall, and Ali's manual Windows check (numbered steps from file 01 §11)
+- [ ] Size and speed targets: `younblock-core.exe` ≤ 12 MB and Wails app ≤ 20 MB built with `-trimpath -ldflags "-s -w"` (no UPX); proxy listening within 300 ms of launch
+
+## Out of scope for this run
+
+- File 04 (Android). Obey only the Android-ready rules (file 01 §3) so the later run stays cheap.
+- P2 items R23–R27 from file 03 (proposed only after P0/P1 are accepted).
+- The `targeted` fragmentation preset (file 01 §5 says do not build it until everything else is accepted).
