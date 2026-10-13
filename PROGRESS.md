@@ -533,3 +533,24 @@ in TestSaveLoadRoundTrip); old v0.1.0 settings files simply default it to off.
   installed in the Wails build assets; rendering is Windows-side).
 - The toast for "Chrome opened in a separate session" rendering beside the
   tray (same Windows-only surface as the Phase 4 toasts).
+
+## Release v0.2.0 — Ali's five improvements, published to GitHub Releases
+
+Date: 2026-10-14 (Asia/Tehran). Tag on the Phase 6 commit (a768e84); the same
+verification gates had just run green (see the Phase 6 entry).
+
+```
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> PE32+ console, 9,552,384 bytes (9.11 MB)   target <= 12 MB  PASS
+      SHA-256 fea375cd124512f00a0f519d237ab5373ff324f3ad53a1abdb375a6249925f26
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> PE32+ GUI, 12,718,080 bytes (12.13 MB)     target <= 20 MB  PASS
+      SHA-256 99d57561e839e9458539eb781c0c70f081653eaee0ace03c9a1eb546ef8f2e15
+$ /tmp/yb-core --version  -> Younblock core 1.1.0
+$ /tmp/yb-core --selftest (live) -> listener OK, dns OK, youtube OK (89 ms), video OK (94 ms)
+```
+
+Release notes list the five features (both new switches off by default), the
+upgrade path from v0.1.0 (replace the exe; settings are kept), SmartScreen
+instructions, checksums and the honest only-on-Windows list. Assets re-downloaded
+from the release page: checksums identical.
