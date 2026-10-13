@@ -24,15 +24,21 @@ the stub platform. P0 items R1–R11 and P1 items R15, R20, R22 land here.
 
 Acceptance criteria (copied from file 01 §11):
 
-- [ ] `go vet ./...`, `go test -race ./...`, `GOOS=windows GOARCH=amd64 go build ./...` pass
-- [ ] The platform-neutral check and the `GOOS=linux GOARCH=arm64` build from file 01 §3 pass
-- [ ] Unit tests: planner (sums, no empty piece, size range, `legacy` at most 299 pieces, deterministic with a seeded source)
-- [ ] DoH resolver against an `httptest` fake server (A parsing, TTL clamp, cache hit, fallback after first server fails, private-IP filtering, stale serving)
-- [ ] Request parser including a fuzz test (`go test -fuzz`, 60 s, no panic)
-- [ ] Integration: fake DoH + local TLS echo server (with `AllowPrivateTargets`); an `http.Client` through the proxy completes an HTTPS request
-- [ ] A recording TCP listener shows the ClientHello arrived in at least 2 separate reads **and** the handshake still succeeded
-- [ ] Behavior: idle timeout closes a silent tunnel; the 1025th connection gets `503`; `Stop` returns within 3 s with open tunnels; byte counters match transferred bytes
-- [ ] Soak (script included): 5,000 short tunnels including failing ones; goroutine and handle counts return to baseline and memory stays flat
+- [x] `go vet ./...`, `go test -race ./...`, `GOOS=windows GOARCH=amd64 go build ./...` pass
+- [x] The platform-neutral check and the `GOOS=linux GOARCH=arm64` build from file 01 §3 pass
+- [x] Unit tests: planner (sums, no empty piece, size range, `legacy` at most 299 pieces, deterministic with a seeded source)
+- [x] DoH resolver against an `httptest` fake server (A parsing, TTL clamp, cache hit, fallback after first server fails, private-IP filtering, stale serving)
+- [x] Request parser including a fuzz test (`go test -fuzz`, 60 s, no panic)
+- [x] Integration: fake DoH + local TLS echo server (with `AllowPrivateTargets`); an `http.Client` through the proxy completes an HTTPS request
+- [x] A recording TCP listener shows the ClientHello arrived in at least 2 separate reads **and** the handshake still succeeded
+- [x] Behavior: idle timeout closes a silent tunnel; the 1025th connection gets `503`; `Stop` returns within 3 s with open tunnels; byte counters match transferred bytes
+- [x] Soak (script included): 5,000 short tunnels including failing ones; goroutine and handle counts return to baseline and memory stays flat
+
+Verified for real (see PROGRESS.md for the exact commands and outputs): all checks above,
+plus a live end-to-end run of `younblock-core --selftest` against the real RethinkDNS and
+YouTube from the development sandbox (all four steps passed), launch-to-listening 13 ms
+(target 300 ms), and `younblock-core.exe` at 7.08 MB with `-trimpath -ldflags "-s -w"`
+(target 12 MB).
 
 ## Phase 2 — Health and self-healing
 

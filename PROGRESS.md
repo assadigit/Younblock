@@ -65,4 +65,96 @@ logo) are now present.
 
 ## Phase 1 — Headless engine
 
-(status: in progress — log filled in as work completes)
+**Status: COMPLETE (all acceptance criteria green).**
+
+Built (file 01 §3 layout): `cmd/core/main.go` (headless CLI: --port --preset --selftest
+--restore-proxy --version), `internal/config` (CONFIGURATION block + settings.json with
+validation, clamping, atomic write, corrupt-file rename), `internal/netx` (the one outbound
+door with the Android-ready Control hook and try-every-address dialing), `internal/fragment`
+(pure Plan function with injectable RNG + first-write Conn wrapper), `internal/doh`
+(v1-exact DoH request shape, bootstrap dialing, TTL clamp, 2000-entry cache with
+serve-stale and negative caching, singleflight, sticky server, private-range filtering),
+`internal/proxy` (raw listener, real http.ReadRequest parsing, CONNECT tunnels with
+first-record fragmentation, PAC/health endpoints, auto-port, 1024 cap, panic recovery,
+3-second graceful stop), `internal/stats` (atomic counters, no per-IP maps), `internal/logx`
+(500-line ring + 2 MB x 3 rotating file), `internal/health` (the four-step self-test),
+`internal/engine` (state machine, JSON API, events), `internal/platform/stub` (call-recording
+no-op platform) and `internal/platform` factory (stub for every build until Phase 3).
+
+### Verification (exact commands and real results)
+
+```
+$ go vet ./...                                   -> exit 0 (no findings)
+$ go test -race ./...                            -> ok config, doh, engine, fragment,
+                                                     health, logx, netx, proxy (5.05s,
+                                                     includes the 5,000-tunnel soak), stats
+$ GOOS=windows GOARCH=amd64 go build ./...       -> exit 0
+$ ./scripts/check-platform-neutral               -> platform-neutral check: OK
+$ GOOS=linux GOARCH=arm64 go build ./internal/{engine,config,netx,fragment,doh,proxy,health,stats,logx}/... -> exit 0
+$ go test -fuzz=FuzzParseRequest -fuzztime=60s ./internal/proxy/
+   -> PASS: 482,339 executions, 0 panics
+$ ./scripts/soak.sh (go test -race -run TestSoak ./internal/proxy/)
+   -> 4,800 ok + 200 failed tunnels; goroutines 4 -> 4; fds 11 -> 11; heap 761,856 -> 876,544 bytes
+```
+
+Additional unit/integration coverage that ran green: planner rules and spec piece-count
+table (light 2-4, balanced 3-7, strong 7-26 for a 520-byte hello); legacy Python-rule
+reproduction including the length-300 edge the Python crashes on; deterministic seeded
+plans; DoH fake-server tests (A parsing, TTL clamp to 120 s, cache hit, fallback to the
+second server with stickiness, private-IP filtering on/off, stale serving, negative cache,
+singleflight coalescing); request routing (CONNECT default port, bracketed IPv6, 302 for
+absolute http:// GET/HEAD/POST, 405 otherwise, PAC/health host checks, 400 for malformed);
+read-first-record (non-TLS passthrough, exact TLS record reassembly across split reads,
+16 KB + 5 cap); PAC generator (youtube/all/manual) and Go-side domain matching including
+`notyoutube.com` and `youtube.com.evil.example` rejections; proxy behavior (idle timeout
+closes a silent tunnel, first-record timeout, 503 over the cap, Stop force-closes within
+its budget, byte counters match transferred bytes exactly, Start/Stop repeatedly and
+concurrently); engine lifecycle (state events connecting->on->off, PORT_BUSY error phase,
+settings save + immediate method application, autostart flip reaches the platform,
+diagnostic report redaction scan, ring cleared on Stop, quit callback).
+
+The Phase 1 acceptance integration test (fake DoH + TLS echo server + AllowPrivateTargets)
+passed: an http.Client completed an HTTPS request through the proxy and a recording
+listener showed the ClientHello arriving in >= 2 separate reads while the handshake still
+succeeded.
+
+### Live end-to-end evidence (development sandbox, unfiltered network)
+
+```
+$ /tmp/younblock-core --selftest
+  State: on (port 4525)
+  [OK  ] listener    0 ms  Listening on port 4525.
+  [OK  ] dns        45 ms  RethinkDNS answered.
+  [OK  ] youtube    84 ms  YouTube answered.
+  [OK  ] video      98 ms  Video server handshake completed.
+  Self-test passed.   (exit 0)
+```
+
+This proves the pieces work against the real services: the exact v1 DoH request to
+sky.rethinkdns.com via bootstrap 172.67.162.27 with a fragmented ClientHello, a real 204
+from https://www.youtube.com/generate_204 fetched through our own proxy, and a real TLS
+handshake to redirector.googlevideo.com:443 through the tunnel. It does NOT prove
+unblocking on Ali's filtered network — only Ali's manual check can.
+
+```
+$ launch-to-listening measurement                  -> 13 ms (target <= 300 ms)
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> 7,425,024 bytes = 7.08 MB (target <= 12 MB), no UPX
+$ /tmp/younblock-core --restore-proxy              -> Internet settings restored. (stub platform)
+```
+
+### Could not verify in Phase 1
+
+- Anything Windows-specific at runtime (registry, tray, WinINet refresh): only compiled
+  (`GOOS=windows` build) and unit-tested against fakes; the real check is Ali's manual step.
+- The 1025th-connection 503 was verified with a reduced cap (same code path) because of the
+  sandbox file-descriptor limit (DECISIONS.md D15); the 1024 default is asserted separately.
+- Real filtering behavior on Ali's network (only Ali can test that).
+
+### Decisions made in Phase 1 (see DECISIONS.md)
+
+D19-D26: go.mod raised to go 1.26.0 by the dependency floor; Platform gained RestoreProxy;
+OpenLogsFolder returns the path and the shell opens the browser; terminating replies carry
+Content-Length/Connection: close; first-record units cap at 16 KB + 5; health tests inject
+trust pools via WebTLS/VideoTLS; CLI overrides (--port/--preset) are not persisted.
+

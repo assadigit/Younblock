@@ -1,0 +1,23 @@
+# Build outputs
+/dist/
+/build/bin/
+frontend/node_modules/
+frontend/dist/
+frontend/wailsjs/
+
+# Go
+*.exe
+*.test
+*.out
+*.prof
+
+# Local runtime data (never commit logs or settings)
+*.log
+logs/
+settings.json
+settings.json.bad
+sysproxy-backup.json
+
+# OS noise
+.DS_Store
+Thumbs.db

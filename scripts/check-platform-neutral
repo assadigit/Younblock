@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# check-platform-neutral: fails if any platform-neutral package (file 01,
+# section 3, rule 1) imports Windows/Wails/tray/toast code directly or
+# transitively, or carries a windows build tag.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+NEUTRAL="engine config netx fragment doh proxy health stats logx"
+FORBIDDEN_EXACT=(
+  "golang.org/x/sys/windows"
+)
+FORBIDDEN_PREFIX=(
+  "github.com/wailsapp"
+  "github.com/energye"
+  "github.com/getlantern"
+)
+
+status=0
+for p in $NEUTRAL; do
+  dir="internal/$p"
+  if [ ! -d "$dir" ]; then
+    echo "FAIL: missing neutral package $dir"
+    status=1
+    continue
+  fi
+  # 1. No windows-tagged source files inside a neutral package.
+  if grep -rl --include='*.go' -e '^//go:build windows' -e '^// +build windows' "$dir" >/dev/null 2>&1; then
+    echo "FAIL: $dir contains windows-only source files"
+    status=1
+  fi
+  # 2. No forbidden imports, direct or transitive.
+  deps=$(go list -deps "./$dir" 2>/dev/null || true)
+  for bad in "${FORBIDDEN_EXACT[@]}"; do
+    if printf '%s\n' "$deps" | grep -qx "$bad"; then
+      echo "FAIL: $dir imports $bad"
+      status=1
+    fi
+  done
+  for bad in "${FORBIDDEN_PREFIX[@]}"; do
+    if printf '%s\n' "$deps" | grep -q "^$bad"; then
+      echo "FAIL: $dir imports something under $bad"
+      status=1
+    fi
+  done
+done
+
+if [ "$status" -eq 0 ]; then
+  echo "platform-neutral check: OK (packages: $NEUTRAL)"
+fi
+exit "$status"

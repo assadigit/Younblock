@@ -122,3 +122,44 @@ by the engine skeleton anyway); Phase 2 formalizes `health.RunSelfTest`, the hea
 watchdog and notices on top of it. R19 (network-change detection) lands in Phase 2 with the
 rest of the health machinery, not Phase 5, because it is the watchdog's trigger. `PLAN.md`
 reflects this.
+
+**D19 — go.mod language version.**
+Started at `go 1.22` (the spec minimum), but `go get` raised the directive to **1.26.0**
+because golang.org/x/net v0.61.0 requires it. Still above the spec minimum; the installed
+toolchain (1.27.2) builds it.
+
+**D20 — Platform.RestoreProxy.**
+The spec's Platform list (file 01 §3) has no restore method, but the API table (§10)
+requires `RestoreWindowsProxy()` and the CLI needs `--restore-proxy`. The engine
+interface therefore gained `RestoreProxy() error` (no-op on the stub). This is the
+documented reason, not a silent deviation.
+
+**D21 — OpenLogsFolder is split in two.**
+`engine.OpenLogsFolderJSON()` returns the log folder path (neutral), and the shell
+(Wails `app.go`, or the CLI printing it) opens the actual file browser. Opening a window
+is shell behavior; the engine stays platform-neutral.
+
+**D22 — Terminating proxy replies.**
+File 01 gives bare status lines (`502`, `405`, …). The implementation adds standard
+`Content-Length: 0` and `Connection: close` headers on terminating replies so every HTTP
+client interprets them correctly. The 200 tunnel reply and 302 Location follow the spec
+exactly (no Proxy-agent header, unlike the old Python — D3).
+
+**D23 — Oversized first records.**
+A TLS record declaring more than 16 KB + 5 is fragmented only up to the cap; the
+remaining bytes flow through the normal copy loop. This is the closest correct reading
+of "read exactly that many bytes (cap 16 KB + 5)".
+
+**D24 — Test-only TLS injection in health.**
+`health.Config.WebTLS`/`VideoTLS` let tests inject trust pools for local fake servers;
+production leaves them nil and uses the system roots, exactly like the real checks.
+
+**D25 — CLI overrides are not persisted.**
+`cmd/core --port` and `--preset` override the loaded settings in memory only; they are
+never written to settings.json. They are developer/testing knobs.
+
+**D26 — Engine settings application.**
+A port change while On applies on the next Start (a listener cannot be re-bound
+mid-flight without dropping every tunnel); mode and method changes apply immediately, as
+file 01 §10 requires. The engine clears the DNS cache when the secure-DNS list changes so
+answers come from the new servers.
