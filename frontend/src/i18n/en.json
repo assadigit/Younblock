@@ -1,0 +1,178 @@
+{
+  "app": {
+    "name": "Younblock",
+    "footer": "Works with Chrome"
+  },
+  "state": {
+    "off": "Off",
+    "connecting": "Starting…",
+    "on": "On",
+    "degraded": "Check needed",
+    "error": "Couldn't turn on",
+    "stopping": "Turning off…"
+  },
+  "subtitle": {
+    "off": "Turn on to unblock YouTube",
+    "starting": "Getting ready…",
+    "checking": "Checking YouTube…",
+    "trying": "Trying another method…",
+    "on": "Unblocking YouTube",
+    "degraded": "On, but YouTube isn't responding",
+    "stopping": "",
+    "errorPrefix": ""
+  },
+  "notice": {
+    "METHOD_SWITCHED": "Switched to a stronger method",
+    "RECOVERED": "Fixed"
+  },
+  "errors": {
+    "PORT_BUSY": "Another program is using this app's port. Close it, or open Settings, Advanced, and change the port.",
+    "DNS_UNREACHABLE": "The secure lookup service can't be reached. Check your internet, or try another one in Settings, Advanced.",
+    "DNS_BLOCKED_ANSWER": "The lookup returned an address that can't be right. Try another secure-DNS server in Settings, Advanced.",
+    "PROXY_SETTING_FAILED": "Windows wouldn't accept the setting. Open Help and tap Restore internet settings.",
+    "SELFTEST_FAILED": "YouTube still isn't reachable. Open Help and run the connection test.",
+    "UNKNOWN": "Something unexpected happened. Open Help and copy the diagnostic report."
+  },
+  "buttons": {
+    "fixConnection": "Fix connection",
+    "runTest": "Run test",
+    "getStarted": "Get started",
+    "copyReport": "Copy diagnostic report",
+    "openLogs": "Open logs folder",
+    "restoreSettings": "Restore internet settings",
+    "openHelp": "Open help",
+    "ok": "OK"
+  },
+  "menu": {
+    "settings": "Settings",
+    "help": "Help",
+    "about": "About",
+    "quit": "Quit Younblock"
+  },
+  "stats": {
+    "used": "{n} used"
+  },
+  "firstRun": {
+    "title": "Welcome",
+    "text": "Younblock helps YouTube load in Chrome. Turn it on when you need it. Closing this window keeps it running in the tray.",
+    "autostart": "Open Younblock when Windows starts"
+  },
+  "closeNotice": {
+    "text": "Still running. Find Younblock near the clock. Choose Quit to stop it."
+  },
+  "settings": {
+    "title": "Settings",
+    "startWithWindows": "Open Younblock when Windows starts",
+    "connectOnLaunch": "Turn on automatically when the app opens",
+    "advanced": "Advanced",
+    "advancedHint": "For troubleshooting",
+    "mode": "Unblock mode",
+    "modeYouTube": "YouTube only",
+    "modeYouTubeHint": "Only YouTube sites go through the app.",
+    "modeAll": "All websites",
+    "modeAllHint": "Everything except local addresses goes through the app.",
+    "modeManual": "Manual",
+    "modeManualHint": "Windows is left alone; set the proxy yourself.",
+    "manualAddress": "Proxy address",
+    "method": "Connection method",
+    "methodAuto": "Automatic",
+    "methodAutoHint": "The app picks and repairs the method by itself.",
+    "methodLight": "Fast",
+    "methodLightHint": "Fewer, larger pieces.",
+    "methodBalanced": "Balanced",
+    "methodBalancedHint": "The default first try.",
+    "methodStrong": "Strong",
+    "methodStrongHint": "Smaller pieces for tough filters.",
+    "methodLegacy": "Original",
+    "methodLegacyHint": "The old app's exact splitting.",
+    "port": "Port",
+    "dohServers": "Secure-DNS servers",
+    "domains": "YouTube domain list",
+    "logDomains": "Keep website names in the log",
+    "reset": "Reset to defaults"
+  },
+  "help": {
+    "title": "Help",
+    "testTitle": "Connection test",
+    "steps": {
+      "listener": "This app is running",
+      "dns": "Secure lookup works",
+      "youtube": "YouTube answers",
+      "video": "Video servers answer"
+    },
+    "stepHints": {
+      "listener": "The app could not reach its own proxy. Try quitting and opening it again.",
+      "dns": "The secure lookup failed. Try another secure-DNS server in Settings, Advanced.",
+      "youtube": "YouTube did not answer through the app. Tap Fix connection below.",
+      "video": "Video servers did not answer. Tap Fix connection below."
+    },
+    "testNothingWorked": "None of the methods worked on this connection. Your network may be blocking the secure lookup. Open Settings, Advanced, and try another secure-DNS server.",
+    "common": "Common problems",
+    "problems": {
+      "q1": "YouTube still doesn't load.",
+      "a1": "Run the connection test. If a step fails, tap Fix connection. Then fully close Chrome and open it again.",
+      "q2": "Where did the window go?",
+      "a2": "Younblock keeps running in the tray, near the clock. Click its icon to open the window. Choose Quit to stop it completely.",
+      "q3": "Does it work in other browsers or apps?",
+      "a3": "It is made for Chrome. Other apps that follow Windows' proxy setting may work, but they are not tested.",
+      "q4": "My internet stopped after the app closed.",
+      "a4": "Tap \"Restore internet settings\" below. It removes the setting the app added. It also happens automatically the next time the app starts.",
+      "q5": "Windows or my antivirus shows a warning.",
+      "a5": "The app is not code-signed yet, and Windows warns about unsigned apps that change proxy settings. Only run it from a source you trust.",
+      "q6": "Is this a VPN?",
+      "a6": "No. It does not hide your IP address and adds no encryption; YouTube's own HTTPS still protects the content. It only changes how the first message to the site is sent.",
+      "q7": "YouTube loads but videos buffer.",
+      "a7": "Tap Fix connection once. If it still buffers, the limit is probably your connection speed, not this app."
+    },
+    "stillStuck": "Still stuck?",
+    "toasts": {
+      "copied": "Copied",
+      "restored": "Internet settings restored"
+    }
+  },
+  "about": {
+    "title": "About",
+    "howTitle": "How it works",
+    "how": [
+      "Chrome sends its request to Younblock, which runs only on your PC.",
+      "Younblock looks up YouTube's address with a secure DNS service, so the lookup can't be tampered with on the way.",
+      "Younblock sends the first \"hello\" message to YouTube in small pieces. Filters that scan that message for the website's name usually don't recognise the pieces.",
+      "After that, everything flows normally, protected by YouTube's own HTTPS."
+    ],
+    "diagram": { "chrome": "Chrome", "app": "Younblock on your PC", "youtube": "YouTube" },
+    "notTitle": "What it doesn't do",
+    "not": [
+      "It is not a VPN.",
+      "It does not hide your IP address.",
+      "It does not add encryption beyond what HTTPS already provides.",
+      "Your internet provider can still see which servers you connect to.",
+      "It may stop working if the filtering changes."
+    ],
+    "privacyTitle": "Privacy",
+    "privacy": [
+      "No account, no analytics, no updates in the background.",
+      "The only network requests are secure DNS lookups to the provider in use and the YouTube checks the app runs.",
+      "Website names are not written to the log unless you turn that on."
+    ],
+    "licensesTitle": "Licenses",
+    "licenses": {
+      "inter": "Inter font — SIL Open Font License 1.1",
+      "lucide": "Lucide icons — ISC License",
+      "svelte": "Svelte — MIT License",
+      "wails": "Wails — MIT License",
+      "systray": "energye/systray — MIT License",
+      "go": "Go standard library and golang.org/x packages — BSD-style licenses",
+      "gotom": "go-toast — MIT License"
+    }
+  },
+  "toast": {
+    "copied": "Copied",
+    "restored": "Internet settings restored"
+  },
+  "a11y": {
+    "powerButton": "Unblock YouTube",
+    "menuButton": "Menu",
+    "back": "Back",
+    "logo": "Younblock logo"
+  }
+}

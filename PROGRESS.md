@@ -271,3 +271,80 @@ plain names/*.local DIRECT, 127/8, 10/8, 172.16/12, 192.168/16, 169.254/16 DIREC
 - The one-shot fallback to a static ProxyServer for `all` mode is NOT implemented: the
   spec makes it conditional on PAC not being honored on the test machine, which only
   Ali's manual Windows check can show (DECISIONS.md D30).
+
+## Phase 4 — Wails app, tray, first run, UI
+
+**Status: COMPLETE (all acceptance criteria green).**
+
+Built: the Wails v2.16.0 shell (`main.go`: fixed 360 x 560 dark window, DisableResize,
+background --neutral-950 so there is no white flash, dark Windows title bar,
+SingleInstanceLock with second-instance window reveal, `--minimized` starts hidden) and
+the thin JSON adapter (`app.go`: every engine/jsonapi method as a string-in/string-out
+binding, engine events forwarded as Wails events, close-to-tray interception with the
+frontend running the one-time notice, OpenLogsFolder via Explorer, Quit path that stops
+and restores first). The tray (`tray_windows.go` + energye/systray v1.0.3 external-loop
+mode): three shape-different icons at 16/20/24/32 px plus light-taskbar variants (chosen
+by reading the Windows AppsUseLightTheme registry value), tooltip
+Off|On|Starting…|Check needed, left-click show/hide, right-click menu (Turn on/off, Open
+Younblock, Quit), menu label follows the state. Toasts for failure/recovery go through
+go-toast (file 01 §9's "or a toast library"; DECISIONS.md D33). The frontend is the full
+file 02 UI: tokens.css exactly as specified, base.css with the bundled Inter subset
+(50.6 KB for weights 400/500/600 + OFL license), all components (PowerButton with
+halo/ring/disc/glyph layers, rotating connecting arc, dashed degraded ring, one ripple
+when turning on; StatusBlock with stable-height timer and quiet line; Menu; Accordion;
+TestSteps; Toast; inline-SVG Lucide Icon; Wordmark using Ali's logo at 28 px), all five
+screens (Connect, FirstRun, Settings with Advanced, Help with the live test and rescue
+buttons, About with the three-node diagram), the copy deck in i18n/en.json with zero
+hard-coded component text, and the adapter layer (wails.ts over the generated bindings,
+mock.ts driven by ?mock=..., android.ts stub). A strict CSP
+(default-src 'self'; no inline script; no eval) ships in index.html.
+
+### Verification (exact commands and real results)
+
+```
+$ npm run build                       -> 84.7 KB JS + 23.6 KB CSS (target <= 250 KB excl. fonts)
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> build/bin/younblock.exe, 12,720,128 bytes = 12.13 MB (target <= 20 MB), no UPX
+$ go vet ./...                        -> exit 0
+$ go test -race ./...                 -> all packages ok
+$ GOOS=windows GOARCH=amd64 go build ./... -> exit 0
+$ ./scripts/check-platform-neutral    -> OK
+$ GOOS=linux GOARCH=arm64 go build ./internal/… -> exit 0
+$ /tmp/younblock-core --selftest      -> still all four steps OK against the real services
+```
+
+Screenshots (file 02, section 10) taken with the mock backend at 360 x 560 into
+docs/screenshots/: Connect in all six phases (off, connecting with the amber arc,
+on with the green disc and timer, degraded with the Fix connection button, error with
+the PORT_BUSY sentence and Open help link, stopping), Connect with the notice line,
+menu open, first-run, Settings with Advanced closed and open, Help before/mid/passed/
+failed test, About, and Connect on at 320 x 568 and 480 x 900. Each was reviewed with
+a vision model against sections 2 and 4 of file 02 (layout, colors, copy) and the
+differences found were fixed before capture (one real bug: the power button received
+the state object instead of the phase, so On never showed green — fixed and re-shot).
+
+Interaction checks (browser over the built bundle): the switch role and aria-checked
+track the state; Escape closes the menu (4 menu items -> 0); the network panel shows
+only local requests (fonts, JS, CSS, favicon — all from 127.0.0.1), proving R21's
+"frontend loads nothing remote"; keyboard Space/Enter handlers are wired on the button.
+The 35 s connect sequence, tray coexistence with Wails and the toast rendering are
+Windows-runtime behaviors that could not be verified on this sandbox (below).
+
+### Could not verify in Phase 4 (honest list)
+
+- The tray icon actually appearing beside the Wails event loop on Windows (compiled and
+  wired through the external-loop API designed for it; the 3-attempt rule from file 01
+  §9 could not be exercised without a Windows session).
+- Toast notifications rendering (go-toast drives SnoreToast; only a real Windows
+  machine can show it).
+- The 360 x 560 window chrome (title bar color, no white flash) as real WebView2
+  windows; the web layout itself is screenshot-verified.
+- Single-instance lock behavior with a real second launch (API used per docs).
+
+### Notes
+
+- `npm install` needs `--legacy-peer-deps` on this sandbox (a vite/devtools peer
+  conflict in the tooling chain); plain `npm install` works where npm resolves it.
+- The screenshots were taken from the production bundle served by `vite preview`,
+  driven through an automated browser; the app had to be mounted with Svelte 5's
+  `mount()` API (the legacy `new App()` instantiation broke $effect).

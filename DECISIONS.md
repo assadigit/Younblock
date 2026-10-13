@@ -200,3 +200,27 @@ complete and test-proven; only the toast surface is pending.
 **D32 — Platform factory falls back to the stub.**
 If the Windows adapter cannot initialize (config dir unavailable), the factory returns
 the stub so the app still runs without system-proxy support, and says so on stderr.
+
+**D33 — go-toast for notifications.**
+File 01 §9 explicitly allows "the tray library or a toast library". energye/systray has
+no notification API, so go-toast (pure Go, drives the Windows toast API via SnoreToast)
+was added with that one-line justification. Whether toasts actually render can only be
+confirmed on Ali's machine; if they do not, the tray attention icon, the tooltip and
+the UI notice line already carry every failure/recovery message, which is the fallback
+file 01 §9 sanctions.
+
+**D34 — The frontend bundles a copy of assets/logo.png.**
+The Wordmark component loads `/logo.png` from the frontend's public folder; the source
+of truth stays `assets/logo.png` (used for the app icon). Keeping a copy avoids coupling
+the web build to a path outside `frontend/`.
+
+**D35 — main.go and app.go carry no build tag; only the tray does.**
+Wails' binding generation compiles the root package for the host platform, so the entry
+points must compile on Linux; `tray_windows.go` (energye/systray pulls Linux GUI
+libraries) is windows-only with a no-op `tray_other.go` counterpart for development
+builds. The platform-neutral rule from file 01 §3 only constrains the internal/ packages,
+and this stays within it.
+
+**D36 — Svelte 5 mount().** The template's legacy `new App()` instantiation breaks
+runes-based components ($effect orphan errors); `mount(App, { target })` is the supported
+Svelte 5 API and is what ships.

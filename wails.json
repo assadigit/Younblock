@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Younblock",
+  "outputfilename": "younblock",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Ali",
+    "email": ""
+  },
+  "info": {
+    "productName": "Younblock",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright",
+    "comments": "Helps YouTube load in Chrome."
+  }
+}

@@ -11,6 +11,8 @@ import (
 	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/engine"
 
+	"github.com/go-toast/toast"
+
 	syswin "golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -208,8 +210,10 @@ func (p *Platform) SetNotifier(fn func(kind engine.NoticeKind, text string)) {
 	p.mu.Unlock()
 }
 
-// Notify shows a notification (toast once phase 4 wires it; until then the
-// tray icon carries the state and this is logged).
+// Notify shows a Windows toast for failure and recovery (file 01 section 9:
+// "via the tray library or a toast library"). go-toast drives the Windows
+// toast API through SnoreToast; if that ever fails, the tray attention icon
+// and the UI notice line still carry the message.
 func (p *Platform) Notify(kind engine.NoticeKind, text string) {
 	p.mu.Lock()
 	fn := p.notify
@@ -218,7 +222,15 @@ func (p *Platform) Notify(kind engine.NoticeKind, text string) {
 		fn(kind, text)
 		return
 	}
-	// Logged only; the user still sees failures in the UI state line.
+	n := toast.Notification{
+		AppID:   config.AppName,
+		Title:   config.AppName,
+		Message: text,
+	}
+	if err := n.Push(); err != nil {
+		// Never let a notification failure break the engine.
+		_ = err
+	}
 }
 
 // ConfigDir returns %APPDATA%\Younblock.

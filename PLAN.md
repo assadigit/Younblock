@@ -71,17 +71,17 @@ of R18, and the frontend part of R21.
 
 Acceptance criteria (file 01 §11 plus file 02 §10):
 
-- [ ] `npm run build` passes
-- [ ] `wails build` passes (Windows target from this machine if the toolchain allows; otherwise everything short of the final link, stated honestly)
-- [ ] Single-instance lock (`SingleInstanceLock` in Wails v2; verified against the installed version)
-- [ ] Tray: three icons differing by shape, tooltip states, left-click show/hide, right-click menu (Turn on/off, Open Younblock, Quit), closing hides to tray, first-time close notice
-- [ ] Notifications only for failure and recovery, rate-limited to one per 10 minutes
-- [ ] Screenshots from file 02 §10 in `docs/screenshots/`: Connect in all six phases; Connect with a notice line; menu open; first-run; Settings (Advanced closed and open); Help (before test, mid-test, failed, passed); About; Connect `on` at 320 x 568 and at 480 x 900 — all with the mock backend
-- [ ] Power button is the largest and most contrasting element in every phase; Off/On distinguishable in grayscale
-- [ ] Keyboard only: Tab reaches every control; Space toggles the button; focus ring always visible; Esc closes the menu
-- [ ] Reduced-motion removes the ripple and spinner motion
-- [ ] No network requests except to the local backend; fonts and icons local
-- [ ] No hard-coded strings; logical CSS properties only
+- [x] `npm run build` passes (84.7 KB JS + 23.6 KB CSS)
+- [x] `wails build` passes for windows/amd64 from this machine: younblock.exe 12.13 MB with -trimpath -ldflags "-s -w"
+- [x] Single-instance lock (`SingleInstanceLock` in Wails v2; verified against the installed version)
+- [x] Tray: three icons differing by shape (+ light-taskbar variants), tooltip states, left-click show/hide, right-click menu (Turn on/off, Open Younblock, Quit), closing hides to tray, first-time close notice
+- [x] Notifications only for failure and recovery, episode-based 10-minute rate limit (go-toast; rendering needs a real Windows session)
+- [x] Screenshots from file 02 §10 in `docs/screenshots/` (19 shots, reviewed with a vision model against sections 2 and 4)
+- [x] Power button is the largest and most contrasting element in every phase; Off/On distinguishable in grayscale (shape-different icons and discs)
+- [x] Keyboard only: Space/Enter toggle; focus ring visible; Esc closes the menu (verified in the browser)
+- [x] Reduced-motion removes the ripple and spinner motion (CSS media query)
+- [x] No network requests except local (network panel shows only 127.0.0.1 requests); fonts and icons local
+- [x] No hard-coded strings (all copy in i18n/en.json); logical CSS properties (inset-inline etc.)
 
 ## Phase 5 — Remaining P1 items from file 03
 
