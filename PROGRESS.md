@@ -717,3 +717,23 @@ YouTube loads (fragmented tunnel), example.com https loads (plain tunnel),
 info.cern.ch http loads (forward path). Screenshots of all states re-shot
 and vision-checked: no green anywhere, red on-state confirmed, red checked
 switch, no console or page errors.
+
+## Release v0.4.0 — published to GitHub Releases
+
+Date: 2026-10-14 (Asia/Tehran). Tag v0.4.0 on the phase-9 commit (4c199f3);
+gates had just run green on the same tree.
+
+```
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> PE32+ console, 9,581,568 bytes (9.14 MB)
+      SHA-256 78de068e4175c79ee61381520d6d4f6c1987a10b4562afa91705dde6c260873c
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> PE32+ GUI, 12,750,848 bytes (12.16 MB)
+      SHA-256 5c7d13cf06b8fe82875bc9486857d69fcd1bf78f809eca66ec534562345b1cc2
+$ /tmp/yb-core-linux --version  -> Younblock core 1.3.0
+$ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (86 ms), video OK (103 ms)
+```
+
+Release notes explain the PAC→manual-proxy switch in plain language, the
+anti-clobber watchdog, the new logo palette, and the safer pass-through
+browsing. Assets re-downloaded from the release page: checksums identical.
