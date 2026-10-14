@@ -995,3 +995,23 @@ on top of the single file, with every change still applied to all versions.
   and runs identically without it.
 - The deb/AppImage/flatpak wrappers embed build timestamps, so only the
   inner binaries are byte-reproducible, not the container files.
+
+### Release v0.5.1 record
+
+- Commit 979dcbf (tag phase-12) pushed to main.
+- Release live: https://github.com/assadigit/Younblock/releases/tag/v0.5.1
+  with eleven assets, all round-trip re-downloaded and SHA-256 identical:
+  - younblock.exe 12.76 MB (e498d7dd11ea…)
+  - younblock-x86.exe 12.18 MB (c0157b14df70…)
+  - younblock-core.exe 11.02 MB (ee9d0c505e54…)
+  - younblock-core-x86.exe 10.60 MB (0b21b0950a29…)
+  - younblock-linux-amd64 8.38 MB (07ea63735fe9…)
+  - younblock-linux-386 8.12 MB (a37e8643602f…)
+  - younblock_1.4.1_amd64.deb 3.04 MB (7125c1edc3d1…)
+  - younblock_1.4.1_i386.deb 2.94 MB (4ef9814fd478…)
+  - Younblock-1.4.1-x86_64.AppImage 4.04 MB (c1bc8f6b8a3a…)
+  - Younblock-1.4.1-i686.AppImage 3.96 MB (631068cddacc…)
+  - Younblock-1.4.1-x86_64.flatpak 3.05 MB (0987e40f37de…)
+- Upgrade notes in the release body; Ali's Mint manual check list in README
+  (steps 7–8 cover the packages, including the one honest manual check this
+  format needs).
