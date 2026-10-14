@@ -221,16 +221,22 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 52px;
+    height: 44px;
     padding: 0 var(--space-3) 0 var(--space-4);
     padding-top: env(safe-area-inset-top);
     flex: none;
   }
+  /* D48: the shell is the height budget owner — #app is exactly the
+     viewport height (base.css), the header and footer are flex:none,
+     and the main area absorbs the rest. Nothing can push the footer
+     out of the window any more, and the never-scrolling body keeps it
+     glued to the bottom of the flex column. */
   .app-main {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
   }
   .overlay {
     position: fixed;

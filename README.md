@@ -16,6 +16,22 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.3.1** (after the "white space" and "Fix connection is on
+the edge" reports):
+
+- **The window finally has the room it was designed for.** The app's window was
+  created slightly too small on the inside — the title bar and frame were eating
+  part of the space the layout was drawn for. On some screens that left a strange
+  empty gap in the middle of the window, and in the "Check needed" state the
+  *Fix connection* button sat right on the bottom edge with the footer hidden
+  below the window. The app now grows its window at startup so the inside is
+  exactly the designed size, at any display scaling.
+- **The layout can no longer overflow.** Even if the window is somehow smaller
+  than designed (very high display scaling), the home screen re-budgets itself:
+  the big button shrinks a step, the tall warning states make room, and the
+  footer stays inside the window with breathing room — with a scroll safety net
+  under everything so nothing can ever be unreachable.
+
 **What's new in version 1.3.0** (after the "only the dedicated Chrome session worked"
 report):
 

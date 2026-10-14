@@ -57,13 +57,16 @@
   </p>
   <p class="subtitle" class:warn={state.phase === "degraded"}>{subtitle}</p>
   <p class="notice" class:visible={!!noticeText} aria-live="polite">{noticeText ?? ""}</p>
-  <div class="metrics">
-    <p class="timer" class:visible={showTimer} aria-hidden={!showTimer}>
-      {stats ? formatTimer(stats.uptimeSec) : "00:00:00"}
-    </p>
-    <p class="quiet" class:visible={showTimer} aria-hidden={!showTimer}>
-      {quietText}
-    </p>
+  <!-- D48: the timer/quiet block collapses to zero height when its
+       state can never show it (off/connecting/error/stopping) and grows
+       back with a smooth grid-rows animation — in the error state that
+       reserved 52 px used to push the reason text and "Open help" link
+       past the window bottom. -->
+  <div class="metrics" class:visible={showTimer} aria-hidden={!showTimer}>
+    <div class="metrics-body">
+      <p class="timer">{stats ? formatTimer(stats.uptimeSec) : "00:00:00"}</p>
+      <p class="quiet">{quietText}</p>
+    </div>
   </div>
   {#if state.phase === "error" && errorCopy}
     <div class="error-row">
@@ -162,11 +165,22 @@
   .notice.visible {
     opacity: 1;
   }
+  /* D48: 0fr <-> 1fr grid rows give a smooth height animation without
+     JS; the children keep their own min-heights inside. */
   .metrics {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 240ms var(--ease-spring-out, ease-out);
+  }
+  .metrics.visible {
+    grid-template-rows: 1fr;
+  }
+  .metrics-body {
+    overflow: hidden;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0;
   }
   .timer {
     margin: 0;
@@ -191,8 +205,8 @@
     opacity: 0;
     transition: opacity 160ms ease-out;
   }
-  .timer.visible,
-  .quiet.visible {
+  .metrics.visible .timer,
+  .metrics.visible .quiet {
     opacity: 1;
   }
   .error-row {
@@ -200,25 +214,39 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-1);
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
+    max-width: 280px;
   }
+  /* D48: the reason text gets a compact budget with its own scroll so a
+     long UNKNOWN/PORT_BUSY paragraph can never push the footer out of
+     the window again (the full text stays available). */
   .error-text {
     margin: 0;
     color: var(--color-danger);
     font-size: var(--text-sm);
     line-height: 20px;
-    max-width: 280px;
+    max-height: 100px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  .error-text::-webkit-scrollbar {
+    display: none;
   }
   .link {
     color: var(--color-text-muted);
     text-decoration: underline;
     min-height: 44px;
     padding: var(--space-1) var(--space-2);
+    flex: none;
   }
   /* Degraded repair action: a gold ghost button — clearly a warning
-     fix, not a second "turn on". */
+     fix, not a second "turn on". v1.3.1: flex:none so it always keeps
+     its full height in the scroll column (never squashed onto the
+     window edge, Ali's D48 report). */
   .fix {
-    margin-top: var(--space-3);
+    margin-top: var(--space-2);
+    flex: none;
     min-height: 44px;
     padding: var(--space-2) var(--space-6);
     border-radius: var(--radius-full);

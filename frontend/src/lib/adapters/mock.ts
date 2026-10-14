@@ -68,7 +68,7 @@ export class MockBackend implements Backend {
     };
     this.info = {
       name: "Younblock",
-      version: "1.3.0",
+      version: "1.3.1",
       platform: "windows",
       capabilities: { tray: true, startWithOS: true, systemProxy: true, perAppRouting: false },
       configPath: "C:\\Users\\Ali\\AppData\\Roaming\\Younblock\\settings.json",

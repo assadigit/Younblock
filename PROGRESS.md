@@ -737,3 +737,65 @@ $ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (86 ms
 Release notes explain the PAC→manual-proxy switch in plain language, the
 anti-clobber watchdog, the new logo palette, and the safer pass-through
 browsing. Assets re-downloaded from the release page: checksums identical.
+
+## Phase 10 — the "white space" + "Fix connection is on the edge" report (v1.3.1)
+
+Ali sent two screenshots of the degraded state. Forensics first: VLM reads
+plus pixel scans of both images (48.png: running timer, gold ghost pill —
+current 1.3.0 UI; 4545.png: green pill + dashed rings + frozen 00:00:00 —
+an old 1.1.x-era image he kept, same complaint). The "blue pixels" in both
+turned out to be ClearType subpixel fringes around white text, and the strip
+under the green button is the Windows taskbar — i.e. the button really sat
+on the window's bottom edge.
+
+Measurements on the live 1.3.0 frontend (vite preview + agent-browser at
+360x560): degraded document height 574 in a 560 viewport (footer fully
+clipped, Fix-connection pill 486..530 with the window ending at 560), error
+state 634 (74 px clipped). The centered flex with `overflow: hidden` on
+body distributed the overflow badly — the top of the stack stayed pinned
+while the bottom fell out of the window, which is exactly the dead gap /
+edge-slam Ali photographed. A second, deeper cause: Wails' initial
+`SetSize(360, 560)` lands on the OUTER window rectangle after DPI scaling
+(winc `scaleWithWindowDPI` + `MoveWindow`), so the WebView2 client — the
+CSS viewport — measures ~336x522 at Ali's scaling: even the "on" state was
+drawing in a window smaller than designed.
+
+Fixes (D48):
+
+- Window: `clientsize_windows.go` finds the `wailsWindow`-class top-level
+  window of our PID, reads `GetDpiForWindow`, measures the real frame
+  (`GetWindowRect` − `GetClientRect`), and `MoveWindow`s the outer window
+  so the client is exactly 360x560 logical at that DPI (top-left shifted
+  by half the growth to keep the visual center). Failures log one info
+  line and keep the Wails size. `clientsize_other.go` is the dev no-op
+  (app.go/main.go stay build-tag free, D35).
+- Shell budget: header 52→44; `#app` got `max-height: 100dvh` +
+  `overflow: hidden`; `.app-main` is the flex owner; the footer is
+  `flex: none` inside the column with `margin: 0 auto var(--space-4)` —
+  it can never be pushed out of the window again.
+- Connect: `justify-content: safe center`, internal scroll safety net
+  (scrollbars hidden), `min-height: 0`; the timer/quiet block collapses
+  to 0 height in states that can never show it (off/connecting/error/
+  stopping) via the 0fr↔1fr grid-rows animation, and grows back smoothly;
+  the error reason text is capped at 100 px with its own scroll; the error
+  state also steps the button down to 0.88.
+- Responsive ladder: button 0.88 under 546 css px of viewport height;
+  whole-screen `zoom: 0.82` under 470 (physically correct on a 150%-scaled
+  display, where a css px is already 1.5 device px).
+- `BackgroundColour` 30,31,33 → 37,33,32 (the real #252121-family
+  neutral; D48).
+
+Verified: all six states at 360x560 → docH exactly 560, footer bottom 544,
+zero internal scroll (degraded fix pill 457..501, error help link ends
+492.5); at 336x522 (Ali's viewport) degraded fits with zero scroll; at
+288x448 (150% scaling) degraded/error fit via the ladder (0–2 px scroll).
+All 19 doc screenshots re-shot; VLM QA pass (after a false "cut off"
+hallucination was disproved by same-session pixel measurement: badge text
+rows 526..533, 27 px clear of the bottom). Golden-path E2E (toggle → on,
+Settings, Help and back) with zero console messages and zero page errors.
+svelte-check: 12 errors — the documented pre-existing runes quirk, count
+unchanged.
+
+Gates on the committed tree: go vet; go test -race (13 packages); GOOS=windows
+full build; check-platform-neutral; arm64 core build; npm run build (90.4 KB
+JS / 29.4 KB CSS); live selftest 1.3.1 all OK (youtube 90 ms, video 138 ms).

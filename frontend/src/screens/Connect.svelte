@@ -19,7 +19,11 @@
     $props();
 </script>
 
-<section class="connect" aria-label={copy.a11y.powerButton}>
+<section
+  class="connect"
+  data-phase={state.phase}
+  aria-label={copy.a11y.powerButton}
+>
   <div class="button-wrap">
     <PowerButton phase={state.phase} {busy} onToggle={onToggle} label={copy.a11y.powerButton} />
   </div>
@@ -38,25 +42,48 @@
 </footer>
 
 <style>
+  /* D48 (Ali's report): the old fixed budget overflowed the 360x560
+     window whenever the status stack grew (degraded +44 fix pill, error
+     +reason stack) — the footer was clipped off-screen and the
+     "Fix connection" pill landed on the window's bottom edge. The
+     layout now has a hard height budget with a scroll safety net and a
+     responsive power-button ladder, so it stays composed at 560 css px
+     and degrades gracefully when Windows DPI scaling shrinks the
+     viewport below that. */
   .connect {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: var(--space-8);
-    padding: var(--space-6) var(--space-6) var(--space-4);
-    padding-top: max(var(--space-6), env(safe-area-inset-top));
+    /* Between tall status stacks and short ones the extra room goes
+       above and below the whole group (never inside it, where it read
+       as a dead gap between the button and the timer). safe center so
+       an over-tall stack can never be cut at both ends. */
+    justify-content: safe center;
+    gap: var(--space-6);
+    padding: var(--space-2) var(--space-6);
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  .connect::-webkit-scrollbar {
+    display: none;
   }
   .button-wrap {
     display: grid;
     place-items: center;
+    flex: none;
   }
+  /* The footer always sits inside the window with real margins on both
+     sides (D48): it is part of the flex column, so it can never be
+     clipped by an overflowing status stack again. */
   .footer {
+    flex: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
+    margin: 0 auto var(--space-4);
     padding: 5px 12px;
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: var(--radius-full);
@@ -68,4 +95,30 @@
     font-weight: 500;
   }
 
+  /* The responsive ladder (D48): the power button shrinks a step when
+     the viewport gets tight, so the degraded/error stacks keep their
+     room without pushing the footer out. Degraded needs ~546 css px of
+     viewport; below that the button scales to 0.88. Below ~470 css px
+     (150% Windows scaling on the fixed window) the whole screen zooms
+     down 0.82 — which restores the intended physical size on the
+     high-DPI display, because a css px there is already 1.5 device px.
+     The internal scroll stays as the safety net below that. */
+  @media (max-height: 545px) {
+    .button-wrap {
+      transform: scale(0.88);
+      margin: calc(-208px * 0.06) 0;
+    }
+  }
+  @media (max-height: 469px) {
+    .connect {
+      zoom: 0.82;
+    }
+  }
+  /* The error state carries the tallest status stack (reason text +
+     help link): shrink the button a step there too, so the reason and
+     the link stay comfortably inside the window (D48). */
+  .connect[data-phase="error"] .button-wrap {
+    transform: scale(0.88);
+    margin: calc(-208px * 0.06) 0;
+  }
 </style>

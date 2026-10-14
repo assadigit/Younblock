@@ -47,6 +47,14 @@ func newApp() *App {
 // startup receives the wails context and starts the tray.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	// D48: grow the window so the WebView2 client area (the CSS
+	// viewport) is the full 360x560 logical design size — Wails'
+	// initial size lands on the outer rectangle, leaving Ali with
+	// 336x522 and the overflow bugs he reported. Best-effort: any
+	// failure keeps the Wails size and the CSS ladder still copes.
+	if err := ensureDesignClientSize(360, 560); err != nil {
+		a.eng.Logger().Info("window client-size correction skipped", "reason", err.Error())
+	}
 	a.startTray()
 	// Turn on automatically when the app opens (if the user asked for it).
 	var settings struct {

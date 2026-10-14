@@ -143,3 +143,26 @@ Scope: five user-requested additions on top of the completed spec work. All defa
 - [x] Proxy tests: forward path, unfragmented relay, all-mode fragmentation; integration test re-pointed at a routed host
 - [x] UI restyled to the logo palette (D47): warm charcoal neutrals, red primary, gold accent; tray icons regenerated
 - [x] Version 1.3.0; all gates green; live selftest; real-browser E2E through the proxy (YouTube + https site + plain-http site); screenshots re-shot and vision-checked
+
+## Phase 10 (v0.4.1 / app 1.3.1) — "white space" + "Fix connection is on the edge"
+
+- [x] Diagnose from Ali's two screenshots (VLM + pixel forensics): both show the degraded
+      state; the v0.4.0 home screen's fixed height budget overflows the 360x560 window
+      whenever the status stack grows (degraded docH 574, error 634) — the footer was
+      pushed out of the window and the Fix-connection pill landed on the bottom edge;
+      the centered flex with overflow left a dead gap in the middle (the "white space")
+- [x] Root cause on the window side: Wails' initial SetSize applies 360x560 logical to
+      the OUTER window rect, so the title bar + frame shrink the CSS viewport
+      (Ali's measured 336x522) at every DPI
+- [x] app startup now corrects the outer size so the client area is exactly 360x560
+      logical at the window's DPI (clientsize_windows.go + no-op other; D48)
+- [x] CSS re-budget (D48): header 52→44; shell owns the height budget (#app max-height,
+      flex:none footer with real margins); Connect scrolls internally as a safety net;
+      safe-center; timer/quiet block collapses when its state can't show it (grid-rows);
+      error reason text capped with its own scroll; error-state button step-down;
+      responsive ladder (button 0.88 below 546 css px; whole-screen zoom 0.82 below 470)
+- [x] BackgroundColour matched to the real --neutral-950 (37,33,32)
+- [x] Version 1.3.1; gates green; all six states measured at 360x560, 336x522 and
+      288x448 (docH = viewport, footer visible, fix pill ≥15px above the footer);
+      screenshots re-shot and vision-checked; golden-path E2E with zero console/page
+      errors

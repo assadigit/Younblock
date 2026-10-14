@@ -408,3 +408,26 @@ red padlock). Danger keeps its distinct coral (#FF6A5F) and differs from
 the on-state by treatment and label, not just hue. Tray icons regenerated
 in the same palette (red on-icon, gold attention dot, warm gray off).
 File 02 §2's token table is superseded by the logo-derived one.
+
+**D48 — The home screen's height budget and the window's real size (Ali's
+"white space" / "Fix connection is on the edge" report).**
+Two defects stacked up. (1) Wails' initial SetSize applies the logical
+360x560 to the OUTER window rectangle (winc scales by DPI, then MoveWindow),
+so the title bar and frame shrink the CSS viewport to ~336x522 at Ali's
+scaling — every state was drawing in a window smaller than designed. The
+app now corrects the outer size at startup so the client area is exactly
+360x560 logical at the window's DPI (user32 via x/sys/windows in
+clientsize_windows.go, a build-tagged shell file like the tray and browser
+launchers; app.go/main.go stay tag-free per D35). (2) The Connect screen's
+fixed vertical budget had no overflow plan: degraded (574 px) and error
+(634 px) stacks pushed the footer out of the window and slammed the
+Fix-connection pill onto the bottom edge, while the centered flex left a
+dead gap mid-window. The shell now owns the height budget (flex column with
+a flex:none footer that can never be pushed out), Connect centers with
+`safe center` and carries an internal scroll safety net, the timer/quiet
+block collapses in states that can never show it (0fr↔1fr grid-rows), the
+error reason text is capped with its own scroll, and a responsive ladder
+(button 0.88 below 546 css px; whole-screen zoom 0.82 below 470 —
+physically correct on 150%-scaled displays) keeps every state inside any
+viewport the fixed window can produce. File 02 §4.1's fixed-metrics table
+gains these budget rules; the 52 px header (§3) becomes 44 px.

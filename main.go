@@ -30,7 +30,7 @@ func main() {
 		WindowStartState:  options.Normal,
 		StartHidden:       *minimized,
 		HideWindowOnClose: false,                      // OnBeforeClose hides to the tray instead
-		BackgroundColour:  options.NewRGB(30, 31, 33), // --neutral-950: no white flash
+		BackgroundColour:  options.NewRGB(37, 33, 32), // --neutral-950 #252121-family dark: no white flash (D48 exact match)
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
