@@ -1,7 +1,10 @@
 <script lang="ts">
   // State label, subtitle, notice line, timer and the quiet line
   // (file 02, section 4.1). The timer and quiet line keep their height in
-  // every state so nothing jumps.
+  // every state so nothing jumps. v1.2.0 polish (D45): a state-colored
+  // status dot beside the label, tighter typographic rhythm, and an
+  // amber ghost action for the degraded state (it reads as a warning
+  // repair action, not a second "turn on" button).
   import { copy, fill } from "../i18n";
   import { formatBytes, formatTimer, subtitleFor } from "../lib/format";
   import type { BackendState, Stats } from "../lib/backend";
@@ -48,8 +51,11 @@
 </script>
 
 <div class="status" aria-live="polite">
-  <p class="state-label">{stateLabel(state.phase)}</p>
-  <p class="subtitle">{subtitle}</p>
+  <p class="state-label">
+    <span class="dot {state.phase}" aria-hidden="true"></span>
+    <span>{stateLabel(state.phase)}</span>
+  </p>
+  <p class="subtitle" class:warn={state.phase === "degraded"}>{subtitle}</p>
   <p class="notice" class:visible={!!noticeText} aria-live="polite">{noticeText ?? ""}</p>
   <div class="metrics">
     <p class="timer" class:visible={showTimer} aria-hidden={!showTimer}>
@@ -81,11 +87,55 @@
   }
   .state-label {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 28px;
     line-height: 34px;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     color: var(--color-text);
+  }
+  /* The status dot: color alone never carries meaning, but it gives an
+     instant at-a-glance read next to the word. */
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-full);
+    background: var(--neutral-500);
+    box-shadow: 0 0 0 3px rgba(163, 166, 173, 0.14);
+    transition:
+      background 320ms ease-out,
+      box-shadow 320ms ease-out;
+  }
+  .dot.on {
+    background: var(--green-400);
+    box-shadow: 0 0 0 3px rgba(52, 199, 123, 0.18);
+  }
+  .dot.connecting {
+    background: var(--color-warn);
+    box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.18);
+    animation: dot-wait 1.6s ease-in-out infinite alternate;
+  }
+  .dot.degraded {
+    background: var(--color-warn);
+    box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.18);
+  }
+  .dot.error {
+    background: var(--color-danger);
+    box-shadow: 0 0 0 3px rgba(255, 106, 95, 0.18);
+  }
+  .dot.stopping {
+    background: var(--neutral-600);
+    box-shadow: 0 0 0 3px rgba(101, 105, 113, 0.14);
+  }
+  @keyframes dot-wait {
+    from {
+      opacity: 0.55;
+    }
+    to {
+      opacity: 1;
+    }
   }
   .subtitle {
     margin: 0;
@@ -93,6 +143,12 @@
     line-height: 20px;
     color: var(--color-text-muted);
     min-height: 20px;
+    transition: color 320ms ease-out;
+  }
+  /* Degraded: the reason line is warmed up so the failure is not
+     lost in gray (D45). */
+  .subtitle.warn {
+    color: var(--amber-300);
   }
   .notice {
     margin: 0;
@@ -116,6 +172,8 @@
     margin: 0;
     font-size: var(--text-timer);
     line-height: 32px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
     color: var(--color-text);
@@ -125,9 +183,10 @@
   }
   .quiet {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     line-height: 20px;
-    color: var(--color-text-muted);
+    letter-spacing: 0.01em;
+    color: var(--neutral-500);
     min-height: 20px;
     opacity: 0;
     transition: opacity 160ms ease-out;
@@ -156,16 +215,29 @@
     min-height: 44px;
     padding: var(--space-1) var(--space-2);
   }
+  /* Degraded repair action: an amber ghost button — clearly a warning
+     fix, not a second "turn on". */
   .fix {
     margin-top: var(--space-3);
     min-height: 44px;
     padding: var(--space-2) var(--space-6);
     border-radius: var(--radius-full);
-    background: var(--green-500);
-    color: var(--color-on-primary);
+    border: 1px solid rgba(242, 184, 75, 0.45);
+    background: rgba(242, 184, 75, 0.08);
+    color: var(--amber-300);
     font-weight: 500;
+    transition:
+      background 160ms ease-out,
+      border-color 160ms ease-out;
   }
   .fix:hover {
-    background: var(--green-400);
+    background: rgba(242, 184, 75, 0.16);
+    border-color: rgba(242, 184, 75, 0.7);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dot.connecting {
+      animation: none;
+    }
   }
 </style>

@@ -2,7 +2,6 @@
   // The home screen (file 02, section 4.1).
   import PowerButton from "../components/PowerButton.svelte";
   import StatusBlock from "../components/StatusBlock.svelte";
-  import Icon from "../components/Icon.svelte";
   import { copy } from "../i18n";
   import type { BackendState, Stats } from "../lib/backend";
 
@@ -35,7 +34,6 @@
 </section>
 
 <footer class="footer">
-  <Icon name="globe" size={14} />
   <span>{copy.app.footer}</span>
 </footer>
 
@@ -58,10 +56,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-2);
-    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
+    margin-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
+    padding: 5px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-full);
+    color: var(--neutral-400);
+    font-size: 11px;
     line-height: 16px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
   }
+
 </style>

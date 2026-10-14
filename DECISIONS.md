@@ -329,3 +329,34 @@ defaults back; a newly added provider goes to the top and is tried first),
 because telling a non-coder to hand-edit settings.json is not an honest fix.
 No claim is made that any particular provider works on any particular
 network; the status line and the test verify what actually answers.
+
+**D45 — The v1.2.0 power-button fix and visual polish: motion that survives
+reduced-motion, and a footer that tells the truth.**
+Ali reported the power button animation "stuck midway" and asked for a more
+professional look; the footer also said "Works with Chrome" while the app
+sets the Windows proxy, which every mainstream browser follows. Root cause of
+the freeze (reproduced by emulating `prefers-reduced-motion` in the sandbox
+browser): base.css killed *all* animation and transition durations under that
+media query with `0.001s !important`, so on Windows with system animations
+off (or over RDP, which WebView2 mirrors) the connecting arc — a functional
+progress indicator — spun once and then sat frozen mid-circle for the rest of
+the start sequence, and the turn-on ripple never appeared. The WCAG-correct
+policy replaces the blanket rule: movement-based *decoration* (the echo
+rings, the disc spring pop, the glow breath, press scaling, toast slide) is
+disabled per component under reduced motion, while the connecting spinner
+keeps spinning and color/opacity crossfades keep running — they carry state
+information and cause no vestibular motion. On top of the fix the turn-on
+moment is now fully orchestrated (spring pop, two staggered echo rings, a
+crossfaded gradient disc — gradients cannot tween, so the lit plate is an
+opacity-crossfaded layer — and a slow glow breath), the press feedback was
+tightened and can no longer stick (release on click/pointercancel/blur), the
+degraded rim is a solid amber glow instead of the wireframe-looking dashed
+ring (color + label still differ from error), and the status block gains a
+state-colored dot, a warmed degraded subtitle and an amber ghost "Fix
+connection" action. The footer badge now reads "Works with every browser",
+and Help/About/first-run copy says the same truth precisely: the app sets the
+Windows proxy, so Edge, Chrome, Firefox, Opera, Brave and the rest all work;
+it is simply tested most with Chrome. The optional dedicated-Chrome-session
+setting keeps its name — that feature really is Chrome-only. File 02's
+section 4.1/7 button look is superseded here by Ali's explicit request
+(recorded so the spec and the code don't silently disagree).

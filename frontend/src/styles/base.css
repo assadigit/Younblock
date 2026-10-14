@@ -115,15 +115,13 @@ button {
   background: transparent;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001s !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001s !important;
-  }
-}
+/* Reduced motion policy (D45): Windows WebView2 reports
+   prefers-reduced-motion when system animations are off (or under RDP).
+   A blanket animation/transition kill here used to freeze the
+   connecting spinner mid-arc — a functional state indicator — which
+   read as "stuck halfway". Movement-based decoration is now disabled
+   per component, while functional spinners and color/opacity fades
+   (which carry state and cause no vestibular motion) keep running. */
 
 .sr-only {
   position: absolute;

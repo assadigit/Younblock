@@ -1,7 +1,7 @@
 # Younblock
 
-Younblock is a small Windows app that helps YouTube load in Google Chrome when your
-network blocks it. It runs a little relay on your own computer: Chrome sends its
+Younblock is a small Windows app that helps YouTube load in your browser when your
+network blocks it. It runs a little relay on your own computer: your browser sends its
 traffic to it, it looks up YouTube's address through a secure DNS service, and it sends
 the first "hello" message to YouTube in small pieces so name-based filters don't
 recognize it.
@@ -11,9 +11,27 @@ own. YouTube's own HTTPS still protects everything you send. Your internet provi
 can still see which servers you connect to. It only changes how the first message is
 sent, and it may stop working if the filtering on your network changes.
 
-It is made for Google Chrome and follows the normal Windows proxy setting, so Chrome
-needs no extra setup. It works with one big button, tests itself, and repairs itself
+It works by setting the normal Windows proxy, so every mainstream browser — Edge,
+Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (it is
+tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
+
+**What's new in version 1.2.0** (after the "button animation stuck midway" report):
+
+- **The power button's loading spinner no longer freezes when Windows' animation
+effects are turned off** (or when Windows itself runs without animations, e.g. over a
+  remote-desktop session). That setting used to pause the little amber arc mid-spin,
+  which looked like the button was stuck — the arc now keeps turning because it tells
+  you the app is working, while purely decorative motion still respects the setting.
+- **Turning on is now a fully animated moment**: the button springs, two soft echo rings
+  ripple outward, the green plate fades in and then gently breathes. The press itself
+  feels snappier and can no longer stay half-pressed.
+- **A more polished, professional look throughout the home screen**: a status dot next
+  to the state word, a cleaner timer, a softer "Check needed" look (amber glow instead
+  of a dashed ring), a warmer failure reason line, and a badge footer.
+- **The footer now says "Works with every browser"** — and it's true: the app sets the
+  Windows proxy, which Edge, Chrome, Firefox, Opera, Brave and the rest all follow. The
+  wording everywhere else was updated to match (it is still tested most with Chrome).
 
 **What's new in version 1.1.0** (asked for after the first real-Windows test):
 
@@ -127,7 +145,7 @@ Double-click `dist\younblock.exe` (or make a shortcut to it).
 - The first time it opens, it welcomes you and asks one question: whether Younblock
   should open when Windows starts. You can change this later in Settings.
 - Press the big button to turn it on. The button turns green, the timer starts, and
-  YouTube should load in Chrome — no other setup.
+  YouTube should load in your browser — no other setup.
 - Press it again to turn it off. Windows' proxy setting goes back to exactly what it
   was before.
 - Closing the window does not stop the app: it keeps running as an icon near the
@@ -208,18 +226,18 @@ cleaned up automatically.
 
 ## Your manual check on Windows (Ali's test list)
 
-Do these once, on your own PC, with Chrome closed first:
+Do these once, on your own PC, with your browser closed first:
 
 1. Run `younblock.exe`, press the button, wait for it to turn green (at most 35
-   seconds), and open `https://www.youtube.com` in Chrome. Videos should load.
+   seconds), and open `https://www.youtube.com` in your browser. Videos should load.
 2. Press the button again to turn it off, then check Windows' proxy setting is back:
    Settings > Network & internet > Proxy should look like it did before (no script
    address pointing at 127.0.0.1).
 3. Turn it on, close the Younblock window, and confirm the tray icon stays near the
-   clock and YouTube still loads in Chrome.
+   clock and YouTube still loads in your browser.
 4. Use **Quit** from the tray menu and confirm the proxy setting is restored again.
 5. Turn it on, then kill the app from Task Manager. Your internet must still work
-   (Chrome falls back to direct). Start the app again: it cleans the leftover
+   (the browser falls back to direct). Start the app again: it cleans the leftover
    setting by itself.
 6. In Settings, turn on "Open Younblock when Windows starts", restart Windows, and
    confirm Younblock appears in the tray (started, but off).

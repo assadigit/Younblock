@@ -30,4 +30,8 @@
   /* space (4 px base) and radii (a hierarchy, not one radius for everything) */
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px; --space-12:48px;
   --radius-sm:8px; --radius-md:12px; --radius-lg:20px; --radius-full:999px;
+
+  /* motion (D45): a soft decelerating spring for press release and
+     panel-like moves; component keyframes pick their own curves. */
+  --ease-spring-out: cubic-bezier(0.22, 1, 0.36, 1);
 }

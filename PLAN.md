@@ -122,3 +122,12 @@ Scope: five user-requested additions on top of the completed spec work. All defa
 - [x] Changed secure-DNS list swaps the resolver live (atomic pointer, `Server.SetResolver`)
 - [x] Advanced secure-DNS list editable in the UI (remove; one-tap add AdGuard/Quad9/dns.sb/defaults; new server tried first)
 - [x] Three new engine tests; all gates re-run green; screenshots re-taken and vision-checked
+
+## Phase 8 (v0.3.0 / app 1.2.0) — power-button animation fix + professional polish
+
+- [x] Reproduce the "stuck midway" report: emulated `prefers-reduced-motion`; the blanket base.css kill-rule froze the connecting arc mid-spin (D45)
+- [x] Reduced-motion policy rewritten: decoration off per component, functional spinner + color crossfades stay
+- [x] Turn-on moment fully orchestrated: spring pop, two staggered echo rings, crossfaded gradient lit plate, glow breath; press can no longer stick (release on click/pointercancel/blur)
+- [x] Professional polish: state dot beside the label, warmed degraded subtitle, amber ghost "Fix connection", thicker glyph stroke, resting hover feedback, solid amber degraded rim (replaces the dashed ring), footer badge chip
+- [x] Copy: footer "Works with every browser"; first-run/Help/About now say the Windows-proxy truth precisely (tested most with Chrome)
+- [x] Version 1.2.0 (config, wails.json, mock); all gates re-run green; all screenshots re-shot and vision-checked, animation verified frame-by-frame with and without reduced motion

@@ -9,7 +9,7 @@
   import Connect from "./screens/Connect.svelte";
   import FirstRun from "./screens/FirstRun.svelte";
   import Help from "./screens/Help.svelte";
-  import Settings from "./screens/Settings.svelte";
+  import SettingsScreen from "./screens/Settings.svelte";
   import { copy } from "./i18n";
   import { mockBackend } from "./lib/adapters/mock";
   import { wailsAvailable, WailsBackend } from "./lib/adapters/wails";
@@ -181,7 +181,7 @@
   {#if view === "connect" && settings && !settings.firstRunDone}
     <FirstRun startWithWindowsSupported={startWithOS} onGetStarted={getStarted} />
   {:else if view === "settings" && settings}
-    <Settings {settings} startWithWindowsSupported={startWithOS} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
+    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
   {:else if view === "help"}
     <Help {steps} {testing} onBack={() => (view = "connect")} onRunTest={runTest} onFixConnection={fixConnection} onCopyReport={copyReport} onOpenLogs={openLogs} onRestore={restoreSettings} />
   {:else if view === "about"}

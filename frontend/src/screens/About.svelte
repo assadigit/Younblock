@@ -35,10 +35,10 @@
           <li><span class="num">{index + 1}</span><span>{step}</span></li>
         {/each}
       </ol>
-      <div class="diagram" role="img" aria-label="Chrome to Younblock to YouTube">
+      <div class="diagram" role="img" aria-label="Your browser to Younblock to YouTube">
         <div class="node">
           <Icon name="globe" size={18} />
-          <span>{copy.about.diagram.chrome}</span>
+          <span>{copy.about.diagram.browser}</span>
         </div>
         <div class="link" aria-hidden="true"></div>
         <div class="node app">

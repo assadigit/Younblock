@@ -613,3 +613,52 @@ v0.1.0/v0.2.0; the block is on the network side), the three visible changes,
 and a step-by-step "what to do if it still won't connect" (including running
 the old v0.1.0 exe once to prove the network changed). Assets re-downloaded
 from the release page: checksums identical.
+
+## Phase 8 — power-button animation fix + professional UI polish (v1.2.0)
+
+Ali's report after v0.2.1 worked on real Windows: the power button animation
+"is buggy… like it stuck midway", the UI should look more professional, and
+the footer should not imply Chrome-only.
+
+Reproduction: recorded the button click in the sandbox browser with
+`prefers-reduced-motion` emulated — the connecting arc froze mid-circle and
+the turn-on ripple never ran (frame-by-frame VLM verification). The cause was
+the blanket `animation/transition-duration: 0.001s !important` rule in
+base.css: Windows mirrors the "system animations off" (and RDP) setting into
+WebView2's reduced-motion media query. The arc is a functional progress
+indicator, not decoration, so freezing it read as a stuck button.
+
+Changes (all frontend; no engine/network code touched):
+
+- base.css: blanket reduced-motion kill-rule removed; per-component policy
+  (decoration off, spinner + color/opacity fades stay) — D45.
+- PowerButton: orchestrated turn-on (spring pop 550 ms, two staggered echo
+  rings 640/760 ms, opacity-crossfaded gradient lit plate 320 ms, slow glow
+  breath), press release hardening (click/pointercancel/blur), thicker glyph
+  stroke (4), resting hover feedback, connecting arcs refined (3 px, layered
+  counter-phase second arc, gentle glyph shimmer), degraded rim = solid amber
+  glow, error rim = danger glow, ring/halo color choreography.
+- StatusBlock: state-colored status dot, timer weight 500 + tracking, quieter
+  quiet-line, degraded subtitle warmed to amber, "Fix connection" restyled as
+  an amber ghost pill (a warning repair, not a second "turn on").
+- Connect footer: badge chip, "WORKS WITH EVERY BROWSER" micro-caption.
+- Copy: first-run/Help(a1,a3)/About(how[0], diagram) now say "your browser"
+  and explain the Windows-proxy coverage precisely; footer key updated; the
+  Chrome-session setting keeps its honest Chrome-only wording.
+- Version 1.2.0 in defaults.go / wails.json / mock.
+
+Gates: `go vet` clean; `go test -race ./...` all green (11 packages);
+`GOOS=windows` full build OK; check-platform-neutral OK; linux/arm64 core
+build OK; `npm run build` OK (90.2 KB JS / 28.2 KB CSS). All 20 doc
+screenshots re-shot at 360x560 (+320x568, +480x900 responsive); VLM QA grid
+passed all six state checks; the animation was verified frame-by-frame in
+both motion modes — the arc now keeps spinning under reduced motion and the
+disc still turns green.
+
+Also fixed here (found while re-running the gates): App.svelte imported the
+Settings *component* under the same name as the Settings *type*, which broke
+`svelte-check` and made `vite dev` (dependency scan) unusable — the component
+import is now `SettingsScreen`. That clears 4 of the 16 pre-existing
+svelte-check errors; the remaining 12 are the known runes/tsconfig quirk
+(`$state` untyped to svelte-check) and the Android stub, identical on HEAD —
+`npm run build`, the gate this project has always used, is green.

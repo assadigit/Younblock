@@ -49,4 +49,19 @@
       transform: none;
     }
   }
+
+  /* Reduced motion (D45): fade only, no slide. */
+  @media (prefers-reduced-motion: reduce) {
+    .toast {
+      animation-name: fade-flat;
+    }
+  }
+  @keyframes fade-flat {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 </style>

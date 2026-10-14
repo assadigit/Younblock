@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Younblock",
-    "footer": "Works with Chrome"
+    "footer": "Works with every browser"
   },
   "state": {
     "off": "Off",
@@ -55,7 +55,7 @@
   },
   "firstRun": {
     "title": "Welcome",
-    "text": "Younblock helps YouTube load in Chrome. Turn it on when you need it. Closing this window keeps it running in the tray.",
+    "text": "Younblock helps YouTube load in your browser. Turn it on when you need it. Closing this window keeps it running in the tray.",
     "autostart": "Open Younblock when Windows starts"
   },
   "closeNotice": {
@@ -121,11 +121,11 @@
     "common": "Common problems",
     "problems": {
       "q1": "YouTube still doesn't load.",
-      "a1": "Run the connection test. If a step fails, tap Fix connection. Then fully close Chrome and open it again.",
+      "a1": "Run the connection test. If a step fails, tap Fix connection. Then fully close your browser and open it again.",
       "q2": "Where did the window go?",
       "a2": "Younblock keeps running in the tray, near the clock. Click its icon to open the window. Choose Quit to stop it completely.",
       "q3": "Does it work in other browsers or apps?",
-      "a3": "It is made for Chrome. Other apps that follow Windows' proxy setting may work, but they are not tested.",
+      "a3": "It sets the Windows proxy, so every mainstream browser works — Edge, Chrome, Firefox, Opera, Brave and the rest. It is tested most with Chrome. Apps that ignore Windows' proxy setting won't use it.",
       "q4": "My internet stopped after the app closed.",
       "a4": "Tap \"Restore internet settings\" below. It removes the setting the app added. It also happens automatically the next time the app starts.",
       "q5": "Windows or my antivirus shows a warning.",
@@ -145,12 +145,12 @@
     "title": "About",
     "howTitle": "How it works",
     "how": [
-      "Chrome sends its request to Younblock, which runs only on your PC.",
+      "Your browser sends its request to Younblock, which runs only on your PC.",
       "Younblock looks up YouTube's address with a secure DNS service, so the lookup can't be tampered with on the way.",
       "Younblock sends the first \"hello\" message to YouTube in small pieces. Filters that scan that message for the website's name usually don't recognise the pieces.",
       "After that, everything flows normally, protected by YouTube's own HTTPS."
     ],
-    "diagram": { "chrome": "Chrome", "app": "Younblock on your PC", "youtube": "YouTube" },
+    "diagram": { "browser": "Your browser", "app": "Younblock on your PC", "youtube": "YouTube" },
     "notTitle": "What it doesn't do",
     "not": [
       "It is not a VPN.",
