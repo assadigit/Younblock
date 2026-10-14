@@ -18,6 +18,9 @@ when YouTube stops responding — and it always tells you what it changed.
 
 **What's new in version 1.4.1** (the "install it properly" release):
 
+> The full release history — every version, in plain language — now lives in
+> [CHANGELOG.md](CHANGELOG.md). The notes below are the short version.
+
 - **Three proper Linux Mint downloads, in addition to the single file:** a
   **`.deb` package** (installs with the menu entry, icons and binary in the
   standard places — dpkg tracks it), a **portable `.AppImage`** (one file you
