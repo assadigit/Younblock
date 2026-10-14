@@ -715,3 +715,198 @@ func TestLatencyInStateAfterTestAndGoneAfterStop(t *testing.T) {
 		t.Fatalf("latency present after stop: %d", *st.LatencyMs)
 	}
 }
+
+// ---- D44: the degraded state says which check failed and stays alive ----
+
+// deadPort reserves a loopback port and leaves it closed so dialing it is
+// refused instantly (a fake blocked service).
+func deadPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	return port
+}
+
+func TestDegradedShowsDnsFailureAndStaysAlive(t *testing.T) {
+	env := newLocalNet(t)
+	dir := t.TempDir()
+	plat := stub.NewWithDir(dir)
+	// Secure DNS points at a closed port: every lookup is refused.
+	settings := config.DefaultSettings()
+	settings.Advanced.DoHServers = []config.DoHServer{{
+		Name: "DeadDoH", URL: fmt.Sprintf("https://127.0.0.1:%d/dns-query?dns={dns}", deadPort(t)), Bootstrap: []string{"127.0.0.1"},
+	}}
+	if err := config.Save(dir, settings); err != nil {
+		t.Fatal(err)
+	}
+	// Production checker on purpose: the failure-recording path must be the
+	// real one (same approach as the latency lifecycle test).
+	eng, err := engine.New(engine.Options{
+		Platform:            plat,
+		LogDir:              dir + "/logs",
+		AllowPrivateTargets: true,
+		ResolverTLS:         &tls.Config{RootCAs: env.pool},
+		HealthOverrides: func(hc *health.Config) {
+			hc.PrimaryURL = env.primaryURL
+			hc.FallbackURL = env.fallback
+			hc.VideoHost = env.videoHost
+			hc.WebTLS = &tls.Config{RootCAs: env.pool}
+			hc.VideoTLS = &tls.Config{RootCAs: env.pool}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(eng.Shutdown)
+	sink := &recordingSink{}
+	eng.SetEventSink(sink)
+
+	if err := eng.Start(); err != nil {
+		t.Fatal(err)
+	}
+	st := waitForState(t, eng, 10*time.Second, phaseDegraded)
+
+	// The root cause is the secure lookup; the youtube failures that follow
+	// in the heal sweep must not overwrite it.
+	if st.Fail == nil {
+		t.Fatalf("degraded state has no fail record: %+v", st)
+	}
+	if st.Fail.Step != "dns" || st.Fail.Code != "DNS_UNREACHABLE" {
+		t.Fatalf("fail record = %s (%s), want dns (DNS_UNREACHABLE)", st.Fail.Step, st.Fail.Code)
+	}
+
+	// The diagnostic report says it in plain text.
+	if rep := eng.GetDiagnosticReport(); !strings.Contains(rep, "last failed check: dns (DNS_UNREACHABLE)") {
+		t.Errorf("diagnostic report missing the failed-check line:\n%s", rep)
+	}
+
+	// The timer must keep ticking while degraded: stats events flow.
+	deadline := time.Now().Add(3 * time.Second)
+	sawStats := false
+	for time.Now().Before(deadline) && !sawStats {
+		for _, e := range sink.all() {
+			if e.name == "stats" {
+				sawStats = true
+				break
+			}
+		}
+		if !sawStats {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	if !sawStats {
+		t.Errorf("no stats events while degraded; the timer would freeze")
+	}
+
+	// Stop clears the record.
+	if err := eng.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, eng, 5*time.Second, phaseOff)
+	if st := eng.GetState(); st.Fail != nil {
+		t.Fatalf("fail present after stop: %+v", st.Fail)
+	}
+}
+
+func TestDegradedShowsYoutubeFailureWhenDnsWorks(t *testing.T) {
+	env := newLocalNet(t)
+	dir := t.TempDir()
+	plat := stub.NewWithDir(dir)
+	settings := config.DefaultSettings()
+	settings.Advanced.DoHServers = []config.DoHServer{{
+		Name: "FakeDoH", URL: env.dohURL + "/dns-query?dns={dns}", Bootstrap: []string{"127.0.0.1"},
+	}}
+	if err := config.Save(dir, settings); err != nil {
+		t.Fatal(err)
+	}
+	// Secure DNS answers, but the web/video server is unreachable.
+	dead := deadPort(t)
+	eng, err := engine.New(engine.Options{
+		Platform:            plat,
+		LogDir:              dir + "/logs",
+		AllowPrivateTargets: true,
+		ResolverTLS:         &tls.Config{RootCAs: env.pool},
+		HealthOverrides: func(hc *health.Config) {
+			hc.PrimaryURL = fmt.Sprintf("https://yt.test:%d/generate_204", dead)
+			hc.FallbackURL = fmt.Sprintf("https://yt.test:%d/robots.txt", dead)
+			hc.VideoHost = fmt.Sprintf("video.test:%d", dead)
+			hc.WebTLS = &tls.Config{RootCAs: env.pool}
+			hc.VideoTLS = &tls.Config{RootCAs: env.pool}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(eng.Shutdown)
+
+	if err := eng.Start(); err != nil {
+		t.Fatal(err)
+	}
+	st := waitForState(t, eng, 10*time.Second, phaseDegraded)
+	if st.Fail == nil || st.Fail.Step != "youtube" || st.Fail.Code == "" {
+		t.Fatalf("fail record = %+v, want youtube with a code", st.Fail)
+	}
+}
+
+func TestDoHListChangeRecoversWhileDegraded(t *testing.T) {
+	env := newLocalNet(t)
+	dir := t.TempDir()
+	plat := stub.NewWithDir(dir)
+	dead := deadPort(t)
+	settings := config.DefaultSettings()
+	settings.Advanced.DoHServers = []config.DoHServer{{
+		Name: "DeadDoH", URL: fmt.Sprintf("https://127.0.0.1:%d/dns-query?dns={dns}", dead), Bootstrap: []string{"127.0.0.1"},
+	}}
+	if err := config.Save(dir, settings); err != nil {
+		t.Fatal(err)
+	}
+	eng, err := engine.New(engine.Options{
+		Platform:            plat,
+		LogDir:              dir + "/logs",
+		AllowPrivateTargets: true,
+		ResolverTLS:         &tls.Config{RootCAs: env.pool},
+		WatchdogInterval:    50 * time.Millisecond,
+		HealthOverrides: func(hc *health.Config) {
+			hc.PrimaryURL = env.primaryURL
+			hc.FallbackURL = env.fallback
+			hc.VideoHost = env.videoHost
+			hc.WebTLS = &tls.Config{RootCAs: env.pool}
+			hc.VideoTLS = &tls.Config{RootCAs: env.pool}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(eng.Shutdown)
+
+	if err := eng.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, eng, 10*time.Second, phaseDegraded)
+
+	// Switch the secure-DNS list to the healthy server while degraded. The
+	// change must apply live: a fresh resolver, and the watchdog's next
+	// check recovers without a restart or a button press.
+	var s config.Settings
+	if err := json.Unmarshal([]byte(eng.GetSettingsJSON()), &s); err != nil {
+		t.Fatal(err)
+	}
+	s.Advanced.DoHServers = []config.DoHServer{{
+		Name: "FakeDoH", URL: env.dohURL + "/dns-query?dns={dns}", Bootstrap: []string{"127.0.0.1"},
+	}}
+	if out := eng.SaveSettingsJSON(mustJSON(s)); strings.Contains(out, "\"error\"") {
+		t.Fatalf("SaveSettings failed: %s", out)
+	}
+
+	st := waitForState(t, eng, 10*time.Second, phaseOn)
+	if st.Fail != nil {
+		t.Fatalf("fail record still present after recovery: %+v", st.Fail)
+	}
+	if st.LatencyMs == nil || *st.LatencyMs <= 0 {
+		t.Fatalf("latency missing after recovery: %+v", st)
+	}
+}

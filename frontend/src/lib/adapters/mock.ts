@@ -68,7 +68,7 @@ export class MockBackend implements Backend {
     };
     this.info = {
       name: "Younblock",
-      version: "1.1.0",
+      version: "1.1.1",
       platform: "windows",
       capabilities: { tray: true, startWithOS: true, systemProxy: true, perAppRouting: false },
       configPath: "C:\\Users\\Ali\\AppData\\Roaming\\Younblock\\settings.json",
@@ -123,7 +123,14 @@ export class MockBackend implements Backend {
       case "stopping":
         return { ...base, phase: "stopping" };
       case "degraded":
-        return { ...base, phase: "degraded", latencyMs: 84, error: { code: "SELFTEST_FAILED" } };
+        // The DNS-blocked variant: the reason line shows the failed check
+        // (D44); the stats ticker keeps the timer alive in this mode too.
+        return {
+          ...base,
+          phase: "degraded",
+          fail: { step: "dns", code: "DNS_UNREACHABLE" },
+          error: { code: "SELFTEST_FAILED" },
+        };
       case "error":
         return { ...base, phase: "error", error: { code: "PORT_BUSY" } };
       case "connecting":

@@ -8,6 +8,7 @@ import (
 	"net"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/assadigit/Younblock/internal/health"
@@ -44,6 +45,14 @@ type StateError struct {
 	Code string `json:"code"`
 }
 
+// StateFail says which self-test step failed last and its code, so the UI
+// can tell a secure-DNS problem from a YouTube-tunnel one (R13: nothing
+// changes silently — not failures either; DECISIONS.md D44).
+type StateFail struct {
+	Step string `json:"step"`
+	Code string `json:"code"`
+}
+
 // State is the full UI-facing state.
 type State struct {
 	Phase  Phase         `json:"phase"`
@@ -57,6 +66,7 @@ type State struct {
 	// check while on (user-requested "ping"; DECISIONS.md D41). Nil when no
 	// measurement exists (off, or nothing succeeded yet).
 	LatencyMs *int64      `json:"latencyMs,omitempty"`
+	Fail      *StateFail  `json:"fail,omitempty"`
 	Notice    *Notice     `json:"notice,omitempty"`
 	Error     *StateError `json:"error,omitempty"`
 }
@@ -113,7 +123,9 @@ type Engine struct {
 	settings config.Settings
 	logger   *logx.Logger
 	stats    *stats.Counters
-	resolver *doh.Resolver
+	// resolver is the live DoH resolver. It is an atomic pointer so a
+	// changed secure-DNS list can swap it while the engine runs (D44).
+	resolver atomic.Pointer[doh.Resolver]
 	rng      *fragment.SafeRNG
 	dialer   *netx.Dialer
 
@@ -139,6 +151,8 @@ type Engine struct {
 	episodeStart   time.Time
 	lastSteps      []health.Step
 	latencyMs      int64
+	failStep       string
+	failCode       string
 
 	events EventSink
 	onQuit func()
@@ -208,48 +222,73 @@ func New(opts Options) (*Engine, error) {
 	return e, nil
 }
 
-// rebuildResolver (re)creates the DoH resolver from current settings.
-func (e *Engine) rebuildResolver() {
-	cfg := doh.Config{
-		Servers:        e.settings.Advanced.DoHServers,
+// resolverConfig builds the DoH resolver configuration for a server list.
+// currentSettings snapshots the settings the list and flags come from.
+func (e *Engine) resolverConfig(servers []config.DoHServer, s config.Settings) doh.Config {
+	return doh.Config{
+		Servers:        servers,
 		Timeout:        config.DoHTimeout,
 		BlockPrivate:   config.BlockPrivateTargets && !e.opts.AllowPrivateTargets,
 		Control:        e.platform.DialControl(),
-		FragmentPreset: e.currentPreset(),
-		FragmentConfig: e.currentFragmentConfig(),
+		FragmentPreset: e.presetFor(s.Method),
+		FragmentConfig: e.fragmentConfigFor(s),
 		RNG:            e.rng,
 		Logger:         e.logger.Logger,
-		LogHostnames:   e.settings.Advanced.LogDomains,
+		LogHostnames:   s.Advanced.LogDomains,
 		Stats:          e.stats,
 		Now:            e.opts.Now,
 		TLS:            e.opts.ResolverTLS,
 	}
-	e.resolver = doh.New(cfg)
 }
 
-// currentPreset maps the method setting to a fragmentation preset.
-func (e *Engine) currentPreset() fragment.Preset {
-	m := e.settings.Method
+// rebuildResolver (re)creates the DoH resolver from current settings.
+func (e *Engine) rebuildResolver() {
+	e.resolver.Store(doh.New(e.resolverConfig(e.settings.Advanced.DoHServers, e.settings)))
+}
+
+// swapResolver installs a resolver bound to the given server list and hands
+// it to the running proxy for future tunnels. A changed secure-DNS list
+// used to only clear the cache — the old servers kept being asked until a
+// restart; now the change applies live (D44).
+func (e *Engine) swapResolver(servers []config.DoHServer) {
+	fresh := doh.New(e.resolverConfig(servers, e.settingsSnapshot()))
+	e.resolver.Store(fresh)
+	if srv := e.RunningServer(); srv != nil {
+		srv.SetResolver(fresh)
+	}
+}
+
+// presetFor maps a method setting to a fragmentation preset.
+func (e *Engine) presetFor(m config.Method) fragment.Preset {
 	if m == config.MethodAuto {
 		return fragment.Balanced
 	}
 	return fragment.Preset(m)
 }
 
-// currentFragmentConfig merges preset defaults with the advanced overrides.
-func (e *Engine) currentFragmentConfig() fragment.Config {
-	pc := fragment.PresetConfig(e.currentPreset())
-	adv := e.settings.Advanced
-	if adv.PieceSizeMin > 0 {
-		pc.Min = adv.PieceSizeMin
+// fragmentConfigFor merges preset defaults with the advanced overrides.
+func (e *Engine) fragmentConfigFor(s config.Settings) fragment.Config {
+	pc := fragment.PresetConfig(e.presetFor(s.Method))
+	if s.Advanced.PieceSizeMin > 0 {
+		pc.Min = s.Advanced.PieceSizeMin
 	}
-	if adv.PieceSizeMax > 0 && adv.PieceSizeMax >= pc.Min {
-		pc.Max = adv.PieceSizeMax
+	if s.Advanced.PieceSizeMax > 0 && s.Advanced.PieceSizeMax >= pc.Min {
+		pc.Max = s.Advanced.PieceSizeMax
 	}
-	if adv.PauseMs > 0 {
-		pc.Pause = time.Duration(adv.PauseMs) * time.Millisecond
+	if s.Advanced.PauseMs > 0 {
+		pc.Pause = time.Duration(s.Advanced.PauseMs) * time.Millisecond
 	}
 	return pc
+}
+
+// currentPreset maps the current method setting to a fragmentation preset.
+func (e *Engine) currentPreset() fragment.Preset {
+	return e.presetFor(e.settingsSnapshot().Method)
+}
+
+// currentFragmentConfig merges the current preset with advanced overrides.
+func (e *Engine) currentFragmentConfig() fragment.Config {
+	return e.fragmentConfigFor(e.settingsSnapshot())
 }
 
 // SetEventSink registers the UI event sink.
@@ -273,7 +312,7 @@ func (e *Engine) Logger() *logx.Logger { return e.logger }
 func (e *Engine) Stats() *stats.Counters { return e.stats }
 
 // Resolver exposes the DoH resolver (for the self-test and diagnostics).
-func (e *Engine) Resolver() *doh.Resolver { return e.resolver }
+func (e *Engine) Resolver() *doh.Resolver { return e.resolver.Load() }
 
 // MeasuredSleep reports the real 1 ms sleep length measured at startup.
 func (e *Engine) MeasuredSleep() time.Duration { return e.measuredSleep }
@@ -318,7 +357,7 @@ func (e *Engine) startListener() error {
 		FirstRecordTimeout: config.FirstRecordReadTimeout,
 		IdleTimeout:        idle,
 		MaxHeaderBytes:     config.MaxHeaderBytes,
-		Resolver:           e.resolver,
+		Resolver:           e.resolver.Load(),
 		Dialer:             e.dialer,
 		DialTimeoutOverall: config.DialTimeoutOverall,
 		FragmentPreset:     e.currentPreset(),
@@ -375,6 +414,7 @@ func (e *Engine) cancelStart() {
 	}
 	e.mu.Lock()
 	e.latencyMs = 0
+	e.clearFailLocked()
 	e.setPhaseLocked(PhaseOff, "")
 	e.mu.Unlock()
 	e.emitState()
@@ -407,6 +447,7 @@ func (e *Engine) Stop() error {
 	e.logger.Ring.Clear()
 	e.mu.Lock()
 	e.latencyMs = 0 // a live metric; it stops with the proxy
+	e.clearFailLocked()
 	e.setPhaseLocked(PhaseOff, "")
 	e.mu.Unlock()
 	e.emitState()
@@ -472,10 +513,11 @@ func (e *Engine) stopStatsLoop() {
 // file 01 section 6).
 func (e *Engine) prewarm() {
 	names := config.PrewarmNames
+	r := e.resolver.Load()
 	go func() {
 		for _, n := range names {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			e.resolver.Lookup(ctx, n)
+			r.Lookup(ctx, n)
 			cancel()
 		}
 	}()
@@ -514,6 +556,40 @@ func (e *Engine) setLatency(ms int64) {
 	e.mu.Unlock()
 }
 
+// failPriority ranks self-test steps by how root-cause they are: when the
+// secure lookup fails, the youtube/video steps fail after it as a cascade,
+// so a dns failure must not be overwritten by the youtube failure that
+// follows it in the heal sweep (D44).
+var failPriority = map[string]int{"dns": 3, "listener": 2, "youtube": 1, "video": 0}
+
+// setFail records the failing self-test step and its code, keeping the
+// more root-cause failure when one is already recorded (D44).
+func (e *Engine) setFail(step, code string) {
+	if step == "" {
+		return
+	}
+	p, ok := failPriority[step]
+	if !ok {
+		p = 0
+	}
+	e.mu.Lock()
+	if e.failStep != "" {
+		if fp, ok := failPriority[e.failStep]; !ok || fp >= p {
+			e.mu.Unlock()
+			return // an equal or more root-cause failure stands
+		}
+	}
+	e.failStep = step
+	e.failCode = code
+	e.mu.Unlock()
+}
+
+// clearFailLocked forgets the recorded failure; caller holds e.mu.
+func (e *Engine) clearFailLocked() {
+	e.failStep = ""
+	e.failCode = ""
+}
+
 // GetState returns the current state.
 func (e *Engine) GetState() State {
 	e.mu.Lock()
@@ -532,6 +608,9 @@ func (e *Engine) GetState() State {
 	if (e.phase == PhaseOn || e.phase == PhaseDegraded) && e.latencyMs > 0 {
 		ms := e.latencyMs
 		st.LatencyMs = &ms
+	}
+	if e.phase == PhaseDegraded && e.failStep != "" {
+		st.Fail = &StateFail{Step: e.failStep, Code: e.failCode}
 	}
 	if n := e.noticeVisibleLocked(); n != nil {
 		st.Notice = n

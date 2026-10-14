@@ -2,7 +2,7 @@
   // Settings (file 02, section 4.3): a start-aligned list with 1 px
   // dividers, a collapsed Advanced section, and instant saves.
   import Icon from "../components/Icon.svelte";
-  import { copy } from "../i18n";
+  import { copy, fill } from "../i18n";
   import type { Settings } from "../lib/backend";
 
   interface Props {
@@ -31,6 +31,37 @@
     { value: "all", label: copy.settings.modeAll, hint: copy.settings.modeAllHint },
     { value: "manual", label: copy.settings.modeManual, hint: copy.settings.modeManualHint },
   ];
+
+  // Known secure-DNS providers (URL template + bootstrap IPs). The three
+  // defaults are here too so a removed one can be added back (D44: when the
+  // current providers are blocked, switching must not require editing a
+  // JSON file by hand).
+  const dohPresets = [
+    { name: "RethinkDNS", url: "https://sky.rethinkdns.com/?dns={dns}", bootstrap: ["172.67.162.27"] },
+    { name: "Cloudflare", url: "https://cloudflare-dns.com/dns-query?dns={dns}", bootstrap: ["1.1.1.1", "1.0.0.1"] },
+    { name: "Google", url: "https://dns.google/dns-query?dns={dns}", bootstrap: ["8.8.8.8", "8.8.4.4"] },
+    { name: "AdGuard", url: "https://dns.adguard.com/dns-query?dns={dns}", bootstrap: ["94.140.14.14", "94.140.15.15"] },
+    { name: "Quad9", url: "https://dns.quad9.net/dns-query?dns={dns}", bootstrap: ["9.9.9.9", "149.112.112.112"] },
+    { name: "dns.sb", url: "https://doh.dns.sb/dns-query?dns={dns}", bootstrap: ["185.222.222.222", "45.11.45.11"] },
+  ];
+
+  function addDohServer(p: { name: string; url: string; bootstrap: string[] }) {
+    if (local.advanced.dohServers.some((s) => s.url === p.url)) return;
+    // New providers go to the top: the engine starts from the first server,
+    // so the one the user just added is tried first (D44).
+    saveAdvanced({
+      dohServers: [{ ...p, bootstrap: [...p.bootstrap] }, ...local.advanced.dohServers],
+    });
+    onToast(fill(copy.settings.dohAdded, { name: p.name }));
+  }
+
+  function removeDohServer(url: string) {
+    if (local.advanced.dohServers.length <= 1) {
+      onToast(copy.settings.dohNeedOne);
+      return;
+    }
+    saveAdvanced({ dohServers: local.advanced.dohServers.filter((s) => s.url !== url) });
+  }
 
   function save(patch: Partial<Settings>) {
     local = { ...local, ...patch };
@@ -215,14 +246,40 @@
 
         <div class="group">
           <p class="group-title">{copy.settings.dohServers}</p>
-          <ul class="plain-list">
-            {#each local.advanced.dohServers as server (server.url)}
+          <p class="group-hint">{copy.settings.dohHint}</p>
+          <ul class="plain-list server-list">
+            {#each local.advanced.dohServers as server, i (server.url)}
               <li>
-                <span class="server-name">{server.name}</span>
-                <span class="server-url">{server.url}</span>
+                <div class="server-row">
+                  <div class="server-text">
+                    <span class="server-name">
+                      {server.name}
+                      {#if i === 0}<span class="server-first">{copy.settings.dohFirst}</span>{/if}
+                    </span>
+                    <span class="server-url">{server.url}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="server-remove"
+                    aria-label={fill(copy.settings.dohRemove, { name: server.name })}
+                    title={fill(copy.settings.dohRemove, { name: server.name })}
+                    onclick={() => removeDohServer(server.url)}
+                  >
+                    <Icon name="x" size={16} />
+                  </button>
+                </div>
               </li>
             {/each}
           </ul>
+          <div class="doh-add" role="group" aria-label={copy.settings.dohAddGroup}>
+            {#each dohPresets as p (p.url)}
+              {#if !local.advanced.dohServers.some((s) => s.url === p.url)}
+                <button type="button" class="chip" onclick={() => addDohServer(p)}>
+                  + {p.name}
+                </button>
+              {/if}
+            {/each}
+          </div>
         </div>
 
         <div class="group">
@@ -427,6 +484,61 @@
   }
   .server-name {
     color: var(--color-text);
+  }
+  .group-hint {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 16px;
+  }
+  .server-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+  }
+  .server-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+  .server-first {
+    margin-left: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: 10px;
+    line-height: 14px;
+    vertical-align: middle;
+  }
+  .server-remove {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+  }
+  .server-remove:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .doh-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  .chip {
+    min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: var(--text-xs);
+  }
+  .chip:hover {
+    background: var(--color-surface);
   }
   .reset {
     align-self: flex-start;

@@ -106,7 +106,7 @@ func (e *Engine) SaveSettingsJSON(payload string) string {
 		}
 		if normalized.Method != prev.Method || settingsFragmentChanged(prev, normalized) {
 			e.server.SetFragment(e.currentPreset(), e.currentFragmentConfig())
-			e.resolver.SetFragment(e.currentPreset(), e.currentFragmentConfig())
+			e.resolver.Load().SetFragment(e.currentPreset(), e.currentFragmentConfig())
 		}
 	}
 	// Autostart is applied whenever it flips, on or off.
@@ -115,11 +115,12 @@ func (e *Engine) SaveSettingsJSON(payload string) string {
 			e.logger.Warn("autostart change failed", "reason", errKind(err))
 		}
 	}
-	// A changed secure-DNS list applies to future lookups: drop cached
-	// answers so they come from the new servers.
+	// A changed secure-DNS list swaps in a resolver bound to the new
+	// servers (D44): the change used to only clear the cache while the
+	// old servers kept being asked until a restart.
 	if !sameDoHList(prev.Advanced.DoHServers, normalized.Advanced.DoHServers) {
-		e.resolver.Reset()
-		e.logger.Info("secure-dns list changed; cache cleared")
+		e.swapResolver(normalized.Advanced.DoHServers)
+		e.logger.Info("secure-dns list changed; a new resolver is active")
 	}
 	e.emitState()
 	return marshalJSON(normalized)
@@ -203,6 +204,9 @@ func (e *Engine) GetDiagnosticReport() string {
 	fmt.Fprintf(&b, "mode: %s method: %s port: %d\n", s.Mode, s.Method, s.Port)
 	if s.LatencyMs != nil {
 		fmt.Fprintf(&b, "response time: %d ms\n", *s.LatencyMs)
+	}
+	if s.Fail != nil {
+		fmt.Fprintf(&b, "last failed check: %s (%s)\n", s.Fail.Step, s.Fail.Code)
 	}
 	fmt.Fprintf(&b, "measured sleep for 1ms request: %d ms\n", e.measuredSleep.Milliseconds())
 	d := e.stats.Diagnostic()

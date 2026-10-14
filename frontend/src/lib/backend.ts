@@ -12,6 +12,12 @@ export interface StateError {
   code: string;
 }
 
+/** Which built-in check failed last (only while degraded). */
+export interface StateFail {
+  step: "listener" | "dns" | "youtube" | "video";
+  code: string;
+}
+
 export interface BackendState {
   phase: "off" | "connecting" | "on" | "degraded" | "error" | "stopping";
   detail: string;
@@ -21,6 +27,7 @@ export interface BackendState {
   method: string;
   /** Last measured YouTube round-trip in ms (only while on/degraded). */
   latencyMs?: number | null;
+  fail?: StateFail | null;
   notice?: Notice | null;
   error?: StateError | null;
 }

@@ -554,3 +554,40 @@ Release notes list the five features (both new switches off by default), the
 upgrade path from v0.1.0 (replace the exe; settings are kept), SmartScreen
 instructions, checksums and the honest only-on-Windows list. Assets re-downloaded
 from the release page: checksums identical.
+
+## Hotfix 1.1.1 / Release v0.2.1 — the "didn't even connect" report
+
+Date: 2026-10-14 (Asia/Tehran). Ali's screenshot after v0.2.0: degraded, timer
+frozen at 00:00:00, never one successful YouTube step.
+
+Investigation (recorded in DECISIONS.md D44):
+- `git diff v0.1.0..v0.2.0 --name-only`: no network-stack package changed
+  between the release that worked on his machine and the one that didn't.
+- Live self-test of the exact v0.2.0 code from the dev box: listener OK,
+  dns OK, youtube OK (81 ms), video OK — the tunnel code is healthy; the
+  failure is environmental (his network's blocking changed, or a local
+  firewall/AV on the new unsigned exe hash).
+- What the report exposed in the app itself: degraded-from-start never
+  started the watchdog/net monitor (R14 violation), froze the timer (no
+  stats loop), and said nothing about WHICH part failed.
+
+Fixes (engine + UI, all tested):
+- `fail` in the state JSON (step + code, root-cause ordered), degraded
+  subtitle distinguishes secure DNS from the YouTube tunnel, "last failed
+  check" line in the diagnostic report.
+- `goDegraded` starts the stats loop, watchdog and network monitor: the
+  timer runs and the app self-recovers from degraded.
+- A changed secure-DNS list swaps the resolver live (atomic pointer +
+  `Server.SetResolver`); previously the old servers were kept until restart.
+- The Advanced DoH list is editable: remove buttons, one-tap add of
+  AdGuard/Quad9/dns.sb/the defaults; a new provider is added at the top and
+  tried first; "tried first" marker; keep-at-least-one guard.
+- New tests: degraded root-cause recording + live stats, youtube-failure
+  variant, and live DoH switch recovering from degraded via the watchdog
+  (previously impossible). Version 1.1.1 everywhere.
+
+Gates: go vet; go test -race (all packages); GOOS=windows full-app build
+(PE32+); scripts/check-platform-neutral; arm64 neutral build; npm run build
+(89.7 KB JS / 25.3 KB CSS); live self-test; degraded + settings screenshots
+re-taken and vision-checked; add/remove provider interaction verified via
+agent-browser.

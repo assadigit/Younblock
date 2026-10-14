@@ -297,3 +297,35 @@ group stays in sync and remains the way to pick Manual. Noted in the README.
 Ali's `icon.ico` upload moved to `assets/icon.ico` (D1 layout) and is
 installed as `build/windows/icon.ico` + `build/appicon.png`; the tray keeps
 its state icons per file 01 §9.
+
+**D44 — The v0.2.1 "won't connect" hotfix: say what failed, stay alive, and make the DNS list actually switchable.**
+Ali reported v0.2.0 "didn't even connect" (screenshot: degraded, frozen 00:00:00
+timer). Investigation first: `git diff v0.1.0..v0.2.0` shows the network stack
+(proxy/doh/netx/fragment/health/platform) byte-identical between the release
+that worked on his machine and the one that didn't, and the exact shipped code
+passes a live self-test against real RethinkDNS + YouTube from the dev box —
+so the regression is environmental on his side (his network's blocking most
+likely changed; the app's code path did not). What the report DID expose is
+that degraded mode was a dead end: the quick check and heal sweep had failed,
+the app showed only "On, but YouTube isn't responding" with no hint of WHICH
+part was blocked, the stats loop never started (frozen timer, no usage line),
+and — the real defect — the watchdog and network monitor only started from
+`goOn`, never from `goDegraded`, so a start that ended degraded sat there
+forever with no self-recovery, against file 03 R14's "runs while on or
+degraded". Fixes, all spec-aligned: (1) the engine records the failing
+self-test step and code (root-cause ordered: a dns failure is not overwritten
+by the youtube failures that cascade from it), surfaces it in the state JSON
+as `fail`, the subtitle ("On, but secure DNS isn't answering" vs the existing
+line) and the diagnostic report ("last failed check: …"); (2) `goDegraded`
+now starts the stats loop, watchdog and network monitor, so the timer runs
+and the app recovers by itself when the network allows; (3) changing the
+secure-DNS list in settings now swaps in a resolver bound to the new servers
+immediately (atomic pointer; the running proxy gets it via a new
+`SetResolver`) — before, the change only cleared the cache while the old
+servers kept being queried until an app restart, silently defeating the one
+remediation for a DNS-level block; (4) the Advanced list is finally editable
+in the UI (remove buttons; one-tap add of AdGuard/Quad9/dns.sb or the
+defaults back; a newly added provider goes to the top and is tried first),
+because telling a non-coder to hand-edit settings.json is not an honest fix.
+No claim is made that any particular provider works on any particular
+network; the status line and the test verify what actually answers.

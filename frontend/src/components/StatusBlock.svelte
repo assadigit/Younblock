@@ -17,7 +17,7 @@
   let { state, stats, errorText, noticeText, onOpenHelp, onFixConnection }: Props = $props();
 
   const showTimer = $derived(state.phase === "on" || state.phase === "degraded");
-  const subtitle = $derived(subtitleFor(state.phase, state.detail));
+  const subtitle = $derived(subtitleFor(state.phase, state.detail, state.fail));
   const used = $derived(
     stats ? formatBytes((stats.bytesDown ?? 0) + (stats.bytesUp ?? 0)) : null,
   );

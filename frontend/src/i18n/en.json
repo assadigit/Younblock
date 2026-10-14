@@ -92,6 +92,12 @@
     "methodLegacyHint": "The old app's exact splitting.",
     "port": "Port",
     "dohServers": "Secure-DNS servers",
+    "dohHint": "Tried from top to bottom until one answers. When the app says secure DNS isn't answering, remove the failing ones and add another provider — it is tried first immediately.",
+    "dohFirst": "tried first",
+    "dohRemove": "Remove {name}",
+    "dohAddGroup": "Add a secure-DNS provider",
+    "dohAdded": "{name} added; it is tried first now",
+    "dohNeedOne": "Keep at least one secure-DNS server",
     "domains": "YouTube domain list",
     "logDomains": "Keep website names in the log",
     "reset": "Reset to defaults"

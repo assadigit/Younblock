@@ -113,3 +113,12 @@ Scope: five user-requested additions on top of the completed spec work. All defa
 - File 04 (Android). Obey only the Android-ready rules (file 01 §3) so the later run stays cheap.
 - P2 items R23–R27 from file 03 (proposed only after P0/P1 are accepted).
 - The `targeted` fragmentation preset (file 01 §5 says do not build it until everything else is accepted).
+
+## Phase 7 (hotfix, v0.2.1 / app 1.1.1) — the "didn't even connect" report
+
+- [x] Investigate the v0.2.0 report: network stack identical to v0.1.0; live self-test green from the dev box (D44)
+- [x] Degraded state carries the failing step + code (`fail`), root-cause ordered; subtitle says secure DNS vs YouTube; diagnostic report line
+- [x] Degraded starts the stats loop, watchdog and network monitor (R14): timer runs, self-recovery works
+- [x] Changed secure-DNS list swaps the resolver live (atomic pointer, `Server.SetResolver`)
+- [x] Advanced secure-DNS list editable in the UI (remove; one-tap add AdGuard/Quad9/dns.sb/defaults; new server tried first)
+- [x] Three new engine tests; all gates re-run green; screenshots re-taken and vision-checked

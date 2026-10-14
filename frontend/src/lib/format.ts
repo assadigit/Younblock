@@ -25,10 +25,19 @@ export function formatTimer(totalSeconds: number): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-/** The subtitle line for a state (file 02, section 4.1 table). */
-export function subtitleFor(phase: string, detail: string): string {
+/** The subtitle line for a state (file 02, section 4.1 table). The degraded
+ * line says which part failed when the engine reported it (D44): a secure
+ * DNS problem reads differently from a YouTube-tunnel one. */
+export function subtitleFor(
+  phase: string,
+  detail: string,
+  fail?: { step: string; code: string } | null,
+): string {
   if (phase === "on") return "Unblocking YouTube";
-  if (phase === "degraded") return "On, but YouTube isn't responding";
+  if (phase === "degraded") {
+    if (fail && fail.step === "dns") return "On, but secure DNS isn't answering";
+    return "On, but YouTube isn't responding";
+  }
   if (phase === "off") return "Turn on to unblock YouTube";
   if (phase === "connecting") {
     if (detail === "starting") return "Getting ready…";

@@ -33,6 +33,21 @@ when YouTube stops responding — and it always tells you what it changed.
   taskbar use it; the tray keeps its separate on/off/attention icons so it can
   show the state at a glance).
 
+**What's new in version 1.1.1** (after a "won't connect" report on 1.1.0):
+
+- **The "Check needed" screen now says which part failed**: "secure DNS isn't
+  answering" (a different secure-DNS provider is the fix — see
+  [If it won't connect](#if-it-wont-connect)) or "YouTube isn't responding"
+  (the Fix connection button tries every method). The diagnostic report also
+  gains a "last failed check" line.
+- **While it can't connect, the app keeps checking on its own and recovers by
+  itself** as soon as the network allows it, instead of sitting frozen until
+  the next button press. The timer keeps running too.
+- **The secure-DNS server list in Advanced is now editable**: remove the
+  providers that are blocked on your network and add another with one tap
+  (AdGuard, Quad9, dns.sb, or the built-in ones back). The change applies
+  immediately — no restart, even while the app is on.
+
 ---
 
 ## Download the ready-made app (no building needed)
@@ -155,6 +170,29 @@ dist\younblock-core.exe --version           prints the version
 
 The `--selftest` output is exactly what to paste to someone helping you, together
 with Help > "Copy diagnostic report".
+
+## If it won't connect
+
+The app now tells you **which part failed** right on the main screen:
+
+- "On, but **secure DNS** isn't answering" — the secure lookup is being blocked
+  on this network. Try a different secure-DNS provider: Settings > Advanced >
+  Secure DNS servers (the change applies immediately, no restart needed), then
+  press **Fix connection**.
+- "On, but **YouTube** isn't responding" — the secure lookup works but the
+  YouTube tunnel is being blocked. Press **Fix connection**; it tries every
+  fragmentation method and keeps the one that works.
+
+While it shows either line, the app keeps re-checking on its own and recovers
+by itself as soon as the network allows it. To see the full picture, run the
+Help page test and read the failing line, or copy the diagnostic report
+(it includes "last failed check: ..."). If nothing helps, paste the diagnostic
+report — it says exactly what is blocked on your network.
+
+If you upgrade the app and it suddenly stopped connecting while the previous
+version worked, also try the old exe once more: when both fail, your network's
+blocking changed (the tunnel code between app versions was the same), and the
+diagnostic report will show which part to switch.
 
 ## How to uninstall
 

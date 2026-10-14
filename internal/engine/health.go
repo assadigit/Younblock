@@ -34,7 +34,7 @@ func (c *healthChecker) config(budget time.Duration) health.Config {
 	}
 	cfg := health.Config{
 		ProxyAddr: addr,
-		Resolver:  c.eng.resolver,
+		Resolver:  c.eng.resolver.Load(),
 		Timeout:   budget,
 	}
 	if c.eng.opts.HealthOverrides != nil {
@@ -48,6 +48,7 @@ func (c *healthChecker) QuickCheck(ctx context.Context, method config.Method) bo
 	steps := health.RunSteps(ctx, c.config(budget), []string{"listener", "dns", "youtube"}, nil)
 	for _, s := range steps {
 		if !s.OK {
+			c.eng.recordFail(s.ID, s.Code) // D44: say which part failed
 			return false
 		}
 	}
@@ -60,6 +61,7 @@ func (c *healthChecker) HealCheck(ctx context.Context, method config.Method) boo
 	steps := health.RunSteps(ctx, c.config(budget), []string{"youtube", "video"}, nil)
 	for _, s := range steps {
 		if !s.OK {
+			c.eng.recordFail(s.ID, s.Code)
 			return false
 		}
 	}
@@ -76,6 +78,13 @@ func (e *Engine) recordLatency(steps []health.Step) {
 			e.setLatency(s.MS)
 		}
 	}
+}
+
+// recordFail stores a failing step and its code so the degraded state can
+// say WHAT is broken (D44). setFail keeps the more root-cause failure when
+// several steps fail in one cascade.
+func (e *Engine) recordFail(step, code string) {
+	e.setFail(step, code)
 }
 
 // quickCheckBudget derives a per-step budget from the context deadline.
@@ -254,7 +263,7 @@ func (e *Engine) applyMethod(m config.Method) {
 	if srv := e.RunningServer(); srv != nil {
 		srv.SetFragment(preset, cfg)
 	}
-	e.resolver.SetFragment(preset, cfg)
+	e.resolver.Load().SetFragment(preset, cfg)
 }
 
 // saveMethod persists the working method (file 01 section 10: "save it as
@@ -285,6 +294,7 @@ func (e *Engine) goOn() {
 		return
 	}
 	e.errCode = ""
+	e.clearFailLocked() // it works again; forget the recorded failure
 	e.setPhaseLocked(PhaseOn, "")
 	e.mu.Unlock()
 	e.emitState()
@@ -306,6 +316,14 @@ func (e *Engine) goDegraded(notifyText string) {
 	e.setPhaseLocked(PhaseDegraded, "")
 	e.mu.Unlock()
 	e.emitState()
+	// The proxy is live and serving the browser even when the checks fail,
+	// so the timer and usage keep ticking (an honest "on"), and the
+	// watchdog keeps re-checking while degraded (R14) so a later success
+	// recovers on its own instead of sitting dead until the next button
+	// press (D44).
+	e.startStatsLoop()
+	e.startWatchdog()
+	e.startNetMon()
 	if notifyText != "" {
 		e.notifyLimited(NoticeFailure, notifyText)
 	}
@@ -483,7 +501,7 @@ func (e *Engine) startNetMon() {
 				if !sameAddrSet(last, cur) {
 					last = cur
 					e.logger.Info("network change detected; resetting DNS and re-checking")
-					e.resolver.Reset()
+					e.resolver.Load().Reset()
 					e.watchdogTick()
 				}
 			}
@@ -535,7 +553,7 @@ func (e *Engine) RunConnectionTestJSON() string {
 	defer cancel()
 	cfg := health.Config{
 		ProxyAddr: srv.Addr(),
-		Resolver:  e.resolver,
+		Resolver:  e.resolver.Load(),
 		Timeout:   8 * time.Second,
 	}
 	if e.opts.HealthOverrides != nil {
@@ -548,6 +566,13 @@ func (e *Engine) RunConnectionTestJSON() string {
 	e.lastSteps = steps
 	e.mu.Unlock()
 	e.recordLatency(steps)
+	for _, s := range steps {
+		if !s.OK {
+			// The full test feeds the degraded reason too (D44).
+			e.recordFail(s.ID, s.Code)
+			break
+		}
+	}
 	return marshalJSON(steps)
 }
 

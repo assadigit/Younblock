@@ -203,6 +203,21 @@ func (s *Server) SetFragment(preset fragment.Preset, cfg fragment.Config) {
 	s.mu.Unlock()
 }
 
+// SetResolver swaps the secure-DNS resolver used for future tunnels (a
+// changed DoH list applies while On; D44).
+func (s *Server) SetResolver(r Resolver) {
+	s.mu.Lock()
+	s.cfg.Resolver = r
+	s.mu.Unlock()
+}
+
+// resolverData returns the current resolver.
+func (s *Server) resolverData() Resolver {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cfg.Resolver
+}
+
 // pacData returns the current mode and domains.
 func (s *Server) pacData() (config.Mode, []string) {
 	s.mu.Lock()
@@ -383,10 +398,11 @@ func (s *Server) resolve(host string) ([]net.IP, error) {
 	if ip := net.ParseIP(host); ip != nil {
 		return []net.IP{ip}, nil
 	}
-	if s.cfg.Resolver == nil {
+	r := s.resolverData()
+	if r == nil {
 		return nil, errors.New("no resolver configured")
 	}
-	ips, err := s.cfg.Resolver.Lookup(context.Background(), host)
+	ips, err := r.Lookup(context.Background(), host)
 	if err != nil {
 		return nil, err
 	}
