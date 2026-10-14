@@ -799,3 +799,23 @@ unchanged.
 Gates on the committed tree: go vet; go test -race (13 packages); GOOS=windows
 full build; check-platform-neutral; arm64 core build; npm run build (90.4 KB
 JS / 29.4 KB CSS); live selftest 1.3.1 all OK (youtube 90 ms, video 138 ms).
+
+## Release v0.4.1 — published to GitHub Releases
+
+Date: 2026-10-14 (Asia/Tehran). Tag v0.4.1 on the phase-10 commit (53e7a58);
+gates had just run green on the same tree.
+
+```
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> PE32+ console, 8,999,424 bytes (8.58 MB)
+      SHA-256 ace242fac62f33eaf4f47e1706a6ee387fa1b9ba68c9b621355d13e5b858bf7c
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> PE32+ GUI, 12,251,648 bytes (11.69 MB)
+      SHA-256 386d3679862c89e39e12137d85ad814193a68c80c5795db046b92a322f04afab
+$ /tmp/yb-core-linux --version  -> Younblock core 1.3.1
+$ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (78 ms), video OK (99 ms)
+```
+
+Release notes explain the too-small-inside window and the overflowing
+warning states in plain language, plus the three-step check for Ali.
+Both assets re-downloaded from the release page: checksums identical.
