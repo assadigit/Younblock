@@ -925,3 +925,16 @@ screen fix from the previous session.
   background processes between tool calls) were worked around by batching
   server + browser in single calls — noted here so future phases don't repeat
   the confusion.
+
+### Release v0.5.0 record
+
+- Commit 1857302 (tag phase-11) pushed to main.
+- Release live: https://github.com/assadigit/Younblock/releases/tag/v0.5.0
+  with six assets, all round-trip re-downloaded and SHA-256 identical:
+  - younblock.exe 12.76 MB (5245cddbc499…)
+  - younblock-x86.exe 12.18 MB (53366138f055…)
+  - younblock-core.exe 10.93 MB (64adbc33cd9c…)
+  - younblock-core-x86.exe 10.50 MB (68e11b92eff7…)
+  - younblock-linux-amd64 8.28 MB (7a8a0b0a10aa…)
+  - younblock-linux-386 8.02 MB (eb37a5873f5d…)
+- Upgrade notes in the release body; Ali's Mint manual check list in README.
