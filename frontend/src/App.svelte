@@ -204,7 +204,7 @@
   {:else if view === "about"}
     <About {version} onBack={() => (view = "connect")} />
   {:else}
-    <header class="app-header">
+    <header class="app-header enter">
       <Wordmark />
       <Menu onNavigate={navigate} onQuit={quit} />
     </header>
@@ -254,6 +254,8 @@
     min-height: 0;
     min-width: 0;
   }
+  /* D58: the close notice arrives — backdrop fades in, the sheet rises
+     the same way every panel in the app does. */
   .overlay {
     position: fixed;
     inset: 0;
@@ -261,17 +263,20 @@
     display: grid;
     place-items: center;
     z-index: 100;
+    animation: overlay-in var(--dur-med) ease-out backwards;
   }
   .sheet {
     width: 300px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: var(--space-4);
+    padding: var(--space-5) var(--space-4) var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
     text-align: center;
+    box-shadow: var(--shadow-pop);
+    animation: sheet-in var(--dur-slow) var(--ease-spring-out) backwards;
   }
   .sheet p {
     margin: 0;
@@ -285,5 +290,46 @@
     background: var(--red-500);
     color: var(--color-on-primary);
     font-weight: 500;
+    transition:
+      background var(--dur-fast) ease-out,
+      transform var(--dur-fast) var(--ease-press-in);
+  }
+  .sheet .primary:hover {
+    background: var(--red-400);
+  }
+  .sheet .primary:active {
+    transform: scale(0.97);
+  }
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .overlay {
+      animation-name: overlay-in;
+    }
+    .sheet {
+      animation-name: overlay-in;
+    }
+    .sheet .primary {
+      transition: none;
+    }
+    .sheet .primary:active {
+      transform: none;
+    }
   }
 </style>

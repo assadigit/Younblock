@@ -1,5 +1,10 @@
 // format.ts — display helpers (file 02, section 4.1: 1024-based byte
 // sizes with one decimal above KB; a tabular timer).
+// v1.5.0 (D59): the subtitle lines now come from the copy deck like
+// every other word on screen — the English strings used to be baked in
+// here while en.json carried an unused twin of the same table.
+
+import { copy } from "../i18n";
 
 /** Format bytes as B / KB / MB / GB (1024-based, one decimal above KB). */
 export function formatBytes(bytes: number): string {
@@ -25,26 +30,26 @@ export function formatTimer(totalSeconds: number): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-/** The subtitle line for a state (file 02, section 4.1 table). The degraded
- * line says which part failed when the engine reported it (D44): a secure
- * DNS problem reads differently from a YouTube-tunnel one. */
+/** The subtitle line for a state (file 02, section 4.1 table, copy in
+ * en.json). The degraded line says which part failed when the engine
+ * reported it (D44): a secure-DNS problem reads differently from a
+ * YouTube-tunnel one. */
 export function subtitleFor(
   phase: string,
   detail: string,
   fail?: { step: string; code: string } | null,
 ): string {
-  if (phase === "on") return "Unblocking YouTube";
+  if (phase === "on") return copy.subtitle.on;
   if (phase === "degraded") {
-    if (fail && fail.step === "dns") return "On, but secure DNS isn't answering";
-    return "On, but YouTube isn't responding";
+    if (fail && fail.step === "dns") return copy.subtitle.degradedDns;
+    return copy.subtitle.degraded;
   }
-  if (phase === "off") return "Turn on to unblock YouTube";
+  if (phase === "off") return copy.subtitle.off;
   if (phase === "connecting") {
-    if (detail === "starting") return "Getting ready…";
-    if (detail === "checking") return "Checking YouTube…";
-    if (detail.startsWith("trying:")) return "Trying another method…";
-    return "Getting ready…";
+    if (detail === "checking") return copy.subtitle.checking;
+    if (detail.startsWith("trying:")) return copy.subtitle.trying;
+    return copy.subtitle.starting;
   }
-  if (phase === "stopping") return "";
+  if (phase === "stopping") return copy.subtitle.stopping;
   return "";
 }

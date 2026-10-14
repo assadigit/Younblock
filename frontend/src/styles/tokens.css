@@ -1,7 +1,11 @@
 /* Design tokens (file 02, section 2), restyled to Ali's logo (D47):
    warm charcoal from the padlock's shackle, red from the padlock body,
    gold from the lightning bolt. The old green primary clashed with the
-   logo and is gone. */
+   logo and is gone.
+   v1.5.0 (D56): the pass added a raised surface step, a mono face for
+   addresses/URLs, a duration scale beside the easing ones, and the
+   overline/caption size — one ramp every screen now shares instead of
+   per-screen improvisation. */
 :root {
   /* scales */
   --neutral-50:#F8F6F5; --neutral-100:#EDEAE8; --neutral-200:#D9D3D0; --neutral-300:#BCB4B0; --neutral-400:#A59C97;
@@ -16,7 +20,9 @@
   /* roles */
   --color-bg: var(--neutral-950);
   --color-surface: var(--neutral-850);
+  --color-surface-2: var(--neutral-900);
   --color-border: var(--neutral-800);
+  --color-border-strong: var(--neutral-700);
   --color-text: #F4F1EF;
   --color-text-muted: var(--neutral-400);
   --color-primary: var(--red-500);
@@ -28,13 +34,22 @@
 
   /* type */
   --font: "Inter", "Segoe UI", system-ui, sans-serif;
-  --text-xs:12px; --text-sm:14px; --text-md:16px; --text-lg:20px; --text-xl:28px; --text-timer:28px;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  --text-2xs:11px; --text-xs:12px; --text-sm:14px; --text-md:16px; --text-lg:20px; --text-xl:28px; --text-timer:28px;
 
   /* space (4 px base) and radii (a hierarchy, not one radius for everything) */
-  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px; --space-12:48px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px; --space-12:48px;
   --radius-sm:8px; --radius-md:12px; --radius-lg:20px; --radius-full:999px;
 
   /* motion (D45): a soft decelerating spring for press release and
-     panel-like moves; component keyframes pick their own curves. */
+     panel-like moves; component keyframes pick their own curves.
+     v1.5.0: one duration scale so entrances, reveals and hovers across
+     screens feel like one hand made them. */
   --ease-spring-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-press-in: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast:140ms; --dur-med:240ms; --dur-slow:320ms;
+
+  /* elevation: cards sit one step above the textured background (D56). */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.02), 0 10px 30px rgba(0, 0, 0, 0.14);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.4);
 }

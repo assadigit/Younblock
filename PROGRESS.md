@@ -1015,3 +1015,81 @@ on top of the single file, with every change still applied to all versions.
 - Upgrade notes in the release body; Ali's Mint manual check list in README
   (steps 7–8 cover the packages, including the one honest manual check this
   format needs).
+
+## Phase 13 — the look & feel pass (v0.6.0 / app 1.5.0)
+
+Date: 2026-10-15 (Asia/Tehran). Scope locked up front: visual/interaction
+layer only, no engine or network changes; the logo palette (D47), the
+single-button personality and the plain-language copy tone stay.
+
+Sandbox restored after the reset: repo cloned from GitHub (token in the
+origin URL), Go 1.27.2 to ~/sdk/go, wails v2.16.0, gh 2.102.0, frontend
+npm ci --legacy-peer-deps (the documented vite-peer-range escape hatch).
+Baseline re-verified before touching anything: npm run build 94.40 KB JS /
+29.32 KB CSS, svelte-check 12 known errors, go vet clean, go test -race
+all green — identical to the v0.5.1 tree.
+
+The audit (all screens, six states, components, tokens, i18n) found:
+three drifted copies of the view chrome; a :focus-visible rule that set
+border-radius on focused elements (squaring pill buttons); chips at
+36 px and the copy button at 32 px (under the 44 px rule); native
+accent-color radios beside the custom switch; the accordion chevron as
+a text glyph "›" while Settings' advanced chevron never rotated; zero
+entrance/reveal motion anywhere except the power button; subtitleFor()
+hard-coding English while en.json carried an unused twin table; "Open
+help" hard-coded in StatusBlock; an empty stopping subtitle; a size-0
+Icon hack in About's diagram; the PowerButton hover rule graying the
+lit disc; FirstRun as a plain left-aligned text block.
+
+Implemented (D56–D59, full detail in DECISIONS.md): shared views.css
+chrome + token ramp extensions; the control standard (brand radios,
+brand checkbox, 44 px targets, focus fix, hover fix); the motion system
+(screen entrances, FirstRun stagger, menu unfold, close-notice rise,
+grid-rows reveals for Advanced/licenses/accordion, Run-test spinner +
+Checking row + check pop — all D45-gated); the screen passes (FirstRun
+welcome, About diagram-led card + version pill, degraded button-step
+shrink) and the copy wiring (subtitleFor reads the deck, stopping
+subtitle, two hard-coded strings moved to keys). Version 1.5.0 in
+defaults.go / wails.json / mock.ts.
+
+Two real defects surfaced during verification and were fixed:
+
+- **The fill-mode stacking bug** (found by agent-browser E2E): clicking
+  Settings in the open menu failed — "element covered by section.connect".
+  Diagnosis: `animation-fill-mode: both` kept a filled identity-matrix
+  transform on the header (`matrix(1,0,0,1,0,0)` per getComputedStyle),
+  and any transform — even identity — creates a stacking context; the
+  menu panel's z-index 20 was scoped inside the header's context, and
+  the connect section (later in paint order) covered the open panel.
+  Fix: every one-shot animation fills `backwards` only (identical end
+  state, no lingering transform). Verified: the click point resolves
+  inside the panel, the whole golden path passes.
+- **The About diagram below the fold** (found by VLM QA, confirmed by
+  DOM measurement: diagramTop 560 == viewport bottom): reordered to lead
+  the card (diagramTop 224, fully visible).
+
+Verification gates run:
+- `npm run build` — 96.45 KB JS / 41.08 KB CSS (grew ~2 KB for the
+  shared chrome + new components' styles).
+- svelte-check — 12 errors, exactly the pre-existing runes/tsconfig
+  quirk + Android stub; nothing new.
+- `go vet ./...` clean; `go test -race ./...` all 14 packages green.
+- Screenshots re-shot at 360×560 (six states, notice, first-run, menu,
+  settings ×3, help ×4, about ×2) plus 320×568 and 480×900 on-state,
+  from the production bundle via vite preview + agent-browser. VLM QA:
+  all PASS. Two "severe overlap" claims in Settings were disproved by
+  pixel measurement (title→hint gaps 2 px positive, rows stack cleanly)
+  and a 2× zoomed re-check returned PASS — the hints did gain 4 px of
+  air and 17 px line-height anyway. One true finding (the About fold)
+  fixed and re-verified.
+- agent-browser E2E on the running bundle: golden path (press →
+  connecting → on → press → off, state labels confirmed via DOM), every
+  screen reached by real clicks, `agent-browser errors` and `console`
+  empty at the end of the session.
+- D48 layout budget: docH == viewport at 360×560, 336×522 and 288×448
+  in off/on/degraded/error; degraded's fix-to-footer gap 15 → 27 px at
+  560 (was exactly on the minimum); the 288×448 floor re-measured
+  against the v0.5.1 baseline (git stash) — identical, the ladder +
+  scroll net unchanged.
+- Cross-builds: ./build.sh cut all six binaries and the four packages
+  from the one tree (logs in the release section below).

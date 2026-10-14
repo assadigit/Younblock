@@ -553,3 +553,90 @@ fallback — Debian's appstreamcli rejects our hicolor icon set with
 icon-not-found and mandates an icon policy it also refuses to parse; the
 bundle installs and runs identically without the AppStream branch, and the
 flatpak-builder path regenerates it on a normal host.
+
+**D56 — v1.5.0: one shared screen chrome (views.css) instead of three
+hand-copied variants.**
+Settings, Help and About each carried their own copy of the view header,
+back button, scroll body and section-title styles — three variants of the
+same thing that had already drifted (12 px vs 16 px title sizes, different
+paddings). A new global stylesheet (styles/views.css, imported once in
+main.ts) now owns `.view`, `.view-header`, `.view-title`, `.back`,
+`.view-scroll`, `.overline`, `.card` and `.reveal`, and every screen
+mounts on those classes. The type ramp gains the missing steps the
+screens were improvising: an 11 px overline (tracked-out, 600, uppercase —
+one voice for "Connection test", "Advanced", "How it works" and the home
+footer chip), a 17 px view title at 600, a `--text-2xs` size, a mono face
+for addresses/URLs, a raised surface step (`--color-surface-2`), card
+elevation (`--shadow-card`), and a duration scale (`--dur-fast/med/slow`)
+beside the easing ones so every entrance, reveal and hover in the app
+moves on the same clock. Content that belongs together (the Help test
+block, the rescue actions, the About sections, the Advanced groups) now
+sits on cards instead of floating on the grain. File 02's per-screen
+fixed metrics keep their D48 budget; the Connect screen's structure is
+untouched — only its footer chip and shared classes changed.
+
+**D57 — v1.5.0: every control is drawn to one standard, and the focus
+ring stopped reshaping what it lands on.**
+Three defects and one gap, fixed together. (1) The global `:focus-visible`
+rule set `border-radius: var(--radius-sm)` on the focused *element*, so
+keyboard-focusing a pill button (Fix connection, the chips) squared its
+corners for as long as the ring showed — the rule now only paints the
+outline (2 px gold, offset 2) and lets the element keep its own shape.
+(2) The power button's hover selector outranked `.on .disc` and turned
+the lit red plate's border gray under the pointer; hover is now scoped to
+the resting (non-on) states, where "the plate wakes up" was always the
+intent. (3) The Add-provider chips were 36 px and the manual-address copy
+button 32 px — under the 44 px touch-target rule every edition follows;
+both are 44 px now, with press feedback. And the gap: Advanced's radio
+groups were native `accent-color` dots sitting next to the custom switch —
+they now render as the brand radio (a ring that fills with the padlock
+red, spring-scaled, focus ring on the ring), the FirstRun checkbox the
+same way, the port input gets hover/focus border states, the "tried
+first" marker became a small gold badge, and DoH URLs and the domain list
+set in the mono face.
+
+**D58 — v1.5.0: motion choreography under the D45 policy — and a real
+bug it flushed out.**
+Entrances and reveals now share one language: every screen mounts with a
+240 ms rise-and-fade (the Connect footer and header ride the same
+animation), the FirstRun welcome staggers in five steps, the menu unfolds
+from its own corner, the close-notice backdrop fades while its sheet
+rises, and the two expanders (Settings' Advanced, About's licenses, the
+Help accordion) animate with the same 0fr→1fr grid-rows reveal the home
+metrics already used — the accordion's text-glyph "›" is finally the same
+stroke chevron every other expander uses, rotating the same way. Help's
+Run-test button carries a spinner while it works and the running test
+shows a quiet "Checking…" row with a turning gold arc; passed steps pop
+their check in once. All of it obeys D45: decoration (entrances, pops,
+the stagger) is switched off under prefers-reduced-motion while the
+functional spinners keep turning. The bug: `animation-fill-mode: both`
+on the entrance left a filled *identity-matrix* transform on the header
+and screens, and a lingering transform — even an identity one — creates
+a stacking context; the menu panel's z-index was therefore scoped inside
+the header and the connect section painted over the open menu (the menu
+was unclickable in every screen that had just animated in). Every one-
+shot animation now fills `backwards` only, which lands on the identical
+end state (the `to` keyframe equals the element's specified style)
+without keeping a transform alive.
+
+**D59 — v1.5.0: the screens say what they are, from the one copy deck —
+and the stopping state finally says anything at all.**
+`subtitleFor()` had the state subtitles hard-coded in English while
+en.json carried an unused twin of the same table; the function now reads
+the deck (like every other word on screen), the deck gains the keys it
+was missing (`degradedDns`, a real `stopping` line — "Putting the
+internet setting back…" — instead of the empty string the state showed
+while Windows' setting was being restored), and the two hard-coded
+strings in components ("Open help" in the error row, the menu panel's
+aria-label) moved into it. On top of the copy hygiene, three screens got
+their overdue design passes: FirstRun is a proper welcome (the wordmark
+over a soft brand glow, centered copy, the autostart choice as a card
+row, one full-width primary); About leads its How-it-works card with the
+three-node diagram (browser → the power glyph on padlock red → the play
+badge) — it used to sit under the numbered steps, below the fold where
+nobody met it (VLM-verified: diagramTop 560 → 224) — and shows the
+version as a pill; and the degraded state now shrinks the power button
+the same step the error state always had, because its fix-pill stack was
+the one state landing exactly on D48's 15 px minimum gap (now 27 px at
+360×560 — the same treatment for both "needs attention" states, so they
+read as one family).

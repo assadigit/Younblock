@@ -238,3 +238,35 @@ Scope: five user-requested additions on top of the completed spec work. All defa
       artifact
 - [x] Docs: README (which-format guide, download table, package manual
       checks 7–8, Linux uninstall), DECISIONS D53–D55, this phase, PROGRESS
+
+## Phase 13 (v0.6.0 / app 1.5.0) — the look & feel pass
+
+- [x] D56: shared view chrome (styles/views.css: view/header/title/back/
+      scroll, overline caption voice, cards, reveal) replacing the three
+      per-screen variants; token ramp extensions (text-2xs, mono face,
+      surface-2, shadow-card, duration scale); FirstRun/Help/About/
+      Settings mounted on it
+- [x] D57: control standard — brand radio (Advanced groups), brand
+      checkbox (FirstRun), 44 px targets everywhere (chips, copy button),
+      focus ring fixed (no longer reshapes focused pills), PowerButton
+      hover no longer grays the lit disc, port input hover/focus states,
+      "tried first" gold badge, mono URLs
+- [x] D58: motion choreography (D45-gated) — screen entrances, FirstRun
+      stagger, menu corner unfold, close-notice rise, Advanced/licenses/
+      accordion grid-rows reveals with the stroke chevron, Run-test
+      spinner + "Checking…" row + check pop; fixed the fill-mode stacking
+      bug that made the open menu unclickable after an entrance
+- [x] D59: copy wiring (subtitleFor reads en.json; stopping subtitle;
+      Open help + menu aria-label keys) and the screen passes — FirstRun
+      welcome, About (diagram above the fold, version pill, dash lists),
+      degraded state button-step shrink (15 → 27 px footer gap)
+- [x] Gates: npm run build (96.45 KB JS / 41.08 KB CSS); svelte-check
+      12 pre-existing errors only; go vet clean; go test -race green;
+      screenshots re-shot (6 states + notice + firstrun + menu + settings
+      ×3 + help ×4 + about ×2 + 320×568 + 480×900) with VLM QA — all
+      PASS after the degraded-spacing and About-diagram fixes (two VLM
+      overlap claims disproved by pixel measurement, one zoomed re-check
+      PASS); agent-browser E2E golden path on+off, every screen reached,
+      zero console/page errors; docH==viewport verified at 360×560,
+      336×522, 288×448; cross-builds via build.sh (all 6 binaries + 4
+      packages)

@@ -1,5 +1,6 @@
 <script lang="ts">
   // The home screen (file 02, section 4.1).
+  import Icon from "../components/Icon.svelte";
   import PowerButton from "../components/PowerButton.svelte";
   import StatusBlock from "../components/StatusBlock.svelte";
   import { copy } from "../i18n";
@@ -20,7 +21,7 @@
 </script>
 
 <section
-  class="connect"
+  class="connect view"
   data-phase={state.phase}
   aria-label={copy.a11y.powerButton}
 >
@@ -37,7 +38,8 @@
   />
 </section>
 
-<footer class="footer">
+<footer class="footer enter">
+  <Icon name="globe" size={12} strokeWidth={2} />
   <span>{copy.app.footer}</span>
 </footer>
 
@@ -83,16 +85,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     margin: 0 auto var(--space-4);
     padding: 5px 12px;
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: var(--radius-full);
-    color: var(--neutral-400);
-    font-size: 11px;
+    color: var(--neutral-500);
+    font-size: var(--text-2xs);
     line-height: 16px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     font-weight: 500;
+  }
+  .footer :global(svg) {
+    display: block;
+    opacity: 0.8;
   }
 
   /* The responsive ladder (D48): the power button shrinks a step when
@@ -114,9 +121,13 @@
       zoom: 0.82;
     }
   }
-  /* The error state carries the tallest status stack (reason text +
-     help link): shrink the button a step there too, so the reason and
-     the link stay comfortably inside the window (D48). */
+  /* The tall warning states (degraded: metrics + fix pill; error:
+     reason + help link) shrink the button one step so their stacks keep
+     comfortable room above the footer — the same treatment for both,
+     so the two "needs attention" states read as one family (D48, made
+     comfortable in v1.5.0: degraded used to land exactly on the 15 px
+     minimum, which read as cramped next to every other state). */
+  .connect[data-phase="degraded"] .button-wrap,
   .connect[data-phase="error"] .button-wrap {
     transform: scale(0.88);
     margin: calc(-208px * 0.06) 0;

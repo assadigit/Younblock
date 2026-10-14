@@ -12,7 +12,7 @@ import "time"
 const AppName = "Younblock"
 
 // AppVersion — shown in the UI and reported by --version.
-const AppVersion = "1.4.1"
+const AppVersion = "1.5.0"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

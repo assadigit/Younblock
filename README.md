@@ -16,6 +16,30 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.5.0** (the "polish" release):
+
+> The full release history — every version, in plain language — now lives in
+> [CHANGELOG.md](CHANGELOG.md). The notes below are the short version.
+
+- **The whole app got a look-and-feel pass.** Every screen now shares one
+  design system — same headers, same cards, same captions, same motion —
+  so Settings, Help, About and the first-run welcome feel like one app
+  instead of four cousins. The technical options are drawn in the app's
+  own style (the red padlock ring you know from the big button), and
+  everything you can tap is comfortably sized.
+- **The app moves, quietly.** Screens rise in, the menu unfolds, sections
+  expand smoothly instead of snapping, and the connection test shows a
+  spinner and a "Checking…" line while it works. If you turn Windows'
+  animation effects off, the decoration stops with them — only the
+  spinners that tell you something is happening keep turning.
+- **The "Turning off…" moment explains itself**: while the app puts the
+  internet setting back, it says so instead of showing an empty line.
+- **Fixes you'd only notice when they bit you**: the menu could become
+  unclickable right after a screen appeared (an animation side-effect —
+  fixed); tabbing to the "Fix connection" pill used to square its
+  corners while the focus ring showed (fixed); and hovering the On
+  button no longer dulls its rim.
+
 **What's new in version 1.4.1** (the "install it properly" release):
 
 > The full release history — every version, in plain language — now lives in

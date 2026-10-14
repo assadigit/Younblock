@@ -59,7 +59,7 @@
     <Icon name="menu" size={20} />
   </button>
   {#if open}
-    <div class="panel" role="menu" aria-label="Younblock menu">
+    <div class="panel" role="menu" aria-label={copy.a11y.menuPanel}>
       <button type="button" role="menuitem" onclick={() => go("settings")}>
         <Icon name="settings" size={18} />
         <span>{copy.menu.settings}</span>
@@ -90,13 +90,23 @@
     height: 44px;
     display: grid;
     place-items: center;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     color: var(--color-text-muted);
+    transition:
+      color var(--dur-fast) ease-out,
+      background var(--dur-fast) ease-out,
+      transform var(--dur-fast) var(--ease-press-in);
   }
   .menu-button:hover {
     color: var(--color-text);
     background: var(--color-surface);
   }
+  .menu-button:active {
+    transform: scale(0.92);
+  }
+  /* v1.5.0 (D58): the panel unfolds from its own corner — the same
+     decelerating curve every entrance uses, so opening it reads as one
+     gesture with the press. */
   .panel {
     position: absolute;
     top: calc(100% + 4px);
@@ -107,7 +117,9 @@
     border-radius: var(--radius-md);
     padding: var(--space-1);
     z-index: 20;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-pop);
+    transform-origin: top right;
+    animation: menu-in var(--dur-fast) var(--ease-spring-out) backwards;
   }
   .panel button {
     display: flex;
@@ -120,19 +132,64 @@
     color: var(--color-text);
     font-size: var(--text-sm);
     text-align: start;
+    transition: background var(--dur-fast) ease-out;
+  }
+  .panel button :global(svg) {
+    color: var(--color-text-muted);
+    transition: color var(--dur-fast) ease-out;
   }
   .panel button:hover {
     background: var(--neutral-800);
   }
+  .panel button:hover :global(svg) {
+    color: var(--color-text);
+  }
   .panel button.quit {
     color: var(--color-text-muted);
   }
+  /* Quit is the one destructive-ish item (it stops the app — after
+     restoring the internet setting): its hover leans warm-red so the
+     choice is legible before it is made. */
   .panel button.quit:hover {
     color: var(--color-text);
+    background: rgba(255, 106, 95, 0.1);
+  }
+  .panel button.quit:hover :global(svg) {
+    color: var(--color-danger);
   }
   .divider {
     height: 1px;
     background: var(--color-border);
     margin: var(--space-1) var(--space-2);
+  }
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(-2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .menu-button,
+    .panel button {
+      transition: none;
+    }
+    .menu-button:active {
+      transform: none;
+    }
+    .panel {
+      animation-name: menu-in-fade;
+    }
+  }
+  @keyframes menu-in-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 </style>

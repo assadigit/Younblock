@@ -64,6 +64,7 @@
     class="subtitle"
     class:warn={state.phase === "degraded"}
     class:error={state.phase === "error"}
+    class:stopping={state.phase === "stopping"}
   >{subtitle}</p>
   <p class="notice" class:visible={!!noticeText} aria-live="polite">{noticeText ?? ""}</p>
   <!-- D48: the timer/quiet block collapses to zero height when its
@@ -79,11 +80,11 @@
   </div>
   {#if state.phase === "error"}
     <div class="error-row">
-      <button type="button" class="link" onclick={onOpenHelp}>Open help</button>
+      <button type="button" class="link" onclick={onOpenHelp}>{copy.buttons.openHelp}</button>
     </div>
   {/if}
   {#if state.phase === "degraded"}
-    <button type="button" class="fix" onclick={onFixConnection}>Fix connection</button>
+    <button type="button" class="fix" onclick={onFixConnection}>{copy.buttons.fixConnection}</button>
   {/if}
 </div>
 
@@ -154,6 +155,7 @@
     line-height: 20px;
     color: var(--color-text-muted);
     min-height: 20px;
+    max-width: 300px;
     transition: color 320ms ease-out;
   }
   /* Degraded: the reason line is warmed up so the failure is not
@@ -175,6 +177,12 @@
   }
   .subtitle.error::-webkit-scrollbar {
     display: none;
+  }
+  /* v1.5.0 (D59): stopping finally says what it is doing — the state
+     used to show an empty line while the internet setting was being
+     put back. */
+  .subtitle.stopping {
+    color: var(--color-text-muted);
   }
   .notice {
     margin: 0;
@@ -245,14 +253,20 @@
   .link {
     color: var(--color-text-muted);
     text-decoration: underline;
+    text-underline-offset: 3px;
     min-height: 44px;
     padding: var(--space-1) var(--space-2);
     flex: none;
+    transition: color var(--dur-fast) ease-out;
+  }
+  .link:hover {
+    color: var(--color-text);
   }
   /* Degraded repair action: a gold ghost button — clearly a warning
      fix, not a second "turn on". v1.3.1: flex:none so it always keeps
      its full height in the scroll column (never squashed onto the
-     window edge, Ali's D48 report). */
+     window edge, Ali's D48 report). v1.5.0: the press now feeds back
+     like every button in the app (D57). */
   .fix {
     margin-top: var(--space-2);
     flex: none;
@@ -264,12 +278,16 @@
     color: var(--gold-300);
     font-weight: 500;
     transition:
-      background 160ms ease-out,
-      border-color 160ms ease-out;
+      background var(--dur-fast) ease-out,
+      border-color var(--dur-fast) ease-out,
+      transform var(--dur-fast) var(--ease-press-in);
   }
   .fix:hover {
     background: rgba(255, 197, 61, 0.16);
     border-color: rgba(255, 197, 61, 0.7);
+  }
+  .fix:active {
+    transform: scale(0.97);
   }
 
   @media (prefers-reduced-motion: reduce) {

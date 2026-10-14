@@ -1,6 +1,10 @@
 <script lang="ts">
   // The four connection-test steps with a check or cross, a short result
   // and a hint when one fails (file 02, section 4.4).
+  // v1.5.0 (D58): while the test runs, a quiet "Checking…" row with a
+  // spinning arc shows where the test is (functional motion, D45); when
+  // a step passes, its check pops in once (decorative — off under
+  // reduced motion). The ms readout is styled as a tabular chip.
   import Icon from "./Icon.svelte";
   import { copy } from "../i18n";
   import type { TestStep } from "../lib/backend";
@@ -30,9 +34,9 @@
     <li class="step" class:ok={step.ok} class:fail={!step.ok}>
       <span class="mark" aria-hidden="true">
         {#if step.ok}
-          <Icon name="check" size={18} />
+          <Icon name="check" size={18} strokeWidth={2.25} />
         {:else}
-          <Icon name="x" size={18} />
+          <Icon name="x" size={18} strokeWidth={2.25} />
         {/if}
       </span>
       <div class="text">
@@ -46,11 +50,17 @@
       </div>
       <span class="ms" aria-hidden="true">{step.ms} ms</span>
     </li>
-  {:else}
-    {#if !running}
-      <li class="placeholder">{""}</li>
-    {/if}
   {/each}
+  {#if running}
+    <li class="step pending">
+      <span class="mark" aria-hidden="true">
+        <span class="wait"></span>
+      </span>
+      <div class="text">
+        <p class="name muted">{copy.help.testChecking}</p>
+      </div>
+    </li>
+  {/if}
 </ul>
 
 <style>
@@ -85,6 +95,11 @@
     color: var(--gold-400);
     background: var(--red-900);
   }
+  /* The one-shot result pop (decoration — removed under reduced
+     motion, D45/D58). */
+  .step.ok .mark :global(svg) {
+    animation: mark-pop 240ms var(--ease-spring-out) backwards;
+  }
   .step.fail .mark {
     color: var(--color-danger);
     background: var(--red-700);
@@ -98,6 +113,9 @@
     color: var(--color-text);
     font-size: var(--text-sm);
     line-height: 20px;
+  }
+  .name.muted {
+    color: var(--color-text-muted);
   }
   .result {
     margin: 0;
@@ -116,12 +134,46 @@
     color: var(--gold-300);
   }
   .ms {
-    color: var(--neutral-500);
-    font-size: var(--text-xs);
-    font-variant-numeric: tabular-nums;
     margin-top: 3px;
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-2);
+    color: var(--neutral-500);
+    font-size: var(--text-2xs);
+    line-height: 14px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
   }
-  .placeholder {
-    height: 4px;
+  /* The pending row: a small gold arc, turning while the test works —
+     functional state, so it keeps spinning under reduced motion (D45). */
+  .wait {
+    width: 14px;
+    height: 14px;
+    border-radius: var(--radius-full);
+    border: 2px solid rgba(255, 197, 61, 0.25);
+    border-top-color: var(--color-warn);
+    animation: wait-spin 0.9s linear infinite;
+  }
+  @keyframes wait-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes mark-pop {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .step.ok .mark :global(svg) {
+      animation: none;
+    }
+    /* .wait intentionally still spins — functional. */
   }
 </style>

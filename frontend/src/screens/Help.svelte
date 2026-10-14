@@ -1,6 +1,9 @@
 <script lang="ts">
   // Help (file 02, section 4.4): one scroll, the connection test with live
   // progress, the common-problems accordion, and the three rescue buttons.
+  // v1.5.0 (D56/D58): the blocks sit on cards with one caption voice, the
+  // Run-test button carries a spinner while it works (functional motion,
+  // D45), and the accordion shares the app's reveal + chevron language.
   import Accordion from "../components/Accordion.svelte";
   import Icon from "../components/Icon.svelte";
   import TestSteps from "../components/TestSteps.svelte";
@@ -53,35 +56,40 @@
   const nothingWorked = $derived(steps.length === 4 && steps.every((s) => !s.ok));
 </script>
 
-<section class="help" aria-label={copy.help.title}>
+<section class="help view" aria-label={copy.help.title}>
   <header class="view-header">
     <button type="button" class="back" onclick={onBack} aria-label={copy.a11y.back}>
       <Icon name="chevron-left" size={20} />
     </button>
-    <h1>{copy.help.title}</h1>
+    <h1 class="view-title">{copy.help.title}</h1>
   </header>
 
-  <div class="scroll">
-    <div class="block">
-      <p class="block-title">{copy.help.testTitle}</p>
-      <button type="button" class="primary" onclick={onRunTest} disabled={testing}>
-        {copy.buttons.runTest}
+  <div class="view-scroll">
+    <div class="card">
+      <p class="overline">{copy.help.testTitle}</p>
+      <button type="button" class="primary" onclick={onRunTest} disabled={testing} aria-busy={testing}>
+        {#if testing}
+          <span class="spinner" aria-hidden="true"></span>
+        {/if}
+        <span>{copy.buttons.runTest}</span>
       </button>
       {#if steps.length > 0}
-        <TestSteps {steps} running={testing} />
-        {#if failedCritical && !nothingWorked}
-          <button type="button" class="secondary" onclick={onFixConnection}>
-            {copy.buttons.fixConnection}
-          </button>
-        {/if}
-        {#if nothingWorked}
-          <p class="note">{copy.help.testNothingWorked}</p>
-        {/if}
+        <div class="steps-wrap">
+          <TestSteps {steps} running={testing} />
+          {#if failedCritical && !nothingWorked}
+            <button type="button" class="secondary" onclick={onFixConnection}>
+              {copy.buttons.fixConnection}
+            </button>
+          {/if}
+          {#if nothingWorked}
+            <p class="note">{copy.help.testNothingWorked}</p>
+          {/if}
+        </div>
       {/if}
     </div>
 
     <div class="block">
-      <p class="block-title">{copy.help.common}</p>
+      <p class="overline">{copy.help.common}</p>
       {#each problems as problem, index (problem.q)}
         <Accordion
           title={problem.q}
@@ -93,8 +101,8 @@
       {/each}
     </div>
 
-    <div class="block">
-      <p class="block-title">{copy.help.stillStuck}</p>
+    <div class="card">
+      <p class="overline">{copy.help.stillStuck}</p>
       <div class="rescue">
         <button type="button" onclick={onCopyReport}>
           <Icon name="copy" size={16} />
@@ -114,91 +122,82 @@
 </section>
 
 <style>
-  .help {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .view-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    padding-top: max(var(--space-2), env(safe-area-inset-top));
-  }
-  .view-header h1 {
-    margin: 0;
-    font-size: var(--text-md);
-    line-height: 24px;
-    font-weight: 500;
-  }
-  .back {
-    width: 44px;
-    height: 44px;
-    display: grid;
-    place-items: center;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
-    margin-inline-start: calc(-1 * var(--space-2));
-  }
-  .back:hover {
-    color: var(--color-text);
-    background: var(--color-surface);
-  }
-  .scroll {
-    flex: 1;
-    overflow-y: auto;
-    max-height: 100%;
-    padding: 0 var(--space-4);
-    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-  }
   .block {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
   }
-  .block-title {
-    margin: 0;
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    line-height: 16px;
+  .steps-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0 calc(-1 * var(--space-1));
   }
   .primary {
-    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
     min-height: 44px;
     padding: var(--space-2) var(--space-6);
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-md);
     background: var(--red-500);
     color: var(--color-on-primary);
     font-weight: 500;
+    transition:
+      background var(--dur-fast) ease-out,
+      transform var(--dur-fast) var(--ease-press-in);
   }
   .primary:hover {
     background: var(--red-400);
+  }
+  .primary:active {
+    transform: scale(0.98);
   }
   .primary:disabled {
     opacity: 0.6;
     cursor: default;
   }
+  /* The working spinner (D58): functional progress, so it keeps turning
+     even under reduced motion (D45) — same policy as the connecting arc. */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-full);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: var(--color-on-primary);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .secondary {
     align-self: flex-start;
-    margin-top: var(--space-2);
+    margin: 0 var(--space-1);
     min-height: 44px;
     padding: var(--space-2) var(--space-6);
-    border-radius: var(--radius-full);
-    border: 1px solid var(--color-border);
-    color: var(--color-text);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 197, 61, 0.45);
+    background: rgba(255, 197, 61, 0.08);
+    color: var(--gold-300);
     font-weight: 500;
+    transition:
+      background var(--dur-fast) ease-out,
+      border-color var(--dur-fast) ease-out,
+      transform var(--dur-fast) var(--ease-press-in);
   }
   .secondary:hover {
-    background: var(--color-surface);
+    background: rgba(255, 197, 61, 0.16);
+    border-color: rgba(255, 197, 61, 0.7);
+  }
+  .secondary:active {
+    transform: scale(0.98);
   }
   .note {
-    margin: var(--space-2) 0 0;
-    color: var(--color-text-muted);
+    margin: 0 var(--space-1);
+    color: var(--gold-300);
     font-size: var(--text-sm);
     line-height: 20px;
   }
@@ -218,8 +217,33 @@
     color: var(--color-text);
     font-size: var(--text-sm);
     text-align: start;
+    transition:
+      background var(--dur-fast) ease-out,
+      border-color var(--dur-fast) ease-out;
+  }
+  .rescue button :global(svg) {
+    color: var(--color-text-muted);
+    transition: color var(--dur-fast) ease-out;
   }
   .rescue button:hover {
-    background: var(--color-surface);
+    background: var(--color-surface-2);
+    border-color: var(--color-border-strong);
+  }
+  .rescue button:hover :global(svg) {
+    color: var(--gold-300);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .primary,
+    .secondary,
+    .rescue button,
+    .rescue button :global(svg) {
+      transition: none;
+    }
+    .primary:active,
+    .secondary:active {
+      transform: none;
+    }
+    /* .spinner intentionally still spins — functional. */
   }
 </style>

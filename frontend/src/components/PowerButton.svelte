@@ -304,8 +304,11 @@
   }
 
   /* Hover: the resting plate wakes up slightly — a hairline brighter
-     rim and glyph, so the button feels alive before it is pressed. */
-  .power:enabled:not(.connecting):hover .disc {
+     rim and glyph, so the button feels alive before it is pressed.
+     v1.5.0: scoped away from the on-state — the old selector outranked
+     ".on .disc" and turned the lit red plate's border gray under the
+     pointer (D57). */
+  .power:enabled:not(.connecting):not(.on):hover .disc {
     border-color: var(--neutral-700);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.07),
@@ -313,10 +316,10 @@
       0 0 0 1px rgba(255, 255, 255, 0.02),
       0 2px 6px rgba(0, 0, 0, 0.4);
   }
-  .power:enabled:not(.connecting):hover .glyph {
+  .power:enabled:not(.connecting):not(.on):hover .glyph {
     color: var(--neutral-300);
   }
-  .power:enabled:not(.connecting):hover .ring {
+  .power:enabled:not(.connecting):not(.on):hover .ring {
     border-color: var(--neutral-700);
   }
 

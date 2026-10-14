@@ -90,11 +90,18 @@ button {
   padding: 0;
 }
 
-/* Keyboard focus: visible everywhere (file 02, section 8). */
+button:disabled {
+  cursor: default;
+}
+
+/* Keyboard focus: visible everywhere (file 02, section 8). The rule only
+   paints the ring — it must never reshape the element it lands on (a
+   v1.4.x bug forced border-radius onto focused pill buttons, squaring
+   them for the duration of the focus; fixed in D57). The outline follows
+   the element's own border-radius in Chromium/WebView2. */
 :focus-visible {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 3px;
-  border-radius: var(--radius-sm);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 ::selection {

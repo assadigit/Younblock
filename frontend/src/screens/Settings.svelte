@@ -1,6 +1,11 @@
 <script lang="ts">
   // Settings (file 02, section 4.3): a start-aligned list with 1 px
   // dividers, a collapsed Advanced section, and instant saves.
+  // v1.5.0 (D56/D57): the screen mounts on the shared view chrome, the
+  // Advanced groups sit on cards, the radios are drawn in the brand
+  // style (the native accent-colored dots looked unfinished beside the
+  // custom switch), every control keeps a 44 px target, and the section
+  // reveals with the app's expand motion instead of snapping.
   import Icon from "../components/Icon.svelte";
   import { copy, fill } from "../i18n";
   import type { Settings } from "../lib/backend";
@@ -110,15 +115,15 @@
   }
 </script>
 
-<section class="settings" aria-label={copy.settings.title}>
+<section class="settings view" aria-label={copy.settings.title}>
   <header class="view-header">
     <button type="button" class="back" onclick={onBack} aria-label={copy.a11y.back}>
       <Icon name="chevron-left" size={20} />
     </button>
-    <h1>{copy.settings.title}</h1>
+    <h1 class="view-title">{copy.settings.title}</h1>
   </header>
 
-  <div class="rows">
+  <div class="view-scroll rows">
     {#if startWithWindowsSupported}
       <div class="row">
         <div class="row-text">
@@ -189,177 +194,149 @@
         <p class="row-title">{copy.settings.advanced}</p>
         <p class="row-hint">{copy.settings.advancedHint}</p>
       </div>
-      <Icon name="chevron-right" size={18} />
+      <span class="chevron" class:open={advancedOpen} aria-hidden="true">
+        <Icon name="chevron-right" size={18} />
+      </span>
     </button>
 
-    {#if advancedOpen}
-      <div class="advanced">
-        <div class="group">
-          <p class="group-title">{copy.settings.mode}</p>
-          {#each modes as mode (mode.value)}
-            <label class="choice">
-              <input
-                type="radio"
-                name="mode"
-                value={mode.value}
-                checked={local.mode === mode.value}
-                onchange={() => save({ mode: mode.value as Settings["mode"] })}
-              />
-              <span class="choice-text">
-                <span class="choice-label">{mode.label}</span>
-                <span class="choice-hint">{mode.hint}</span>
-                {#if mode.value === "manual" && local.mode === "manual"}
-                  <span class="manual-address">
-                    <code>127.0.0.1:{local.port}</code>
-                    <button type="button" class="copy" onclick={copyAddress}>
-                      <Icon name="copy" size={14} />
-                    </button>
-                  </span>
-                {/if}
-              </span>
-            </label>
-          {/each}
-        </div>
-
-        <div class="group">
-          <p class="group-title">{copy.settings.method}</p>
-          {#each methods as method (method.value)}
-            <label class="choice">
-              <input
-                type="radio"
-                name="method"
-                value={method.value}
-                checked={local.method === method.value}
-                onchange={() => save({ method: method.value })}
-              />
-              <span class="choice-text">
-                <span class="choice-label">{method.label}</span>
-                <span class="choice-hint">{method.hint}</span>
-              </span>
-            </label>
-          {/each}
-        </div>
-
-        <label class="field">
-          <span class="group-title">{copy.settings.port}</span>
-          <input
-            type="number"
-            min="1"
-            max="65535"
-            value={local.port}
-            onchange={(e) => {
-              const port = Number(e.currentTarget.value);
-              if (Number.isFinite(port) && port >= 1 && port <= 65535) save({ port });
-            }}
-          />
-        </label>
-
-        <div class="group">
-          <p class="group-title">{copy.settings.dohServers}</p>
-          <p class="group-hint">{copy.settings.dohHint}</p>
-          <ul class="plain-list server-list">
-            {#each local.advanced.dohServers as server, i (server.url)}
-              <li>
-                <div class="server-row">
-                  <div class="server-text">
-                    <span class="server-name">
-                      {server.name}
-                      {#if i === 0}<span class="server-first">{copy.settings.dohFirst}</span>{/if}
+    <div class="reveal" class:open={advancedOpen}>
+      <div class="reveal-body">
+        <div class="advanced">
+          <div class="card">
+            <p class="overline">{copy.settings.mode}</p>
+            {#each modes as mode (mode.value)}
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="mode"
+                  value={mode.value}
+                  checked={local.mode === mode.value}
+                  onchange={() => save({ mode: mode.value as Settings["mode"] })}
+                />
+                <span class="radio" aria-hidden="true"></span>
+                <span class="choice-text">
+                  <span class="choice-label">{mode.label}</span>
+                  <span class="choice-hint">{mode.hint}</span>
+                  {#if mode.value === "manual" && local.mode === "manual"}
+                    <span class="manual-address">
+                      <code>127.0.0.1:{local.port}</code>
+                      <button type="button" class="copy" onclick={copyAddress} aria-label={copy.settings.manualAddress}>
+                        <Icon name="copy" size={15} />
+                      </button>
                     </span>
-                    <span class="server-url">{server.url}</span>
+                  {/if}
+                </span>
+              </label>
+            {/each}
+          </div>
+
+          <div class="card">
+            <p class="overline">{copy.settings.method}</p>
+            {#each methods as method (method.value)}
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="method"
+                  value={method.value}
+                  checked={local.method === method.value}
+                  onchange={() => save({ method: method.value })}
+                />
+                <span class="radio" aria-hidden="true"></span>
+                <span class="choice-text">
+                  <span class="choice-label">{method.label}</span>
+                  <span class="choice-hint">{method.hint}</span>
+                </span>
+              </label>
+            {/each}
+          </div>
+
+          <div class="card">
+            <label class="field">
+              <span class="overline">{copy.settings.port}</span>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                value={local.port}
+                onchange={(e) => {
+                  const port = Number(e.currentTarget.value);
+                  if (Number.isFinite(port) && port >= 1 && port <= 65535) save({ port });
+                }}
+              />
+            </label>
+          </div>
+
+          <div class="card">
+            <p class="overline">{copy.settings.dohServers}</p>
+            <p class="group-hint">{copy.settings.dohHint}</p>
+            <ul class="plain-list server-list">
+              {#each local.advanced.dohServers as server, i (server.url)}
+                <li>
+                  <div class="server-row">
+                    <div class="server-text">
+                      <span class="server-name">
+                        {server.name}
+                        {#if i === 0}<span class="server-first">{copy.settings.dohFirst}</span>{/if}
+                      </span>
+                      <span class="server-url">{server.url}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="server-remove"
+                      aria-label={fill(copy.settings.dohRemove, { name: server.name })}
+                      title={fill(copy.settings.dohRemove, { name: server.name })}
+                      onclick={() => removeDohServer(server.url)}
+                    >
+                      <Icon name="x" size={16} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    class="server-remove"
-                    aria-label={fill(copy.settings.dohRemove, { name: server.name })}
-                    title={fill(copy.settings.dohRemove, { name: server.name })}
-                    onclick={() => removeDohServer(server.url)}
-                  >
-                    <Icon name="x" size={16} />
+                </li>
+              {/each}
+            </ul>
+            <div class="doh-add" role="group" aria-label={copy.settings.dohAddGroup}>
+              {#each dohPresets as p (p.url)}
+                {#if !local.advanced.dohServers.some((s) => s.url === p.url)}
+                  <button type="button" class="chip" onclick={() => addDohServer(p)}>
+                    + {p.name}
                   </button>
-                </div>
-              </li>
-            {/each}
-          </ul>
-          <div class="doh-add" role="group" aria-label={copy.settings.dohAddGroup}>
-            {#each dohPresets as p (p.url)}
-              {#if !local.advanced.dohServers.some((s) => s.url === p.url)}
-                <button type="button" class="chip" onclick={() => addDohServer(p)}>
-                  + {p.name}
-                </button>
-              {/if}
-            {/each}
+                {/if}
+              {/each}
+            </div>
           </div>
-        </div>
 
-        <div class="group">
-          <p class="group-title">{copy.settings.domains}</p>
-          <ul class="plain-list">
-            {#each local.advanced.domains as domain (domain)}
-              <li>{domain}</li>
-            {/each}
-          </ul>
-        </div>
-
-        <div class="row">
-          <div class="row-text">
-            <p class="row-title">{copy.settings.logDomains}</p>
+          <div class="card">
+            <p class="overline">{copy.settings.domains}</p>
+            <ul class="plain-list domain-list">
+              {#each local.advanced.domains as domain (domain)}
+                <li>{domain}</li>
+              {/each}
+            </ul>
+            <div class="row in-card">
+              <div class="row-text">
+                <p class="row-title">{copy.settings.logDomains}</p>
+              </div>
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  checked={local.advanced.logDomains}
+                  onchange={(e) => saveAdvanced({ logDomains: e.currentTarget.checked })}
+                />
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+              </label>
+            </div>
           </div>
-          <label class="switch">
-            <input
-              type="checkbox"
-              checked={local.advanced.logDomains}
-              onchange={(e) => saveAdvanced({ logDomains: e.currentTarget.checked })}
-            />
-            <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-          </label>
-        </div>
 
-        <button type="button" class="reset" onclick={reset}>{copy.settings.reset}</button>
+          <button type="button" class="reset" onclick={reset}>{copy.settings.reset}</button>
+        </div>
       </div>
-    {/if}
+    </div>
   </div>
 </section>
 
 <style>
-  .settings {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .view-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    padding-top: max(var(--space-2), env(safe-area-inset-top));
-  }
-  .view-header h1 {
-    margin: 0;
-    font-size: var(--text-md);
-    line-height: 24px;
-    font-weight: 500;
-  }
-  .back {
-    width: 44px;
-    height: 44px;
-    display: grid;
-    place-items: center;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
-    margin-inline-start: calc(-1 * var(--space-2));
-  }
-  .back:hover {
-    color: var(--color-text);
-    background: var(--color-surface);
-  }
   .rows {
-    flex: 1;
-    overflow-y: auto;
-    max-height: 100%;
-    padding: 0 var(--space-4);
-    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
+    gap: 0;
+    padding-top: var(--space-2);
   }
   .row {
     display: flex;
@@ -377,37 +354,53 @@
     line-height: 20px;
   }
   .row-hint {
-    margin: 2px 0 0;
+    margin: 4px 0 0;
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    line-height: 16px;
+    line-height: 17px;
   }
   .advanced-head {
     width: 100%;
     text-align: start;
+    border-bottom: 1px solid var(--color-border);
   }
   .advanced-head:hover {
     background: transparent;
   }
+  .advanced-head:hover .row-title,
+  .advanced-head:hover .chevron {
+    color: var(--color-text);
+  }
+  /* The chevron now answers like every expander in the app (D57): it
+     rotates to point down while the section below unfolds. */
+  .chevron {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    color: var(--color-text-muted);
+    transition:
+      transform var(--dur-med) var(--ease-spring-out),
+      color var(--dur-fast) ease-out;
+  }
+  .chevron.open {
+    transform: rotate(90deg);
+  }
   .advanced {
-    padding: var(--space-2) 0 var(--space-4);
-    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-4) 0 var(--space-2);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
   }
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .group-title {
-    margin: 0 0 var(--space-1);
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    line-height: 16px;
+  .in-card {
+    /* The log-domains row keeps the list rhythm inside its card. */
+    border-bottom: none;
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-2);
+    padding-top: var(--space-3);
   }
   .choice {
+    position: relative;
     display: flex;
     gap: var(--space-3);
     align-items: flex-start;
@@ -416,11 +409,50 @@
     min-height: 44px;
   }
   .choice input {
-    width: 18px;
-    height: 18px;
-    margin-top: 1px;
-    accent-color: var(--red-500);
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  /* The brand radio (D57): a ring that fills with the padlock red.
+     Drawn to match the switch's weight and motion. */
+  .radio {
     flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--neutral-600);
+    background: var(--neutral-900);
+    transition:
+      border-color var(--dur-fast) ease-out,
+      background var(--dur-fast) ease-out;
+  }
+  .radio::after {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background: var(--red-500);
+    transform: scale(0);
+    transition: transform var(--dur-med) var(--ease-spring-out);
+  }
+  .choice:hover .radio {
+    border-color: var(--neutral-400);
+  }
+  .choice input:checked ~ .radio {
+    border-color: var(--red-500);
+    background: var(--red-900);
+  }
+  .choice input:checked ~ .radio::after {
+    transform: scale(1);
+  }
+  .choice input:focus-visible ~ .radio {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
   .choice-text {
     display: flex;
@@ -444,23 +476,29 @@
     margin-top: var(--space-1);
   }
   .manual-address code {
-    background: var(--color-surface);
+    background: var(--color-surface-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
-    padding: 2px var(--space-2);
+    padding: 3px var(--space-2);
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
+    letter-spacing: 0;
   }
   .copy {
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     display: grid;
     place-items: center;
+    margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
+    transition:
+      color var(--dur-fast) ease-out,
+      background var(--dur-fast) ease-out;
   }
   .copy:hover {
     color: var(--color-text);
-    background: var(--color-surface);
+    background: var(--color-surface-2);
   }
   .field {
     display: flex;
@@ -468,14 +506,23 @@
     gap: var(--space-2);
   }
   .field input {
-    width: 120px;
+    width: 140px;
     min-height: 44px;
-    background: var(--color-surface);
+    background: var(--color-surface-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     color: var(--color-text);
     padding: var(--space-2) var(--space-3);
     font-variant-numeric: tabular-nums;
+    transition: border-color var(--dur-fast) ease-out;
+  }
+  .field input:hover {
+    border-color: var(--color-border-strong);
+  }
+  .field input:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 1px;
+    border-color: var(--color-focus);
   }
   .plain-list {
     list-style: none;
@@ -485,21 +532,11 @@
     flex-direction: column;
     gap: 4px;
   }
-  .plain-list li {
+  .domain-list li {
     color: var(--color-text-muted);
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
-    line-height: 16px;
-    display: flex;
-    flex-direction: column;
-  }
-  .server-name {
-    color: var(--color-text);
-  }
-  .group-hint {
-    margin: 0 0 var(--space-2);
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    line-height: 16px;
+    line-height: 18px;
   }
   .server-row {
     display: flex;
@@ -513,12 +550,39 @@
     flex: 1;
     min-width: 0;
   }
-  .server-first {
-    margin-left: var(--space-2);
+  .server-name {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 20px;
+  }
+  .server-url {
     color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+  /* "tried first" — a tiny gold badge, the lightning's color, so the
+     live ordering of the list is readable at a glance (D57). */
+  .server-first {
+    display: inline-block;
+    margin-left: var(--space-2);
+    padding: 1px 6px;
+    border: 1px solid rgba(255, 197, 61, 0.35);
+    border-radius: var(--radius-full);
+    color: var(--gold-300);
     font-size: 10px;
-    line-height: 14px;
-    vertical-align: middle;
+    line-height: 13px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: 1px;
+  }
+  .group-hint {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 16px;
   }
   .server-remove {
     flex: none;
@@ -528,27 +592,38 @@
     height: 44px;
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
+    transition:
+      color var(--dur-fast) ease-out,
+      background var(--dur-fast) ease-out;
   }
   .server-remove:hover {
-    background: var(--color-surface);
+    background: var(--color-surface-2);
     color: var(--color-text);
   }
   .doh-add {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
   }
   .chip {
-    min-height: 36px;
-    padding: var(--space-1) var(--space-3);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full);
     border: 1px solid var(--color-border);
     color: var(--color-text);
     font-size: var(--text-xs);
+    transition:
+      background var(--dur-fast) ease-out,
+      border-color var(--dur-fast) ease-out,
+      transform var(--dur-fast) var(--ease-press-in);
   }
   .chip:hover {
-    background: var(--color-surface);
+    background: var(--color-surface-2);
+    border-color: rgba(255, 197, 61, 0.4);
+  }
+  .chip:active {
+    transform: scale(0.96);
   }
   .reset {
     align-self: flex-start;
@@ -556,11 +631,17 @@
     padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-sm);
     border: 1px solid var(--color-border);
-    color: var(--color-text);
+    color: var(--color-text-muted);
     font-size: var(--text-sm);
+    transition:
+      color var(--dur-fast) ease-out,
+      background var(--dur-fast) ease-out,
+      border-color var(--dur-fast) ease-out;
   }
   .reset:hover {
+    color: var(--color-text);
     background: var(--color-surface);
+    border-color: var(--color-border-strong);
   }
 
   /* The switch (WCAG-touch-friendly toggle). */
@@ -586,23 +667,47 @@
     display: grid;
     align-items: center;
     padding: 3px;
-    transition: background 280ms ease-out;
+    transition: background var(--dur-med) ease-out;
+  }
+  .switch:hover .track {
+    background: var(--neutral-600);
   }
   .thumb {
     width: 20px;
     height: 20px;
     border-radius: var(--radius-full);
     background: var(--neutral-50);
-    transition: transform 280ms ease-out;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: transform var(--dur-med) var(--ease-spring-out);
   }
   .switch input:checked + .track {
     background: var(--red-500);
+  }
+  .switch input:checked:hover + .track {
+    background: var(--red-400);
   }
   .switch input:checked + .track .thumb {
     transform: translateX(18px);
   }
   .switch input:focus-visible + .track {
-    outline: 3px solid var(--color-focus);
-    outline-offset: 3px;
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chevron,
+    .radio,
+    .radio::after,
+    .track,
+    .thumb,
+    .chip,
+    .copy,
+    .server-remove,
+    .reset {
+      transition: none;
+    }
+    .chip:active {
+      transform: none;
+    }
   }
 </style>

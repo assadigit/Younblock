@@ -12,10 +12,48 @@ every release are on the
 
 ## [Unreleased]
 
-Planned focus: **UI/UX and the look & feel of the app** — a dedicated
-design pass over the whole 360x560 window (all six states, Settings, Help,
-About, First-run), building on the logo palette introduced in v0.4.0 (D47).
-No engine or network changes are planned.
+### Changed (the UI/UX and look & feel pass — D56–D59)
+
+- **One screen chrome**: Settings, Help, About and FirstRun mount on a
+  shared stylesheet (header, back button, scroll body, section captions,
+  cards, reveal) instead of three drifted copies; a real type ramp
+  (11 px overline captions, 17 px view titles, mono for addresses and
+  URLs) and a duration scale so every motion in the app shares one clock.
+- **One control standard**: the Advanced radios and the FirstRun
+  checkbox are drawn in the brand style (a ring filling with the
+  padlock red) instead of native accent-colored dots beside the custom
+  switch; every touch target is ≥44 px (the Add-provider chips and the
+  copy-address button were under); the port field gets hover/focus
+  states; "tried first" is a small gold badge; secure-DNS URLs and the
+  domain list use a mono face.
+- **Motion, everywhere, still honest**: screens enter with one
+  rise-and-fade, the welcome staggers in, the menu unfolds from its
+  corner, the close-notice sheet rises, Advanced / licenses / the Help
+  accordion expand with the same smooth reveal, Run-test carries a
+  spinner and the running test shows a quiet "Checking…" row. Purely
+  decorative motion switches off under reduced-motion settings;
+  functional spinners keep turning (D45).
+- **The stopping state says what it is doing** ("Putting the internet
+  setting back…"), the state subtitles come from the copy deck like
+  every other word, and the degraded state's button shrinks the same
+  step the error state always had — its "Fix connection" stack now
+  keeps comfortable room above the footer instead of landing exactly on
+  the minimum.
+
+### Fixed
+
+- **The open menu could be unclickable** right after a screen appeared:
+  a filled entrance animation left a lingering (identity) transform on
+  the header, which silently repainted the menu panel under the page
+  content. One-shot animations now end without keeping transforms.
+- **Keyboard focus reshaped pill buttons**: the global focus ring
+  carried a border-radius that squared the Fix-connection pill and the
+  chips for as long as the ring showed; the ring now only paints.
+- **Hovering the On button grayed its rim**: the hover rule outranked
+  the lit state's border. Hover now applies to the resting states.
+- **The About diagram was below the fold** — under the numbered steps
+  at exactly the window's bottom edge, where nobody met it. The picture
+  (browser → Younblock → YouTube) now leads the card.
 
 ## [v0.5.1] — 2026-10-14 (app 1.4.1)
 

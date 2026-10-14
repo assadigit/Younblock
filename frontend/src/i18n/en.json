@@ -18,8 +18,8 @@
     "trying": "Trying another method…",
     "on": "Unblocking YouTube",
     "degraded": "On, but YouTube isn't responding",
-    "stopping": "",
-    "errorPrefix": ""
+    "degradedDns": "On, but secure DNS isn't answering",
+    "stopping": "Putting the internet setting back…"
   },
   "notice": {
     "METHOD_SWITCHED": "Switched to a stronger method",
@@ -120,6 +120,7 @@
       "video": "Video servers did not answer. Tap Fix connection below."
     },
     "testNothingWorked": "None of the methods worked on this connection. Your network may be blocking the secure lookup. Open Settings, Advanced, and try another secure-DNS server.",
+    "testChecking": "Checking…",
     "common": "Common problems",
     "problems": {
       "q1": "YouTube still doesn't load.",
@@ -145,6 +146,7 @@
   },
   "about": {
     "title": "About",
+    "versionLabel": "Version",
     "howTitle": "How it works",
     "how": [
       "Your browser sends its request to Younblock, which runs only on your PC.",
@@ -152,7 +154,12 @@
       "Younblock sends the first \"hello\" message to YouTube in small pieces. Filters that scan that message for the website's name usually don't recognise the pieces.",
       "After that, everything flows normally, protected by YouTube's own HTTPS."
     ],
-    "diagram": { "browser": "Your browser", "app": "Younblock on your PC", "youtube": "YouTube" },
+    "diagram": {
+      "aria": "Your browser connects through Younblock on your PC to YouTube",
+      "browser": "Your browser",
+      "app": "Younblock on your PC",
+      "youtube": "YouTube"
+    },
     "notTitle": "What it doesn't do",
     "not": [
       "It is not a VPN.",
@@ -188,6 +195,7 @@
   "a11y": {
     "powerButton": "Unblock YouTube",
     "menuButton": "Menu",
+    "menuPanel": "Younblock menu",
     "back": "Back",
     "logo": "Younblock logo"
   }
