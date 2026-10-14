@@ -57,6 +57,7 @@
   "firstRun": {
     "title": "Welcome",
     "text": "Younblock helps YouTube load in your browser. Turn it on when you need it. Closing this window keeps it running in the tray.",
+    "textNoTray": "Younblock helps YouTube load in your browser. Turn it on when you need it. Keep the Younblock program running while you use it — closing this page does not stop it.",
     "autostart": "Open Younblock when Windows starts"
   },
   "closeNotice": {

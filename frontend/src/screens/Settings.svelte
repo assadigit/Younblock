@@ -8,11 +8,19 @@
   interface Props {
     settings: Settings;
     startWithWindowsSupported: boolean;
+    browserSessionSupported?: boolean;
     onSave: (settings: Settings) => void;
     onBack: () => void;
     onToast: (text: string) => void;
   }
-  let { settings, startWithWindowsSupported, onSave, onBack, onToast }: Props = $props();
+  let {
+    settings,
+    startWithWindowsSupported,
+    browserSessionSupported = true,
+    onSave,
+    onBack,
+    onToast,
+  }: Props = $props();
 
   let advancedOpen = $state(false);
 
@@ -159,20 +167,22 @@
       </label>
     </div>
 
-    <div class="row">
-      <div class="row-text">
-        <p class="row-title">{copy.settings.openBrowserOnConnect}</p>
-        <p class="row-hint">{copy.settings.openBrowserOnConnectHint}</p>
+    {#if browserSessionSupported}
+      <div class="row">
+        <div class="row-text">
+          <p class="row-title">{copy.settings.openBrowserOnConnect}</p>
+          <p class="row-hint">{copy.settings.openBrowserOnConnectHint}</p>
+        </div>
+        <label class="switch">
+          <input
+            type="checkbox"
+            checked={local.openBrowserOnConnect}
+            onchange={(e) => save({ openBrowserOnConnect: e.currentTarget.checked })}
+          />
+          <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+        </label>
       </div>
-      <label class="switch">
-        <input
-          type="checkbox"
-          checked={local.openBrowserOnConnect}
-          onchange={(e) => save({ openBrowserOnConnect: e.currentTarget.checked })}
-        />
-        <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-      </label>
-    </div>
+    {/if}
 
     <button type="button" class="row advanced-head" onclick={() => (advancedOpen = !advancedOpen)} aria-expanded={advancedOpen}>
       <div class="row-text">

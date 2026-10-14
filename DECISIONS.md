@@ -431,3 +431,65 @@ error reason text is capped with its own scroll, and a responsive ladder
 physically correct on 150%-scaled displays) keeps every state inside any
 viewport the fixed window can produce. File 02 §4.1's fixed-metrics table
 gains these budget rules; the 52 px header (§3) becomes 44 px.
+
+**D49 — v1.4.0: in the error state the reason is the subtitle.**
+The old error screen reserved an always-present subtitle line that sat empty,
+then rendered the failure reason in a separate small paragraph below the
+collapsed timer block — one message split over two slots with a dead gap
+between them. The reason (PORT_BUSY, DNS_…, UNKNOWN wording) now renders in
+the subtitle slot, directly under the state label where the eye lands first,
+danger-colored, keeping D48's compact budget (280 px line cap, 100 px height
+cap with its own scroll) so a long UNKNOWN paragraph still cannot push the
+footer out. The error row keeps only the "Open help" link. This also shortens
+the tallest status stack, which is what the D48 ladder was fighting.
+
+**D50 — v1.4.0: the Linux edition is the same engine and the same Svelte UI,
+delivered as one static executable that serves its own control page.**
+Ali asked for "a version working on Linux Mint as a single executable."
+Wails-on-Linux needs webkit2gtk system libraries, which breaks the one-file
+promise, so the Linux edition is the headless core grown a web door instead:
+`internal/webui` embeds the exact frontend bundle (go:embed; build.sh copies
+frontend/dist in) and exposes the same JSON API the Wails shell binds, with
+engine events pushed as Server-Sent Events; the frontend gained an `http`
+adapter (auto-detected when /api/appinfo answers; mock stays the plain-browser
+fallback, wails bindings still win in the desktop webview). One engine, one UI,
+one copy deck — the Windows-flavored wording is reused with the OS word
+swapped in place (`setOsWord`, applied before first render), tray-only copy is
+capability-gated (help q2 hidden, first-run text switched, the separate-Chrome
+setting row hidden via a new `browserSession` capability). The Linux platform
+adapter (internal/platform/linux) sets the system proxy through gsettings
+(org.gnome.system.proxy — the schema GLib's own proxy resolver reads, so
+GNOME/Cinnamon/MATE browsers follow it; speculative cinnamon/mate schemas are
+only touched if present), backs up and restores raw GVariant literals verbatim
+(no parsing: gsettings accepts its own printed forms — verified against real
+glib 2.84 with the upstream schema compiled in; the dconf persistence path
+cannot be exercised in this sandbox and stays Ali's manual check), autostarts
+via ~/.config/autostart (Exec carries --web), and notifies via notify-send.
+Detach without a backup only clears values that carry our three markers
+(manual mode + our loopback host + our exact bypass list) — an unconditional
+clear would wipe a manual-mode user's own proxy on every Stop, because the
+engine calls Detach regardless of mode and this edition keeps no backup file.
+Headless boxes (no gsettings) honestly report systemProxy=false and the UI
+shows the manual address. `--web` also works in the Windows core (a browser
+tab instead of the window) at no extra cost.
+
+**D51 — v1.4.0: 32-bit builds are first-class targets.**
+Ali asked for "a 32bit version." `wails build -platform windows/386` produces
+the full GUI app (the Win32 code — tray, toasts, DPI fix, registry — is
+syscall-based and compiles unchanged), and the core cross-builds for
+windows/386, linux/amd64 and linux/386 (CGO off, statically linked, so the
+Linux files run on any Mint regardless of age). One real 32-bit defect surfaced
+and was fixed: parseDword's `n > 1<<31` int check does not even compile on
+386 (int is 32 bits there); it now accumulates in uint64 and bounds at
+MaxUint32, returning uint32. 386 test binaries cannot run in this sandbox
+(seccomp blocks 32-bit syscalls) — verified by compile + vet + the amd64 test
+suite instead, the same standard the Windows builds always had.
+
+**D52 — v1.4.0: versions stay in sync by construction, not by discipline.**
+Ali: "every change we do on the main version must be applied on them as well."
+The three editions are not forks or copies that could drift: they are build
+targets of one source tree (one engine, one Svelte bundle, one copy deck, one
+version number in config/defaults.go). build.sh and build.bat cut every target
+from the current tree in one run, and every release page carries all six
+files. Nothing can be "applied to the other versions" separately because there
+is nothing separate to apply it to.

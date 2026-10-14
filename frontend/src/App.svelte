@@ -10,9 +10,10 @@
   import FirstRun from "./screens/FirstRun.svelte";
   import Help from "./screens/Help.svelte";
   import SettingsScreen from "./screens/Settings.svelte";
-  import { copy } from "./i18n";
+  import { copy, setOsWord } from "./i18n";
   import { mockBackend } from "./lib/adapters/mock";
   import { wailsAvailable, WailsBackend } from "./lib/adapters/wails";
+  import { httpAvailable, HttpBackend } from "./lib/adapters/http";
   import type { Backend, BackendState, Settings, Stats, TestStep } from "./lib/backend";
 
   type View = "connect" | "settings" | "help" | "about";
@@ -25,6 +26,8 @@
   let settings = $state<Settings | null>(null);
   let version = $state("1.0.0");
   let startWithOS = $state(false);
+  let hasTray = $state(true);
+  let browserSession = $state(true);
   let steps = $state<TestStep[]>([]);
   let testing = $state(false);
   let busy = $state(false);
@@ -65,11 +68,17 @@
 
   onMount(async () => {
     // Pick the adapter at startup (file 02, section 9): wails when the
-    // bindings exist, mock in a normal browser (?mock=…), android later.
+    // bindings exist; the http adapter when this page is served by the
+    // younblock web server (the Linux single-executable edition, D50);
+    // mock in a plain browser (?mock=…); android later.
     if (wailsAvailable()) {
       const wailsBackend = new WailsBackend();
       await wailsBackend.prime();
       backend = wailsBackend;
+    } else if (await httpAvailable()) {
+      const httpBackend = new HttpBackend();
+      await httpBackend.prime();
+      backend = httpBackend;
     }
     backend.onState((s) => (state = s));
     backend.onStats((s) => (stats = s));
@@ -93,6 +102,13 @@
     state = backend.state;
     version = backend.appInfo.version;
     startWithOS = backend.appInfo.capabilities.startWithOS;
+    hasTray = backend.appInfo.capabilities.tray;
+    browserSession = backend.appInfo.capabilities.browserSession;
+    // D50: on the Linux edition the Windows-flavored copy deck gets its
+    // OS word swapped before the first render (one deck, every version).
+    if (backend.appInfo.platform === "linux") {
+      setOsWord("Linux");
+    }
     ready = true;
   });
 
@@ -180,11 +196,11 @@
   <div class="boot" aria-hidden="true"></div>
 {:else}
   {#if view === "connect" && settings && !settings.firstRunDone}
-    <FirstRun startWithWindowsSupported={startWithOS} onGetStarted={getStarted} />
+    <FirstRun startWithWindowsSupported={startWithOS} hasTray={hasTray} onGetStarted={getStarted} />
   {:else if view === "settings" && settings}
-    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
+    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} browserSessionSupported={browserSession} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
   {:else if view === "help"}
-    <Help {steps} {testing} onBack={() => (view = "connect")} onRunTest={runTest} onFixConnection={fixConnection} onCopyReport={copyReport} onOpenLogs={openLogs} onRestore={restoreSettings} />
+    <Help {steps} {testing} hasTray={hasTray} onBack={() => (view = "connect")} onRunTest={runTest} onFixConnection={fixConnection} onCopyReport={copyReport} onOpenLogs={openLogs} onRestore={restoreSettings} />
   {:else if view === "about"}
     <About {version} onBack={() => (view = "connect")} />
   {:else}

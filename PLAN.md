@@ -166,3 +166,38 @@ Scope: five user-requested additions on top of the completed spec work. All defa
       288x448 (docH = viewport, footer visible, fix pill ≥15px above the footer);
       screenshots re-shot and vision-checked; golden-path E2E with zero console/page
       errors
+
+## Phase 11 (v0.5.0 / app 1.4.0) — the 32-bit and Linux Mint versions
+
+- [x] StatusBlock error-state refactor (D49): the reason is the subtitle, the
+      duplicate low paragraph is gone, D48 budget preserved (measured: label→
+      reason gap 8 px, docH = viewport at 360x560 and 336x522, footer visible)
+- [x] Linux platform adapter (D50): gsettings proxy with verbatim backup/
+      restore, autostart .desktop, notify-send; fake-gsettings unit tests;
+      gsettings literal forms verified against real glib 2.84 + compiled
+      upstream schema (int32 ports, comma+space arrays, quoted enums)
+- [x] internal/webui: embedded frontend + the JSON API (same payloads as the
+      Wails bindings) + SSE events; loopback-only; 405 method guards; unit
+      tests with a real engine over a fake network
+- [x] Frontend http adapter with auto-detection (wails → http → mock);
+      i18n OS-word swap; tray-copy capability gating (help q2, first-run text,
+      separate-Chrome row via the new browserSession capability)
+- [x] cmd/core --web: single-executable edition launcher (port fallback,
+      connectOnLaunch parity, best-effort xdg-open, Quit exits the process)
+- [x] windows/386 target (D51): full GUI via wails + core; parseDword 32-bit
+      overflow fixed; linux/386 single executable
+- [x] build.bat builds all four Windows files; build.sh cuts all six targets
+      from one tree (D52: sync by construction)
+- [x] E2E on the real Linux binary from the build machine: first-run →
+      connect ON with real YouTube round-trip (86–91 ms) → settings/help/about
+      → forced PORT_BUSY error state → recovery → quit; autostart .desktop
+      written through the real stack; zero console/page errors
+- [x] Gates: go vet ./...; go test -race ./... (14 pkgs incl. webui + linux);
+      GOOS/GOARCH builds for windows/amd64+386, linux/amd64+386, arm64
+      neutral; check-platform-neutral; npm run build (94.4 KB JS); svelte-check
+      (12 pre-existing only); live selftest 1.4.0 all OK (youtube 81 ms, video
+      92 ms)
+- [x] Docs: README (other versions, Linux how-to, two manual check lists),
+      DECISIONS D49–D52, this phase, PROGRESS; screenshots: 6 Linux states +
+      re-shot Windows error/about; VLM QA passed (one "About clipping" claim
+      disproved by pixel measurement — zero overflow)

@@ -8,6 +8,7 @@ package windows
 import (
         "encoding/json"
         "fmt"
+        "math"
         "os"
         "path/filepath"
         "strings"
@@ -396,7 +397,7 @@ func (s *sysproxy) restoreValue(key internetSettings, bv *backupValue, name, our
                 }
                 oursDword := uint32(0)
                 if n, ok := parseDword(ours); ok {
-                        oursDword = uint32(n)
+                        oursDword = n
                 }
                 if !exists || current != oursDword {
                         if exists {
@@ -468,20 +469,23 @@ func (s *sysproxy) saveBackup(b *backupFile) error {
         return os.Rename(tmp, s.backupPath())
 }
 
-// parseDword reads a decimal dword from a string.
-func parseDword(s string) (int, bool) {
+// parseDword reads a decimal dword from a string. The accumulator and
+// bound are uint64/uint32 so the function is identical on 32-bit and
+// 64-bit builds: the previous `n > 1<<31` int check did not even compile
+// on windows/386 (int is 32 bits there and 1<<31 overflows it; D51).
+func parseDword(s string) (uint32, bool) {
         if s == "" {
                 return 0, false
         }
-        n := 0
+        var n uint64
         for i := 0; i < len(s); i++ {
                 if s[i] < '0' || s[i] > '9' {
                         return 0, false
                 }
-                n = n*10 + int(s[i]-'0')
-                if n > 1<<31 {
+                n = n*10 + uint64(s[i]-'0')
+                if n > math.MaxUint32 {
                         return 0, false
                 }
         }
-        return n, true
+        return uint32(n), true
 }

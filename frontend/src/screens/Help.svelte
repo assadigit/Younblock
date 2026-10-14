@@ -10,6 +10,7 @@
   interface Props {
     steps: TestStep[];
     testing: boolean;
+    hasTray?: boolean;
     onBack: () => void;
     onRunTest: () => void;
     onFixConnection: () => void;
@@ -20,6 +21,7 @@
   let {
     steps,
     testing,
+    hasTray = true,
     onBack,
     onRunTest,
     onFixConnection,
@@ -29,15 +31,20 @@
   }: Props = $props();
 
   let openIndex = $state<number | null>(null);
-  const problems = [
-    { q: copy.help.problems.q1, a: copy.help.problems.a1 },
-    { q: copy.help.problems.q2, a: copy.help.problems.a2 },
-    { q: copy.help.problems.q3, a: copy.help.problems.a3 },
-    { q: copy.help.problems.q4, a: copy.help.problems.a4 },
-    { q: copy.help.problems.q5, a: copy.help.problems.a5 },
-    { q: copy.help.problems.q6, a: copy.help.problems.a6 },
-    { q: copy.help.problems.q7, a: copy.help.problems.a7 },
-  ];
+  // q2 ("Where did the window go?") is tray copy: the Linux web edition
+  // has no window or tray, so it is hidden there (D50).
+  const problems = $derived.by(() => {
+    const all = [
+      { q: copy.help.problems.q1, a: copy.help.problems.a1 },
+      { q: copy.help.problems.q2, a: copy.help.problems.a2, tray: true },
+      { q: copy.help.problems.q3, a: copy.help.problems.a3 },
+      { q: copy.help.problems.q4, a: copy.help.problems.a4 },
+      { q: copy.help.problems.q5, a: copy.help.problems.a5 },
+      { q: copy.help.problems.q6, a: copy.help.problems.a6 },
+      { q: copy.help.problems.q7, a: copy.help.problems.a7 },
+    ];
+    return hasTray ? all : all.filter((p) => !p.tray);
+  });
 
   const failed = $derived(steps.some((s) => !s.ok));
   const failedCritical = $derived(

@@ -12,13 +12,18 @@ import "time"
 const AppName = "Younblock"
 
 // AppVersion — shown in the UI and reported by --version.
-const AppVersion = "1.3.1"
+const AppVersion = "1.4.0"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"
 
 // ListenPort — the default local proxy port (the old Python app's port).
 const ListenPort = 4525
+
+// WebUIPort — the default port of the browser control page in the web
+// edition (the --web flag). If it is busy at launch the core takes a
+// free port instead and prints the real address.
+const WebUIPort = 17500
 
 // AutoPort — if the port is busy, try 4526-4545, then any free port.
 const AutoPort = true
@@ -138,32 +143,32 @@ var HealSweepOrder = []Method{MethodBalanced, MethodStrong, MethodLight, MethodL
 
 // defaultDoHServers — secure-DNS services tried in order until one answers.
 var defaultDoHServers = []DoHServer{
-	{
-		Name:      "RethinkDNS",
-		URL:       "https://sky.rethinkdns.com/?dns={dns}",
-		Bootstrap: []string{"172.67.162.27"},
-	},
-	{
-		Name:      "Cloudflare",
-		URL:       "https://cloudflare-dns.com/dns-query?dns={dns}",
-		Bootstrap: []string{"1.1.1.1", "1.0.0.1"},
-	},
-	{
-		Name:      "Google",
-		URL:       "https://dns.google/dns-query?dns={dns}",
-		Bootstrap: []string{"8.8.8.8", "8.8.4.4"},
-	},
+        {
+                Name:      "RethinkDNS",
+                URL:       "https://sky.rethinkdns.com/?dns={dns}",
+                Bootstrap: []string{"172.67.162.27"},
+        },
+        {
+                Name:      "Cloudflare",
+                URL:       "https://cloudflare-dns.com/dns-query?dns={dns}",
+                Bootstrap: []string{"1.1.1.1", "1.0.0.1"},
+        },
+        {
+                Name:      "Google",
+                URL:       "https://dns.google/dns-query?dns={dns}",
+                Bootstrap: []string{"8.8.8.8", "8.8.4.4"},
+        },
 }
 
 // defaultYouTubeDomains — hosts the PAC script sends through the proxy in "youtube" mode.
 var defaultYouTubeDomains = []string{
-	"youtube.com",
-	"youtu.be",
-	"googlevideo.com",
-	"ytimg.com",
-	"ggpht.com",
-	"youtube-nocookie.com",
-	"youtubei.googleapis.com",
+        "youtube.com",
+        "youtu.be",
+        "googlevideo.com",
+        "ytimg.com",
+        "ggpht.com",
+        "youtube-nocookie.com",
+        "youtubei.googleapis.com",
 }
 
 // =======================================================================
@@ -172,60 +177,60 @@ var defaultYouTubeDomains = []string{
 type Mode string
 
 const (
-	// ModeYouTube proxies only the YouTube domain list (default).
-	ModeYouTube Mode = "youtube"
-	// ModeAll proxies every host except localhost and private ranges.
-	ModeAll Mode = "all"
-	// ModeManual touches nothing; the UI shows the address to enter by hand.
-	ModeManual Mode = "manual"
+        // ModeYouTube proxies only the YouTube domain list (default).
+        ModeYouTube Mode = "youtube"
+        // ModeAll proxies every host except localhost and private ranges.
+        ModeAll Mode = "all"
+        // ModeManual touches nothing; the UI shows the address to enter by hand.
+        ModeManual Mode = "manual"
 )
 
 // Method selects the fragmentation preset.
 type Method string
 
 const (
-	// MethodAuto starts with balanced and lets auto-heal choose.
-	MethodAuto Method = "auto"
-	// MethodLight sends few, large pieces.
-	MethodLight Method = "light"
-	// MethodBalanced is the default first try.
-	MethodBalanced Method = "balanced"
-	// MethodStrong sends smaller pieces.
-	MethodStrong Method = "strong"
-	// MethodLegacy reproduces the old Python rule exactly.
-	MethodLegacy Method = "legacy"
+        // MethodAuto starts with balanced and lets auto-heal choose.
+        MethodAuto Method = "auto"
+        // MethodLight sends few, large pieces.
+        MethodLight Method = "light"
+        // MethodBalanced is the default first try.
+        MethodBalanced Method = "balanced"
+        // MethodStrong sends smaller pieces.
+        MethodStrong Method = "strong"
+        // MethodLegacy reproduces the old Python rule exactly.
+        MethodLegacy Method = "legacy"
 )
 
 // Valid reports whether m is a known mode.
 func (m Mode) Valid() bool {
-	return m == ModeYouTube || m == ModeAll || m == ModeManual
+        return m == ModeYouTube || m == ModeAll || m == ModeManual
 }
 
 // Valid reports whether m is a known method.
 func (m Method) Valid() bool {
-	return m == MethodAuto || m == MethodLight || m == MethodBalanced ||
-		m == MethodStrong || m == MethodLegacy
+        return m == MethodAuto || m == MethodLight || m == MethodBalanced ||
+                m == MethodStrong || m == MethodLegacy
 }
 
 // DoHServer is one secure-DNS service: a display name, a URL template that
 // contains {dns} where the encoded query goes, and bootstrap IP addresses used
 // to reach the service before DNS itself works.
 type DoHServer struct {
-	Name      string   `json:"name"`
-	URL       string   `json:"url"`
-	Bootstrap []string `json:"bootstrap"`
+        Name      string   `json:"name"`
+        URL       string   `json:"url"`
+        Bootstrap []string `json:"bootstrap"`
 }
 
 // Defaults returns the built-in DoH server list (a copy).
 func Defaults() []DoHServer {
-	out := make([]DoHServer, len(defaultDoHServers))
-	for i, s := range defaultDoHServers {
-		out[i] = DoHServer{Name: s.Name, URL: s.URL, Bootstrap: append([]string(nil), s.Bootstrap...)}
-	}
-	return out
+        out := make([]DoHServer, len(defaultDoHServers))
+        for i, s := range defaultDoHServers {
+                out[i] = DoHServer{Name: s.Name, URL: s.URL, Bootstrap: append([]string(nil), s.Bootstrap...)}
+        }
+        return out
 }
 
 // DefaultDomains returns the built-in YouTube domain list (a copy).
 func DefaultDomains() []string {
-	return append([]string(nil), defaultYouTubeDomains...)
+        return append([]string(nil), defaultYouTubeDomains...)
 }

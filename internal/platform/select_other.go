@@ -1,7 +1,8 @@
-//go:build !windows
+//go:build !windows && !linux
 
 // Package platform picks the Platform implementation for this build: the
-// real Windows adapter on Windows, the call-recording stub elsewhere.
+// real Windows adapter on Windows, the real Linux adapter on Linux, and
+// the call-recording stub everywhere else (macOS and any other system).
 package platform
 
 import (

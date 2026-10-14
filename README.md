@@ -16,6 +16,25 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.4.0** (the "same app for everyone" release):
+
+- **A Linux version, as one file.** `younblock-linux-amd64` (or `-386` for a
+  32-bit Linux) is a single executable with no installer and nothing else to
+  install: run it, and the same app — same button, same self-repair, same
+  design — opens as a page in your browser. On Linux Mint it also sets the
+  system proxy the Linux way, so every mainstream browser picks it up.
+- **A 32-bit Windows version.** `younblock-x86.exe` is the full app (window,
+  tray, everything) built for 32-bit Windows — for an older PC, or a 32-bit
+  VM. It also runs fine on 64-bit Windows.
+- **Every version is built from the same source at the same time.** The
+  Windows app, the 32-bit app and the Linux app are not separate copies that
+  can drift apart: each release is cut from one source tree, so whatever we
+  fix or add lands in all of them together.
+- **The "Couldn't turn on" screen says its reason right under the title**, in
+  red, where the eye lands first — the reason used to sit in a separate small
+  paragraph further down with a gap above it. Same message, better place;
+  one dead paragraph removed.
+
 **What's new in version 1.3.1** (after the "white space" and "Fix connection is on
 the edge" reports):
 
@@ -107,8 +126,19 @@ effects are turned off** (or when Windows itself runs without animations, e.g. o
 ## Download the ready-made app (no building needed)
 
 The easiest way is to skip building entirely: go to the repo's **Releases** page on
-GitHub and download `younblock.exe` from the latest release. That one file is the
-whole app — no installer, nothing else to download.
+GitHub and download the file for your machine from the latest release:
+
+| File | For | What it is |
+|---|---|---|
+| `younblock.exe` | 64-bit Windows | the app you use every day (window, tray, button) |
+| `younblock-x86.exe` | 32-bit Windows (or 64-bit) | the same full app, built 32-bit |
+| `younblock-linux-amd64` | 64-bit Linux (Mint 20+) | one file, runs as-is, opens in your browser |
+| `younblock-linux-386` | 32-bit Linux (old Mint) | the same one file, built 32-bit |
+
+(`younblock-core.exe` / `younblock-core-x86.exe` are the same engines without a
+window, for testing and fixing — see below.)
+
+That one file is the whole app — no installer, nothing else to download.
 
 Two things to know about the downloaded file:
 
@@ -208,6 +238,58 @@ Notes on the two new switches:
   port, so when you turn Younblock off, the window closes with it (the app says so
   with a small note). If Chrome is not found, the app says that too and carries on.
 
+## The Linux version (Linux Mint and friends)
+
+The Linux edition is the **same engine and the same screen**, delivered as one
+file with the interface as a page in your browser — there is no window and no
+tray on Linux, so nothing needs installing.
+
+To run it on Linux Mint (64-bit; use `-386` on a 32-bit Mint):
+
+1. Download `younblock-linux-amd64` into your Home folder.
+2. Open a terminal and make it runnable once (downloaded files are not
+   executable by default):
+   ```
+   chmod +x ~/younblock-linux-amd64
+   ```
+3. Run it:
+   ```
+   ~/younblock-linux-amd64
+   ```
+   It prints one line — `control it at http://127.0.0.1:17500` — and tries to
+   open that page in your browser by itself. The terminal window is the app
+   now: keep it open while you use Younblock, and press **Ctrl+C** (or choose
+   Quit in the page's menu) to stop.
+
+What is the same: the big button, the timer and response time, the self-test
+and self-repair, Settings, Help, the diagnostic report — and the upgrade path:
+replace the file, your settings are kept.
+
+What is different, honestly:
+
+- **System proxy.** On Mint with the Cinnamon, GNOME or MATE desktop the app
+  sets the system proxy through the standard `gsettings` keys, the same
+  place the desktop's own network settings write — every browser that follows
+  the system proxy (Firefox, Chrome, Chromium, and the rest) picks it up. On
+  other desktops (Xfce) there is no such switch, so the app tells you the
+  address to enter by hand: set your browser's HTTP proxy to `127.0.0.1` and
+  the port shown on the screen.
+- **No tray.** Closing the browser tab does not stop the app (the terminal is
+  still it). "Open Younblock when Linux starts" works everywhere through the
+  standard autostart mechanism (`~/.config/autostart`).
+- **The separate-Chrome switch is hidden** — that feature is Windows-only.
+- What could only be tested on a real desktop by a human: that a browser
+  picks up the proxy change the moment you press the button (see the manual
+  check below). Everything else was tested end-to-end from the build machine,
+  including a real YouTube round-trip through the Linux build.
+
+## The 32-bit Windows version
+
+`younblock-x86.exe` is the complete app built for 32-bit Windows, for an older
+PC or a 32-bit virtual machine. It runs on 64-bit Windows too. It needs 32-bit
+WebView2 (Windows 10/11 fetch it automatically the first time). Everything is
+the same as the 64-bit app, including the tray and the self-repair.
+
 ## The built-in test and the headless engine
 
 The Help page has a **Run test** button that checks four things: that the app is
@@ -220,7 +302,11 @@ servers answer. If something fails, it tells you which step and what to try.
 dist\younblock-core.exe --selftest          runs the four checks and prints them
 dist\younblock-core.exe --restore-proxy     restores Windows' internet settings
 dist\younblock-core.exe --version           prints the version
+dist\younblock-core.exe --web               the browser-page edition (Linux style)
 ```
+
+On Windows too, `--web` serves the same control page in your browser at
+`http://127.0.0.1:17500` — handy over a remote session.
 
 The `--selftest` output is exactly what to paste to someone helping you, together
 with Help > "Copy diagnostic report".
@@ -285,6 +371,29 @@ Do these once, on your own PC:
 If step 1 fails but the test passes, the filtering on your network may need a
 different connection method: try Settings > Advanced > Connection method > Strong,
 then run the test again.
+
+## Your manual check on Linux Mint (Ali's test list)
+
+Do these once, on the Mint PC (Cinnamon desktop):
+
+1. Run `./younblock-linux-amd64`. The terminal prints the control address and
+   the browser opens the page by itself. Press the button, wait for it to turn
+   red, and open `https://www.youtube.com` — in a browser that was **already
+   open before you pressed the button**. Videos should load. (This is the one
+   thing a build machine cannot verify: that a running browser notices the
+   proxy change immediately. If it doesn't, fully close and reopen the browser
+   once and say so — the fallback matters.)
+2. Press the button again (turn off), then check the system proxy is back:
+   `gsettings get org.gnome.system.proxy mode` should print `'none'` (or
+   whatever it printed before you started — check that first with the app off).
+3. Turn it on, close the browser tab, and confirm the terminal still runs the
+   app; open the control page again from the printed address — still on.
+4. In Settings, turn on "Open Younblock when Linux starts", log out and back
+   in, and confirm Younblock started by itself (a terminal autostarts, or check
+   `pgrep -f younblock`).
+5. While it is on, run Help > Run test and confirm all four steps pass.
+6. Choose Quit from the page's menu: the terminal prints its shutdown lines and
+   the proxy setting is restored (`gsettings get ... mode` shows the original).
 
 ## Privacy
 

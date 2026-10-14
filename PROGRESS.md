@@ -819,3 +819,109 @@ $ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (78 ms
 Release notes explain the too-small-inside window and the overflowing
 warning states in plain language, plus the three-step check for Ali.
 Both assets re-downloaded from the release page: checksums identical.
+
+---
+
+## Phase 11 — v1.4.0 / release v0.5.0: the 32-bit and Linux Mint versions
+
+Ali's request: "from now on, I want this version as well: a 32-bit version, a
+version working on linux mint as a single executable. Every change we do on
+the main version must be applied on them as well." Plus the pending error-state
+screen fix from the previous session.
+
+### What was built
+
+- **StatusBlock (D49):** in the error state the reason now renders as the
+  subtitle under the state label (danger color, 280/100 px caps with scroll);
+  the separate error-text paragraph and its dead reserved gap are gone; the
+  error row keeps the "Open help" link only.
+- **internal/platform/linux (D50):** gsettings system proxy (mode/http/https/
+  ignore-hosts to every installed supported schema; raw-literal verbatim
+  backup/restore; EnsureAttached anti-clobber; marker-guarded crash cleanup),
+  ~/.config/autostart desktop entry (Exec carries --web), notify-send notices,
+  capability probing (SystemProxy only when gsettings + org.gnome.system.proxy
+  exist; honest false on headless boxes). 9 test groups against a fake
+  gsettings runner.
+- **internal/webui (D50):** go:embed frontend bundle + the JSON API
+  (state/start/stop/toggle/settings/appinfo/test/autofix/restore-proxy/report/
+  logs/quit) + SSE /api/events; loopback bind only; 405-with-Allow method
+  guards; 1 MB settings body cap; index.html no-store. 7 test groups with a
+  real engine (stub platform + fake network), including a live SSE stream
+  assertion.
+- **Frontend:** http.ts adapter (EventSource + fetch, auto-detected via
+  /api/appinfo probe with 1.5 s timeout so vite preview still falls back to
+  the mock); i18n setOsWord("Linux") in-place word swap before first render;
+  firstRun.textNoTray; help q2 and the separate-Chrome settings row gated on
+  the new `browserSession` capability (true on Windows, false on Linux/stub);
+  mock reports 1.4.0.
+- **cmd/core --web (D50):** web edition launcher — default port 17500 with a
+  free-port fallback + honest print, connectOnLaunch parity with app.go,
+  best-effort xdg-open, SetOnQuit(os.Exit). Also usable on Windows.
+- **32-bit (D51):** wails windows/386 GUI + core; parseDword's `1<<31` int
+  overflow fixed (uint64 accumulator, uint32 return); linux/386 static build.
+- **Sync (D52):** build.bat → 4 Windows files; build.sh → all 6 targets from
+  one tree; one version constant (config.AppVersion 1.4.0) shared by every
+  edition.
+
+### Real verification (commands and outcomes)
+
+- `go vet ./...` — clean. `gofmt -l` — clean for every file this phase touched
+  (linux.go reformatted to tabs; 5 pre-existing space-indented files left
+  alone on purpose).
+- `go test -race ./...` — all 14 packages ok, including the new
+  internal/platform/linux and internal/webui.
+- Cross builds — GOOS=windows GOARCH=amd64 ./... OK; windows/386 ./... OK
+  (after the parseDword fix); linux/amd64 OK; linux/386 OK; linux/arm64
+  ./internal/... OK (neutral check).
+- `GOARCH=386 go test` — CANNOT run in this sandbox (kernel seccomp blocks
+  32-bit syscalls: "signal: bad system call"); 386 is verified by compile +
+  vet + the amd64 suite, the same standard the Windows builds always had.
+- gsettings literal verification — real glib 2.84.4: `get` prints 'manual'/
+  plain int32 ports (`8080`, no prefix)/comma+space arrays; `set` accepts our
+  literals; `uint32 N` would never compare equal on the int32 schema keys.
+  Cross-process dconf persistence NOT verifiable here (no dconf-service) —
+  recorded in linux.go and README as Ali's manual check.
+- `scripts/check-platform-neutral` — OK.
+- `npm run build` — 94.40 KB JS / 29.32 KB CSS. `svelte-check` — 12 errors /
+  2 warnings, all pre-existing ($state runes/tsconfig quirk + two
+  state_referenced_locally warnings on HEAD-era code); nothing new.
+- **End-to-end on the real Linux binary** (agent-browser against
+  127.0.0.1:17500, real network):
+  - First-run screen shows the Linux word swap ("Open Younblock when Linux
+    starts") and the no-tray text; Get started works.
+  - Toggle ON: phase "on", latencyMs 86–91 (real YouTube round-trip), SSE
+    stats live ("86 ms · 6.8 KB used"), timer running.
+  - Settings: "when Linux starts" present; "Open a separate Chrome" hidden
+    (browserSession=false). Help: 6 accordions (tray q2 hidden). About: 1.4.0.
+  - Forced PORT_BUSY (python listener + autoPort=false via the API): error
+    state reached; subtitle = the PORT_BUSY reason; `.subtitle.error` present;
+    `.error-text` gone; "Open help" present; docH=560@360x560 and 522@336x522
+    with the footer visible and an 8 px label→reason gap.
+  - Recovery: port freed → toggle → on again. Quit via the page menu: process
+    exits (measured 0.11 s from off, 3.14 s from on).
+  - Autostart: FirstRun checkbox (default on) → engine → linux adapter wrote
+    ~/.config/autostart/younblock.desktop with the real Exec path + --web.
+  - `agent-browser errors`/`console` — zero page errors across every batch.
+- Live selftest on the final binary — listener 0 ms, dns 0 ms (RethinkDNS),
+  youtube 81 ms, video 92 ms: passed.
+- VLM QA of the six Linux screenshots — all OK; one "About text clipped"
+  claim disproved by pixel measurement (scrollWidth == clientWidth on every
+  li, no document overflow), same pattern as the phase-10 hallucination.
+- Binary matrix (file(1) verified): younblock.exe PE32+ x64 GUI 12.76 MB;
+  younblock-x86.exe PE32 i386 GUI 12.18 MB; younblock-core.exe PE32+ x64
+  10.93 MB; younblock-core-x86.exe PE32 i386 10.50 MB; younblock-linux-amd64
+  ELF x86-64 static 8.28 MB; younblock-linux-386 ELF i386 static 8.02 MB.
+
+### Honest limits
+
+- A real Mint desktop could not be driven from here: whether an ALREADY-RUNNING
+  browser picks up the gsettings change the moment the button is pressed is
+  Ali's manual check (README list, step 1). The write path's literal forms and
+  acceptance are verified; persistence over dconf is not.
+- 386 test binaries cannot execute in this sandbox (seccomp); compile + vet
+  only.
+- The orphan-process pitfalls during E2E (a `cd repo && ./bin &` backgrounds
+  the compound, so `kill $!` missed the binary; the sandbox also reaps
+  background processes between tool calls) were worked around by batching
+  server + browser in single calls — noted here so future phases don't repeat
+  the confusion.

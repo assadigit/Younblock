@@ -6,9 +6,10 @@
 
   interface Props {
     startWithWindowsSupported: boolean;
+    hasTray?: boolean;
     onGetStarted: (autostart: boolean) => void;
   }
-  let { startWithWindowsSupported, onGetStarted }: Props = $props();
+  let { startWithWindowsSupported, hasTray = true, onGetStarted }: Props = $props();
 
   let autostart = $state(true); // checked by default per the spec
 </script>
@@ -16,7 +17,7 @@
 <section class="first-run" aria-label={copy.firstRun.title}>
   <div class="logo"><Wordmark /></div>
   <h1 class="title">{copy.firstRun.title}</h1>
-  <p class="text">{copy.firstRun.text}</p>
+  <p class="text">{hasTray ? copy.firstRun.text : copy.firstRun.textNoTray}</p>
   {#if startWithWindowsSupported}
     <label class="check">
       <input type="checkbox" bind:checked={autostart} />

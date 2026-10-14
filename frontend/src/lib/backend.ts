@@ -86,6 +86,7 @@ export interface AppInfo {
     startWithOS: boolean;
     systemProxy: boolean;
     perAppRouting: boolean;
+    browserSession: boolean;
   };
   configPath: string;
   logDir: string;

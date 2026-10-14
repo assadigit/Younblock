@@ -1,0 +1,14 @@
+This directory holds the BUILT frontend bundle for the web UI (go:embed
+cannot reach outside internal/webui, so the build script copies
+frontend/dist in here right before compiling the Go binary).
+
+In a source-only checkout this placeholder is the only file: it keeps
+the embed directive valid so `go build` and `go test` work without a
+frontend build. build.sh replaces the bundle with:
+
+    cd frontend && npm run build
+    cp -r frontend/dist/. internal/webui/dist/
+
+The copied files are git-ignored (see .gitignore); only this placeholder
+is committed. The Wails desktop build embeds the very same bundle
+through its own mechanism, so both editions ship the same UI.

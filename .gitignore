@@ -21,3 +21,7 @@ sysproxy-backup.json
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Web UI embedded bundle (built, never committed — placeholder.txt only)
+internal/webui/dist/*
+!internal/webui/dist/placeholder.txt

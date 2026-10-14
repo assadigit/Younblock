@@ -5,6 +5,11 @@
   // status dot beside the label, tighter typographic rhythm, and an
   // amber ghost action for the degraded state (it reads as a warning
   // repair action, not a second "turn on" button).
+  // v1.4.0 (D49): in the error state the reason IS the subtitle — right
+  // under the state label, where the eye lands first. The old layout
+  // reserved an empty subtitle line and then repeated the reason in a
+  // separate low paragraph below the collapsed metrics, splitting one
+  // message over two slots with a dead gap between them.
   import { copy, fill } from "../i18n";
   import { formatBytes, formatTimer, subtitleFor } from "../lib/format";
   import type { BackendState, Stats } from "../lib/backend";
@@ -20,7 +25,11 @@
   let { state, stats, errorText, noticeText, onOpenHelp, onFixConnection }: Props = $props();
 
   const showTimer = $derived(state.phase === "on" || state.phase === "degraded");
-  const subtitle = $derived(subtitleFor(state.phase, state.detail, state.fail));
+  const subtitle = $derived(
+    state.phase === "error" && errorText
+      ? errorText
+      : subtitleFor(state.phase, state.detail, state.fail),
+  );
   const used = $derived(
     stats ? formatBytes((stats.bytesDown ?? 0) + (stats.bytesUp ?? 0)) : null,
   );
@@ -33,10 +42,6 @@
     }
     return usage;
   });
-  const errorCopy = $derived(
-    state.phase === "error" && state.error ? errorText ?? "" : null,
-  );
-
   const labels: Record<string, string> = {
     off: copy.state.off,
     connecting: copy.state.connecting,
@@ -55,7 +60,11 @@
     <span class="dot {state.phase}" aria-hidden="true"></span>
     <span>{stateLabel(state.phase)}</span>
   </p>
-  <p class="subtitle" class:warn={state.phase === "degraded"}>{subtitle}</p>
+  <p
+    class="subtitle"
+    class:warn={state.phase === "degraded"}
+    class:error={state.phase === "error"}
+  >{subtitle}</p>
   <p class="notice" class:visible={!!noticeText} aria-live="polite">{noticeText ?? ""}</p>
   <!-- D48: the timer/quiet block collapses to zero height when its
        state can never show it (off/connecting/error/stopping) and grows
@@ -68,9 +77,8 @@
       <p class="quiet">{quietText}</p>
     </div>
   </div>
-  {#if state.phase === "error" && errorCopy}
+  {#if state.phase === "error"}
     <div class="error-row">
-      <p class="error-text">{errorCopy}</p>
       <button type="button" class="link" onclick={onOpenHelp}>Open help</button>
     </div>
   {/if}
@@ -153,6 +161,21 @@
   .subtitle.warn {
     color: var(--gold-300);
   }
+  /* Error: the reason line carries the danger color and the D48 budget —
+     a compact cap with its own scroll so a long UNKNOWN paragraph can
+     never push the footer out of the window (the full text stays
+     available); the max-width keeps the line length readable. */
+  .subtitle.error {
+    color: var(--color-danger);
+    max-width: 280px;
+    max-height: 100px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  .subtitle.error::-webkit-scrollbar {
+    display: none;
+  }
   .notice {
     margin: 0;
     font-size: var(--text-sm);
@@ -209,6 +232,8 @@
   .metrics.visible .quiet {
     opacity: 1;
   }
+  /* D49: the reason itself moved up into the subtitle slot, so the
+     error row now carries only the "Open help" link. */
   .error-row {
     display: flex;
     flex-direction: column;
@@ -216,22 +241,6 @@
     gap: var(--space-1);
     margin-top: var(--space-1);
     max-width: 280px;
-  }
-  /* D48: the reason text gets a compact budget with its own scroll so a
-     long UNKNOWN/PORT_BUSY paragraph can never push the footer out of
-     the window again (the full text stays available). */
-  .error-text {
-    margin: 0;
-    color: var(--color-danger);
-    font-size: var(--text-sm);
-    line-height: 20px;
-    max-height: 100px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
-  }
-  .error-text::-webkit-scrollbar {
-    display: none;
   }
   .link {
     color: var(--color-text-muted);

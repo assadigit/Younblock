@@ -1,35 +1,51 @@
 @echo off
 rem ============================================================
 rem  Younblock build script (run on Windows)
-rem  Builds younblock-core.exe and the younblock.exe app and
-rem  prints the exact output paths.
+rem  Builds every version from this one source tree:
+rem    - younblock.exe / younblock-core.exe       (64-bit Windows)
+rem    - younblock-x86.exe / younblock-core-x86.exe (32-bit Windows)
+rem  and prints the exact output paths.
+rem  (The Linux single-executables are built by build.sh on Linux.)
 rem ============================================================
 setlocal
 cd /d "%~dp0"
 
-echo === Younblock build ===
+echo === Younblock build (all Windows versions) ===
 echo.
 
-echo [1/3] Building the headless engine (younblock-core.exe)...
+echo [1/5] Building the headless engine, 64-bit (younblock-core.exe)...
 if not exist dist mkdir dist
 go build -trimpath -ldflags "-s -w" -o dist\younblock-core.exe .\cmd\core
 if errorlevel 1 goto :fail
 
-echo [2/3] Building the app (younblock.exe)...
+echo [2/5] Building the headless engine, 32-bit (younblock-core-x86.exe)...
+set GOARCH=386
+go build -trimpath -ldflags "-s -w" -o dist\younblock-core-x86.exe .\cmd\core
+set GOARCH=
+if errorlevel 1 goto :fail
+
+echo [3/5] Building the app, 64-bit (younblock.exe)...
 call wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
 if errorlevel 1 goto :fail
 if not exist build\bin\younblock.exe goto :fail
 copy /y build\bin\younblock.exe dist\younblock.exe >nul
 if errorlevel 1 goto :fail
 
-echo [3/3] Done. Output files:
+echo [4/5] Building the app, 32-bit (younblock-x86.exe)...
+call wails build -platform windows/386 -trimpath -ldflags "-s -w" -o younblock-x86.exe
+if errorlevel 1 goto :fail
+if not exist build\bin\younblock-x86.exe goto :fail
+copy /y build\bin\younblock-x86.exe dist\younblock-x86.exe >nul
+if errorlevel 1 goto :fail
+
+echo [5/5] Done. Output files:
 echo.
-for %%F in (dist\younblock-core.exe dist\younblock.exe) do (
+for %%F in (dist\younblock-core.exe dist\younblock-core-x86.exe dist\younblock.exe dist\younblock-x86.exe) do (
     echo   %CD%\%%F
 )
 echo.
 echo SHA-256 checksums (verify downloads with these):
-for %%F in (dist\younblock-core.exe dist\younblock.exe) do (
+for %%F in (dist\younblock-core.exe dist\younblock-core-x86.exe dist\younblock.exe dist\younblock-x86.exe) do (
     certutil -hashfile "%%F" SHA256 | findstr /v /i "hash certutil"
 )
 echo.
