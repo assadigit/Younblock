@@ -16,6 +16,21 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.4.1** (the "install it properly" release):
+
+- **Three proper Linux Mint downloads, in addition to the single file:** a
+  **`.deb` package** (installs with the menu entry, icons and binary in the
+  standard places — dpkg tracks it), a **portable `.AppImage`** (one file you
+  make executable and launch; delete it to uninstall) and a **Flatpak bundle**
+  (installs with `flatpak install`, runs in its own runtime). All of them wrap
+  the exact same app — same button, same self-repair, same settings.
+- **32-bit Linux downloads too**: the `.deb` and the AppImage each come in a
+  32-bit build for an old 32-bit Mint.
+- **"Open Younblock when Linux starts" now names the right launcher** for the
+  format you installed: the AppImage's start entry points at the `.AppImage`
+  file itself, and the Flatpak's points at `flatpak run Younblock` — so
+  start-with-OS works from every edition, not just the plain file.
+
 **What's new in version 1.4.0** (the "same app for everyone" release):
 
 - **A Linux version, as one file.** `younblock-linux-amd64` (or `-386` for a
@@ -132,6 +147,11 @@ GitHub and download the file for your machine from the latest release:
 |---|---|---|
 | `younblock.exe` | 64-bit Windows | the app you use every day (window, tray, button) |
 | `younblock-x86.exe` | 32-bit Windows (or 64-bit) | the same full app, built 32-bit |
+| `younblock_…_amd64.deb` | 64-bit Linux Mint | the same app as a proper installable package |
+| `younblock_…_i386.deb` | 32-bit Linux Mint | the same package, built 32-bit |
+| `Younblock-…-x86_64.AppImage` | 64-bit Linux | one portable file: download, `chmod +x`, launch |
+| `Younblock-…-i686.AppImage` | 32-bit Linux | the same portable file, built 32-bit |
+| `Younblock-…-x86_64.flatpak` | 64-bit Linux | the same app as a Flatpak bundle |
 | `younblock-linux-amd64` | 64-bit Linux (Mint 20+) | one file, runs as-is, opens in your browser |
 | `younblock-linux-386` | 32-bit Linux (old Mint) | the same one file, built 32-bit |
 
@@ -244,7 +264,42 @@ The Linux edition is the **same engine and the same screen**, delivered as one
 file with the interface as a page in your browser — there is no window and no
 tray on Linux, so nothing needs installing.
 
-To run it on Linux Mint (64-bit; use `-386` on a 32-bit Mint):
+### Which Linux download should I pick?
+
+All of them are the same app; the difference is only how it lands on your
+machine:
+
+- **The `.deb` — best for installing Younblock *properly* on Linux Mint.**
+  Double-click it (or `sudo apt install ./younblock_…_amd64.deb` in a
+  terminal) and Mint's installer puts the app in the menu with its icon, the
+  binary in `/usr/bin`, and dpkg knows about it — so it updates cleanly and
+  `apt remove younblock` uninstalls it. Download the `_amd64` one for 64-bit
+  Mint, `_i386` for a genuine 32-bit Mint.
+- **The `.AppImage` — best if you want a single, portable executable file
+  that you download and launch.** Make it runnable once
+  (`chmod +x Younblock-…-x86_64.AppImage`) and double-click or run it; it
+  opens the same control page in your browser. Nothing is installed —
+  delete the file and it's gone. Settings live in `~/.config/Younblock`
+  like the plain file's.
+- **The Flatpak — best for convenient installation with fewer dependency
+  conflicts.** `flatpak install --user Younblock-….flatpak` (one-time setup
+  below) and it runs inside Flatpak's own runtime, isolated from the rest of
+  the system. The Flatpak edition keeps its settings inside its own sandbox
+  (`~/.var/app/io.github.assadigit.Younblock`). One-time setup on Mint:
+  ```
+  sudo apt install flatpak
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  flatpak install --user Younblock-…-x86_64.flatpak
+  flatpak run io.github.assadigit.Younblock
+  ```
+- **The plain file** (`younblock-linux-amd64` / `-386`) — the original
+  one-file edition, unchanged. Download, `chmod +x`, run.
+
+Whichever you pick, start-with-OS (Settings) writes the right launcher for
+that edition, and every edition updates the same way: download the new file,
+install/replace it — your settings are kept.
+
+### Running the plain file
 
 1. Download `younblock-linux-amd64` into your Home folder.
 2. Open a terminal and make it runnable once (downloaded files are not
@@ -342,6 +397,12 @@ diagnostic report will show which part to switch.
 3. Delete the settings folder: press Windows+R, type `%APPDATA%\Younblock`, press
    Enter, and delete that folder.
 
+On Linux: the AppImage and the plain file — delete the file (and
+`~/.config/Younblock` if you want the settings gone too); the `.deb` —
+`sudo apt remove younblock`; the Flatpak —
+`flatpak uninstall --user io.github.assadigit.Younblock` (its sandboxed
+settings go with it).
+
 If you ever lose internet because the app was killed while it was on, just run
 `younblock-core.exe --restore-proxy` — or start the app once — and the setting is
 cleaned up automatically.
@@ -374,7 +435,8 @@ then run the test again.
 
 ## Your manual check on Linux Mint (Ali's test list)
 
-Do these once, on the Mint PC (Cinnamon desktop):
+Do these once, on the Mint PC (Cinnamon desktop). Steps 1–6 use the plain
+file or the AppImage; steps 7–8 cover the packages:
 
 1. Run `./younblock-linux-amd64`. The terminal prints the control address and
    the browser opens the page by itself. Press the button, wait for it to turn
@@ -394,6 +456,19 @@ Do these once, on the Mint PC (Cinnamon desktop):
 5. While it is on, run Help > Run test and confirm all four steps pass.
 6. Choose Quit from the page's menu: the terminal prints its shutdown lines and
    the proxy setting is restored (`gsettings get ... mode` shows the original).
+7. **The .deb**: install it (`sudo apt install ./younblock_…_amd64.deb`),
+   launch Younblock from the menu, and confirm the app works exactly as in
+   steps 1–6 — including "Open Younblock when Linux starts" (the entry must
+   name `/usr/bin/younblock --web`). Uninstall with
+   `sudo apt remove younblock`.
+8. **The Flatpak**: after the one-time setup above, install and run it
+   (`flatpak install --user …; flatpak run io.github.assadigit.Younblock`).
+   The build machine verified the bundle's contents end-to-end (install,
+   files, live control page, start-with-OS entry naming `flatpak run …`), but
+   the sandbox could not launch the Flatpak sandbox itself — so this launch
+   on real Mint is the one manual check for this format. While it runs, the
+   system-proxy switch and notifications must reach the real desktop (the
+   bundle grants the session bus and host files for exactly that).
 
 ## Privacy
 

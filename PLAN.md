@@ -201,3 +201,40 @@ Scope: five user-requested additions on top of the completed spec work. All defa
       DECISIONS D49–D52, this phase, PROGRESS; screenshots: 6 Linux states +
       re-shot Windows error/about; VLM QA passed (one "About clipping" claim
       disproved by pixel measurement — zero overflow)
+
+## Phase 12 (v0.5.1 / app 1.4.1) — the proper Linux Mint packages
+
+- [x] D54: autostart Exec/home resolution for the packaged editions
+      ($APPIMAGE → the .AppImage file, $FLATPAK_ID → "flatpak run <id>",
+      real passwd home under Flatpak); 4 new unit tests (7b–7d)
+- [x] packaging/ tree (D53): gen-icons.py redraws the logo at 4096 px and
+      emits the hicolor set (16–512, both icon names, committed); one desktop
+      template rendered per format; build-deb.sh / build-appimage.sh /
+      build-flatpak.sh; packaging/README.md
+- [x] .deb (amd64 + i386): dpkg-deb --root-owner-group, control/Depends/
+      Recommends, postinst/postrm icon-cache refresh, md5sums, copyright;
+      E2E: extracted tree, --version 1.4.1, live control page + appinfo
+- [x] AppImage (x86_64 + i686): appimagetool fetched to ~/.cache (FUSE-free
+      via --appimage-extract-and-run), i686 via --runtime-file; E2E through
+      the real AppImage runtime: version, web edition, settings round-trip,
+      autostart entry naming the .AppImage file (D54)
+- [x] Flatpak (D55): manifest io.github.assadigit.Younblock.json + metainfo;
+      user-space flatpak 1.16.6 + flatpak-builder 1.4.4 + GNOME 48 runtime
+      installed in-sandbox; flatpak-builder blocked by the container's
+      pidns/proc restriction → low-level fallback (same manifest, build
+      commands executed with /app redirected, build-finish before export
+      collection); bundle installed --user and verified end-to-end (deploy
+      metadata, byte-identical binary, desktop, icons, live API, D54 entry);
+      flatpak run stays Ali's manual check
+- [x] build.sh extended: one run cuts 6 binaries + 2 debs + 2 AppImages (+
+      flatpak when the tools exist); npm ci legacy-peer-deps retry (the
+      lockfile is content-synced; the svelte plugin just hasn't widened its
+      vite peer range)
+- [x] Version 1.4.1 in defaults.go / wails.json / mock.ts
+- [x] Gates: go vet ./...; go test -race ./... (14 pkgs); ./build.sh all
+      green (linux binary reproducible, sha 07ea6373…); live selftest 1.4.1
+      (youtube 81 ms, video 95 ms); check-platform-neutral; arm64 neutral;
+      svelte-check (12 pre-existing only); PE/ELF format checks for every
+      artifact
+- [x] Docs: README (which-format guide, download table, package manual
+      checks 7–8, Linux uninstall), DECISIONS D53–D55, this phase, PROGRESS

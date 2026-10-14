@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -426,6 +427,76 @@ func TestSetAutostartWritesAndRemovesDesktopFile(t *testing.T) {
 	}
 	if err := p.SetAutostart(false); err != nil {
 		t.Fatalf("second disable: %v", err)
+	}
+}
+
+// 7b. Autostart Exec resolution for the packaged editions (D54): the
+// AppImage edition names its own file, the Flatpak edition runs by app
+// id, and the unpackaged build keeps naming the current executable.
+func TestAutostartExecEditions(t *testing.T) {
+	t.Setenv("FLATPAK_ID", "")
+	t.Setenv("APPIMAGE", "")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := autostartExec(); got != exe {
+		t.Errorf("plain edition Exec = %q, want the executable %q", got, exe)
+	}
+
+	t.Setenv("APPIMAGE", "/home/ali/Downloads/Younblock-x86_64.AppImage")
+	if got := autostartExec(); got != "/home/ali/Downloads/Younblock-x86_64.AppImage" {
+		t.Errorf("AppImage edition Exec = %q, want $APPIMAGE", got)
+	}
+
+	// Flatpak wins even when both markers are present.
+	t.Setenv("FLATPAK_ID", "com.younblock.Younblock")
+	if got := autostartExec(); got != "flatpak run com.younblock.Younblock" {
+		t.Errorf("Flatpak edition Exec = %q, want flatpak run <id>", got)
+	}
+}
+
+// 7c. Under Flatpak the autostart entry targets the real home directory
+// from /etc/passwd instead of the sandbox's private $HOME (D54).
+func TestAutostartHomeFlatpak(t *testing.T) {
+	t.Setenv("FLATPAK_ID", "com.younblock.Younblock")
+	u, err := user.Current()
+	if err != nil {
+		t.Skipf("no passwd entry in this environment: %v", err)
+	}
+	if got := autostartHome(); got != u.HomeDir {
+		t.Errorf("flatpak home = %q, want the passwd home %q", got, u.HomeDir)
+	}
+	t.Setenv("FLATPAK_ID", "")
+	h, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("no HOME in this environment: %v", err)
+	}
+	if got := autostartHome(); got != h {
+		t.Errorf("plain home = %q, want %q", got, h)
+	}
+}
+
+// 7d. The written entry carries the edition's launcher, not the binary
+// path inside the package (D54): with $APPIMAGE set the Exec line names
+// the .AppImage file.
+func TestSetAutostartAppImageExec(t *testing.T) {
+	home := t.TempDir()
+	p := NewWithRunner(newFakeGSettings("org.gnome.system.proxy").run, home)
+	t.Setenv("FLATPAK_ID", "")
+	t.Setenv("APPIMAGE", "/opt/Younblock.AppImage")
+	if err := p.SetAutostart(true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".config", "autostart", "younblock.desktop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "Exec=/opt/Younblock.AppImage --web") {
+		t.Errorf("Exec line must name the AppImage file:\n%s", data)
+	}
+	if err := p.SetAutostart(false); err != nil {
+		t.Fatal(err)
 	}
 }
 

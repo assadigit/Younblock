@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Younblock
+GenericName=YouTube Unblocker
+Comment=Watch YouTube without interruptions
+Exec=@EXEC@
+Icon=@ICON@
+Terminal=false
+Categories=Network;Utility;
+Keywords=youtube;proxy;dns;unblock;
+StartupNotify=true
+X-GNOME-UsesNotifications=true

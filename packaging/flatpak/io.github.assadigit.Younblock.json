@@ -1,0 +1,44 @@
+{
+  "app-id": "io.github.assadigit.Younblock",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "48",
+  "sdk": "org.gnome.Sdk",
+  "command": "younblock",
+  "separate-locales": false,
+  "finish-args": [
+    "--share=network",
+    "--socket=session-bus",
+    "--filesystem=host",
+    "--talk-name=org.freedesktop.Notifications"
+  ],
+  "modules": [
+    {
+      "name": "younblock",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 younblock-linux /app/bin/younblock",
+        "install -Dm644 io.github.assadigit.Younblock.desktop /app/share/applications/io.github.assadigit.Younblock.desktop",
+        "install -Dm644 io.github.assadigit.Younblock.metainfo.xml /app/share/metainfo/io.github.assadigit.Younblock.metainfo.xml",
+        "for s in 16 24 32 48 64 96 128 256 512; do install -Dm644 \"icons/$s/apps/io.github.assadigit.Younblock.png\" \"/app/share/icons/hicolor/$s/apps/io.github.assadigit.Younblock.png\"; done"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "path": "younblock-linux"
+        },
+        {
+          "type": "file",
+          "path": "io.github.assadigit.Younblock.desktop"
+        },
+        {
+          "type": "file",
+          "path": "io.github.assadigit.Younblock.metainfo.xml"
+        },
+        {
+          "type": "dir",
+          "path": "icons"
+        }
+      ]
+    }
+  ]
+}

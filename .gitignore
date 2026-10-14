@@ -25,3 +25,6 @@ Thumbs.db
 # Web UI embedded bundle (built, never committed — placeholder.txt only)
 internal/webui/dist/*
 !internal/webui/dist/placeholder.txt
+
+# flatpak-builder local cache
+.flatpak-builder/

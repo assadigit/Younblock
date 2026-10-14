@@ -938,3 +938,60 @@ screen fix from the previous session.
   - younblock-linux-amd64 8.28 MB (7a8a0b0a10aa…)
   - younblock-linux-386 8.02 MB (eb37a5873f5d…)
 - Upgrade notes in the release body; Ali's Mint manual check list in README.
+
+## Phase 12 — v1.4.1 / release v0.5.1: the proper Linux Mint packages
+
+Ali asked for three more Mint-friendly formats — .deb, AppImage and Flatpak —
+on top of the single file, with every change still applied to all versions.
+
+### What was built
+
+- The .deb, AppImage and Flatpak all wrap the SAME static binary as the
+  plain-file edition (D53); packaging/ holds the shared pieces (desktop
+  template, generated hicolor icons, one script per format).
+- younblock_1.4.1_amd64.deb 3.0 MB and younblock_1.4.1_i386.deb 2.9 MB:
+  /usr/bin/younblock, menu entry, 9 icon sizes, dpkg metadata with
+  Depends: libglib2.0-bin (gsettings) and Recommends: libnotify-bin,
+  xdg-utils; postinst/postrm refresh the caches when the helpers exist.
+- Younblock-1.4.1-x86_64.AppImage 4.0 MB and Younblock-1.4.1-i686.AppImage
+  3.9 MB: AppRun forwards to the binary with --web; built FUSE-free via
+  appimagetool --appimage-extract-and-run (i686 through --runtime-file).
+- Younblock-1.4.1-x86_64.flatpak 3.0 MB: manifest + metainfo for
+  io.github.assadigit.Younblock on org.gnome.Platform 48; permissions
+  network + session bus + host filesystem + notifications talk (D55).
+- Version 1.4.1 everywhere; autostart resolution D54 with 4 new tests.
+
+### Verification actually run from the build machine
+
+- .deb: extracted, desktop file Exec=/usr/bin/younblock --web, binary
+  --version 1.4.1, live control page + /api/appinfo + settings round-trip.
+- AppImage x86_64: through the real AppImage runtime
+  (--appimage-extract-and-run): version, web edition, live API, and the
+  autostart entry names the .AppImage file itself. i686: built + ELF i386
+  confirmed (executing needs a real 32-bit host, as with the 386 binaries).
+- Flatpak: installed with `flatpak --user install` (bwrap overlay +
+  session-bus shim + tmpfs data dir to work around the container's
+  O_TMPFILE/RO-root restrictions), then: deploy metadata (command,
+  shared=network, sockets=session-bus, filesystems=host), /app/bin/younblock
+  byte-identical (sha 07ea6373…) to dist/younblock-linux-amd64, desktop file
+  with the flatpak-wrapped Exec, 9 icons, live control-page API, and the
+  start-with-OS entry reading Exec=flatpak run io.github.assadigit.Younblock
+  --web (D54 through FLATPAK_ID).
+- Gates: go vet; go test -race (14 pkgs); full build.sh (all six binaries +
+  four packages in one run; the linux-amd64 binary reproducible across
+  rebuilds); live selftest 1.4.1 all OK (youtube 81 ms, video 95 ms);
+  platform-neutral + arm64 neutral; svelte-check 12 pre-existing only.
+
+### Honest limits
+
+- `flatpak run` cannot execute in this container (nested pidns + proc mount
+  denied — the same restriction blocks flatpak-builder's sandbox, which is
+  why build-flatpak.sh has the low-level fallback). Launching the Flatpak on
+  real Mint, and confirming the session-bus system-proxy writes reach the
+  desktop, is Ali's manual check (README list, step 8).
+- The AppStream branch (store metadata) is best-effort on the fallback path
+  (Debian's appstreamcli rejects the icons with a policy catch-22, D55);
+  the flatpak-builder path regenerates it on a normal host. Bundle installs
+  and runs identically without it.
+- The deb/AppImage/flatpak wrappers embed build timestamps, so only the
+  inner binaries are byte-reproducible, not the container files.

@@ -44,6 +44,7 @@ import (
         "fmt"
         "os"
         "os/exec"
+        "os/user"
         "path/filepath"
         "strconv"
         "strings"
@@ -193,10 +194,7 @@ type Platform struct {
 // be resolved at all keeps the adapter running with an empty ConfigDir —
 // the same fallback stub.New uses — so the app never refuses to start.
 func New() (*Platform, error) {
-        home := ""
-        if h, err := os.UserHomeDir(); err == nil {
-                home = h
-        }
+        home := autostartHome()
         dir := ""
         if base, err := os.UserConfigDir(); err == nil {
                 dir = filepath.Join(base, config.AppName)
@@ -500,14 +498,50 @@ func (p *Platform) SetAutostart(enabled bool) error {
         if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
                 return err
         }
-        // The entry names the current executable; if the path cannot be
-        // resolved the Exec line keeps only the flag — the same near-
-        // impossible fallback windows.go makes with its Run-key command.
-        exe, err := os.Executable()
-        if err != nil {
-                exe = ""
+        // The entry names how the app is launched on the desktop — which is
+        // NOT os.Executable() for the packaged editions (see autostartExec,
+        // D54); when no launcher can be resolved at all the Exec line keeps
+        // only the flag — the same near-impossible fallback windows.go makes
+        // with its Run-key command.
+        return os.WriteFile(path, []byte(desktopEntry(autostartExec())), 0o644)
+}
+
+// autostartHome resolves the home directory the autostart entry targets.
+// Under Flatpak $HOME points into the app's private data tree, but the
+// entry must land in the real ~/.config/autostart for the desktop session
+// to honor it, so there the passwd entry wins (D54).
+func autostartHome() string {
+        if os.Getenv("FLATPAK_ID") != "" {
+                if u, err := user.Current(); err == nil && u.HomeDir != "" {
+                        return u.HomeDir
+                }
         }
-        return os.WriteFile(path, []byte(desktopEntry(exe)), 0o644)
+        if h, err := os.UserHomeDir(); err == nil {
+                return h
+        }
+        return ""
+}
+
+// autostartExec resolves the Exec= command of the autostart entry (D54).
+// Packaged editions are launched through a host-side path that outlives
+// the running process, which os.Executable() cannot provide:
+//   - Flatpak:  "flatpak run <id>" — the sandbox's /app path is
+//     meaningless to the desktop session
+//   - AppImage: $APPIMAGE names the .AppImage file; the runtime's mount
+//     under /tmp/.mount_… disappears at logout
+//   - everything else (.deb, plain file): the current executable, as
+//     before v1.4.1.
+func autostartExec() string {
+        if id := os.Getenv("FLATPAK_ID"); id != "" {
+                return "flatpak run " + id
+        }
+        if ai := os.Getenv("APPIMAGE"); ai != "" {
+                return ai
+        }
+        if exe, err := os.Executable(); err == nil {
+                return exe
+        }
+        return ""
 }
 
 // autostartPath is where the autostart entry lives: $HOME/.config/autostart.

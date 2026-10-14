@@ -1,0 +1,11 @@
+#!/bin/sh
+# Younblock AppImage launcher: the engine is a static binary that serves
+# its own control page in the browser (D50). Any arguments the user adds
+# are forwarded after --web (--selftest, --webport … all keep working;
+# --selftest wins because the core checks it first).
+#
+# $APPIMAGE (set by the AppImage runtime) is honored by the app itself
+# when it writes the start-with-OS entry (D54), so autostart names this
+# file, not the temporary mount it runs from.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/younblock" --web "$@"

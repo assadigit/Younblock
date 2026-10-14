@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.assadigit.Younblock</id>
+  <name>Younblock</name>
+  <summary>Watch YouTube without interruptions</summary>
+  <description>
+    <p>Younblock runs a tiny local proxy with secure DNS (DNS-over-HTTPS)
+    and TLS fragmentation, then points the system proxy at it, so YouTube
+    loads and plays when a network blocks or throttles it.</p>
+    <p>One static binary with the whole UI built in; nothing to configure
+    and it works with every mainstream browser. This Flatpak keeps its
+    settings inside its own sandbox; the .deb and AppImage editions share
+    ~/.config/Younblock.</p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <!-- The source is distributed through the project's GitHub releases. -->
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer_name>Ali</developer_name>
+  <url type="homepage">https://github.com/assadigit/Younblock</url>
+  <url type="bugtracker">https://github.com/assadigit/Younblock/issues</url>
+  <launchable type="desktop-id">io.github.assadigit.Younblock.desktop</launchable>
+  <releases>
+    <release version="1.4.1" date="2026-10-14">
+      <description>
+        <p>Linux packages (.deb, AppImage and Flatpak) built from the same
+        source tree, and start-with-OS entries that name the right
+        launcher for each edition.</p>
+      </description>
+    </release>
+    <release version="1.4.0" date="2026-10-14">
+      <description>
+        <p>The same app for everyone: 64-bit and 32-bit Windows, and the
+        Linux single-executable edition with the browser control page.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>
