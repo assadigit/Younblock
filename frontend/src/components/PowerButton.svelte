@@ -1,8 +1,9 @@
 <script lang="ts">
   // The one bold element (file 02, section 4.1): halo ring 184 px, ring
   // 156 px, disc 132 px, glyph 48 px; hit area 208 px. Readable without
-  // color: Off is an outlined glyph on a dark disc; On is a solid green
-  // disc with a dark glyph; degraded glows amber at the rim; error glows
+  // color: Off is an outlined glyph on a dark disc; On is a solid red
+  // disc (the logo's padlock red) with a white glyph and gold echo rings
+  // (the logo's lightning); degraded glows gold at the rim; error glows
   // danger. Click/Space/Enter toggle; while connecting a click
   // cancels; while stopping clicks are ignored; a double click cannot
   // start two operations.
@@ -12,6 +13,7 @@
   // gradient disc and a slow glow breath — and the connecting spinner
   // keeps spinning even when Windows asks for reduced motion, because
   // it is functional state, not decoration (DECISIONS.md D45).
+  // v1.3.0: recolored to the logo palette (D47).
   import Icon from "./Icon.svelte";
 
   interface Props {
@@ -150,7 +152,7 @@
     transition: border-color 320ms ease-out;
   }
 
-  /* The disc material: a machined dark plate. The green "lit" plate is a
+  /* The disc material: a machined dark plate. The red "lit" plate is a
      stacked layer that crossfades in over the dark one — gradients can't
      tween, opacity can. */
   .disc {
@@ -159,7 +161,7 @@
     height: 132px;
     border: 1px solid var(--neutral-800);
     background:
-      radial-gradient(circle at 50% 34%, #313336 0%, var(--neutral-850) 58%, #242629 100%);
+      radial-gradient(circle at 50% 34%, #34302e 0%, var(--neutral-850) 58%, #262220 100%);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.05),
       inset 0 -10px 18px rgba(0, 0, 0, 0.26),
@@ -175,10 +177,10 @@
     border-radius: inherit;
     border: 1px solid transparent;
     background:
-      radial-gradient(circle at 50% 32%, #4bda93 0%, var(--green-500) 52%, var(--green-600) 100%);
+      radial-gradient(circle at 50% 32%, #f05a5b 0%, var(--red-500) 52%, var(--red-600) 100%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      inset 0 -10px 20px rgba(0, 0, 0, 0.18);
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -10px 20px rgba(0, 0, 0, 0.22);
     opacity: 0;
     transition: opacity 320ms ease-out;
     pointer-events: none;
@@ -207,13 +209,13 @@
     opacity: 1;
   }
   .on .disc {
-    border-color: var(--green-600);
+    border-color: var(--red-600);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.06),
       inset 0 -10px 18px rgba(0, 0, 0, 0.26),
-      0 0 0 1px rgba(52, 199, 123, 0.25),
-      0 0 0 10px rgba(52, 199, 123, 0.1),
-      0 0 44px rgba(52, 199, 123, 0.32);
+      0 0 0 1px rgba(221, 50, 51, 0.25),
+      0 0 0 10px rgba(221, 50, 51, 0.1),
+      0 0 44px rgba(221, 50, 51, 0.32);
     animation:
       disc-pop 550ms cubic-bezier(0.34, 1.56, 0.64, 1),
       glow-breathe 4.6s ease-in-out infinite alternate;
@@ -222,12 +224,12 @@
     color: var(--color-on-primary);
   }
   .on .halo {
-    border-color: rgba(52, 199, 123, 0.4);
+    border-color: rgba(221, 50, 51, 0.4);
     opacity: 0.5;
-    box-shadow: 0 0 30px rgba(52, 199, 123, 0.1);
+    box-shadow: 0 0 30px rgba(221, 50, 51, 0.1);
   }
   .on .ring {
-    border-color: rgba(52, 199, 123, 0.55);
+    border-color: rgba(221, 50, 51, 0.55);
   }
   @keyframes disc-pop {
     0% {
@@ -245,21 +247,21 @@
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.06),
         inset 0 -10px 18px rgba(0, 0, 0, 0.26),
-        0 0 0 1px rgba(52, 199, 123, 0.25),
-        0 0 0 10px rgba(52, 199, 123, 0.1),
-        0 0 44px rgba(52, 199, 123, 0.32);
+        0 0 0 1px rgba(221, 50, 51, 0.25),
+        0 0 0 10px rgba(221, 50, 51, 0.1),
+        0 0 44px rgba(221, 50, 51, 0.32);
     }
     to {
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.06),
         inset 0 -10px 18px rgba(0, 0, 0, 0.26),
-        0 0 0 1px rgba(52, 199, 123, 0.3),
-        0 0 0 12px rgba(52, 199, 123, 0.13),
-        0 0 58px rgba(52, 199, 123, 0.42);
+        0 0 0 1px rgba(221, 50, 51, 0.3),
+        0 0 0 12px rgba(221, 50, 51, 0.13),
+        0 0 58px rgba(221, 50, 51, 0.42);
     }
   }
 
-  /* Connecting: amber glyph, two counter-phased arcs (functional
+  /* Connecting: gold glyph, two counter-phased arcs (functional
      loading state — kept even under reduced motion). */
   .connecting .glyph {
     color: var(--color-warn);
@@ -283,8 +285,8 @@
     border-width: 3px;
     border-top-color: transparent;
     border-right-color: transparent;
-    border-bottom-color: rgba(242, 184, 75, 0.32);
-    border-left-color: rgba(242, 184, 75, 0.32);
+    border-bottom-color: rgba(255, 197, 61, 0.32);
+    border-left-color: rgba(255, 197, 61, 0.32);
     animation-duration: 1.7s;
   }
   @keyframes spin {
@@ -318,7 +320,7 @@
     border-color: var(--neutral-700);
   }
 
-  /* Degraded: the plate stays dark, the rim glows amber — alive but
+  /* Degraded: the plate stays dark, the rim glows gold — alive but
      needing attention (D45: solid ring + glow instead of the old dashed
      border, which read as a wireframe placeholder). */
   .degraded .glyph {
@@ -328,9 +330,9 @@
     border-color: var(--color-warn);
   }
   .degraded .halo {
-    border-color: rgba(242, 184, 75, 0.45);
+    border-color: rgba(255, 197, 61, 0.45);
     opacity: 0.5;
-    box-shadow: 0 0 30px rgba(242, 184, 75, 0.12);
+    box-shadow: 0 0 30px rgba(255, 197, 61, 0.12);
   }
 
   /* Error: the danger rim — harsher than degraded, no soft aura. */
@@ -350,19 +352,20 @@
     opacity: 0.7;
   }
 
-  /* The turn-on echo: two staggered rings expanding from the ring and
-     thinning out — the "fully animated" moment Ali asked for. */
+  /* The turn-on echo: two staggered gold rings expanding from the ring
+     and thinning out — the lightning flash of the logo, and the
+     "fully animated" moment Ali asked for. */
   .echo {
     position: absolute;
     width: 156px;
     height: 156px;
     border-radius: var(--radius-full);
-    border: 2px solid var(--green-400);
+    border: 2px solid var(--gold-400);
     pointer-events: none;
     animation: echo 640ms cubic-bezier(0.16, 0.6, 0.36, 1) forwards;
   }
   .echo-2 {
-    border-color: rgba(101, 215, 156, 0.75);
+    border-color: rgba(255, 197, 61, 0.75);
     animation-delay: 110ms;
     animation-duration: 760ms;
   }

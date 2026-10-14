@@ -168,15 +168,16 @@ func newTestServer(t *testing.T, mutate func(*Config)) (*Server, *stats.Counters
 
 // TestIntegrationHTTPSThroughProxyWithFragmentedClientHello is the Phase 1
 // acceptance test: fake DoH + local TLS echo server; an http.Client through
-// the proxy completes an HTTPS request; a recording TCP listener shows the
-// ClientHello arrived in at least 2 separate reads AND the handshake still
-// succeeded.
+// the proxy completes an HTTPS request to a ROUTED host (youtube mode);
+// a recording TCP listener shows the ClientHello arrived in at least 2
+// separate reads AND the handshake still succeeded.
 func TestIntegrationHTTPSThroughProxyWithFragmentedClientHello(t *testing.T) {
 	ca := newTestCA(t)
-	// One leaf cert covers the DoH server (IP) and the echo server (name).
-	leaf := ca.serverCert(t, []string{"echo.test"}, []net.IP{net.ParseIP("127.0.0.1")})
+	// One leaf cert covers the DoH server (IP) and the echo server (name:
+	// a routed YouTube host, so youtube mode fragments its ClientHello).
+	leaf := ca.serverCert(t, []string{"www.youtube.com"}, []net.IP{net.ParseIP("127.0.0.1")})
 
-	dohSrv := fakeDoHServer(t, leaf, map[string]string{"echo.test": "127.0.0.1"})
+	dohSrv := fakeDoHServer(t, leaf, map[string]string{"www.youtube.com": "127.0.0.1"})
 	echoLn := echoTLSServer(t, leaf)
 	echoPort := echoLn.Addr().(*net.TCPAddr).Port
 
@@ -199,17 +200,15 @@ func TestIntegrationHTTPSThroughProxyWithFragmentedClientHello(t *testing.T) {
 		c.FragmentConfig = fragment.Config{Min: 80, Max: 200, Pause: 5 * time.Millisecond}
 	})
 
-	// Point the client's https://echo.test at the local echo server via a
-	// custom DialTLS-free transport: the URL uses echo.test and the request
-	// goes through our proxy, whose DoH resolves it to 127.0.0.1:<echoPort>.
-	// The echo server's port is reached by the proxy dialing the resolved IP.
-	// We need the proxy to dial echo.test:<echoPort>; the URL port is part of
-	// the CONNECT target, so use https://echo.test:<port>/hello.
-	url := fmt.Sprintf("https://echo.test:%d/hello", echoPort)
+	// Point the client's https://www.youtube.com at the local echo server:
+	// the URL uses a routed host (so the first record is fragmented) and
+	// the request goes through our proxy, whose DoH resolves it to
+	// 127.0.0.1:<echoPort>.
+	url := fmt.Sprintf("https://www.youtube.com:%d/hello", echoPort)
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy:           http.ProxyURL(mustURL(t, "http://"+srv.Addr())),
-			TLSClientConfig: &tls.Config{RootCAs: ca.pool, ServerName: "echo.test"},
+			TLSClientConfig: &tls.Config{RootCAs: ca.pool, ServerName: "www.youtube.com"},
 		},
 		Timeout: 15 * time.Second,
 	}

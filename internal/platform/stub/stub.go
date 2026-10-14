@@ -28,6 +28,7 @@ type Platform struct {
 	mu          sync.Mutex
 	dir         string
 	attachCalls []AttachCall
+	ensureCalls []AttachCall
 	detachCalls int
 	autostarts  []bool
 	notices     []NoticeCall
@@ -66,6 +67,14 @@ func (p *Platform) Attach(port int, s config.Settings) error {
 	p.attachCalls = append(p.attachCalls, AttachCall{Port: port, Mode: s.Mode})
 	p.mu.Unlock()
 	return nil
+}
+
+// EnsureAttached records the check and reports "nothing to rewrite".
+func (p *Platform) EnsureAttached(port int, s config.Settings) (bool, error) {
+	p.mu.Lock()
+	p.ensureCalls = append(p.ensureCalls, AttachCall{Port: port, Mode: s.Mode})
+	p.mu.Unlock()
+	return false, nil
 }
 
 // Detach records the call.
@@ -107,6 +116,13 @@ func (p *Platform) AttachCalls() []AttachCall {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]AttachCall(nil), p.attachCalls...)
+}
+
+// EnsureCalls returns the recorded EnsureAttached calls.
+func (p *Platform) EnsureCalls() []AttachCall {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]AttachCall(nil), p.ensureCalls...)
 }
 
 // DetachCalls returns how many times Detach ran.

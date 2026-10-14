@@ -16,6 +16,26 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.3.0** (after the "only the dedicated Chrome session worked"
+report):
+
+- **Every browser now really uses it — other Chrome profiles, Opera, Edge, Firefox,
+  Brave.** Earlier versions told Windows about the app through a proxy *script* (a PAC
+  file); some browsers never picked that up unless they were restarted, and other
+  proxy tools could quietly take it over. The app now uses the plain Windows proxy
+  setting (the same one tools like v2rayN use), which every mainstream browser follows
+  immediately — including browsers that are already open.
+- **It defends that setting.** If another program changes the Windows proxy while
+  Younblock is on, the app notices within a couple of minutes, puts its setting back,
+  and tells you it did.
+- **A new look that matches the logo**: the greens are gone. The "on" button is the
+  padlock red, the turn-on flash and the warning glow are the lightning gold, and the
+  whole window uses the warm charcoal of the logo's shackle. The tray icons match too.
+- **Browsing through the app got safer**: in YouTube mode your other traffic now just
+  passes through the app untouched (it used to depend on the script), plain-http sites
+  that don't support https keep working, and local network addresses (like your
+  router's page) never go through the app at all.
+
 **What's new in version 1.2.0** (after the "button animation stuck midway" report):
 
 - **The power button's loading spinner no longer freezes when Windows' animation
@@ -226,22 +246,25 @@ cleaned up automatically.
 
 ## Your manual check on Windows (Ali's test list)
 
-Do these once, on your own PC, with your browser closed first:
+Do these once, on your own PC:
 
-1. Run `younblock.exe`, press the button, wait for it to turn green (at most 35
+1. Run `younblock.exe`, press the button, wait for it to turn red (at most 35
    seconds), and open `https://www.youtube.com` in your browser. Videos should load.
-2. Press the button again to turn it off, then check Windows' proxy setting is back:
-   Settings > Network & internet > Proxy should look like it did before (no script
-   address pointing at 127.0.0.1).
-3. Turn it on, close the Younblock window, and confirm the tray icon stays near the
+2. **The every-browser check**: while it is on, open YouTube in another browser —
+   Opera, Edge, Firefox, or another Chrome profile — **even one that was already
+   running**. It should load there too now; no restart needed.
+3. Press the button again to turn it off, then check Windows' proxy setting is
+   back: Settings > Network & internet > Proxy should look like it did before
+   ("Use a proxy server" off, or whatever you had before).
+4. Turn it on, close the Younblock window, and confirm the tray icon stays near the
    clock and YouTube still loads in your browser.
-4. Use **Quit** from the tray menu and confirm the proxy setting is restored again.
-5. Turn it on, then kill the app from Task Manager. Your internet must still work
+5. Use **Quit** from the tray menu and confirm the proxy setting is restored again.
+6. Turn it on, then kill the app from Task Manager. Your internet must still work
    (the browser falls back to direct). Start the app again: it cleans the leftover
    setting by itself.
-6. In Settings, turn on "Open Younblock when Windows starts", restart Windows, and
+7. In Settings, turn on "Open Younblock when Windows starts", restart Windows, and
    confirm Younblock appears in the tray (started, but off).
-7. While it is on, run Help > Run test and confirm all four steps pass.
+8. While it is on, run Help > Run test and confirm all four steps pass.
 
 If step 1 fails but the test passes, the filtering on your network may need a
 different connection method: try Settings > Advanced > Connection method > Strong,

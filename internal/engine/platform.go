@@ -46,6 +46,10 @@ type Platform interface {
 	DialControl() netx.ControlFunc
 	// Attach applies the system proxy for the given mode (no-op on stub).
 	Attach(port int, s config.Settings) error
+	// EnsureAttached re-asserts the system proxy if another program
+	// overwrote it while we are on (the watchdog's anti-clobber check);
+	// it reports whether it had to rewrite something (D46).
+	EnsureAttached(port int, s config.Settings) (bool, error)
 	// Detach restores the system proxy to what it was before Attach.
 	Detach() error
 	// SetAutostart adds or removes the launch-with-OS entry.

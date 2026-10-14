@@ -23,7 +23,8 @@
   },
   "notice": {
     "METHOD_SWITCHED": "Switched to a stronger method",
-    "RECOVERED": "Fixed"
+    "RECOVERED": "Fixed",
+    "PROXY_REAPPLIED": "Windows proxy re-applied — another app changed it"
   },
   "errors": {
     "PORT_BUSY": "Another program is using this app's port. Close it, or open Settings, Advanced, and change the port.",
@@ -65,17 +66,17 @@
     "title": "Settings",
     "startWithWindows": "Open Younblock when Windows starts",
     "connectOnLaunch": "Turn on automatically when the app opens",
-    "routeAll": "Send all browser traffic through Younblock",
-    "routeAllHint": "Every website, not just YouTube, goes through the app and its secure DNS. Off means YouTube only.",
+    "routeAll": "Apply to every website, not just YouTube",
+    "routeAllHint": "Every site's connection gets the unblock treatment. Off means only YouTube sites do. Either way your other browsing simply passes through the app.",
     "openBrowserOnConnect": "Open a separate Chrome when it turns on",
     "openBrowserOnConnectHint": "A dedicated Chrome window with its own session, routed through the app. It closes when you turn the app off.",
     "advanced": "Advanced",
     "advancedHint": "For troubleshooting",
     "mode": "Unblock mode",
     "modeYouTube": "YouTube only",
-    "modeYouTubeHint": "Only YouTube sites go through the app.",
+    "modeYouTubeHint": "Only YouTube sites get the unblock treatment; other browsing passes through unchanged.",
     "modeAll": "All websites",
-    "modeAllHint": "Everything except local addresses goes through the app.",
+    "modeAllHint": "Every site except local addresses gets the unblock treatment.",
     "modeManual": "Manual",
     "modeManualHint": "Windows is left alone; set the proxy yourself.",
     "manualAddress": "Proxy address",

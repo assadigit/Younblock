@@ -214,14 +214,14 @@
     text-align: center;
   }
   .node.app {
-    border-color: var(--green-700);
+    border-color: var(--red-700);
     color: var(--color-text);
   }
   .node.app .dot {
     width: 10px;
     height: 10px;
     border-radius: var(--radius-full);
-    border: 2px solid var(--green-500);
+    border: 2px solid var(--red-500);
   }
   .play {
     color: var(--brand-red);

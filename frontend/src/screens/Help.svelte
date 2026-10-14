@@ -165,12 +165,12 @@
     min-height: 44px;
     padding: var(--space-2) var(--space-6);
     border-radius: var(--radius-full);
-    background: var(--green-500);
+    background: var(--red-500);
     color: var(--color-on-primary);
     font-weight: 500;
   }
   .primary:hover {
-    background: var(--green-400);
+    background: var(--red-400);
   }
   .primary:disabled {
     opacity: 0.6;

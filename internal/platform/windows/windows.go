@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
+	"unsafe"
 
 	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/engine"
@@ -98,11 +100,37 @@ func newLazyInternetSetOption() func(option uint32) error {
 	}
 }
 
+// WM_SETTINGCHANGE("Internet Settings") broadcast: the message the
+// Windows settings UI sends so running applications — including browsers
+// that do not watch the registry themselves — re-read their proxy
+// configuration immediately instead of after a restart (D46).
+const (
+	wmSettingChange = 0x001A
+	smtoAbortIfHung = 0x0002
+	hwndBroadcast   = 0xFFFF
+)
+
+var sendMessageTimeoutW = syswin.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")
+
+func broadcastSettingChange() {
+	param, err := syscall.UTF16PtrFromString("Internet Settings")
+	if err != nil {
+		return
+	}
+	// Best effort; a hung window must not block us (SMTO_ABORTIFHUNG, 1 s).
+	sendMessageTimeoutW.Call(hwndBroadcast, wmSettingChange, 0,
+		uintptr(unsafe.Pointer(param)), smtoAbortIfHung, 1000, 0)
+}
+
 func refreshProxySettings() error {
 	if err := internetSetOption(internetOptionSettingsChanged); err != nil {
 		return err
 	}
-	return internetSetOption(internetOptionRefresh)
+	if err := internetSetOption(internetOptionRefresh); err != nil {
+		return err
+	}
+	broadcastSettingChange()
+	return nil
 }
 
 // Platform is the real Windows adapter.
@@ -138,6 +166,11 @@ func New(log Logger) (*Platform, error) {
 	// Crash recovery at every app start (file 01, section 8).
 	if err := p.sys.Restore(); err != nil {
 		log.Warn("crash recovery could not restore the proxy setting", "reason", err.Error())
+	}
+	// A PAC URL a pre-1.3.0 version left behind without a backup is ours:
+	// remove it so browsers follow the (restored) settings again.
+	if err := p.sys.cleanupLegacy(); err != nil {
+		log.Warn("legacy proxy-script cleanup failed", "reason", err.Error())
 	}
 	// Autostart path rewrite (handles a moved exe).
 	p.rewriteAutostart(log)
@@ -185,6 +218,18 @@ func (p *Platform) Attach(port int, s config.Settings) error {
 		return nil // touch nothing in Windows
 	default:
 		return p.sys.Enable(port)
+	}
+}
+
+// EnsureAttached re-asserts the system proxy when another program has
+// overwritten it while we are on (the watchdog's anti-clobber check). It
+// returns whether it had to rewrite something.
+func (p *Platform) EnsureAttached(port int, s config.Settings) (bool, error) {
+	switch s.Mode {
+	case config.ModeManual:
+		return false, nil
+	default:
+		return p.sys.ensure(port)
 	}
 }
 

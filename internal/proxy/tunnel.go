@@ -82,9 +82,11 @@ var bufPool = sync.Pool{
 func getBuf() *[]byte  { return bufPool.Get().(*[]byte) }
 func putBuf(b *[]byte) { bufPool.Put(b) }
 
-// runBidirectionalCopy reads the first TLS record, fragments it upstream,
-// then copies both directions until both end (file 01, section 7 steps 5-6).
-func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, host string) {
+// runBidirectionalCopy reads the first TLS record, fragments it upstream
+// when this tunnel should be fragmented (in youtube mode only hosts on the
+// routed list — everything else is a plain relay; D46), then copies both
+// directions until both end (file 01, section 7 steps 5-6).
+func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, host string, fragmentTLS bool) {
 	tcloser := &tunnelCloser{a: client.Conn, b: upstream}
 	s.register(tcloser)
 	defer func() {
@@ -104,7 +106,7 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
 	}
 
 	var up io.Writer = upstream
-	if isTLS {
+	if isTLS && fragmentTLS {
 		preset, fcfg := s.fragmentData()
 		fconn := fragment.NewConn(upstream, preset, fcfg, s.cfg.RNG)
 		up = fconn

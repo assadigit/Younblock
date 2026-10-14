@@ -131,3 +131,15 @@ Scope: five user-requested additions on top of the completed spec work. All defa
 - [x] Professional polish: state dot beside the label, warmed degraded subtitle, amber ghost "Fix connection", thicker glyph stroke, resting hover feedback, solid amber degraded rim (replaces the dashed ring), footer badge chip
 - [x] Copy: footer "Works with every browser"; first-run/Help/About now say the Windows-proxy truth precisely (tested most with Chrome)
 - [x] Version 1.2.0 (config, wails.json, mock); all gates re-run green; all screenshots re-shot and vision-checked, animation verified frame-by-frame with and without reduced motion
+
+## Phase 9 (v0.4.0 / app 1.3.0) — every browser, logo palette
+
+- [x] Diagnose Ali's report: only the dedicated Chrome session (--proxy-server) worked; other profiles and Opera did not — the registry PAC never reached them
+- [x] sysproxy rewritten to the manual proxy values (ProxyEnable/ProxyServer/ProxyOverride + bypass list); any AutoConfigURL cleared while active (D46)
+- [x] WM_SETTINGCHANGE("Internet Settings") broadcast added to the refresh
+- [x] Watchdog anti-clobber: EnsureAttached re-asserts the values every tick; PROXY_REAPPLIED notice; engine + stub + tests
+- [x] Legacy cleanup: orphaned pre-1.3.0 PAC URL removed at startup; upgrade path tested (backup preserved, user's original restored)
+- [x] Proxy: youtube mode fragments only routed hosts; plain-http to non-routed hosts forwarded as a real forward proxy (origin-form, hop-by-hop stripped, Connection: close)
+- [x] Proxy tests: forward path, unfragmented relay, all-mode fragmentation; integration test re-pointed at a routed host
+- [x] UI restyled to the logo palette (D47): warm charcoal neutrals, red primary, gold accent; tray icons regenerated
+- [x] Version 1.3.0; all gates green; live selftest; real-browser E2E through the proxy (YouTube + https site + plain-http site); screenshots re-shot and vision-checked

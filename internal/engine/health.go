@@ -446,6 +446,7 @@ func (e *Engine) watchdogTick() {
 	if phase != PhaseOn && phase != PhaseDegraded {
 		return
 	}
+	e.ensureProxyAttached()
 	if e.checker.QuickCheck(context.Background(), e.currentMethod()) {
 		e.mu.Lock()
 		wasDegraded := e.phase == PhaseDegraded
@@ -471,6 +472,26 @@ func (e *Engine) watchdogTick() {
 			defer cancel()
 			e.healSweep(ctx, false)
 		}()
+	}
+}
+
+// ensureProxyAttached re-asserts the system proxy when another program
+// overwrote it (R13: the rewrite is logged and surfaced as a notice, not
+// silent). The watchdog calls this on every tick while on (D46).
+func (e *Engine) ensureProxyAttached() {
+	e.mu.Lock()
+	port := e.port
+	settings := e.settings
+	e.mu.Unlock()
+	changed, err := e.platform.EnsureAttached(port, settings)
+	if err != nil {
+		e.logger.Warn("re-asserting the windows proxy failed", "reason", errKind(err))
+		return
+	}
+	if changed {
+		e.logger.Warn("another program changed the windows proxy; ours was re-applied")
+		e.setNotice("PROXY_REAPPLIED", "")
+		e.emitState()
 	}
 }
 

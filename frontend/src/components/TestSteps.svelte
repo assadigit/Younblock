@@ -81,8 +81,9 @@
     margin-top: 1px;
   }
   .step.ok .mark {
-    color: var(--green-500);
-    background: var(--green-900);
+    /* The logo's lightning on the padlock red: a gold check. */
+    color: var(--gold-400);
+    background: var(--red-900);
   }
   .step.fail .mark {
     color: var(--color-danger);
@@ -112,7 +113,7 @@
     line-height: 16px;
   }
   .step.fail .hint {
-    color: var(--amber-300);
+    color: var(--gold-300);
   }
   .ms {
     color: var(--neutral-500);

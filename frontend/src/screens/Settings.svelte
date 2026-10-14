@@ -409,7 +409,7 @@
     width: 18px;
     height: 18px;
     margin-top: 1px;
-    accent-color: var(--green-500);
+    accent-color: var(--red-500);
     flex: none;
   }
   .choice-text {
@@ -586,7 +586,7 @@
     transition: transform 280ms ease-out;
   }
   .switch input:checked + .track {
-    background: var(--green-500);
+    background: var(--red-500);
   }
   .switch input:checked + .track .thumb {
     transform: translateX(18px);

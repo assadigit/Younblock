@@ -683,3 +683,37 @@ $ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (88 ms
 Release notes explain the reduced-motion root cause in plain language, the
 new orchestrated turn-on, the polish, and the every-browser wording. Assets
 re-downloaded from the release page: checksums identical.
+
+## Phase 9 — every browser + logo palette (v0.4.0 / app 1.3.0)
+
+Ali's v0.3.0 field report: only the dedicated Chrome session (launched with
+--proxy-server) actually used the proxy; other Chrome profiles and Opera did
+not, and he disliked the green palette.
+
+- Root cause: the registry PAC (AutoConfigURL) is a mechanism several
+  real-world things quietly break (stale browser caches, other tools
+  overwriting it, PAC-fetch quirks). D46 switches to the manual proxy
+  values (ProxyEnable/ProxyServer/ProxyOverride + bypass list) — the
+  v2rayN/Clash mechanism every browser follows — with the backup/restore
+  state machine kept, any AutoConfigURL cleared while active, a
+  WM_SETTINGCHANGE broadcast beside InternetSetOption(39/37), a legacy-PAC
+  cleanup at startup, and a watchdog re-assert (EnsureAttached +
+  PROXY_REAPPLIED notice).
+- Proxy consequences handled: youtube mode fragments only routed hosts
+  (unfragmented relay for the rest), plain-http to non-routed hosts is
+  forwarded as a real forward proxy (origin-form, hop-by-hop headers
+  stripped, Connection: close) so plain-http sites keep working.
+- UI restyled to the logo (D47): warm charcoal neutrals, padlock-red
+  primary/on state, lightning-gold accent (warn, focus, echo rings, OK
+  checks); danger keeps its distinct coral; tray icons regenerated.
+- Tests: sysproxy manual-proxy suite rewritten (+ upgrade, orphan, clobber
+  cases), proxy forward/fragmentation tests, watchdog ensure test.
+
+Gates on the committed tree: go vet; go test -race (11 packages);
+GOOS=windows full build; check-platform-neutral; arm64 core build; npm run
+build (90.3 KB JS / 28.6 KB CSS); live selftest 1.3.0 all OK (youtube 87 ms,
+video 102 ms). Real-browser E2E through the running core on port 4599:
+YouTube loads (fragmented tunnel), example.com https loads (plain tunnel),
+info.cern.ch http loads (forward path). Screenshots of all states re-shot
+and vision-checked: no green anywhere, red on-state confirmed, red checked
+switch, no console or page errors.

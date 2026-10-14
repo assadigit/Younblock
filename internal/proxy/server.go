@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -317,7 +320,18 @@ func (s *Server) handle(conn net.Conn) {
 		s.handleTunnel(conn, br, rt.target)
 		return
 	case routeRedirect:
-		s.reply(conn, "HTTP/1.1 302 Found\r\nLocation: "+rt.https+"\r\nContent-Length: 0\r\n\r\n")
+		// Absolute-form http:// request. Hosts this app routes keep the
+		// http->https redirect (file 01 §7); anything else (youtube mode
+		// with the manual system proxy sending every host here) is
+		// forwarded like a normal proxy so plain-http sites keep working
+		// (D46).
+		mode, domains := s.pacData()
+		if mode == config.ModeAll || MatchAnyDomain(req.URL.Hostname(), domains) {
+			s.reply(conn, "HTTP/1.1 302 Found\r\nLocation: "+rt.https+"\r\nContent-Length: 0\r\n\r\n")
+			return
+		}
+		conn.SetReadDeadline(time.Time{})
+		s.forwardRequest(conn, br, req)
 		return
 	case routePAC:
 		mode, domains := s.pacData()
@@ -389,8 +403,94 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		return
 	}
 
+	// In youtube mode only the routed hosts are fragmented; everything
+	// else relays untouched (the manual system proxy sends every host
+	// here — D46).
+	mode, domains := s.pacData()
+	fragmentTLS := mode == config.ModeAll || MatchAnyDomain(host, domains)
+
 	clientSide := &bufferedConn{Conn: client, prefix: drainBuffered(br)}
-	s.runBidirectionalCopy(clientSide, upstream, host)
+	s.runBidirectionalCopy(clientSide, upstream, host, fragmentTLS)
+}
+
+// forwardRequest relays one plain-http request to its origin server like a
+// normal forward proxy (used for hosts outside the routed list in youtube
+// mode, so plain-http sites keep working through the manual system proxy;
+// D46). The request is rebuilt in origin-form and sent with
+// "Connection: close" — one exchange per connection keeps the relay simple
+// and correct; the browser simply opens a new connection for the next
+// request.
+func (s *Server) forwardRequest(client net.Conn, br *bufio.Reader, req *http.Request) {
+	_ = br // the body reads through the same bufio.Reader already
+	host := req.URL.Hostname()
+	if host == "" {
+		s.reply(client, statusBadRequest)
+		return
+	}
+	port := 80
+	if p := req.URL.Port(); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n > 0 && n <= 65535 {
+			port = n
+		}
+	}
+
+	ips, err := s.resolve(host)
+	if err != nil {
+		s.reply(client, statusBadGateway)
+		s.countConnError()
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
+	upstream, err := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, ips)
+	cancel()
+	if err != nil {
+		if s.cfg.Logger != nil {
+			s.cfg.Logger.Warn("forward dial failed", "reason", errKind(err))
+		}
+		s.reply(client, statusBadGateway)
+		s.countConnError()
+		return
+	}
+	defer upstream.Close()
+
+	// Rebuild the request in origin-form with hop-by-hop headers removed.
+	out := req.Clone(context.Background())
+	out.URL = &url.URL{Path: req.URL.Path, RawPath: req.URL.RawPath, RawQuery: req.URL.RawQuery}
+	if req.Host != "" {
+		out.Host = req.Host // the client's Host header (port included)
+	} else {
+		out.Host = req.URL.Host
+	}
+	out.Close = true
+	for _, h := range []string{"Connection", "Proxy-Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade"} {
+		out.Header.Del(h)
+	}
+	if req.Body != nil {
+		out.Body = req.Body
+	}
+	upstream.SetWriteDeadline(time.Now().Add(s.cfg.RequestTimeout))
+	if err := out.Write(upstream); err != nil {
+		s.countConnError()
+		return
+	}
+	upstream.SetWriteDeadline(time.Time{})
+
+	// Relay the residual request body (client -> origin) and the response
+	// (origin -> client) until the origin finishes; then end the exchange.
+	clientSide := &bufferedConn{Conn: client, prefix: nil}
+	cIdle := &idleConn{Conn: clientSide, timeout: s.cfg.IdleTimeout}
+	uIdle := &idleConn{Conn: upstream, timeout: s.cfg.IdleTimeout}
+	bodyDone := make(chan struct{})
+	go func() {
+		defer close(bodyDone)
+		s.copyDir(cIdle, uIdle, true)
+		closeWrite(upstream)
+	}()
+	s.copyDir(uIdle, cIdle, false)
+	// The response is fully relayed; nothing more can usefully happen.
+	client.Close()
+	upstream.Close()
+	<-bodyDone
 }
 
 // resolve returns target addresses; IP literals skip DNS.

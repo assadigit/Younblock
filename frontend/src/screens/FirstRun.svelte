@@ -69,19 +69,19 @@
   .check input {
     width: 18px;
     height: 18px;
-    accent-color: var(--green-500);
+    accent-color: var(--red-500);
   }
   .primary {
     margin-top: var(--space-4);
     min-height: 44px;
     align-self: stretch;
     border-radius: var(--radius-md);
-    background: var(--green-500);
+    background: var(--red-500);
     color: var(--color-on-primary);
     font-weight: 500;
     font-size: var(--text-md);
   }
   .primary:hover {
-    background: var(--green-400);
+    background: var(--red-400);
   }
 </style>

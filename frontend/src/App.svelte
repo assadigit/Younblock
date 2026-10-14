@@ -37,6 +37,7 @@
     const known: Record<string, string> = {
       METHOD_SWITCHED: copy.notice.METHOD_SWITCHED,
       RECOVERED: copy.notice.RECOVERED,
+      PROXY_REAPPLIED: copy.notice.PROXY_REAPPLIED,
     };
     return known[state.notice.code] ?? null;
   });
@@ -259,7 +260,7 @@
   .sheet .primary {
     min-height: 44px;
     border-radius: var(--radius-md);
-    background: var(--green-500);
+    background: var(--red-500);
     color: var(--color-on-primary);
     font-weight: 500;
   }

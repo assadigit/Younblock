@@ -109,17 +109,17 @@
       box-shadow 320ms ease-out;
   }
   .dot.on {
-    background: var(--green-400);
-    box-shadow: 0 0 0 3px rgba(52, 199, 123, 0.18);
+    background: var(--red-400);
+    box-shadow: 0 0 0 3px rgba(221, 50, 51, 0.18);
   }
   .dot.connecting {
     background: var(--color-warn);
-    box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.18);
+    box-shadow: 0 0 0 3px rgba(255, 197, 61, 0.18);
     animation: dot-wait 1.6s ease-in-out infinite alternate;
   }
   .dot.degraded {
     background: var(--color-warn);
-    box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.18);
+    box-shadow: 0 0 0 3px rgba(255, 197, 61, 0.18);
   }
   .dot.error {
     background: var(--color-danger);
@@ -127,7 +127,7 @@
   }
   .dot.stopping {
     background: var(--neutral-600);
-    box-shadow: 0 0 0 3px rgba(101, 105, 113, 0.14);
+    box-shadow: 0 0 0 3px rgba(128, 118, 113, 0.14);
   }
   @keyframes dot-wait {
     from {
@@ -148,7 +148,7 @@
   /* Degraded: the reason line is warmed up so the failure is not
      lost in gray (D45). */
   .subtitle.warn {
-    color: var(--amber-300);
+    color: var(--gold-300);
   }
   .notice {
     margin: 0;
@@ -215,24 +215,24 @@
     min-height: 44px;
     padding: var(--space-1) var(--space-2);
   }
-  /* Degraded repair action: an amber ghost button — clearly a warning
+  /* Degraded repair action: a gold ghost button — clearly a warning
      fix, not a second "turn on". */
   .fix {
     margin-top: var(--space-3);
     min-height: 44px;
     padding: var(--space-2) var(--space-6);
     border-radius: var(--radius-full);
-    border: 1px solid rgba(242, 184, 75, 0.45);
-    background: rgba(242, 184, 75, 0.08);
-    color: var(--amber-300);
+    border: 1px solid rgba(255, 197, 61, 0.45);
+    background: rgba(255, 197, 61, 0.08);
+    color: var(--gold-300);
     font-weight: 500;
     transition:
       background 160ms ease-out,
       border-color 160ms ease-out;
   }
   .fix:hover {
-    background: rgba(242, 184, 75, 0.16);
-    border-color: rgba(242, 184, 75, 0.7);
+    background: rgba(255, 197, 61, 0.16);
+    border-color: rgba(255, 197, 61, 0.7);
   }
 
   @media (prefers-reduced-motion: reduce) {

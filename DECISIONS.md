@@ -360,3 +360,51 @@ it is simply tested most with Chrome. The optional dedicated-Chrome-session
 setting keeps its name — that feature really is Chrome-only. File 02's
 section 4.1/7 button look is superseded here by Ali's explicit request
 (recorded so the spec and the code don't silently disagree).
+
+**D46 — v1.3.0 switches the Windows system proxy from a PAC script to the
+manual proxy values, so every browser actually picks it up.**
+Ali reported that only the dedicated Chrome session (launched with
+`--proxy-server`) worked; other Chrome profiles and Opera did not. The app
+had been setting `AutoConfigURL` to `http://127.0.0.1:<port>/proxy.pac` —
+a PAC script several real-world things can quietly break: browsers that
+cached their proxy settings keep them until a restart or a
+WM_SETTINGCHANGE, other proxy tools overwrite the registry, and a PAC left
+behind by anything takes precedence over the manual values in WinINet. The
+manual values (ProxyEnable=1, ProxyServer=127.0.0.1:<port>, and a bypass
+list for localhost/private ranges) are the mechanism v2rayN, Clash and
+friends use on millions of Windows machines — every mainstream browser
+follows them. The switch: Enable writes those values, clears any
+AutoConfigURL while we are active (ours from an older version, or another
+program's — a PAC would win over ProxyServer), keeps the backup/restore
+state machine (which already anticipated static proxy), and the refresh now
+also broadcasts WM_SETTINGCHANGE("Internet Settings") beside
+InternetSetOption(39/37) so even running browsers re-read their settings.
+A legacy PAC URL from a crashed pre-1.3.0 run without a backup is removed
+at startup (cleanupLegacy) and never recorded as the user's own. The
+watchdog re-asserts the values on every tick (EnsureAttached) so another
+tool clobbering them is repaired within ~2 minutes and surfaced as a
+PROXY_REAPPLIED notice (R13). Consequences inside the proxy: in youtube
+mode every host's traffic now passes through the app (the PAC used to keep
+non-YouTube traffic out), so the first TLS record is fragmented only for
+the routed hosts (unfragmented relay for everything else), and plain-http
+requests to non-routed hosts are forwarded like a normal proxy (origin-form
+rebuilt, hop-by-hop headers stripped, Connection: close) instead of the
+http→https redirect, so plain-http sites keep working. The /proxy.pac
+endpoint stays served for tests and anyone who points at it manually.
+File 01 §8's PAC approach is superseded by this field report.
+
+**D47 — v1.3.0 restyles the UI to Ali's logo: warm charcoal, padlock red,
+lightning gold. The green is gone.**
+Ali disliked the color combination, the green in particular, and asked for
+a palette harmonized with the logo (red padlock body, dark-charcoal
+shackle, white play triangle, gold lightning bolt). The neutrals moved
+from cool zinc to warm charcoal; the primary/"on" color is the padlock red
+(#DD3233 family) — a "live" red like a recording light, fitting for an
+app whose whole job is to be on; the gold of the lightning bolt
+(#FFC53D family) is the warn/connecting/accent color and the turn-on echo
+rings (the flash), plus the focus rings and the OK checkmarks in the
+connection test. The "on" glyph is white (the play triangle's white on the
+red padlock). Danger keeps its distinct coral (#FF6A5F) and differs from
+the on-state by treatment and label, not just hue. Tray icons regenerated
+in the same palette (red on-icon, gold attention dot, warm gray off).
+File 02 §2's token table is superseded by the logo-derived one.

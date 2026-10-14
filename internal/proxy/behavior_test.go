@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/netx"
 	"github.com/assadigit/Younblock/internal/stats"
 )
@@ -353,6 +354,7 @@ func TestProxyServesPACAndHealth(t *testing.T) {
 }
 
 func TestProxyRedirectsPlainHTTP(t *testing.T) {
+	// Routed hosts (the YouTube list) keep the http->https redirect.
 	srv, _ := newTestServer(t, nil)
 	conn, err := net.DialTimeout("tcp", srv.Addr(), 3*time.Second)
 	if err != nil {
@@ -360,7 +362,7 @@ func TestProxyRedirectsPlainHTTP(t *testing.T) {
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(3 * time.Second))
-	fmt.Fprintf(conn, "GET http://example.com/page HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	fmt.Fprintf(conn, "GET http://www.youtube.com/page HTTP/1.1\r\nHost: www.youtube.com\r\n\r\n")
 	br := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(br, nil)
 	if err != nil {
@@ -369,9 +371,180 @@ func TestProxyRedirectsPlainHTTP(t *testing.T) {
 	if resp.StatusCode != 302 {
 		t.Fatalf("status = %d, want 302", resp.StatusCode)
 	}
-	if loc := resp.Header.Get("Location"); loc != "https://example.com/page" {
+	if loc := resp.Header.Get("Location"); loc != "https://www.youtube.com/page" {
 		t.Fatalf("Location = %q", loc)
 	}
+}
+
+// httpOrigin is a plain-http origin that records the request it served.
+type httpOrigin struct {
+	addr string
+	got  atomic.Value // *http.Request snapshot
+}
+
+func newHTTPOrigin(t *testing.T) *httpOrigin {
+	t.Helper()
+	o := &httpOrigin{}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o.addr = ln.Addr().String()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		snap := *r
+		o.got.Store(&snap)
+		w.Header().Set("X-Origin", "yes")
+		fmt.Fprint(w, "origin-response")
+	})}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+	return o
+}
+
+// TestProxyForwardsPlainHTTPForOtherHosts: in youtube mode the manual
+// system proxy sends every host here, so a plain-http request to a host
+// outside the routed list must be forwarded like a normal proxy (not
+// redirected, not dropped) — plain-http sites keep working (D46).
+func TestProxyForwardsPlainHTTPForOtherHosts(t *testing.T) {
+	origin := newHTTPOrigin(t)
+	srv, _ := newTestServer(t, nil) // youtube mode, static resolver -> 127.0.0.1
+	conn, err := net.DialTimeout("tcp", srv.Addr(), 3*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	fmt.Fprintf(conn, "GET http://plain.test:%s/path?q=1 HTTP/1.1\r\nHost: plain.test:%s\r\nAccept: text/plain\r\n\r\n",
+		origin.addr[strings.Index(origin.addr, ":")+1:], origin.addr[strings.Index(origin.addr, ":")+1:])
+	br := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(br, nil)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode != 200 || string(body) != "origin-response" {
+		t.Fatalf("status %d body %q, want 200 origin-response", resp.StatusCode, body)
+	}
+	if resp.Header.Get("X-Origin") != "yes" {
+		t.Fatal("response headers did not come from the origin")
+	}
+	req, ok := origin.got.Load().(*http.Request)
+	if !ok {
+		t.Fatal("origin saw no request")
+	}
+	// The forwarded request must be origin-form with the right host.
+	if req.Host != "plain.test:"+origin.addr[strings.Index(origin.addr, ":")+1:] {
+		t.Errorf("origin saw Host %q", req.Host)
+	}
+	if req.URL.String() != "/path?q=1" {
+		t.Errorf("origin saw URL %q, want origin-form /path?q=1", req.URL.String())
+	}
+	if req.Method != "GET" || req.Header.Get("Accept") != "text/plain" {
+		t.Errorf("origin saw %s %v", req.Method, req.Header)
+	}
+	if req.Header.Get("Connection") != "" && req.Header.Get("Connection") != "close" {
+		t.Errorf("hop-by-hop Connection header leaked: %q", req.Header.Get("Connection"))
+	}
+	if req.Header.Get("Proxy-Connection") != "" {
+		t.Error("Proxy-Connection header leaked to the origin")
+	}
+}
+
+// TestYouTubeModeDoesNotFragmentUnroutedHosts: with the manual system proxy
+// every host's traffic passes through, but only the routed hosts get the
+// fragmented first TLS record; anything else relays untouched (D46).
+func TestYouTubeModeDoesNotFragmentUnroutedHosts(t *testing.T) {
+	rawLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &recordingListener{Listener: rawLn}
+	upPort := rawLn.Addr().(*net.TCPAddr).Port
+	go func() {
+		for {
+			c, err := rec.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				io.Copy(io.Discard, c)
+			}(c)
+		}
+	}()
+	t.Cleanup(func() { rawLn.Close() })
+
+	srv, _ := newTestServer(t, nil) // youtube mode; example.test is unrouted
+	conn := rawTunnel(t, srv.Addr(), fmt.Sprintf("example.test:%d", upPort))
+	defer conn.Close()
+	if _, err := conn.Write(tlsLikeRecord(400)); err != nil {
+		t.Fatal(err)
+	}
+	// Wait for the record to arrive, then count the reads.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if rc := rec.latest(); rc != nil {
+			if reads, _ := rc.stats(); reads >= 1 {
+				time.Sleep(150 * time.Millisecond) // let any further pieces land
+				reads, _ = rc.stats()
+				if reads != 1 {
+					t.Fatalf("unrouted host's first record arrived in %d reads, want 1 (unfragmented)", reads)
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("upstream saw no data")
+}
+
+// TestAllModeFragmentsEveryHost: route-all mode fragments the first TLS
+// record for every host.
+func TestAllModeFragmentsEveryHost(t *testing.T) {
+	rawLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &recordingListener{Listener: rawLn}
+	upPort := rawLn.Addr().(*net.TCPAddr).Port
+	go func() {
+		for {
+			c, err := rec.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				io.Copy(io.Discard, c)
+			}(c)
+		}
+	}()
+	t.Cleanup(func() { rawLn.Close() })
+
+	srv, _ := newTestServer(t, func(c *Config) {
+		c.Mode = config.ModeAll
+		c.FragmentConfig.Min = 80
+		c.FragmentConfig.Max = 120
+		c.FragmentConfig.Pause = 5 * time.Millisecond
+	})
+	conn := rawTunnel(t, srv.Addr(), fmt.Sprintf("example.test:%d", upPort))
+	defer conn.Close()
+	if _, err := conn.Write(tlsLikeRecord(400)); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if rc := rec.latest(); rc != nil {
+			if reads, _ := rc.stats(); reads >= 2 {
+				return // fragmented into several reads
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	rc := rec.latest()
+	if rc == nil {
+		t.Fatal("upstream saw no data")
+	}
+	reads, _ := rc.stats()
+	t.Fatalf("routed host's first record arrived in %d reads, want >= 2 (fragmented)", reads)
 }
 
 func TestProxyAnswers405ForOtherMethods(t *testing.T) {
