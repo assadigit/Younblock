@@ -591,3 +591,25 @@ Gates: go vet; go test -race (all packages); GOOS=windows full-app build
 (89.7 KB JS / 25.3 KB CSS); live self-test; degraded + settings screenshots
 re-taken and vision-checked; add/remove provider interaction verified via
 agent-browser.
+
+## Release v0.2.1 — hotfix published to GitHub Releases
+
+Date: 2026-10-14 (Asia/Tehran). Tag on the hotfix commit (390e32f); gates had
+just run green on the same tree.
+
+```
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> PE32+ console, 8,980,992 bytes (8.56 MB)
+      SHA-256 5e9ebae6b4ea43c3385ecc98698dbfba71b46915af1f1cde0a2db62acd6a4301
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> PE32+ GUI, 12,225,536 bytes (11.66 MB)
+      SHA-256 bd06ebdb1e4369477814bfc9f7e5026fe972d42209eb73438fdc1017da33095a
+$ /tmp/yb-core-linux --version  -> Younblock core 1.1.1
+$ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (85 ms), video OK
+```
+
+Release notes explain the honest diagnosis (identical network code between
+v0.1.0/v0.2.0; the block is on the network side), the three visible changes,
+and a step-by-step "what to do if it still won't connect" (including running
+the old v0.1.0 exe once to prove the network changed). Assets re-downloaded
+from the release page: checksums identical.
