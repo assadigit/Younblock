@@ -662,3 +662,24 @@ import is now `SettingsScreen`. That clears 4 of the 16 pre-existing
 svelte-check errors; the remaining 12 are the known runes/tsconfig quirk
 (`$state` untyped to svelte-check) and the Android stub, identical on HEAD —
 `npm run build`, the gate this project has always used, is green.
+
+## Release v0.3.0 — published to GitHub Releases
+
+Date: 2026-10-14 (Asia/Tehran). Tag v0.3.0 on the phase-8 commit (614f19a);
+gates had just run green on the same tree (go vet, go test -race, GOOS=windows
+build, platform-neutral, arm64 core build, npm run build, live selftest).
+
+```
+$ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/younblock-core.exe ./cmd/core
+   -> PE32+ console, 8,980,992 bytes (8.56 MB)
+      SHA-256 ca13938a44efebdc7c03e83b9590e215dbcb718c556fb5c9aa2736f99af8f585
+$ wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+   -> PE32+ GUI, 12,229,120 bytes (11.66 MB)
+      SHA-256 5e505b53be2a8018c89f42002d14030374d475c3d4c5caa767abdd88be599518
+$ /tmp/yb-core-linux --version  -> Younblock core 1.2.0
+$ /tmp/yb-core-linux --selftest (live) -> listener OK, dns OK, youtube OK (88 ms), video OK (107 ms)
+```
+
+Release notes explain the reduced-motion root cause in plain language, the
+new orchestrated turn-on, the polish, and the every-browser wording. Assets
+re-downloaded from the release page: checksums identical.
