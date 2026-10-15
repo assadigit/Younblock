@@ -1206,3 +1206,41 @@ gap the package left, cleaned the leftovers and shipped it.
   `App.svelte`, `reference-vs-younblock.png` and the stray one-byte
   `younblock-ui` marker. The integrated copies under `frontend/src/`,
   and `ui_bridge.go` / `ui_bridge_test.go`, are the living ones.
+
+## Release v0.7.0 — published to GitHub Releases
+
+Date: 2026-10-15 (Asia/Tehran). Tag v0.7.0 on commit d0fd1fd; the same
+tree passed every gate above (vet, race tests — the root package forced
+to re-run after the version bump, svelte-check 0/0, production build,
+live Linux E2E on the final 1.6.0 binary, preview fallback,
+platform-neutral check).
+
+Published with all 11 assets: younblock.exe, younblock-x86.exe,
+younblock-core.exe, younblock-core-x86.exe, younblock-linux-amd64,
+younblock-linux-386, younblock_1.6.0_amd64.deb, younblock_1.6.0_i386.deb,
+Younblock-1.6.0-x86_64.AppImage, Younblock-1.6.0-i686.AppImage,
+Younblock-1.6.0-x86_64.flatpak. Round-trip verified: every asset
+downloaded back through the API is byte-identical (sha256) to the built
+file — 11/11 MATCH. This time the SHA-256 list is actually in the
+release notes (v0.6.0's notes pointed at checksums they never listed).
+
+- Flatpak: the sandbox's flatpak stack restored user-space again
+  (apt-get download + dpkg-deb -x: flatpak 1.16.6, flatpak-builder
+  1.4.4, ostree, appstream + the libs; GNOME 48 Platform+SDK installed
+  --user from flathub under dbus-run-session; the compiled-in
+  validate-icon path patched to the equal-length /home/z/vali/ copy; a
+  fake system bus for the install). Bundle built through the committed
+  fallback path; installed --user: runtime org.gnome.Platform 48,
+  /app/bin/younblock byte-identical to dist/younblock-linux-amd64,
+  desktop + 9 icons, deployed binary reports 1.6.0. `flatpak run`
+  itself stays Ali's manual check on real Mint (same container limits
+  as v0.5.1/v0.6.0).
+- .deb amd64 extracts cleanly, /usr/bin/younblock --version 1.6.0,
+  Depends/Recommends intact, nine icon sizes; the i386 .deb binary is
+  ELF i386. AppImage x86_64 runs through the real AppImage runtime
+  (--appimage-extract-and-run): 1.6.0. The i686 AppImage cannot execute
+  in this container (no 32-bit loader, same as v0.6.0) — format-checked
+  only; it wraps the same-recipe build around the verified 32-bit
+  binary.
+- The Windows walkthrough (wails dev, the 8-point list) is still Ali's
+  step, and the release notes say so plainly.
