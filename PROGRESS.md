@@ -1454,3 +1454,33 @@ other property of the design language.
   (its four notes were by-design affordances). Responsive ladder
   re-checked at 300×620: root font 13.33px, everything fits, no
   scroll.
+
+## Release v0.7.3 — published to GitHub Releases
+
+Date: 2026-10-16 (Asia/Tehran). Tag v0.7.3 on commit 2a64548; the
+same tree passed every gate in Phase 17.
+
+Published with 13 assets: the four Windows exes, the two Linux single
+files, both .debs, both AppImages, the Flatpak bundle — plus the two
+bundles from v0.7.2's policy rebuilt for this version,
+`younblock-setup_1.6.3.zip` (7.7 KB) and `Younblock-offline_1.6.3.zip`
+(171 MB). Round-trip verified: every asset downloaded back through
+the API is byte-identical (sha256) to the built file — 13/13 MATCH.
+The SHA-256 list is in the release notes.
+
+- The Flatpak caught up as promised: the user-space stack was
+  restored again (flatpak 1.16.6 / flatpak-builder 1.4.4 / ostree
+  2025.2 via apt-get download + dpkg-deb -x; GNOME 48 Platform+SDK
+  --user from flathub; the equal-length validate-icon path patch).
+  Built through the committed fallback path; installed --user under
+  dbus-run-session with the fake system bus + bwrap passthrough shim;
+  deploy metadata runtime org.gnome.Platform 48, /app/bin/younblock
+  byte-identical to dist/younblock-linux-amd64 (sha f507da36…),
+  9 icons, desktop Exec correct, wrapped --version reports 1.6.3.
+- Offline pack spot checks: tagged source at 1.6.3, vendor/modules.txt
+  present, @rolldown/binding-win32-x64-msvc present and the Linux
+  binding absent, tools/ holds the Go zip + Node zip + PE wails.exe,
+  every packed .bat/.ps1 CRLF, setup zip exactly its four files.
+- Still Ali's to check: the Windows look with the real title bar at
+  the new 628 height (the 8-point walkthrough from v0.7.0, now on
+  1.6.3's proportions).
