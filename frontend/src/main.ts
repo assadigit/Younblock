@@ -1,6 +1,6 @@
-import "./styles/tokens.css";
-import "./styles/base.css";
-import "./styles/views.css";
+import "@fontsource-variable/sora";
+import "./tokens.css";
+import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 

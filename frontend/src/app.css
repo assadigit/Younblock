@@ -1,0 +1,70 @@
+/* app.css — the base layer under the Younblock screen. The screen itself
+   lives in App.svelte and lib/; this only prepares html/body/#app so the
+   360×760 stage scales with the window and nothing fights it. */
+
+:root {
+  color-scheme: dark;
+  /* Keep the whole 22.5×47.5rem stage visible in any window: the root font
+     scales down with the tighter axis and never grows past 16px. In the
+     Wails window (360×760 client area) this is exactly 16px. */
+  font-size: min(calc(100vw / 22.5), calc(100vh / 47.5), 1rem);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--off-bottom); /* no white flash before the gradient paints */
+  color: var(--text-primary);
+  font-family: var(--font);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  height: 100%;
+}
+
+::selection {
+  background: var(--red-500);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 0.125rem solid #fff;
+  outline-offset: 0.2rem;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* design.md: thumb slide, background fade and pulse all stop under
+   prefers-reduced-motion — position and words still carry the state. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

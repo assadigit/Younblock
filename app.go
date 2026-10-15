@@ -24,6 +24,7 @@ type App struct {
 	platform engine.Platform
 	browser  browserSession
 	quitting bool
+	bridge   *Bridge
 }
 
 func newApp() *App {
@@ -36,6 +37,11 @@ func newApp() *App {
 		panic(err)
 	}
 	a := &App{eng: eng, platform: plat}
+	a.bridge = NewBridge(newYounblockEngine(eng), func(s Snapshot) {
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "younblock:status", s)
+		}
+	})
 	eng.SetEventSink(a)
 	eng.SetOnQuit(func() {
 		a.quitting = true
@@ -48,20 +54,23 @@ func newApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// D48: grow the window so the WebView2 client area (the CSS
-	// viewport) is the full 360x560 logical design size — Wails'
+	// viewport) is the full 360x760 logical design size — Wails'
 	// initial size lands on the outer rectangle, leaving Ali with
-	// 336x522 and the overflow bugs he reported. Best-effort: any
-	// failure keeps the Wails size and the CSS ladder still copes.
-	if err := ensureDesignClientSize(360, 560); err != nil {
+	// a short viewport and the overflow bugs he reported. Best-effort:
+	// any failure keeps the Wails size and the CSS ladder still copes.
+	if err := ensureDesignClientSize(360, 760); err != nil {
 		a.eng.Logger().Info("window client-size correction skipped", "reason", err.Error())
 	}
 	a.startTray()
+	// Keep the screen's speed and ping fresh while connected.
+	go a.bridge.RunStats(ctx)
 	// Turn on automatically when the app opens (if the user asked for it).
+	// It goes through the bridge so the screen reflects it too.
 	var settings struct {
 		ConnectOnLaunch bool `json:"connectOnLaunch"`
 	}
 	if err := jsonUnmarshalStrict(a.eng.GetSettingsJSON(), &settings); err == nil && settings.ConnectOnLaunch {
-		go a.eng.Start()
+		go a.bridge.Connect()
 	}
 }
 
@@ -74,16 +83,17 @@ func (a *App) domReady(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	a.stopBrowserSession() // end the dedicated Chrome session before the engine
 	a.stopTray()
+	_ = a.bridge.Disconnect() // stop through the bridge so the screen settles
 	a.eng.Shutdown()
 }
 
-// beforeClose hides to the tray instead of quitting; the frontend runs the
-// one-time close notice (file 02, section 5) and hides the window itself.
+// beforeClose hides to the tray instead of quitting. The connect screen
+// has no close-notice flow, so the shell hides the window itself.
 func (a *App) beforeClose(ctx context.Context) bool {
 	if a.quitting {
 		return false // real quit: allow the close
 	}
-	runtime.EventsEmit(ctx, "close-requested")
+	a.hideWindow()
 	return true // prevent: hide to tray instead
 }
 
@@ -176,8 +186,26 @@ func (a *App) Start() string { return a.eng.StartJSON() }
 // Stop turns off.
 func (a *App) Stop() string { return a.eng.StopJSON() }
 
-// Toggle switches on/off.
-func (a *App) Toggle() string { return a.eng.ToggleJSON() }
+// Toggle switches on/off (the tray menu calls this). It routes through the
+// bridge so the connect screen stays in sync with tray actions.
+func (a *App) Toggle() string {
+	switch a.bridge.GetSnapshot().Phase {
+	case PhaseConnected, PhaseConnecting, PhaseDisconnecting:
+		_ = a.bridge.Disconnect()
+	default:
+		_ = a.bridge.Connect()
+	}
+	return `{"error":null}`
+}
+
+// Connect starts unblocking through the screen's bridge.
+func (a *App) Connect() error { return a.bridge.Connect() }
+
+// Disconnect stops unblocking through the screen's bridge.
+func (a *App) Disconnect() error { return a.bridge.Disconnect() }
+
+// GetSnapshot returns the screen's connection snapshot.
+func (a *App) GetSnapshot() Snapshot { return a.bridge.GetSnapshot() }
 
 // GetSettings returns the normalized settings.
 func (a *App) GetSettings() string { return a.eng.GetSettingsJSON() }
