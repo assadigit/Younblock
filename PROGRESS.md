@@ -1150,3 +1150,59 @@ Younblock-1.5.0-x86_64.flatpak. Round-trip verified: every asset
 downloaded back from the release page is byte-identical (sha256) to the
 built file — 11/11 MATCH. Release notes in the project's plain-language
 voice; CHANGELOG retitled to [v0.6.0] with the compare links updated.
+
+## Phase 14 — the new connect screen (v0.7.0 / app 1.6.0)
+
+Ali's design package `younblock-ui` (uploaded to the repo root) replaced
+the app's whole face. Integration followed the package's own
+agent-instructions (commit 5396191), and this release run closed the one
+gap the package left, cleaned the leftovers and shipped it.
+
+- Frontend: the package's `App.svelte`, `tokens.css`, `app.css` and the
+  seven `lib/` components; Sora Variable installed; `index.html` viewport
+  set to `width=device-width, initial-scale=1, viewport-fit=cover`; the
+  app CSP allows inline styles (vite dev injection + the screen's own
+  styles); `@sveltejs/vite-plugin-svelte` ^7.3.1 for the vite 8 peer
+  range. The old screens, components, i18n layer and per-edition
+  adapters are gone — recoverable at tag v0.6.0 (D60).
+- Go: `ui_bridge.go` (the package's state bridge) with its 330-line test
+  file; `engine_adapter.go` wraps the existing engine without touching
+  proxy logic (Start polls `GetState()` until the async connect settles:
+  on/degraded = ready, error = failed, off = canceled elsewhere); App
+  gains `Connect` / `Disconnect` / `GetSnapshot`; the tray Toggle and
+  connect-on-launch route through the bridge; the window is 360×760 with
+  the D48 client-size fix applied to the new height.
+- The gap (D61): the package shipped Wails + offline-preview transports
+  only, so the Linux single-file editions would have served a screen
+  whose button did nothing real. The localhost JSON + Server-Sent-Events
+  transport was rebuilt inside the screen's one seam (`backend.ts`),
+  with the bridge's exact state mapping and a once-per-second state
+  re-read while connected (the engine only pushes state *changes*; the
+  ping lives in the state).
+
+### Verification (v0.7.0 tree)
+
+- `go vet ./...` clean; `go test -race ./...` — every package passes,
+  including the new bridge tests.
+- `svelte-check` 0 errors / 0 warnings; `vite build` clean.
+- Live Linux E2E (agent-browser against the live `--web` core 1.6.0):
+  fresh page → "Not Connected"; power pill → real connect (engine `on`,
+  port 4525) with the timer ticking, "Ping 79 ms" live from the state
+  poll and the speeds row fed by stats events; disconnect → "Not
+  Connected", engine `off`. Forced a genuine failure the honest way —
+  `autoPort` off plus an occupier on 4525 → engine `error`
+  (PORT_BUSY) → the screen shows "Can't Connect" + "Could not connect.
+  Try again.", and the retry connects after the port is freed. (An
+  earlier attempt to force failure by holding the port with autoPort on
+  taught us the engine just takes 4526+ — AutoPort works as designed;
+  a dead DoH server is likewise healed around. Both noted here so the
+  next person doesn't re-learn it.)
+- Preview fallback (plain vite dev server, no engine): fake connect for
+  browser development, and `?fail=1` exercises the same error screen.
+- `agent-browser errors` / `console` — zero errors and zero warnings
+  across the whole live session.
+- The design-package leftovers were removed from the repo root (D60):
+  `agent-instructions.md`, `design.md`, `design-report.md`, the uploaded
+  `App.svelte`, `reference-vs-younblock.png` and the stray one-byte
+  `younblock-ui` marker. The integrated copies under `frontend/src/`,
+  and `ui_bridge.go` / `ui_bridge_test.go`, are the living ones.

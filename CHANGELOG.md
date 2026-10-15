@@ -12,6 +12,44 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.0] — 2026-10-15 (app 1.6.0)
+
+The "new face" release: the main screen is replaced by the new connect
+screen — one button, one glance (D60, D61).
+
+### Changed
+
+- **The whole app is now the connect screen** (D60): a single power
+  pill (START / CANCEL / STOP / WAIT) on a 360×760 stage — a red ring
+  while off, five green arcs while on — with the connection timer, live
+  download/upload speeds and the ping beside it. The pill can be
+  clicked, dragged past halfway to connect or disconnect, or driven
+  with ArrowDown / ArrowUp / Enter; pressing it while "Connecting…"
+  cancels. The window grew from 360×560 to give the new screen its
+  stage (the D48 client-size fix travels with it).
+- **The menu is a small sheet now**: About, How it works and Help live
+  behind the menu button; Escape closes it. The separate Settings,
+  Help, About and First-run screens — and the i18n layer only they
+  used — are gone (recoverable at tag v0.6.0). The engine still reads
+  the saved settings file, and the Linux JSON API still exposes them;
+  only their editing screen is gone.
+- **The tray and connect-on-launch now route through the new state
+  bridge**, so the tray icon, the window and the screen can never
+  disagree about whether the app is on.
+- **The Linux editions keep their real engine** (D61): the new screen's
+  one backend seam (`backend.ts`) gained back the localhost JSON +
+  Server-Sent-Events transport, so `younblock-linux-*`, the .debs, the
+  AppImages and the Flatpak drive the same engine as before, with the
+  same state mapping as the Wails bridge (degraded counts as connected;
+  PORT_BUSY and friends surface as "Can't Connect" with a retry). The
+  ping is re-read once a second while connected — the same cadence as
+  the Windows side.
+
+### Added
+
+- The Sora variable font ships with the app (the new screen's
+  typeface); no flags, no "Go Premium", no location chips anywhere.
+
 ## [v0.6.0] — 2026-10-15 (app 1.5.0)
 
 The "polish" release: a dedicated UI/UX and look-and-feel pass over the
@@ -233,7 +271,8 @@ First Windows test build, published to GitHub Releases.
 - `younblock-core.exe` headless CLI (`--selftest`, `--version`) and the
   diagnostic report generator.
 
-[Unreleased]: https://github.com/assadigit/Younblock/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/assadigit/Younblock/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/assadigit/Younblock/releases/tag/v0.7.0
 [v0.6.0]: https://github.com/assadigit/Younblock/releases/tag/v0.6.0
 [v0.5.1]: https://github.com/assadigit/Younblock/releases/tag/v0.5.1
 [v0.5.0]: https://github.com/assadigit/Younblock/releases/tag/v0.5.0

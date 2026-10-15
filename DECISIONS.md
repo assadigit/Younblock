@@ -640,3 +640,48 @@ the same step the error state always had, because its fix-pill stack was
 the one state landing exactly on D48's 15 px minimum gap (now 27 px at
 360×560 — the same treatment for both "needs attention" states, so they
 read as one family).
+
+**D60 — v1.6.0: the new connect screen is the whole app's face.**
+Ali's design package (`younblock-ui`, uploaded to the repo root) replaced
+the main screen per its own agent-instructions: `App.svelte`, `app.css`,
+`tokens.css` and the seven `lib/` components were copied in as-is, the
+window grew to 360×760 for the new stage (the D48 client-size fix applied
+to the new height), and the old screens, components, i18n layer and
+per-edition adapters were removed — recoverable at tag v0.6.0. The screen
+talks to Go only through `ui_bridge.go` (the package's state bridge) and
+`engine_adapter.go`, a wrapper that polls `GetState()` until the existing
+engine's async Start settles (on/degraded = ready, error = failed, off =
+canceled elsewhere) — no proxy logic was touched. The tray's Toggle and
+connect-on-launch route through the bridge too, so tray, window and
+screen share one truth. The design rules hold: no country flags, no
+"Go Premium", no location chips; Sora Variable is the typeface; colors
+and motion come only from `tokens.css`. After integration the package's
+own six uploaded files (agent-instructions.md, design.md,
+design-report.md, App.svelte, reference-vs-younblock.png and the stray
+one-byte `younblock-ui` marker) were removed from the repo root — the
+integrated copies under `frontend/src/` and `ui_bridge.go` are the
+living ones.
+
+**D61 — v1.6.0: the Linux editions keep their real engine behind the new
+screen.**
+The design package shipped two transports only — Wails bindings and an
+offline browser preview — so as integrated, `younblock-linux-*` (and the
+.deb / AppImage / Flatpak that embed it) would have served a screen whose
+button did nothing real. Before releasing, the localhost JSON +
+Server-Sent-Events transport was rebuilt inside the screen's one seam
+(`backend.ts`), exactly the adapter the package's own notes anticipated
+("only backend.ts needs a new adapter"). The probe is the old one: fetch
+`/api/appinfo` with a 1.5 s abort, trust it only when the name is
+Younblock, and fall through to the preview in a plain browser. The state
+mapping mirrors `ui_bridge.go` + `engine_adapter.go` line for line: on and
+degraded both count as connected (the timer keeps its first timestamp
+across on↔degraded flaps), stopping is "disconnecting", error shows the
+screen's one message ("Could not connect. Try again."), speeds arrive as
+bits from the stats events, and — because the engine only pushes state
+*changes* — the state is re-read once per second while connected so the
+ping stays live, the same cadence as the bridge's RunStats. Verified live
+against the Linux core: real connect, ticking timer, live ping and
+speeds, disconnect, a forced PORT_BUSY failure (autoPort off) surfacing
+as "Can't Connect" with a successful retry, and the preview fallback
+(plus its ?fail=1 error mode) on a plain dev server — zero console
+errors across all of it.

@@ -2,6 +2,8 @@
 // The screen only knows getSnapshot / subscribe / connect / disconnect;
 // createBackend() picks the right transport:
 //   * inside Wails: the generated bindings + the "younblock:status" event
+//   * served by the younblock binary itself (the Linux single-file
+//     edition): the localhost JSON API + Server-Sent Events
 //   * in a plain browser (vite dev, screenshots): a small offline preview
 //
 // =====================================================================
@@ -27,12 +29,12 @@ export interface Backend {
   disconnect(): Promise<void>;
 }
 
-/** Create the backend for this environment (Wails when available). */
+/** Create the backend for this environment (Wails, then HTTP, then preview). */
 export function createBackend(): Backend {
   if (wailsAvailable()) {
     return new WailsBackend();
   }
-  return previewBackend();
+  return autoBackend();
 }
 
 // ---- normalization -------------------------------------------------------
@@ -112,6 +114,222 @@ class WailsBackend implements Backend {
   async disconnect(): Promise<void> {
     await this.bindings[BINDINGS.disconnect]();
   }
+}
+
+// ---- the Linux single-file edition (HTTP + Server-Sent Events) -----------
+// The younblock binary serves this very page and a localhost JSON API
+// (internal/webui): GET /api/state, POST /api/start, POST /api/stop, and
+// /api/events pushing "state" and "stats" events. The mapping below mirrors
+// what the Wails side does on Windows (ui_bridge.go + engine_adapter.go):
+// on and degraded both count as connected, stopping is "disconnecting", and
+// the one message the screen knows is the connect-failure line.
+
+/** Phases of the engine state (internal/engine). */
+type EnginePhase = "off" | "connecting" | "on" | "degraded" | "error" | "stopping";
+
+/** The fields of /api state and "state" events that the screen needs. */
+interface EngineState {
+  phase: EnginePhase;
+  detail: string;
+  since: string;
+  latencyMs?: number | null;
+}
+
+/** The fields of "stats" events that the screen needs (bytes per second). */
+interface EngineStats {
+  rateDown: number;
+  rateUp: number;
+}
+
+/** Probe quickly whether this page is served by the younblock binary.
+ *  Must fail fast (timeout) so a plain static server (vite preview, the
+ *  screenshot harness) falls through to the preview backend without hanging. */
+async function httpAvailable(timeoutMs = 1500): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  // Only http(s) pages can talk to a same-origin API; file:// never can.
+  if (window.location.protocol !== "http:" && window.location.protocol !== "https:") return false;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch("/api/appinfo", { signal: controller.signal, cache: "no-store" });
+    if (!res.ok) return false;
+    const info = (await res.json()) as { name?: string };
+    return info.name === "Younblock";
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+/** POST one engine command and surface its typed error, if any. */
+async function postCommand(path: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", cache: "no-store" });
+  } catch {
+    throw new Error("network");
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = (await res.json()) as { error?: string | null };
+  if (body.error) throw new Error(body.error);
+}
+
+class HttpBackend implements Backend {
+  private listeners = new Set<(s: Snapshot) => void>();
+  private snap: Snapshot = { phase: "disconnected", connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null };
+  private readonly events: EventSource;
+  private poll: number | undefined;
+
+  constructor() {
+    this.events = new EventSource("/api/events");
+    this.events.addEventListener("state", (ev) => {
+      this.applyState(JSON.parse(ev.data) as EngineState);
+    });
+    this.events.addEventListener("stats", (ev) => {
+      const s = JSON.parse(ev.data) as EngineStats;
+      // The rates arrive as bytes per second; the screen shows bits.
+      this.update({ downBps: (Number(s.rateDown) || 0) * 8, upBps: (Number(s.rateUp) || 0) * 8 });
+    });
+  }
+
+  async getSnapshot(): Promise<Snapshot> {
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      if (res.ok) {
+        this.applyState((await res.json()) as EngineState);
+      }
+    } catch {
+      // The server went away; the last known state stands.
+    }
+    return this.snap;
+  }
+
+  subscribe(cb: (s: Snapshot) => void): () => void {
+    this.listeners.add(cb);
+    return () => this.listeners.delete(cb);
+  }
+
+  async connect(): Promise<void> {
+    await postCommand("/api/start");
+  }
+
+  async disconnect(): Promise<void> {
+    await postCommand("/api/stop");
+  }
+
+  /** Fold one fresh engine state into the snapshot, the bridge's mapping. */
+  private applyState(state: EngineState): void {
+    const prev = this.snap;
+    const phase: Snapshot["phase"] =
+      state.phase === "connecting"
+        ? "connecting"
+        : state.phase === "on" || state.phase === "degraded"
+          ? "connected"
+          : state.phase === "stopping"
+            ? "disconnecting"
+            : state.phase === "error"
+              ? "error"
+              : "disconnected";
+    // Speeds only mean something while connected (or turning off); every
+    // other state starts clean, exactly like a fresh Snapshot in the bridge.
+    const keepStats = phase === "connected" || phase === "disconnecting";
+    this.snap = {
+      phase,
+      // "since" is when this engine phase began; keep the first one across
+      // on↔degraded flaps so the on-screen timer does not reset.
+      connectedAtMs:
+        phase === "connected"
+          ? prev.phase === "connected" && prev.connectedAtMs
+            ? prev.connectedAtMs
+            : Date.parse(state.since) || null
+          : null,
+      downBps: keepStats ? prev.downBps : 0,
+      upBps: keepStats ? prev.upBps : 0,
+      pingMs:
+        phase === "disconnecting"
+          ? prev.pingMs
+          : phase === "connected" && typeof state.latencyMs === "number" && state.latencyMs > 0
+            ? state.latencyMs
+            : null,
+      message: phase === "error" ? "Could not connect. Try again." : null,
+    };
+    this.schedulePoll();
+    this.emit();
+  }
+
+  /** Patch the live speeds from a "stats" event. */
+  private update(patch: Pick<Snapshot, "downBps" | "upBps">): void {
+    this.snap = { ...this.snap, ...patch };
+    this.emit();
+  }
+
+  /** The ping lives in the engine state, but only state *changes* are
+   *  pushed over SSE — so while connected the state is re-read once per
+   *  second, the same cadence as the Wails bridge's RunStats. */
+  private schedulePoll(): void {
+    const need = this.snap.phase === "connected";
+    if (need && this.poll === undefined) {
+      this.poll = window.setInterval(() => {
+        if (this.snap.phase !== "connected") return;
+        fetch("/api/state", { cache: "no-store" })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((state) => {
+            if (state) this.applyState(state as EngineState);
+          })
+          .catch(() => {});
+      }, 1000);
+    } else if (!need && this.poll !== undefined) {
+      window.clearInterval(this.poll);
+      this.poll = undefined;
+    }
+  }
+
+  private emit(): void {
+    for (const cb of this.listeners) cb(this.snap);
+  }
+}
+
+/** Wails is not here, but two very different hosts can still serve this
+ *  page: the younblock binary itself (the Linux edition, a real engine
+ *  behind /api) or a plain dev server (vite, the screenshot harness) with
+ *  no engine at all. The probe tells them apart; until it settles the
+ *  screen simply shows "off". */
+function autoBackend(): Backend {
+  let resolved: Backend | null = null;
+  const waiting: Array<() => void> = [];
+  const listeners = new Set<(s: Snapshot) => void>();
+
+  const settle = (b: Backend): void => {
+    resolved = b;
+    b.subscribe((s) => {
+      for (const cb of listeners) cb(s);
+    });
+    for (const wake of waiting) wake();
+  };
+
+  void httpAvailable().then((ok) => settle(ok ? new HttpBackend() : previewBackend()));
+
+  const whenReady = (): Promise<Backend> =>
+    resolved !== null
+      ? Promise.resolve(resolved)
+      : new Promise<Backend>((wake) => waiting.push(() => wake(resolved as Backend)));
+
+  return {
+    async getSnapshot(): Promise<Snapshot> {
+      return (await whenReady()).getSnapshot();
+    },
+    subscribe(cb: (s: Snapshot) => void): () => void {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    async connect(): Promise<void> {
+      return (await whenReady()).connect();
+    },
+    async disconnect(): Promise<void> {
+      return (await whenReady()).disconnect();
+    },
+  };
 }
 
 // ---- the offline preview (plain-browser development only) ----------------
