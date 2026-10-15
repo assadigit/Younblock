@@ -1407,3 +1407,50 @@ launcher itself explains this if it is missing its partner).
 - Still Ali's to check: the Windows walkthrough (wails dev, the
   8-point list) — on a blocked network, the offline pack is now the
   zero-internet path to it.
+
+## Phase 17 — the proportion pass (v0.7.3 / app 1.6.3)
+
+Ali's brief: the 388×782 window was too tall for what it shows —
+target ≈388×650 including the title bar, −15–20% height, keep every
+other property of the design language.
+
+- Audited the old 47.5rem vertical stack gap by gap before touching
+  anything: top padding 3.1, header 2.5, gap 0.7, illustration 8.4,
+  gap 1.5, status 5.25, gap 3.4, track 14.25, gap 4.475, hint ~1,
+  bottom 2.9. The two clear wastes: the hint's dead zone below the
+  control (4.475+2.9) and the generous top padding.
+- New stage 22.5×39.25rem = 360×628 client (window ≈388×650 with the
+  22px title bar — Ali's measured chrome on 782−760). main.go Height
+  628; ensureDesignClientSize(360, 628) (D48 still guards the client
+  area at any DPI); app.css root-font ladder now 100vh/39.25.
+- Cut deliberately (D65 has the full table): header top 2.375rem,
+  20px horizontal padding; play mark −15%; status 0.5rem closer; the
+  control −12% (thumb height 110px, width and touch targets kept);
+  OFF ring r 6.625rem; ON arcs 70–126px; hint 1.625rem under the
+  track; chevrons recentered exactly in their now-shorter empty
+  halves; the halftone texture's fade retuned for the shorter stage.
+- PowerPill reads --travel from tokens.css on mount/resize — the drag
+  math can no longer disagree with the CSS (the old code kept a
+  second copy of 5.75rem in a comment-synced constant).
+- Found and fixed while validating: MenuSheet's 20ms-delayed
+  closeBtn.focus() scrolled the whole stage up ~320px on open (the
+  closed sheet sits below the scaled stage and counts as scrollable
+  overflow; the browser chased the still-hidden button) — now
+  focus({preventScroll: true}). Also the About sheet's hard-coded
+  "1.5.0" → 1.6.3, and its max-height cap rebased to the shorter
+  stage (min(78%, 30.5rem)).
+- Gates on the final tree: svelte-check 0/0; vite build clean;
+  go vet clean; go test -race -count=1 all packages pass;
+  check-platform-neutral OK; core --version reports 1.6.3.
+- Browser E2E at exactly 360×628 (vite preview adapter): every
+  element measured at its planned pixel (header 38, mark 90×163,
+  status 220.4, track 350–550, thumb 356–466, hint 576; docH 628,
+  no scrollbar); click-connect (spinner dead-centre in its well,
+  CANCEL, then timer at 112 + speeds + ping); full-drag connect and
+  short-drag snap-back; swipe-up disconnect; ArrowDown/ArrowUp/Enter;
+  ?fail=1 error state with retry; menu sheet opens bottom-anchored
+  140–628, scrolls inside, Escape + focus restore; zero console or
+  page errors; VLM design review of all five states found no defect
+  (its four notes were by-design affordances). Responsive ladder
+  re-checked at 300×620: root font 13.33px, everything fits, no
+  scroll.

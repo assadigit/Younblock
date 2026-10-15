@@ -12,6 +12,45 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.3] — 2026-10-16 (app 1.6.3)
+
+The proportion pass: the window is shorter and better balanced — the
+same connect screen, the same engine, ~17% less height. Nothing about
+how it works changed.
+
+### Changed
+
+- **The window is now 360×628 inside (≈388×650 with the title bar),
+  down from 360×760 (≈388×782).** The screen keeps its dark theme,
+  red START button, YouTube branding, dotted background and rounded
+  shapes — every font size is unchanged; only the spacing and the two
+  big shapes were retuned.
+- **A deliberate vertical rhythm instead of stacked islands** (D65):
+  tighter top padding above the header (50→38 px), the YouTube play
+  illustration 15% smaller, the status group pulled closer to it, the
+  power-button assembly 12% shorter (track 228→200 px, thumb 124→110
+  px — the 82 px width and the touch target are untouched), and the
+  dotted ring rescaled to hug it (124→106 px radius; the five
+  connected arcs −17%).
+- **The bottom hint ("Click or swipe down to connect") moved up** to a
+  consistent 26 px below the button instead of floating 72 px lower,
+  pushed toward the window edge. Horizontal padding is now a uniform
+  20 px.
+- `PowerPill` now reads the swipe travel from `tokens.css` (one
+  source of truth) instead of hard-coding it beside the token.
+
+### Fixed
+
+- **Opening the menu could shove the whole screen upward for a
+  moment.** The sheet lives inside the scaled stage, and focusing its
+  close button while the sheet was still sliding up made the browser
+  scroll the stage to chase the button. The focus call now explicitly
+  forbids that scroll. (Visible at the new window height; barely
+  visible before.)
+- The About sheet showed "Younblock 1.5.0" since the new screen
+  landed — the version string was hard-coded and never bumped with
+  the app. It now says 1.6.3.
+
 ## [v0.7.2] — 2026-10-15 (app 1.6.2)
 
 The "filtered network" release: the one-click setup survives blocked

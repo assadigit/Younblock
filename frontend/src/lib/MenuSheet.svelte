@@ -10,7 +10,7 @@
   // =====================================================================
   // CONFIG — edit the three texts here
   // =====================================================================
-  const APP_VERSION = "1.5.0";
+  const APP_VERSION = "1.6.3";
 
   const ABOUT = [
     "Younblock helps YouTube load in your browser when the network gets in the way. It runs only on your PC, with no account and no analytics.",
@@ -36,12 +36,15 @@
 
   // A modal sheet takes focus when it opens and hands it back when it
   // closes. The tiny delay lets the visibility transition release the
-  // element first (a hidden element cannot be focused).
+  // element first (a hidden element cannot be focused). preventScroll
+  // matters: the closed sheet still sits below the stage (translateY),
+  // and a plain focus() would scroll .app to reveal it, shoving the
+  // whole screen up for a moment.
   $: if (open) {
     if (!restoreFocus) {
       restoreFocus = document.activeElement as HTMLElement | null;
     }
-    window.setTimeout(() => closeBtn?.focus(), 20);
+    window.setTimeout(() => closeBtn?.focus({ preventScroll: true }), 20);
   } else {
     restoreFocus?.focus?.();
     restoreFocus = null;
@@ -123,7 +126,7 @@
     left: 50%;
     bottom: 0;
     width: min(100%, 22.5rem);
-    max-height: min(78%, 37rem);
+    max-height: min(78%, 30.5rem);
     display: flex;
     flex-direction: column;
     margin-left: calc(min(50%, 11.25rem) * -1);

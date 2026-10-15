@@ -750,3 +750,28 @@ node_modules really is the one wails would keep; and the Wails CLI is
 cross-compiled with `-mod=mod` — `go mod vendor` only vendors what the
 app imports, so the CLI (package main, never imported) must come from
 the module cache, pinned to the app's own wails/v2 version.
+
+**D65 — v1.6.3: the proportion pass — cut height where it was wasted,
+not everywhere by the same percent.**
+The window went from a 360×760 client area to 360×628 (−17.4%, the
+middle of Ali's 15–20% ask), and the budget came from a measured
+audit of the old vertical stack, not a uniform scale. Every font size
+is untouched (1rem stays 16px at the design size, so nothing gets
+harder to read); only spacing and the two big shapes moved. The
+pillars: the header's top padding 3.1→2.375rem and its horizontal
+padding 1.5→1.25rem (a uniform 20px); the play illustration −15%
+(12→10.2rem wide); the status group pulled 0.5rem closer to it; the
+control assembly −12% (track 14.25→12.5rem, thumb 7.75→6.875rem,
+travel 5.75→4.875rem — the 82px thumb width and the 40px menu button
+are deliberately NOT shrunk, touch targets first); the dotted OFF
+ring 7.75→6.625rem so it hugs the shorter track; the five ON arcs
+−17%; and the old worst offender, the hint sitting 4.5rem below the
+button with 2.9rem of dead space beneath it, now 1.625rem below the
+button with 2.3rem of bottom margin. The swipe travel is now read
+from the --travel token at runtime (PowerPill measures it on mount
+and resize) instead of a second hard-coded copy of the number. Two
+side findings fixed on the way: MenuSheet's focus() call now passes
+preventScroll (the closed sheet overflows the scaled stage, and a
+plain focus made the browser scroll the whole screen up to chase the
+still-sliding close button), and the About sheet's version string was
+a stale hard-coded 1.5.0.

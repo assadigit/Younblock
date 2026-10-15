@@ -1,13 +1,13 @@
 /* app.css — the base layer under the Younblock screen. The screen itself
    lives in App.svelte and lib/; this only prepares html/body/#app so the
-   360×760 stage scales with the window and nothing fights it. */
+   360×628 stage scales with the window and nothing fights it. */
 
 :root {
   color-scheme: dark;
-  /* Keep the whole 22.5×47.5rem stage visible in any window: the root font
-     scales down with the tighter axis and never grows past 16px. In the
-     Wails window (360×760 client area) this is exactly 16px. */
-  font-size: min(calc(100vw / 22.5), calc(100vh / 47.5), 1rem);
+  /* Keep the whole 22.5×39.25rem stage visible in any window: the root
+     font scales down with the tighter axis and never grows past 16px. In
+     the Wails window (360×628 client area) this is exactly 16px. */
+  font-size: min(calc(100vw / 22.5), calc(100vh / 39.25), 1rem);
 }
 
 *,

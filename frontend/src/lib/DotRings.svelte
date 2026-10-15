@@ -8,7 +8,7 @@
   export let tone: "on" | "off" = "off";
   export let busy = false;
   /** Vertical center of the ring family, in rem. */
-  export let cy = 32.4;
+  export let cy = 28.3;
 
   const CENTER_X = 11.25; // rem — the middle of the 22.5rem stage
   const START_DEG = -40; // the arcs stay open at the top
@@ -16,15 +16,16 @@
 
   type Ring = { r: number; dot: number; opacity: number };
 
-  // Radii measured from the reference render.
+  // Radii measured from the reference render, rescaled with the smaller
+  // control in the v1.6.3 proportion pass (outer arc −17%).
   const ON_ARCS: Ring[] = [
-    { r: 5.25, dot: 0.15, opacity: 0.95 }, // 84px
-    { r: 6.375, dot: 0.14, opacity: 0.85 }, // 102px
-    { r: 7.5, dot: 0.13, opacity: 0.72 }, // 120px
-    { r: 8.625, dot: 0.12, opacity: 0.55 }, // 138px
-    { r: 9.75, dot: 0.11, opacity: 0.4 }, // 156px
+    { r: 4.375, dot: 0.15, opacity: 0.95 }, // 70px
+    { r: 5.25, dot: 0.14, opacity: 0.85 }, // 84px
+    { r: 6.125, dot: 0.13, opacity: 0.72 }, // 98px
+    { r: 7.0, dot: 0.12, opacity: 0.55 }, // 112px
+    { r: 7.875, dot: 0.11, opacity: 0.4 }, // 126px
   ];
-  const OFF_RING: Ring[] = [{ r: 7.75, dot: 0.14, opacity: 0.85 }]; // 124px
+  const OFF_RING: Ring[] = [{ r: 6.625, dot: 0.14, opacity: 0.85 }]; // 106px
 
   function ringDots(r: number): { x: number; y: number }[] {
     const arc = (SWEEP_DEG / 360) * 2 * Math.PI * r;
@@ -43,7 +44,7 @@
   }));
 </script>
 
-<svg class="rings" class:busy data-tone={tone} viewBox="0 0 22.5 47.5" aria-hidden="true" focusable="false">
+<svg class="rings" class:busy data-tone={tone} viewBox="0 0 22.5 39.25" aria-hidden="true" focusable="false">
   <g class="family" style:--cy={`${cy}`}>
     {#each rings as ring, ri}
       {#each ring.dots as dot, di}

@@ -141,7 +141,7 @@
       <div class="detail" class:visible={detail !== ''}>{detail}</div>
     </div>
 
-    <DotRings {tone} {busy} cy={tone === 'on' ? 35 : 32.4} />
+    <DotRings {tone} {busy} cy={tone === 'on' ? 30.5625 : 28.3} />
     <PowerPill {phase} on:connect={connect} on:disconnect={disconnect} />
 
     <div class="hint" class:visible={hint !== ''}>{hint}</div>
@@ -198,7 +198,7 @@
     left: -40rem;
     right: -40rem;
     bottom: -20rem;
-    height: 47rem;
+    height: 39rem;
     background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0.07rem, transparent 0.13rem);
     background-size: 0.4rem 0.4rem;
     -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 78%);
@@ -210,9 +210,9 @@
   .mark {
     position: absolute;
     left: 50%;
-    top: 6.3rem;
-    width: 12rem;
-    margin-left: -6rem;
+    top: 5.625rem;
+    width: 10.2rem;
+    margin-left: -5.1rem;
     fill: #fff;
     opacity: 0.04;
     pointer-events: none;
@@ -224,9 +224,9 @@
 
   header {
     position: absolute;
-    top: 3.1rem;
-    left: 1.5rem;
-    right: 1.5rem;
+    top: 2.375rem;
+    left: 1.25rem;
+    right: 1.25rem;
     height: var(--menu-btn);
     display: flex;
     align-items: center;
@@ -291,7 +291,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 8.65rem;
+    top: 7rem;
     opacity: 0;
     transform: translateY(-0.4rem);
     transition:
@@ -331,7 +331,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 16.2rem;
+    top: 13.775rem;
     text-align: center;
   }
   .label {
@@ -344,11 +344,11 @@
     margin-top: 0.35rem;
     font-size: var(--fs-status);
     font-weight: var(--fw-bold);
-    line-height: 2rem;
+    line-height: 1.9rem;
     text-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.25);
   }
   .detail {
-    margin-top: 0.7rem;
+    margin-top: 0.55rem;
     min-height: 1rem;
     font-size: var(--fs-stats);
     font-weight: var(--fw-medium);
@@ -364,7 +364,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 43.6rem;
+    top: 36rem;
     text-align: center;
     font-size: var(--fs-hint);
     font-weight: var(--fw-medium);

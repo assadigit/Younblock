@@ -15,7 +15,7 @@
   --green-led: #36bf51;
   --green-led-peak: #41e865;
 
-  /* ---- Surfaces (360×760 vertical gradients, cross-faded in App.svelte) ---- */
+  /* ---- Surfaces (360×628 vertical gradients, cross-faded in App.svelte) ---- */
   --off-top: #3c3b4b;
   --off-mid: #272730;
   --off-bottom: #26262f;
@@ -52,18 +52,21 @@
   --fw-semibold: 600;
   --fw-bold: 700;
 
-  /* ---- Stage: the 360×760 canvas, 1rem = 16px, scales with the window ---- */
+  /* ---- Stage: the 360×628 canvas, 1rem = 16px, scales with the window ---- */
   --stage-w: 22.5rem;
-  --stage-h: 47.5rem;
+  --stage-h: 39.25rem;
   --menu-btn: 2.5rem;
 
-  /* ---- The pill (measured: track 96×228, thumb 82×124, travel 92) ---- */
-  --track-top: 24.875rem; /* track center sits at 32rem */
+  /* ---- The pill (v1.6.3 proportion pass: track 96×200, thumb 82×110,
+         travel 78 — the 228-tall original measured in design-report.md,
+         compacted 12% to fit the shorter window without shrinking the
+         touch target's width) ---- */
+  --track-top: 21.875rem; /* track center sits at 28.125rem */
   --track-w: 6rem;
-  --track-h: 14.25rem;
+  --track-h: 12.5rem;
   --thumb-w: 5.125rem;
-  --thumb-h: 7.75rem;
-  --travel: 5.75rem;
+  --thumb-h: 6.875rem;
+  --travel: 4.875rem;
 
   /* ---- Motion (all of it stops under prefers-reduced-motion) ---- */
   --dur-fast: 150ms;

@@ -54,11 +54,11 @@ func newApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// D48: grow the window so the WebView2 client area (the CSS
-	// viewport) is the full 360x760 logical design size — Wails'
+	// viewport) is the full 360x628 logical design size — Wails'
 	// initial size lands on the outer rectangle, leaving Ali with
 	// a short viewport and the overflow bugs he reported. Best-effort:
 	// any failure keeps the Wails size and the CSS ladder still copes.
-	if err := ensureDesignClientSize(360, 760); err != nil {
+	if err := ensureDesignClientSize(360, 628); err != nil {
 		a.eng.Logger().Info("window client-size correction skipped", "reason", err.Error())
 	}
 	a.startTray()

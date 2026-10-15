@@ -1,12 +1,12 @@
 //go:build windows
 
 // clientsize_windows.go — D48 root fix: Wails' initial SetSize applies the
-// logical 360x560 to the OUTER window rectangle (title bar and frame
+// logical 360x628 to the OUTER window rectangle (title bar and frame
 // included, after DPI scaling), so the WebView2 client area — the CSS
 // viewport — always comes up short (Ali's screenshots measured 336x522
-// instead of 360x560). This file finds our window, measures its real
-// frame, and resizes the outer window so the CLIENT area is exactly the
-// design size at the current DPI.
+// instead of the design size). This file finds our window, measures its
+// real frame, and resizes the outer window so the CLIENT area is exactly
+// the design size at the current DPI.
 package main
 
 import (

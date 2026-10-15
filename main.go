@@ -1,5 +1,5 @@
 // younblock is the Windows app shell (file 01, section 3; file 02,
-// section 3): a fixed 360 x 760 dark window over the engine, a tray icon,
+// section 3): a fixed 360 x 628 dark window over the engine, a tray icon,
 // single-instance behavior, and a --minimized launch mode.
 package main
 
@@ -25,7 +25,7 @@ func main() {
 	err := wails.Run(&options.App{
 		Title:             "Younblock",
 		Width:             360,
-		Height:            760,
+		Height:            628,
 		DisableResize:     true,
 		WindowStartState:  options.Normal,
 		StartHidden:       *minimized,

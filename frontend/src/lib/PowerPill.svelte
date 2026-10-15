@@ -21,18 +21,22 @@
   $: busy = phase === "connecting" || phase === "disconnecting";
   $: label = LABELS[phase];
 
-  // The travel is 5.75rem (92px at the design size); the window may scale
-  // the root font, so keep the pixel value current for drags.
+  // The travel lives in tokens.css (--travel, 4.875rem = 78px at the
+  // design size); the window may scale the root font, so keep the pixel
+  // value current for drags.
   let remPx = 16;
+  let travelRem = 4.875;
   onMount(() => {
     const measure = () => {
       remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const t = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--travel"));
+      if (t > 0) travelRem = t;
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   });
-  $: travelPx = 5.75 * remPx;
+  $: travelPx = travelRem * remPx;
 
   // Drag state. The thumb rests at one end (top when off, bottom when on)
   // and follows the pointer between them while dragging.
@@ -197,10 +201,10 @@
     pointer-events: none;
   }
   .chev.down {
-    top: 11.6rem;
+    top: 9.25rem;
   }
   .chev.up {
-    top: 1.8rem;
+    top: 2rem;
   }
   .chev.visible {
     opacity: 1;
@@ -223,8 +227,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: 3.45rem;
-    gap: 0.9rem;
+    padding-top: 2.85rem;
+    gap: 0.75rem;
     cursor: pointer;
     touch-action: none;
     user-select: none;
@@ -243,7 +247,7 @@
 
   .led {
     position: absolute;
-    top: 1.75rem;
+    top: 1.5rem;
     left: 50%;
     width: 1.125rem;
     height: 0.3125rem;
@@ -270,8 +274,8 @@
   }
 
   .power {
-    width: 1.4375rem;
-    height: 1.4375rem;
+    width: 1.375rem;
+    height: 1.375rem;
     fill: none;
     stroke: #fff;
     stroke-width: 2.4;
@@ -281,8 +285,8 @@
 
   /* the icon sits in a slightly darker well, like the reference render */
   .well {
-    width: 2rem;
-    height: 2rem;
+    width: 1.875rem;
+    height: 1.875rem;
     display: grid;
     place-items: center;
     border-radius: 50%;
@@ -291,8 +295,8 @@
   }
 
   .spinner {
-    width: 1.375rem;
-    height: 1.375rem;
+    width: 1.3125rem;
+    height: 1.3125rem;
     border-radius: 50%;
     border: 0.1875rem solid rgba(255, 255, 255, 0.25);
     border-top-color: #fff;
