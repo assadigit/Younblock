@@ -12,6 +12,56 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.4] — 2026-10-16 (app 1.6.4)
+
+The two-editions release: every platform now ships **Younblock** (the
+redesigned connect screen) and **Younblock Classic** (the simple v0.6.0
+UI you knew) side by side — and on Linux the AppImage and .deb finally
+**open as their own desktop window** instead of a browser tab.
+
+### Added
+
+- **Younblock Classic editions** (D66): `younblock-classic.exe` (64/32-bit
+  Windows) and `younblock-classic_<ver>_amd64.deb` /
+  `Younblock-Classic-<ver>-x86_64.AppImage` (Linux). Same engine, same
+  settings, ~8.5 MB downloads — the small simple version is back. The
+  browser (single-executable) editions carry both screens: add
+  `?ui=classic` to the URL to switch.
+- **Native window editions for Linux** (D67): the 64-bit .deb and AppImage
+  are now real GTK + webkit2gtk desktop apps with their own taskbar icon
+  and window — no browser tab. The .deb pulls webkit from your Mint
+  repos (apt keeps it updated, ~10 MB download); the AppImage bundles
+  the whole webkit runtime so it runs on any glibc ≥ 2.35 desktop even
+  with nothing installed. Built against Ubuntu 22.04 webkit2gtk-4.1, so
+  every Mint since 21 is covered.
+- The web edition's `?ui=classic|pro` switch (both screens are in the
+  bundle; the URL picks).
+
+### Changed
+
+- The window's Linux close button now quits the app (stopping the engine
+  and restoring the proxy first) — there is no tray to hide into there;
+  on Windows the close-to-tray behavior is unchanged.
+- Opening the logs folder uses the desktop's file manager on Linux
+  (xdg-open) instead of trying Windows Explorer.
+- build.bat now produces the classic exes too; build.sh builds the full
+  two-edition matrix for both platforms.
+
+### Fixed
+
+- The AppImage on Linux Mint no longer opens in a web browser — it opens
+  as an application window (the single-executable 32-bit line keeps the
+  browser mode for old 32-bit Mint, where the native stack cannot run).
+
+### Compatibility notes
+
+- The 32-bit Linux editions (.deb i386, i686 AppImage, younblock-linux-386)
+  remain browser editions: old 32-bit Mint (glibc 2.31) cannot run the
+  native stack. 64-bit Mint 21/22/23 users get native windows.
+- The Flatpak stays at 1.6.3 this release (the sandbox lost its flatpak
+  stack again; the app code it wraps did not change). It keeps the
+  browser mode for now; a native flatpak is on the list.
+
 ## [v0.7.3] — 2026-10-16 (app 1.6.3)
 
 The proportion pass: the window is shorter and better balanced — the

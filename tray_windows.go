@@ -60,6 +60,10 @@ func (a *App) stopTray() {
 	systray.Quit()
 }
 
+// closeHidesToTray: the tray icon exists here, so closing the window
+// hides into it instead of quitting.
+func closeHidesToTray() bool { return true }
+
 func onTrayReady() {
 	t := theTray
 	if t == nil {

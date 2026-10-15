@@ -16,6 +16,27 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.6.4** (the "two editions, real windows" release):
+
+> The full release history — every version, in plain language — now lives in
+> [CHANGELOG.md](CHANGELOG.md). The notes below are the short version.
+
+- **Two editions on every platform.** Every download now comes in two
+  flavors: **Younblock** — the redesigned connect screen (the red START
+  pill, the dotted rings) — and **Younblock Classic** — the simple,
+  familiar UI from before the redesign, back by popular demand in a
+  ~8.5 MB download. Same engine, same settings, both installable side
+  by side. The one-file Linux edition carries both: add `?ui=classic`
+  to its address to switch screens.
+- **On Linux Mint the app now opens as a real window.** The 64-bit .deb
+  and AppImage used to open a browser tab; they are now proper desktop
+  apps with their own window, taskbar icon and menu entry. The .deb
+  pulls its display engine from your Mint repositories (small
+  download, apt keeps it fresh); the AppImage carries everything
+  inside (~75 MB) so it runs on any Linux Mint since 21 with nothing
+  installed. The 32-bit Linux files keep the browser style — old
+  32-bit Mint cannot run the new one.
+
 **What's new in version 1.5.0** (the "polish" release):
 
 > The full release history — every version, in plain language — now lives in
@@ -174,12 +195,16 @@ GitHub and download the file for your machine from the latest release:
 |---|---|---|
 | `younblock.exe` | 64-bit Windows | the app you use every day (window, tray, button) |
 | `younblock-x86.exe` | 32-bit Windows (or 64-bit) | the same full app, built 32-bit |
-| `younblock_…_amd64.deb` | 64-bit Linux Mint | the same app as a proper installable package |
-| `younblock_…_i386.deb` | 32-bit Linux Mint | the same package, built 32-bit |
-| `Younblock-…-x86_64.AppImage` | 64-bit Linux | one portable file: download, `chmod +x`, launch |
-| `Younblock-…-i686.AppImage` | 32-bit Linux | the same portable file, built 32-bit |
-| `Younblock-…-x86_64.flatpak` | 64-bit Linux | the same app as a Flatpak bundle |
-| `younblock-linux-amd64` | 64-bit Linux (Mint 20+) | one file, runs as-is, opens in your browser |
+| `younblock-classic.exe` | 64-bit Windows | **Classic**: the simple pre-redesign UI, same engine |
+| `younblock-classic-x86.exe` | 32-bit Windows | the same Classic app, built 32-bit |
+| `younblock_…_amd64.deb` | 64-bit Linux Mint | the app as a proper package — opens in its **own window** |
+| `younblock-classic_…_amd64.deb` | 64-bit Linux Mint | **Classic** as the same proper package |
+| `younblock_…_i386.deb` | 32-bit Linux Mint | the browser-style package, built 32-bit |
+| `Younblock-…-x86_64.AppImage` | 64-bit Linux | one portable file — opens in its **own window**, carries everything inside |
+| `Younblock-Classic-…-x86_64.AppImage` | 64-bit Linux | **Classic** as the same portable file |
+| `Younblock-…-i686.AppImage` | 32-bit Linux | the browser-style portable file, built 32-bit |
+| `Younblock-…-x86_64.flatpak` | 64-bit Linux | the app as a Flatpak bundle |
+| `younblock-linux-amd64` | 64-bit Linux (Mint 20+) | one file, runs as-is, opens in your browser (both screens: `?ui=classic`) |
 | `younblock-linux-386` | 32-bit Linux (old Mint) | the same one file, built 32-bit |
 
 (`younblock-core.exe` / `younblock-core-x86.exe` are the same engines without a
@@ -306,27 +331,36 @@ Notes on the two new switches:
 
 ## The Linux version (Linux Mint and friends)
 
-The Linux edition is the **same engine and the same screen**, delivered as one
-file with the interface as a page in your browser — there is no window and no
-tray on Linux, so nothing needs installing.
+The Linux editions are the **same engine and the same screens**. Since 1.6.4
+the 64-bit `.deb` and `.AppImage` are **real desktop apps** — their own
+window, their own taskbar icon, a normal menu entry — while the plain
+one-file edition keeps the browser-page style (and carries both screens:
+add `?ui=classic` to its address for the simple UI). Both editions exist
+as **Younblock** (the redesigned screen) and **Younblock Classic** (the
+simple pre-redesign UI).
 
 ### Which Linux download should I pick?
 
-All of them are the same app; the difference is only how it lands on your
-machine:
+All of them are the same app underneath; the difference is only how it lands
+on your machine:
 
 - **The `.deb` — best for installing Younblock *properly* on Linux Mint.**
   Double-click it (or `sudo apt install ./younblock_…_amd64.deb` in a
   terminal) and Mint's installer puts the app in the menu with its icon, the
   binary in `/usr/bin`, and dpkg knows about it — so it updates cleanly and
-  `apt remove younblock` uninstalls it. Download the `_amd64` one for 64-bit
-  Mint, `_i386` for a genuine 32-bit Mint.
+  `apt remove younblock` uninstalls it. The `_amd64` one opens in its own
+  window and pulls its display engine from Mint's own repositories (apt
+  keeps it fresh); the `_i386` one (for a genuine 32-bit Mint) keeps the
+  browser-page style. `younblock-classic_…_amd64.deb` is the same package
+  with the Classic screen — both can be installed side by side.
 - **The `.AppImage` — best if you want a single, portable executable file
   that you download and launch.** Make it runnable once
-  (`chmod +x Younblock-…-x86_64.AppImage`) and double-click or run it; it
-  opens the same control page in your browser. Nothing is installed —
-  delete the file and it's gone. Settings live in `~/.config/Younblock`
-  like the plain file's.
+  (`chmod +x Younblock-…-x86_64.AppImage`) and double-click or run it; a
+  normal app window opens — no browser, nothing installed; delete the file
+  and it's gone. It carries its whole display engine inside (~75 MB), so it
+  runs on any 64-bit Mint since 21 even with nothing else installed.
+  `Younblock-Classic-…-x86_64.AppImage` is the same with the Classic screen.
+  The `_i686` AppImage (32-bit) keeps the browser-page style.
 - **The Flatpak — best for convenient installation with fewer dependency
   conflicts.** `flatpak install --user Younblock-….flatpak` (one-time setup
   below) and it runs inside Flatpak's own runtime, isolated from the rest of
@@ -339,7 +373,8 @@ machine:
   flatpak run io.github.assadigit.Younblock
   ```
 - **The plain file** (`younblock-linux-amd64` / `-386`) — the original
-  one-file edition, unchanged. Download, `chmod +x`, run.
+  one-file edition, unchanged. Download, `chmod +x`, run; the page it opens
+  carries both screens (`?ui=classic` to switch).
 
 Whichever you pick, start-with-OS (Settings) writes the right launcher for
 that edition, and every edition updates the same way: download the new file,

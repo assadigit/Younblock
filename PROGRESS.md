@@ -1484,3 +1484,62 @@ The SHA-256 list is in the release notes.
 - Still Ali's to check: the Windows look with the real title bar at
   the new 628 height (the 8-point walkthrough from v0.7.0, now on
   1.6.3's proportions).
+
+## Phase 18 — two editions and the native Linux window (v0.7.4 / app 1.6.4)
+
+The request had three parts: ship the simple UI alongside the new one
+(the 8.5 MB exe was gone; the offline pack had grown to 171 MB), fix the
+AppImage opening in a browser instead of as an app on Linux Mint, and
+make the Linux line two editions as well.
+
+**The classic edition (D66).** The v0.6.0 frontend tree was restored
+verbatim from the git tag into `frontend/src/classic/` — every import in
+that tree is relative, so it moved without touching a single path, and
+its adapters talk to the current binding surface (a superset of
+v0.6.0's). `src/main.ts` became a dispatcher: both screens build as
+separate dynamic chunks, `?ui=classic|pro` overrides at runtime, the
+baked default comes from `VITE_UI_VARIANT`. The Go shell sizes its
+window from `-X main.windowSize` (pro 360×628, classic 360×760). The
+classic tree's 12 "known" svelte-check errors were fixed rather than
+tolerated: the `$state` runes false-positives turned out to be a local
+variable literally named `state` colliding with the rune in svelte2tsx's
+legacy-mode view (renamed to `uiState` — 8 occurrences), the android
+adapter got the missing `onBrowserEvent`, and the two intentional
+initial-capture patterns carry documented `svelte-ignore` comments.
+svelte-check is 0/0 with both trees in the project.
+
+**The native Linux window (D67).** The Linux editions had been the
+headless core serving its page to the browser since D50 — which is
+exactly what the user saw on Mint. The fix is a real Wails build for
+linux/amd64 with `-tags webkit2_41`. The build sandbox (Debian 13, no
+root, no webkit anywhere) got a user-space jammy stack:
+`packaging/native/fetch-stack.sh` resolves the dependency closure of
+libwebkit2gtk-4.1-dev/libgtk-3-dev/libsoup-3.0-dev from the jammy
+package indexes (~200 packages after the noise filter), downloads the
+debs, `dpkg -x` them into ~/.cache/younblock/webkitstack, rewrites the
+.pc paths, merges jammy's legacy /lib payloads into /usr/lib, and
+recreates the SONAME symlinks with `ldconfig -n`. The link needed
+`-Wl,--allow-shlib-undefined` (the deep NEEDED tree resolves on the
+target desktop, not at link time) and `-Wl,-rpath-link`. The result
+verifies GLIBC_2.34 max — every Mint since 21. The .deb depends on the
+system webkit (apt-matched, ~10 MB); the AppImage bundles the whole
+webkit closure (NEEDED BFS minus the desktop-guaranteed set) plus bwrap
+and xdg-dbus-proxy, ~75 MB. WebKit's helper processes live at a
+compile-time /usr/lib path with no 2.50 override, so the bundled
+libwebkit is binary-patched at build time to two fixed /tmp names that
+AppRun symlinks to the extraction. Under Xvfb the whole chain was
+verified as far as the sandbox allows: the bundle loads, the window
+opens at the exact design size, and the helpers spawn through the
+patched path — only the GL compositing itself cannot run in the
+GL-less container. Shell-side, the Linux close button now quits (no
+tray there; the engine restores first), the logs folder opens with
+xdg-open, and the window carries the Younblock icon.
+
+**Packaging matrix.** build.sh now produces, per platform, both
+editions: 4 Windows GUI exes + 2 cores, 2 Linux web binaries, 3 debs
+(native amd64 pro + classic, web i386), 3 AppImages (native x86_64 pro
++ classic, web i686). The 32-bit Linux line stays a browser edition —
+old 32-bit Mint's glibc 2.31 is below the native floor. build.bat grew
+the two classic exes. The Flatpak stayed at 1.6.3 (the sandbox lost
+the flatpak stack again; the wrapped app code is unchanged) — disclosed
+in the release notes, with a native flatpak on the list.

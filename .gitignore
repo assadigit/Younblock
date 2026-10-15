@@ -28,3 +28,4 @@ internal/webui/dist/*
 
 # flatpak-builder local cache
 .flatpak-builder/
+core

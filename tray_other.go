@@ -17,4 +17,9 @@ func (a *App) stopTray() {}
 
 func (a *App) trayOnEvent(name, payload string) {}
 
+// closeHidesToTray: without a tray icon there is nowhere to hide — the
+// window's close button is the quit (the shutdown path stops the engine
+// and restores the proxy first).
+func closeHidesToTray() bool { return false }
+
 var _ = engine.PhaseOff

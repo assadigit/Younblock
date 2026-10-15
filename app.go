@@ -14,8 +14,14 @@ import (
 	"github.com/assadigit/Younblock/internal/engine"
 	"github.com/assadigit/Younblock/internal/platform"
 
+	goruntime "runtime"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// GOOS is a tiny alias so platform forks in this file read as plain
+// English ("if GOOS == windows") without importing runtime everywhere.
+const GOOS = goruntime.GOOS
 
 // App carries the engine plus the wails context.
 type App struct {
@@ -54,11 +60,12 @@ func newApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// D48: grow the window so the WebView2 client area (the CSS
-	// viewport) is the full 360x628 logical design size — Wails'
-	// initial size lands on the outer rectangle, leaving Ali with
-	// a short viewport and the overflow bugs he reported. Best-effort:
-	// any failure keeps the Wails size and the CSS ladder still copes.
-	if err := ensureDesignClientSize(360, 628); err != nil {
+	// viewport) is the full design size of the edition being built —
+	// Wails' initial size lands on the outer rectangle, leaving Ali
+	// with a short viewport and the overflow bugs he reported.
+	// Best-effort: any failure keeps the Wails size and the CSS
+	// ladder still copes.
+	if err := ensureDesignClientSize(int32(designW), int32(designH)); err != nil {
 		a.eng.Logger().Info("window client-size correction skipped", "reason", err.Error())
 	}
 	a.startTray()
@@ -87,11 +94,13 @@ func (a *App) shutdown(ctx context.Context) {
 	a.eng.Shutdown()
 }
 
-// beforeClose hides to the tray instead of quitting. The connect screen
-// has no close-notice flow, so the shell hides the window itself.
+// beforeClose hides to the tray instead of quitting (Windows, where the
+// tray icon lives). On platforms without our tray (the native Linux
+// edition), closing the window is the quit — the shutdown path below
+// still stops the engine and restores the proxy.
 func (a *App) beforeClose(ctx context.Context) bool {
-	if a.quitting {
-		return false // real quit: allow the close
+	if a.quitting || !closeHidesToTray() {
+		return false // real quit (or no tray to hide into): allow the close
 	}
 	a.hideWindow()
 	return true // prevent: hide to tray instead
@@ -225,14 +234,20 @@ func (a *App) RestoreWindowsProxy() string { return a.eng.RestoreWindowsProxyJSO
 // GetDiagnosticReport returns the redacted diagnostic report.
 func (a *App) GetDiagnosticReport() string { return a.eng.GetDiagnosticReportJSON() }
 
-// OpenLogsFolder opens the logs folder in Explorer (shell behavior).
+// OpenLogsFolder opens the logs folder in the desktop file manager
+// (Explorer on Windows, xdg-open everywhere else).
 func (a *App) OpenLogsFolder() string {
 	out := a.eng.OpenLogsFolderJSON()
 	var payload struct {
 		Path string `json:"path"`
 	}
 	if err := jsonUnmarshalStrict(out, &payload); err == nil && payload.Path != "" {
-		cmd := exec.Command("explorer", strings.ReplaceAll(payload.Path, "/", "\\"))
+		var cmd *exec.Cmd
+		if GOOS == "windows" {
+			cmd = exec.Command("explorer", strings.ReplaceAll(payload.Path, "/", "\\"))
+		} else {
+			cmd = exec.Command("xdg-open", payload.Path)
+		}
 		if err := cmd.Start(); err != nil {
 			a.eng.Logger().Warn("opening the logs folder failed", "reason", err.Error())
 		}

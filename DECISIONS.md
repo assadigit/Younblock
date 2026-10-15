@@ -775,3 +775,54 @@ preventScroll (the closed sheet overflows the scaled stage, and a
 plain focus made the browser scroll the whole screen up to chase the
 still-sliding close button), and the About sheet's version string was
 a stale hard-coded 1.5.0.
+
+**D66 — v1.6.4: two editions, one source** — the redesigned screen
+(v0.7.0+) and the classic simple UI (v0.6.0) ship side by side on every
+platform. Both screens live in the frontend bundle as separate dynamic
+chunks; `src/main.ts` picks one at startup from `?ui=` first, then the
+build-time `VITE_UI_VARIANT` (the classic desktop editions set it,
+everything else defaults to the new screen). The Go shell picks its
+window size the same way through `-ldflags "-X main.windowSize=…"`
+(360×628 pro, 360×760 classic), so a classic frontend never lands in a
+short pro window. The classic tree is restored verbatim from the v0.6.0
+tag into `src/classic/` (pure relative imports, so it moved as-is; the
+adapter layer talks to the same bindings surface, which is a superset).
+The web (single-executable) editions carry both screens switchable by
+URL — no second binary needed there. The known 12 svelte-check errors
+of the classic tree were fixed instead of tolerated (the `$state`
+runes false-positives were a local `state` variable colliding with the
+rune in svelte2tsx's legacy-mode view — renamed to `uiState`; the two
+intentional-capture warnings carry `svelte-ignore state_referenced_locally`
+with a comment saying why the capture is the point).
+
+**D67 — v1.6.4: native Linux windows** — the 64-bit .deb and AppImage
+are real GTK + webkit2gtk apps now (the "it opened in a browser"
+report). Built with `-tags webkit2_41` against a user-space
+Ubuntu 22.04 (jammy) dev stack assembled by
+`packaging/native/fetch-stack.sh` (~200 packages resolved from the
+jammy indexes, `dpkg -x` into ~/.cache, .pc files rewritten, SONAME
+symlinks recreated with `ldconfig -n`). Jammy is the floor that
+matters: glibc 2.35 (binary verifies GLIBC_2.34 max) — every Mint
+since 21 runs it, and webkit2gtk-4.1 2.50.4 comes from jammy-updates.
+The .deb edition uses the SYSTEM webkit (Depends: libwebkit2gtk-4.1-0,
+apt keeps it matched — ~10 MB download). The AppImage bundles the whole
+webkit NEEDED closure (BFS over `objdump -p` from the binary + the
+webkit pair, minus the desktop-guaranteed set: glib/gtk/X/GL/libc),
+plus bwrap + xdg-dbus-proxy for the webkit sandbox — ~75 MB, the price
+of "runs on anything". WebKit's helper processes live at a compile-time
+`/usr/lib/...` path with no 2.50 env override, so the bundled
+libwebkit is binary-patched (at build time, in the AppDir copy only) to
+look at two fixed `/tmp/.younblock-wk412*` names that AppRun points at
+the extraction — the only portable way to relocate them; a fixed /tmp
+name is a small, documented symlink race in exchange for working
+helpers everywhere. The deb needs no such patch (helpers come with the
+system webkit, matched). The window icon rides options.Linux.Icon; the
+taskbar groups under StartupWMClass = the binary name. Closing the
+window quits on Linux (no tray to hide into; shutdown stops the engine
+and restores the proxy first). The 32-bit Linux line stays a browser
+edition: old 32-bit Mint's glibc 2.31 predates the floor, and a second
+(i386) webkit stack is not worth the cost. WebKit rendering itself
+could not be screenshot-verified in the GL-less build sandbox (the
+GPU/WebProcess path needs real EGL); everything up to that point —
+loader, window geometry, helper spawning through the patched path —
+was verified under Xvfb.
