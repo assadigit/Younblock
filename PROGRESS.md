@@ -1377,3 +1377,33 @@ app itself is unchanged from 1.6.0.
   host installs @rolldown/binding-win32-x64-msvc (the Windows native
   binding vite 8 needs) instead of the Linux one — verified by
   direct inspection of the installed tree.
+
+## Release v0.7.2 — published to GitHub Releases
+
+Date: 2026-10-15 (Asia/Tehran). Tag v0.7.2 on commit 22ae7d9 (vendor
+commit 8d8aaf4 beneath it); the same tree passed every gate above.
+
+Published with 12 assets: the four Windows exes, the two Linux single
+files, both .debs, both AppImages — plus the two new bundles,
+`younblock-setup_1.6.2.zip` (7.8 KB: setup-dev.bat, setup-build.bat,
+setup.ps1, README-FIRST.txt) and `Younblock-offline_1.6.2.zip`
+(178.8 MB: tagged source + vendor + Windows node_modules + the Go
+toolchain + Node.js + the cross-compiled Wails CLI). Round-trip
+verified: every asset downloaded back through the API is
+byte-identical (sha256) to the built file — 12/12 MATCH. The
+SHA-256 list is in the release notes. The individual .bat scripts
+are deliberately no longer separate assets: they are launchers that
+need setup.ps1 beside them, so the setup zip is the download (the
+launcher itself explains this if it is missing its partner).
+
+- Offline pack spot checks: setup-offline.bat at the zip root, the
+  three tools present, vendor/modules.txt present, the Windows
+  rolldown binding present and the Linux one absent, wails.exe is a
+  PE binary (27.6 MB), every packed .bat/.ps1 carries CRLF only, and
+  the setup zip holds exactly its four files.
+- The Flatpak bundle stays the 1.6.0 one from v0.7.0 (unchanged app
+  code); same reasoning as v0.7.1 — it catches up on the next
+  release that touches it.
+- Still Ali's to check: the Windows walkthrough (wails dev, the
+  8-point list) — on a blocked network, the offline pack is now the
+  zero-internet path to it.
