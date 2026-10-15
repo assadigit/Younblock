@@ -1543,3 +1543,30 @@ old 32-bit Mint's glibc 2.31 is below the native floor. build.bat grew
 the two classic exes. The Flatpak stayed at 1.6.3 (the sandbox lost
 the flatpak stack again; the wrapped app code is unchanged) — disclosed
 in the release notes, with a native flatpak on the list.
+
+## Release v0.7.4 — published to GitHub Releases
+
+Date: 2026-10-16 (Asia/Tehran). Tag v0.7.4 on commit 49ddfe9; the same
+tree passed every gate (go vet, full -race suite, platform-neutral,
+svelte-check 0/0 with both screens, vite build, Xvfb smoke of the native
+window, live browser E2E of both screens against the real engine).
+
+Published with 16 assets: the four Windows exes (pro + classic, 64/32
+bit), the two cores, the two Linux web binaries, three .debs (native
+amd64 pro + classic, web i386), three AppImages (native x86_64 pro +
+classic at ~71 MB each with the bundled webkit, web i686 at 3.9 MB), the
+setup zip and the offline pack (166 MB). Round-trip verified: every
+asset downloaded back through the API is byte-identical (sha256) —
+16/16 MATCH. The SHA-256 list is in the release notes.
+
+- The Flatpak was not rebuilt (the sandbox lost the flatpak stack
+  again); it stays at 1.6.3 and the release notes say so.
+- Live E2E covered the classic screen for the first time since v0.6.0:
+  first-run welcome → connect screen reflecting the live engine state →
+  menu → Settings/About → disconnect via the switch; the pro screen's
+  connect toggle and states re-verified; zero console/page errors on
+  both; VLM review of the screenshots found no defect.
+- The native window path was verified as far as a GL-less container
+  allows (loader, geometry, helper spawning); the GL compositing itself
+  needs real hardware — Ali's Linux Mint is the final visual check,
+  alongside the standing Windows walkthrough.
