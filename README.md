@@ -199,6 +199,13 @@ Two things to know about the downloaded file:
 
 ## Building it yourself (optional)
 
+**The easy way:** double-click `setup-dev.bat` (it's in this repository's main folder).
+It checks for every tool listed below, installs the missing ones automatically, gets the
+code, and starts the app straight from the code (`wails dev`) — the app window opens by
+itself and stays live while you work. When you want the everyday `.exe` files instead,
+run `build.bat` in the same folder. The rest of this section explains what happens under
+the hood, in case you prefer doing it by hand.
+
 You need three free tools installed on your Windows PC:
 
 1. **Go** (the programming language the engine is written in)
