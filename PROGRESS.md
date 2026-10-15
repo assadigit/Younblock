@@ -1283,3 +1283,33 @@ it (the v0.5.1 tradition: the tag moves, the app code does not).
 - The app code is byte-identical to the v0.7.0 release except the two
   version constants (defaults.go, wails.json) — the v0.7.0 Linux E2E
   and its 8-point Windows walkthrough carry over to this tree.
+
+## Release v0.7.1 — published to GitHub Releases
+
+Date: 2026-10-15 (Asia/Tehran). Tag v0.7.1 on commit 5991766; the same
+tree passed every gate above (vet, race tests, platform-neutral check,
+`--version` 1.6.1, svelte-check 0/0, production build). The app code is
+byte-identical to v0.7.0's except the two version constants.
+
+Published with 12 assets: the four Windows exes, the two Linux single
+files, both .debs, both AppImages — and, new this time, the two
+one-click scripts (`setup-dev.bat`, `setup-build.bat`) riding along as
+release assets so a fresh PC needs nothing but a download and a
+double-click (D62). Round-trip verified: every asset downloaded back
+through the API is byte-identical (sha256) to the built file —
+12/12 MATCH. The SHA-256 list is in the release notes.
+
+- Spot checks: `younblock.exe` is PE32+ x86-64 (GUI) and
+  `younblock-x86.exe` PE32 i386; the amd64 .deb carries Version 1.6.1
+  and its wrapped /usr/bin/younblock reports 1.6.1; the i386 .deb
+  binary is ELF i386; `dist/younblock-linux-amd64` reports 1.6.1.
+- The Flatpak bundle was NOT rebuilt this time: the sandbox's flatpak
+  stack (restored user-space for v0.5.1 / v0.6.0 / v0.7.0) was wiped by
+  the sandbox reset, and re-restoring it (flatpak + flatpak-builder +
+  ostree + the GNOME 48 runtimes — about a gigabyte of downloads, plus
+  the validate-icon patch and the fake system bus) buys only a
+  version-string change: the app code is identical to what the 1.6.0
+  Flatpak on v0.7.0 already ships. The release notes say so plainly;
+  the Flatpak catches up on the next release that touches it.
+- The Windows walkthrough (wails dev, the 8-point list) is still Ali's
+  step — `setup-dev.bat` now performs every step of the setup for it.
