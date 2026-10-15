@@ -1244,3 +1244,42 @@ release notes (v0.6.0's notes pointed at checksums they never listed).
   binary.
 - The Windows walkthrough (wails dev, the 8-point list) is still Ali's
   step, and the release notes say so plainly.
+
+## Phase 15 — the one-click scripts (v0.7.1 / app 1.6.1)
+
+Ali asked for a Windows script that "automatically installs and does
+this" — the whole setup-and-run walkthrough in one double-click. The
+app itself is unchanged from 1.6.0; this release is the tooling around
+it (the v0.5.1 tradition: the tag moves, the app code does not).
+
+- `setup-dev.bat` (shipped first, commit 4304773) — winget presence;
+  install Git / Go / Node.js LTS when missing, each followed by an
+  in-session PATH reload (PowerShell reads Machine+User PATH back from
+  the registry, so a just-installed tool works with no "open a new
+  window" step); Node >= 20 and Go >= 1.26 gates with plain fix-it
+  notes; a WebView2 registry probe with a winget fallback (non-fatal —
+  a warning, since neither dev nor build needs it to proceed); the
+  Wails CLI via `go install ...wails@latest` with
+  `%USERPROFILE%\go\bin` on PATH; clone or `git pull --ff-only`
+  (GIT_TERMINAL_PROMPT=0, so a private-repo auth failure surfaces as
+  an explained stop, not a hang); then `npm ci` on first run / quick
+  `npm install` after, and `wails dev`.
+- `setup-build.bat` — the same eight checks, then `build.bat` (all
+  four Windows exes + their SHA-256) and Explorer opens on `dist/`.
+  A missing build.bat is caught before the build starts.
+- Both: pure ASCII, CRLF (enforced repo-wide by the `.gitattributes`
+  rule `*.bat text eol=crlf`), `call` before every .cmd shim (npm,
+  wails — the classic batch pitfall), balanced pushd/popd on every
+  failure path, and a pause at the end so nothing closes before it is
+  read (D62).
+- README's build-it-yourself section now leads with the two scripts.
+
+### Verification (v0.7.1 tree)
+
+- `go vet ./...` clean; `go test -race -count=1 ./...` — every package
+  passes; `scripts/check-platform-neutral` OK; `younblock-core
+  --version` prints 1.6.1.
+- `svelte-check` 0 errors / 0 warnings; `vite build` clean.
+- The app code is byte-identical to the v0.7.0 release except the two
+  version constants (defaults.go, wails.json) — the v0.7.0 Linux E2E
+  and its 8-point Windows walkthrough carry over to this tree.

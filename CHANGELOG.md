@@ -12,6 +12,32 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.1] — 2026-10-15 (app 1.6.1)
+
+The "one-click" release: two scripts that set up a Windows PC by
+themselves (D62). The app itself is unchanged from 1.6.0 — same connect
+screen, same engine; only its version number moved.
+
+### Added
+
+- **`setup-dev.bat`** — double-click it on any Windows 10 1709+ / 11 PC
+  and it installs whatever is missing (Git, Go, Node.js LTS, the
+  WebView2 part of Windows, the Wails CLI), fetches the code, and
+  starts the app straight from source (`wails dev`) — the 360×760
+  window opens by itself. Safe to run again any time: it skips what
+  is already installed and updates the rest.
+- **`setup-build.bat`** — the same one-click checks, then it builds
+  every `.exe` (the app and the headless engine, 64- and 32-bit),
+  prints each file's SHA-256 and opens the `dist` folder with the
+  finished files.
+- Both scripts also fix the usual first-run problems by themselves:
+  the search path is reloaded right after an install (no "open a new
+  window and try again" step), a too-old Node.js or Go is refused
+  with a plain fix-it note, and the private-repo login is explained
+  when the code is first downloaded.
+- `.gitattributes` now forces Windows (CRLF) line endings on `.bat`
+  files, so both scripts always arrive exactly double-clickable.
+
 ## [v0.7.0] — 2026-10-15 (app 1.6.0)
 
 The "new face" release: the main screen is replaced by the new connect

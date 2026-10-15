@@ -8,7 +8,7 @@ rem
 rem  What it does:
 rem    [1/8] checks winget - the Windows package manager
 rem    [2/8] installs Git if missing
-rem    [3/8] installs Go if missing
+rem    [3/8] installs Go if missing - checks the version
 rem    [4/8] installs Node.js LTS if missing - checks the version
 rem    [5/8] checks the WebView2 part of Windows
 rem    [6/8] installs the Wails CLI if missing
@@ -54,12 +54,26 @@ echo [2/8] Git ok
 
 rem --- [3/8] Go ----------------------------------------------------
 where go >nul 2>&1
-if not errorlevel 1 goto :go_ok
+if not errorlevel 1 goto :go_ver
 echo [3/8] Installing Go - please wait...
 winget install --id GoLang.Go -e --silent --accept-package-agreements --accept-source-agreements
 call :RefreshPath
 where go >nul 2>&1
 if errorlevel 1 goto :go_fail
+:go_ver
+set "GOVER="
+for /f "tokens=3" %%v in ('go version') do set "GOVER=%%v"
+if not defined GOVER goto :go_fail
+set "GOMAJOR="
+set "GOMINOR="
+set "GOVER=%GOVER:go=%"
+for /f "tokens=1 delims=." %%a in ("%GOVER%") do set "GOMAJOR=%%a"
+for /f "tokens=2 delims=." %%b in ("%GOVER%") do set "GOMINOR=%%b"
+if not defined GOMAJOR goto :go_ok
+if not defined GOMINOR goto :go_ok
+if %GOMAJOR% GTR 1 goto :go_ok
+if %GOMAJOR% EQU 1 if %GOMINOR% GEQ 26 goto :go_ok
+goto :go_old
 :go_ok
 echo [3/8] Go ok
 
@@ -197,6 +211,14 @@ goto :the_end
 echo.
 echo SETUP STOPPED: Go did not install. Read the messages above,
 echo fix the problem, then run this file again.
+goto :the_end
+
+:go_old
+echo.
+echo SETUP STOPPED: your Go is version %GOVER%, but this app needs
+echo Go 1.26 or newer.
+echo Fix: open Settings - Apps - uninstall the old Go - then run
+echo this file again and it will install the current one.
 goto :the_end
 
 :node_fail

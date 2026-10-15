@@ -203,8 +203,9 @@ Two things to know about the downloaded file:
 It checks for every tool listed below, installs the missing ones automatically, gets the
 code, and starts the app straight from the code (`wails dev`) — the app window opens by
 itself and stays live while you work. When you want the everyday `.exe` files instead,
-run `build.bat` in the same folder. The rest of this section explains what happens under
-the hood, in case you prefer doing it by hand.
+double-click `setup-build.bat` — the same one-click checks, then it builds every `.exe`
+and opens the `dist` folder with the finished files. The rest of this section explains
+what happens under the hood, in case you prefer doing it by hand.
 
 You need three free tools installed on your Windows PC:
 

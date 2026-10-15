@@ -685,3 +685,25 @@ speeds, disconnect, a forced PORT_BUSY failure (autoPort off) surfacing
 as "Can't Connect" with a successful retry, and the preview fallback
 (plus its ?fail=1 error mode) on a plain dev server — zero console
 errors across all of it.
+
+**D62 — v1.6.1: the one-click scripts are .bat, not .ps1, and they
+self-heal instead of instructing.**
+Ali asked for "a bat file that automatically installs and does this" —
+so the developer entry points are two double-clickable batch files:
+`setup-dev.bat` (install anything missing, then `wails dev`) and
+`setup-build.bat` (the same checks, then `build.bat`, then open
+`dist/`). PowerShell was rejected for the entry point because
+double-clicking a .ps1 opens Notepad unless the Execution Policy is
+loosened first — the exact kind of first-run problem the scripts exist
+to remove; PowerShell is used only inside, to reload PATH after winget
+installs (so there is no "open a new window and try again" step). The
+scripts install Git, Go, Node.js LTS and WebView2 through winget, the
+Wails CLI through `go install ...@latest` with `%USERPROFILE%\go\bin`
+on PATH, gate Node >= 20 and Go >= 1.26 (the two versions the build
+actually requires) with plain fix-it notes, clone or pull the private
+repo, and re-run safely: everything already present is skipped. A
+`.gitattributes` rule (`*.bat text eol=crlf`) keeps both files
+Windows-native in every clone. They are dev-side tools — the Releases
+page stays the download for people who just use the app — but from
+v0.7.1 the two scripts ride along as release assets, so a fresh PC
+needs nothing but a download and a double-click.
