@@ -1134,3 +1134,19 @@ Verification gates run:
   as v0.5.1).
 - check-platform-neutral OK; arm64 core builds; PE32+/PE32/ELF64/ELF32
   formats confirmed for every artifact.
+
+## Release v0.6.0 — published to GitHub Releases
+
+Date: 2026-10-15 (Asia/Tehran). Tag v0.6.0 on commit 56c1ed3; the same
+tree had just passed every gate above (build, svelte-check, vet, race
+tests, screenshot+VLM QA, agent-browser E2E on the mock bundle AND the
+live Linux core, package verifications, cross-builds).
+
+Published with all 11 assets: younblock.exe, younblock-x86.exe,
+younblock-core.exe, younblock-core-x86.exe, younblock-linux-amd64,
+younblock-linux-386, younblock_1.5.0_amd64.deb, younblock_1.5.0_i386.deb,
+Younblock-1.5.0-x86_64.AppImage, Younblock-1.5.0-i686.AppImage,
+Younblock-1.5.0-x86_64.flatpak. Round-trip verified: every asset
+downloaded back from the release page is byte-identical (sha256) to the
+built file — 11/11 MATCH. Release notes in the project's plain-language
+voice; CHANGELOG retitled to [v0.6.0] with the compare links updated.

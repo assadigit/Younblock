@@ -12,6 +12,12 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.6.0] — 2026-10-15 (app 1.5.0)
+
+The "polish" release: a dedicated UI/UX and look-and-feel pass over the
+whole 360×560 window — every screen and all six states — with no engine
+or network changes (D56–D59).
+
 ### Changed (the UI/UX and look & feel pass — D56–D59)
 
 - **One screen chrome**: Settings, Help, About and FirstRun mount on a
@@ -227,7 +233,8 @@ First Windows test build, published to GitHub Releases.
 - `younblock-core.exe` headless CLI (`--selftest`, `--version`) and the
   diagnostic report generator.
 
-[Unreleased]: https://github.com/assadigit/Younblock/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/assadigit/Younblock/compare/v0.6.0...HEAD
+[v0.6.0]: https://github.com/assadigit/Younblock/releases/tag/v0.6.0
 [v0.5.1]: https://github.com/assadigit/Younblock/releases/tag/v0.5.1
 [v0.5.0]: https://github.com/assadigit/Younblock/releases/tag/v0.5.0
 [v0.4.1]: https://github.com/assadigit/Younblock/releases/tag/v0.4.1
