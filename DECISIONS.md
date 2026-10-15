@@ -707,3 +707,46 @@ Windows-native in every clone. They are dev-side tools — the Releases
 page stays the download for people who just use the app — but from
 v0.7.1 the two scripts ride along as release assets, so a fresh PC
 needs nothing but a download and a double-click.
+
+**D63 — v1.6.2: mirrors per dependency, probed at run time.**
+The one-click scripts assumed the usual download sites are reachable,
+which a filtered network breaks (proxy.golang.org and go.dev are the
+usual casualties). Every dependency now carries mirrors, and the
+scripts probe them (a 6 s request, curl.exe first with
+Invoke-WebRequest as the fallback) and use the first that answers:
+Go modules go through proxy.golang.org / goproxy.io / goproxy.cn (the
+chain is written into GOPROXY with fall-through-on-any-error pipes and
+remembered with `go env -w`, so a later plain `build.bat` benefits
+too); the Go toolchain through winget, then the Aliyun and go.dev zip
+mirrors; Node.js through winget, then the nodejs.org and npmmirror
+zips; the npm registry through registry.npmjs.org with
+registry.npmmirror.com as the automatic retry. golang.ir (an Iranian
+mirror) was probed for the Go toolchain and dropped — unreachable.
+The private repository itself gets three paths: a normal git clone
+(GitHub's browser login); the same clone with a token pasted into
+`$GH_TOKEN` at the top of setup.ps1, passed as an http extraheader so
+it never lands in `.git/config`; and, when git itself cannot be
+installed, a direct zipball download from the GitHub API, with the
+script offering the token prompt at that point. The complexity lives
+in one setup.ps1; the .bat files stay as the double-clickable face
+(D62 refined) — they travel together in the younblock-setup zip,
+because a .bat downloaded alone would be a trap.
+
+**D64 — v1.6.2: the offline pack, and the Windows node_modules trick.**
+For a network that blocks even the mirrors, the release carries
+Younblock-offline: one zip holding the source (with the vendored Go
+dependencies, D63), a pre-installed frontend/node_modules, the Go
+toolchain zip, the Node.js zip and a cross-compiled Wails CLI — zero
+internet needed, `setup-offline.bat` unpacks the tools into
+`%LOCALAPPDATA%\YounblockTools` and the CLI into `%USERPROFILE%\go\bin`.
+Three details keep it honest: node_modules is installed with
+`npm ci --os=win32 --cpu=x64` on the Linux build host, so the native
+binding inside it is the Windows one (vite 8 uses rolldown, not
+rollup — the binding package is @rolldown/binding-win32-x64-msvc, and
+the pack builder fails if it is missing); the wails skip-install
+marker (frontend/package.json.md5, which stores the md5 hex twice) is
+verified against package.json before packing, so the packed
+node_modules really is the one wails would keep; and the Wails CLI is
+cross-compiled with `-mod=mod` — `go mod vendor` only vendors what the
+app imports, so the CLI (package main, never imported) must come from
+the module cache, pinned to the app's own wails/v2 version.

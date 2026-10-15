@@ -199,13 +199,24 @@ Two things to know about the downloaded file:
 
 ## Building it yourself (optional)
 
-**The easy way:** double-click `setup-dev.bat` (it's in this repository's main folder).
-It checks for every tool listed below, installs the missing ones automatically, gets the
-code, and starts the app straight from the code (`wails dev`) — the app window opens by
-itself and stays live while you work. When you want the everyday `.exe` files instead,
-double-click `setup-build.bat` — the same one-click checks, then it builds every `.exe`
-and opens the `dist` folder with the finished files. The rest of this section explains
-what happens under the hood, in case you prefer doing it by hand.
+**The easy way:** download the **`younblock-setup`** zip from the
+[Releases page](https://github.com/assadigit/Younblock/releases), extract all
+of its files into one folder, and double-click `setup-dev.bat`. It checks for
+every tool listed below, installs the missing ones automatically — **through
+mirrors when the usual download sites are unreachable** — and starts the app
+straight from the code (`wails dev`); the app window opens by itself and stays
+live while you work. For the everyday `.exe` files instead, double-click
+`setup-build.bat`. The repository is private, so the scripts either walk you
+through GitHub's browser login or take a token pasted into the `$GH_TOKEN`
+line at the top of `setup.ps1`.
+
+**No internet on the build PC at all?** The **`Younblock-offline`** zip on the
+Releases page carries everything — the code, the Go dependencies, the window
+building blocks, the Go toolchain, Node.js and the Wails CLI. Extract it and
+double-click the `setup-offline.bat` inside; nothing is ever downloaded.
+
+The rest of this section explains what happens under the hood, in case you
+prefer doing it by hand.
 
 You need three free tools installed on your Windows PC:
 

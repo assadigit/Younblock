@@ -12,6 +12,44 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.2] — 2026-10-15 (app 1.6.2)
+
+The "filtered network" release: the one-click setup survives blocked
+download sites, and there is now a fully offline pack (D63, D64). The
+app itself is unchanged from 1.6.0 — same connect screen, same engine.
+
+### Added
+
+- **Mirrors for every dependency.** The one-click scripts try several
+  mirrors per download and use the first one that answers: three Go
+  module proxies (proxy.golang.org, goproxy.io, goproxy.cn — the chain
+  is remembered so `build.bat` benefits too), two Go toolchain mirrors
+  (Aliyun, go.dev) when winget cannot deliver Go, two Node.js mirrors
+  (nodejs.org, npmmirror) when winget cannot deliver Node, and two npm
+  registries (npmjs, npmmirror — the mirror is the automatic retry).
+  winget is still tried first for everything it can install.
+- **The code has three ways to arrive**: a normal git clone (GitHub's
+  browser login); the same clone with a GitHub token pasted into the
+  `$GH_TOKEN` line at the top of `setup.ps1` (no prompts at all, and
+  the token never lands in `.git/config`); or, when git itself cannot
+  be installed, a direct zip download from the GitHub API — the script
+  offers the token prompt at that point.
+- **`Younblock-offline` — the no-internet pack.** One zip carrying the
+  app, its Go dependencies, the window building blocks, the Go
+  toolchain, Node.js and the Wails CLI. Extract it, double-click
+  `setup-offline.bat`, done — nothing is downloaded, ever. It also
+  builds the exes (`setup-offline build`).
+- The Go dependencies are now **vendored in the repository**
+  (`vendor/`), so building and testing never touch a module proxy.
+
+### Changed
+
+- The setup became a pair: the `.bat` files you double-click, and one
+  `setup.ps1` holding the whole brain — they travel together in the
+  new `younblock-setup` zip on the Releases page (D62 refined).
+- The release ships 12 files: the usual ten builds, the
+  `younblock-setup` zip and the offline pack.
+
 ## [v0.7.1] — 2026-10-15 (app 1.6.1)
 
 The "one-click" release: two scripts that set up a Windows PC by

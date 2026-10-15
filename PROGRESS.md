@@ -1313,3 +1313,67 @@ through the API is byte-identical (sha256) to the built file —
   the Flatpak catches up on the next release that touches it.
 - The Windows walkthrough (wails dev, the 8-point list) is still Ali's
   step — `setup-dev.bat` now performs every step of the setup for it.
+
+## Phase 16 — mirrors and the offline pack (v0.7.2 / app 1.6.2)
+
+Ali reported the real-world failure: on a filtered network the setup
+scripts die — the private repository needs a login, and the
+dependencies sit on sites that are blocked (proxy.golang.org, go.dev).
+The fix is mirror resilience plus a fully offline pack (D63, D64). The
+app itself is unchanged from 1.6.0.
+
+- `setup.ps1` — the whole brain now lives in one PowerShell file; the
+  two .bat files became thin double-clickable launchers (D62 refined;
+  PowerShell was already allowed inside, this just moves the logic
+  there where try/catch and real string handling live). Mirror lists
+  at the top are the only configuration: Go module proxies
+  (proxy.golang.org / goproxy.io / goproxy.cn), Go toolchain zips
+  (Aliyun / go.dev), Node.js zips (nodejs.org / npmmirror), npm
+  registries (npmjs / npmmirror). Every step probes its mirrors (6 s
+  request, curl.exe first, Invoke-WebRequest fallback) and uses the
+  first that answers; winget is still tried first for Git / Go / Node
+  / WebView2.
+- The private repo gets three arrival paths: plain clone (GitHub's
+  browser login), clone with `$GH_TOKEN` (an http extraheader — the
+  token never lands in .git/config), and a zipball straight from the
+  GitHub API when git cannot be installed (the script offers the
+  token prompt there). GOPROXY is written once with
+  `go env -w` so a later plain build.bat keeps the mirrors.
+- `vendor/` — the Go dependencies are vendored into the repository
+  (25 MB, 1102 files), so build/test never touch a module proxy; only
+  the Wails CLI install still needs one (it is not importable, so it
+  cannot be vendored — D64).
+- `Younblock-offline` — the no-internet pack, assembled by the new
+  `build-offline-pack.sh` at release time: the tagged source (with
+  vendor/), a pre-installed Windows node_modules, the Go toolchain
+  zip, the Node.js zip and a cross-compiled Wails CLI.
+  `setup-offline.bat` unpacks the tools into
+  %LOCALAPPDATA%\YounblockTools and runs; `setup-offline build`
+  builds the exes instead. The `younblock-setup` zip carries the
+  three online scripts together (a .bat downloaded alone would be a
+  trap — its launcher refuses to run without setup.ps1 and says so).
+
+### Verification (v0.7.2 tree)
+
+- `go mod vendor`; `go build ./...` (linux), `GOOS=windows
+  GOARCH=amd64 go build ./...` and `GOARCH=386` — all three pass
+  against the vendor tree, proving the vendor is complete for every
+  platform the release builds.
+- `go vet ./...` clean; `go test -race -count=1 ./...` — every
+  package passes against the vendor tree;
+  `scripts/check-platform-neutral` OK; `younblock-core --version`
+  prints 1.6.2; `svelte-check` 0 errors / 0 warnings; `vite build`
+  clean.
+- setup.ps1: parsed clean by PowerShell 7.4's AST parser (0 errors);
+  smoke-run on Linux stops gracefully at step 1 (no winget) with the
+  right message and exit code; its real `Test-Url` / `Download-File`
+  functions (extracted via AST and executed) were run against every
+  configured endpoint live: all three Go proxies, both Go zip
+  mirrors, both Node zip mirrors, both npm registries answered True;
+  the token zipball (11 MB) and the Aliyun Go zip (79 MB) downloaded
+  through the actual function code.
+- The zipball's inner layout (assadigit-Younblock-<sha>/) matches
+  the extraction logic; `npm ci --os=win32 --cpu=x64` on the Linux
+  host installs @rolldown/binding-win32-x64-msvc (the Windows native
+  binding vite 8 needs) instead of the Linux one — verified by
+  direct inspection of the installed tree.

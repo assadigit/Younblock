@@ -1,268 +1,28 @@
 @echo off
-setlocal EnableExtensions
-title Younblock - one-click build
-
 rem ============================================================
-rem  Younblock one-click build (Windows 10 1709+ / Windows 11)
+rem  Younblock one-click build (build mode)
 rem
-rem  What it does:
-rem    [1/8] checks winget - the Windows package manager
-rem    [2/8] installs Git if missing
-rem    [3/8] installs Go if missing - checks the version
-rem    [4/8] installs Node.js LTS if missing - checks the version
-rem    [5/8] checks the WebView2 part of Windows
-rem    [6/8] installs the Wails CLI if missing
-rem    [7/8] gets the code - clone or git pull
-rem    [8/8] builds every exe file, then opens the dist folder
+rem  Double-click this file. All the logic lives in setup.ps1,
+rem  which must sit next to this file - keep them together
+rem  (the younblock-setup zip from the Releases page has both).
 rem
-rem  How to use: double-click this file.
-rem  First run downloads a lot - expect 5 to 15 minutes.
-rem  If Windows asks for permission - the UAC screen - click Yes.
-rem  The finished files land in the "dist" folder:
-rem    younblock.exe           the app you use every day, 64-bit
-rem    younblock-x86.exe       the same for a 32-bit Windows
-rem    younblock-core.exe      the engine without a window, 64-bit
-rem    younblock-core-x86.exe  the same, 32-bit
+rem  It installs anything missing (Git, Go, Node.js LTS, WebView2,
+rem  the Wails CLI) - using mirrors when the usual sites are
+rem  unreachable - then builds every exe and opens the dist folder.
 rem ============================================================
-
-set "REPO_URL=https://github.com/assadigit/younblock.git"
-set "CLONE_DIR=Younblock"
-set "GIT_TERMINAL_PROMPT=0"
-
-cd /d "%~dp0"
-
-echo.
-echo === Younblock one-click build ===
-echo.
-echo   Keep this window open until it says the build finished.
-echo   When Windows asks for permission - UAC - click Yes.
-echo.
-
-rem --- [1/8] winget ------------------------------------------------
-where winget >nul 2>&1
-if errorlevel 1 goto :no_winget
-echo [1/8] winget ok
-
-rem --- [2/8] Git ---------------------------------------------------
-where git >nul 2>&1
-if not errorlevel 1 goto :git_ok
-echo [2/8] Installing Git - please wait...
-winget install --id Git.Git -e --silent --accept-package-agreements --accept-source-agreements
-call :RefreshPath
-where git >nul 2>&1
-if errorlevel 1 goto :git_fail
-:git_ok
-echo [2/8] Git ok
-
-rem --- [3/8] Go ----------------------------------------------------
-where go >nul 2>&1
-if not errorlevel 1 goto :go_ver
-echo [3/8] Installing Go - please wait...
-winget install --id GoLang.Go -e --silent --accept-package-agreements --accept-source-agreements
-call :RefreshPath
-where go >nul 2>&1
-if errorlevel 1 goto :go_fail
-:go_ver
-set "GOVER="
-for /f "tokens=3" %%v in ('go version') do set "GOVER=%%v"
-if not defined GOVER goto :go_fail
-set "GOMAJOR="
-set "GOMINOR="
-set "GOVER=%GOVER:go=%"
-for /f "tokens=1 delims=." %%a in ("%GOVER%") do set "GOMAJOR=%%a"
-for /f "tokens=2 delims=." %%b in ("%GOVER%") do set "GOMINOR=%%b"
-if not defined GOMAJOR goto :go_ok
-if not defined GOMINOR goto :go_ok
-if %GOMAJOR% GTR 1 goto :go_ok
-if %GOMAJOR% EQU 1 if %GOMINOR% GEQ 26 goto :go_ok
-goto :go_old
-:go_ok
-echo [3/8] Go ok
-
-rem --- [4/8] Node.js LTS + npm -------------------------------------
-where node >nul 2>&1
-if not errorlevel 1 goto :node_ok
-echo [4/8] Installing Node.js LTS - please wait...
-winget install --id OpenJS.NodeJS.LTS -e --silent --accept-package-agreements --accept-source-agreements
-call :RefreshPath
-where node >nul 2>&1
-if errorlevel 1 goto :node_fail
-:node_ok
-echo [4/8] Node.js ok
-set "NODE_MAJOR="
-for /f "usebackq delims=" %%v in (`node -p "process.versions.node.split('.')[0]"`) do set "NODE_MAJOR=%%v"
-if "%NODE_MAJOR%"=="" goto :node_fail
-if %NODE_MAJOR% LSS 20 goto :node_old
-where npm >nul 2>&1
-if errorlevel 1 goto :node_fail
-echo [4/8] npm ok - Node %NODE_MAJOR%
-
-rem --- [5/8] WebView2 part of Windows ------------------------------
-reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1
-if not errorlevel 1 goto :wv2_ok
-reg query "HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1
-if not errorlevel 1 goto :wv2_ok
-echo [5/8] Installing the WebView2 part of Windows - please wait...
-winget install --id Microsoft.EdgeWebView2Runtime -e --silent --accept-package-agreements --accept-source-agreements
-reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1
-if not errorlevel 1 goto :wv2_ok
-reg query "HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv >nul 2>&1
-if not errorlevel 1 goto :wv2_ok
-echo [5/8] WARNING: WebView2 not found and could not be installed.
-echo        The exes will still build - but if the app window turns out
-echo        blank when you run it, install "Microsoft Edge WebView2
-echo        Runtime" from Microsoft, then run the exe again.
-goto :wv2_done
-:wv2_ok
-echo [5/8] WebView2 ok
-:wv2_done
-
-rem --- [6/8] Wails CLI ---------------------------------------------
-set "PATH=%PATH%;%USERPROFILE%\go\bin"
-where wails >nul 2>&1
-if not errorlevel 1 goto :wails_ok
-echo [6/8] Installing the Wails CLI - it compiles with Go - please wait...
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-if errorlevel 1 goto :wails_fail
-where wails >nul 2>&1
-if errorlevel 1 goto :wails_fail
-:wails_ok
-echo [6/8] Wails CLI ok
-
-rem --- [7/8] the code - clone it or update it ----------------------
-set "REPO="
-if exist "%~dp0wails.json" set "REPO=%~dp0"
-if not defined REPO if exist "%~dp0%CLONE_DIR%\wails.json" set "REPO=%~dp0%CLONE_DIR%"
-if defined REPO goto :repo_ready
-echo [7/8] Cloning Younblock from GitHub - please wait...
-echo        The repository is private, so GitHub may ask you to log in.
-git clone "%REPO_URL%" "%~dp0%CLONE_DIR%"
-if errorlevel 1 goto :clone_fail
-set "REPO=%~dp0%CLONE_DIR%"
-goto :repo_ready
-:repo_ready
-echo [7/8] Code folder: %REPO%
-pushd "%REPO%"
-if not exist ".git" goto :repo_pulled
-echo [7/8] Updating the code - git pull...
-git pull --ff-only >nul 2>&1
-if errorlevel 1 (
-    echo        Could not auto-update - continuing with the code you have.
-) else (
-    echo        Code is up to date.
-)
-:repo_pulled
-popd
-
-rem --- [8/8] build every exe file ----------------------------------
-pushd "%REPO%"
-if exist "build.bat" goto :have_build
-popd
-goto :nobuild
-:have_build
-echo [8/8] Building every exe file - the first build takes a few minutes...
-call build.bat
-if errorlevel 1 goto :build_fail
-if not exist "dist\younblock.exe" goto :build_fail
-popd
-echo.
-echo === Build finished ===
-echo.
-echo   The finished files are in this folder:
-echo     %REPO%dist
-echo   - younblock.exe           the app for every day, 64-bit
-echo   - younblock-x86.exe       the same for a 32-bit Windows
-echo   - younblock-core.exe      the engine without a window, 64-bit
-echo   - younblock-core-x86.exe  the same, 32-bit
-echo   (The list above also printed a SHA-256 number for each file -
-echo   copy it if you ever send a file to a friend.)
-echo.
-echo   Opening the folder for you now...
-%SystemRoot%\explorer.exe "%REPO%dist"
-goto :the_end
-
-rem ============================================================
-rem  helpers
-rem ============================================================
-
-:RefreshPath
-rem Reload PATH from the registry - picks up tools installed
-rem by winget a moment ago without restarting this window.
-for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')"`) do set "PATH=%%p"
-goto :eof
-
-:no_winget
-echo.
-echo SETUP STOPPED: "winget" was not found on this PC.
-echo winget comes with Windows 10 1709+ and Windows 11 as "App Installer".
-echo Fix: open the Microsoft Store - search "App Installer" - press Update -
-echo then run this file again.
-goto :the_end
-
-:git_fail
-echo.
-echo SETUP STOPPED: Git did not install. Read the messages above,
-echo fix the problem, then run this file again.
-goto :the_end
-
-:go_fail
-echo.
-echo SETUP STOPPED: Go did not install or is broken. Read the
-echo messages above, fix the problem, then run this file again.
-goto :the_end
-
-:go_old
-echo.
-echo SETUP STOPPED: your Go is version %GOVER%, but this app needs
-echo Go 1.26 or newer.
-echo Fix: open Settings - Apps - uninstall the old Go - then run
-echo this file again and it will install the current one.
-goto :the_end
-
-:node_fail
-echo.
-echo SETUP STOPPED: Node.js did not install or is broken. Read the
-echo messages above, fix the problem, then run this file again.
-goto :the_end
-
-:node_old
-echo.
-echo SETUP STOPPED: your Node.js is version %NODE_MAJOR%, but this app
-echo needs Node 20 or newer.
-echo Fix: open Settings - Apps - uninstall the old Node.js - then run
-echo this file again and it will install the current one.
-goto :the_end
-
-:wails_fail
-echo.
-echo SETUP STOPPED: the Wails CLI did not install. Check your internet
-echo connection, then run this file again.
-goto :the_end
-
-:clone_fail
-echo.
-echo SETUP STOPPED: could not download the code from GitHub.
-echo The repository is private: when GitHub asks, log in with your
-echo account and allow it. Then run this file again.
-goto :the_end
-
-:nobuild
-echo.
-echo SETUP STOPPED: build.bat was not found in the code folder.
-echo The folder may be incomplete. Delete it and run this file again
-echo to get a fresh copy of the code.
-goto :the_end
-
-:build_fail
-popd
-echo.
-echo BUILD FAILED. Read the messages above - they say what went wrong.
-echo If a missing tool was the problem, fix it and run this file again.
-echo To see the app live while you investigate, run setup-dev.bat.
-goto :the_end
-
-:the_end
+if not exist "%~dp0setup.ps1" goto :nops1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -Mode build
 echo.
 echo Press any key to close this window...
 pause >nul
-endlocal
+exit /b %errorlevel%
+
+:nops1
+echo.
+echo SETUP STOPPED: setup.ps1 was not found next to this file.
+echo The two files travel together: download the "younblock-setup"
+echo zip from the Releases page, extract ALL of its files into one
+echo folder, then double-click this file again.
+echo.
+pause
+exit /b 1
