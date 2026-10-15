@@ -133,9 +133,16 @@ PYEOF
 
   # build-export commits the build dir into an archive repo (it does not
   # create the repo itself, and takes the branch as a positional arg).
+  # Icon validation normally runs inside a bwrap sandbox; on hosts without
+  # bwrap (this project's restricted build sandbox), it runs directly —
+  # same check the flatpak-builder path gets from /dev/fuse above.
+  local export_args=(--arch=x86_64)
+  if ! command -v bwrap >/dev/null 2>&1; then
+    export_args+=(--disable-sandbox)
+  fi
   mkdir -p "$REPO"
   ostree init --repo="$REPO" --mode=archive-z2 2>/dev/null || true
-  flatpak build-export --arch=x86_64 "$REPO" "$BUILD" stable
+  flatpak build-export "${export_args[@]}" "$REPO" "$BUILD" stable
   flatpak build-bundle "$REPO" "$OUT" "$APP_ID" stable
 }
 

@@ -1093,3 +1093,44 @@ Verification gates run:
   scroll net unchanged.
 - Cross-builds: ./build.sh cut all six binaries and the four packages
   from the one tree (logs in the release section below).
+
+### Release verification (v0.6.0 artifacts, from this tree)
+
+- ./build.sh cut all six binaries + the two .debs + the two AppImages in
+  one run; the Flatpak via packaging/flatpak/build-flatpak.sh after the
+  sandbox's flatpak stack was restored user-space (apt-get download +
+  dpkg-deb -x: flatpak 1.16.6, flatpak-builder 1.4.4, ostree; GNOME 48
+  Platform+SDK installed --user from flathub; FLATPAK_SYSTEM_DIR pointed
+  at the user installation for the build commands).
+- The fallback flatpak path needed two small host adaptations, both
+  recorded here honestly: the compiled-in /usr/libexec/flatpak-validate-
+  icon path does not exist in this container, so the user-space flatpak
+  binary was patched to an equal-length copy under /home/z (the validator
+  itself is the stock Debian one); and build-flatpak.sh now passes
+  --disable-sandbox to build-export when bwrap is absent — the same
+  conditional spirit as the existing --disable-rofiles-fuse /dev/fuse
+  check, and a no-op on any real Mint (committed).
+- Linux binary E2E (agent-browser against the live --web core 1.5.0):
+  first-run → Get started → off; power button → real on (engine live);
+  Settings shows the Linux copy + hides the Chrome-session row
+  (capability gating); Help Run test — all four steps pass live; About;
+  toggle off. Forced PORT_BUSY (fixed port + occupier listener) for the
+  error state. `agent-browser errors`/`console` — empty across the whole
+  session.
+- .deb amd64: extracts cleanly, /usr/bin/younblock --version 1.5.0,
+  desktop file Exec=/usr/bin/younblock --web, nine icon sizes,
+  Depends/Recommends intact; i386 .deb binary is ELF i386.
+- AppImage x86_64: through the real AppImage runtime
+  (--appimage-extract-and-run): live control page, appinfo 1.5.0.
+- Flatpak bundle: installed --user (dbus-run-session + a fake system bus
+  for the parental-controls lookup + a bwrap passthrough shim — the
+  openh264 extra-data step warns and is skipped, our app has no
+  extra-data); deploy metadata correct (runtime org.gnome.Platform 48),
+  /app/bin/younblock byte-identical to dist/younblock-linux-amd64
+  (sha ef64037b…), desktop + 9 icons, live API 1.5.0, and the D54
+  autostart entry written through FLATPAK_ID reads
+  Exec=flatpak run io.github.assadigit.Younblock --web. `flatpak run`
+  itself stays Ali's manual check on real Mint (same container limits
+  as v0.5.1).
+- check-platform-neutral OK; arm64 core builds; PE32+/PE32/ELF64/ELF32
+  formats confirmed for every artifact.
