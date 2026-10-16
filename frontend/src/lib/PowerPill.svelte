@@ -41,6 +41,7 @@
   // Drag state. The thumb rests at one end (top when off, bottom when on)
   // and follows the pointer between them while dragging.
   let dragging = false;
+  let pressed = false;
   let startY = 0;
   let dragPx = 0;
   let movedPx = 0;
@@ -49,12 +50,20 @@
   $: dragOffset = dragging ? dragPx : 0;
   $: offsetPx = Math.max(0, Math.min(travelPx, restingPx + dragOffset));
 
+  // Armed = the drag has crossed the halfway threshold, so releasing now
+  // would commit. The LED previews the outcome (green when a connect is
+  // armed, the resting red when a disconnect is) and the chevron lights up
+  // — the control answers "what happens if I let go" before it happens.
+  $: armed =
+    dragging && !busy && (on ? offsetPx <= travelPx / 2 : offsetPx >= travelPx / 2);
+
   // Any phase change ends a drag (the commit already happened, or a cancel
   // arrived from elsewhere) so the thumb returns to its resting end.
   let lastPhase: Phase = phase;
   $: if (phase !== lastPhase) {
     lastPhase = phase;
     dragging = false;
+    pressed = false;
     dragPx = 0;
     movedPx = 0;
   }
@@ -65,6 +74,7 @@
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     startY = e.clientY;
     movedPx = 0;
+    pressed = true;
     dragging = !busy;
     dragPx = 0;
   }
@@ -80,6 +90,7 @@
     const moved = movedPx;
     const wasDragging = dragging;
     dragging = false;
+    pressed = false;
     dragPx = 0;
     if (moved < 6) {
       activate(); // a tap, not a drag (this also cancels while busy)
@@ -127,12 +138,14 @@
 </script>
 
 <div class="track" aria-hidden="true">
-  <!-- double chevron in the empty half: points where a swipe would go -->
-  <svg class="chev down" class:visible={!busy && !on} viewBox="0 0 16 16">
+  <!-- double chevron in the empty half: points where a swipe would go, and
+       breathes gently toward it; lights up and pauses once the drag is
+       armed (past halfway) -->
+  <svg class="chev down" class:visible={!busy && !on} class:armed={armed && !on} viewBox="0 0 16 16">
     <path d="M2 3.5L8 9l6-5.5" />
     <path d="M2 8.5L8 14l6-5.5" />
   </svg>
-  <svg class="chev up" class:visible={!busy && on} viewBox="0 0 16 16">
+  <svg class="chev up" class:visible={!busy && on} class:armed={armed && on} viewBox="0 0 16 16">
     <path d="M2 12.5L8 7l6 5.5" />
     <path d="M2 7.5L8 2l6 5.5" />
   </svg>
@@ -145,17 +158,23 @@
   role="switch"
   aria-checked={on ? "true" : "false"}
   aria-label="Connection"
-  style:transform={`translateY(${offsetPx}px)`}
+  style:transform={`translateY(${offsetPx}px) scale(${pressed ? 0.98 : 1})`}
   on:pointerdown={down}
   on:pointermove={move}
   on:pointerup={up}
   on:pointercancel={() => {
     dragging = false;
+    pressed = false;
     dragPx = 0;
   }}
   on:keydown={keydown}
 >
-  <span class="led" class:lit={phase === "connected"} class:blink={busy} aria-hidden="true"></span>
+  <span
+    class="led"
+    class:lit={armed ? !on : phase === "connected"}
+    class:blink={busy}
+    aria-hidden="true"
+  ></span>
   <span class="label" aria-hidden="true">{label}</span>
   {#if phase === "connecting"}
     <span class="well" aria-hidden="true"><span class="spinner"></span></span>
@@ -197,7 +216,10 @@
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0;
-    transition: opacity var(--dur-fast) ease;
+    transition:
+      opacity var(--dur-fast) ease,
+      stroke var(--dur-fast) ease,
+      filter var(--dur-fast) ease;
     pointer-events: none;
   }
   .chev.down {
@@ -208,6 +230,37 @@
   }
   .chev.visible {
     opacity: 1;
+    animation: nudge var(--dur-pulse) ease-in-out infinite;
+  }
+  .chev.down.visible {
+    animation-name: nudge-down;
+  }
+  .chev.up.visible {
+    animation-name: nudge-up;
+  }
+  /* armed: past halfway — the nudge pauses and the chevron lights up */
+  .chev.armed {
+    animation-play-state: paused;
+    stroke: #fff;
+    filter: drop-shadow(0 0 0.375rem rgba(255, 255, 255, 0.5));
+  }
+  @keyframes nudge-down {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(0.125rem);
+    }
+  }
+  @keyframes nudge-up {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-0.125rem);
+    }
   }
 
   .thumb {
@@ -254,7 +307,9 @@
     margin-left: -0.5625rem;
     border-radius: 0.3125rem;
     background: var(--red-led-dim);
-    transition: background var(--dur-fast) ease;
+    transition:
+      background var(--dur-fast) ease,
+      box-shadow var(--dur-fast) ease;
   }
   .led.lit {
     background: var(--green-led);

@@ -1,17 +1,21 @@
 <script lang="ts">
   // MenuSheet.svelte — the sheet behind the menu button: About / How it
-  // works / Help. Escape and the red Close button dismiss it.
+  // works / Help. Escape and the red Close button dismiss it. While open
+  // it behaves like a modal: focus moves in, Tab wraps inside, and focus
+  // returns to the menu button on close.
   import { createEventDispatcher } from "svelte";
 
   export let open = false;
+  /** Host app version from the backend (backend.getAppInfo); empty hides
+   *  the line — a dev preview has no host, and a hard-coded copy of the
+   *  number here would go stale on the next bump (it already did once). */
+  export let version = "";
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
   // =====================================================================
   // CONFIG — edit the three texts here
   // =====================================================================
-  const APP_VERSION = "1.6.3";
-
   const ABOUT = [
     "Younblock helps YouTube load in your browser when the network gets in the way. It runs only on your PC, with no account and no analytics.",
     "It is not a VPN: it does not hide your IP address and adds no encryption — YouTube's own HTTPS still protects the content.",
@@ -32,6 +36,7 @@
   // =====================================================================
 
   let closeBtn: HTMLElement | undefined;
+  let sheetEl: HTMLElement | undefined;
   let restoreFocus: HTMLElement | null = null;
 
   // A modal sheet takes focus when it opens and hands it back when it
@@ -54,10 +59,28 @@
     dispatch("close");
   }
 
+  // Escape closes; Tab (and Shift+Tab) wrap inside the sheet — a modal
+  // dialog must not leak focus to the dimmed screen behind it. With the
+  // Close button as the only control, every Tab lands back on it.
   function onKeydown(e: KeyboardEvent) {
-    if (open && e.key === "Escape") {
+    if (!open) return;
+    if (e.key === "Escape") {
       e.preventDefault();
       close();
+      return;
+    }
+    if (e.key !== "Tab" || !sheetEl) return;
+    const focusables = Array.from(
+      sheetEl.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey ? document.activeElement === first : document.activeElement === last) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus({ preventScroll: true });
     }
   }
 </script>
@@ -69,6 +92,7 @@
 <div
   class="sheet"
   class:open
+  bind:this={sheetEl}
   role="dialog"
   aria-modal="true"
   aria-label="About Younblock"
@@ -88,7 +112,7 @@
       {#each ABOUT as line}
         <p>{line}</p>
       {/each}
-      <p class="version">Younblock {APP_VERSION}</p>
+      {#if version}<p class="version">Younblock {version}</p>{/if}
     </section>
 
     <section>

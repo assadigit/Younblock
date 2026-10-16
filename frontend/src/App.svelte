@@ -33,6 +33,11 @@
   let snap: Snapshot = { phase: 'disconnected', connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null }
   let now = Date.now()
   let menuOpen = false
+  // The host's version (backend.getAppInfo) for the About sheet — the one
+  // copy of the number lives in internal/config on the Go side, so it can
+  // never disagree with --version. Empty in a plain-browser preview, where
+  // the sheet simply hides the line.
+  let appVersion = ''
   let stopListening: () => void = () => {}
   let clock: number | undefined
   // An error raised by this window itself (for example Go refused the call). It survives the
@@ -47,6 +52,7 @@
 
   onMount(() => {
     backend.getSnapshot().then((s) => (snap = s)).catch(() => {})
+    backend.getAppInfo().then((info) => (appVersion = info?.version ?? '')).catch(() => {})
     stopListening = backend.subscribe((s) => (snap = s))
     clock = window.setInterval(() => (now = Date.now()), 250)
   })
@@ -137,8 +143,14 @@
 
     <div class="status" aria-live="polite">
       <div class="label">{STATUS_LABEL}</div>
-      <div class="state">{STATUS_TEXT[phase]}</div>
-      <div class="detail" class:visible={detail !== ''}>{detail}</div>
+      <!-- keyed by phase: the word crossfades on every change instead of
+           snapping (the CSS animation dies under prefers-reduced-motion) -->
+      <div class="state">
+        {#key phase}
+          <span class="word">{STATUS_TEXT[phase]}</span>
+        {/key}
+      </div>
+      <div class="detail" class:visible={detail !== ''} class:error={phase === 'error'}>{detail}</div>
     </div>
 
     <DotRings {tone} {busy} cy={tone === 'on' ? 30.5625 : 28.3} />
@@ -146,7 +158,7 @@
 
     <div class="hint" class:visible={hint !== ''}>{hint}</div>
 
-    <MenuSheet open={menuOpen} on:close={() => (menuOpen = false)} />
+    <MenuSheet open={menuOpen} version={appVersion} on:close={() => (menuOpen = false)} />
   </div>
 </main>
 
@@ -155,15 +167,14 @@
     position: fixed;
     inset: 0;
     overflow: hidden;
-    /* tone variables, switched by data-tone */
+    /* tone variables, switched by data-tone (DotRings carries its own
+       per-set fills so the outgoing color survives the cross-fade) */
     --track-a: #1b1b24;
     --track-b: #2f3037;
-    --ring-dot: var(--red-400);
   }
   .app[data-tone='on'] {
     --track-a: #243832;
     --track-b: #3a574e;
-    --ring-dot: var(--green-led);
   }
 
   /* two full-bleed gradient layers that cross-fade (a gradient itself cannot be animated) */
@@ -251,10 +262,15 @@
       inset 0 0.0625rem 0 rgba(255, 255, 255, 0.12);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    transition: background 150ms ease;
+    transition:
+      background 150ms ease,
+      transform 150ms ease;
   }
   .menu:hover {
     background: rgba(255, 255, 255, 0.16);
+  }
+  .menu:active {
+    transform: scale(0.94);
   }
   .menu:focus-visible {
     outline: 0.125rem solid #fff;
@@ -347,6 +363,20 @@
     line-height: 1.9rem;
     text-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.25);
   }
+  .word {
+    display: inline-block;
+    animation: word-in var(--dur-word) var(--ease-out);
+  }
+  @keyframes word-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.3rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
   .detail {
     margin-top: 0.55rem;
     min-height: 1rem;
@@ -358,6 +388,11 @@
   }
   .detail.visible {
     opacity: 1;
+  }
+  /* the error line is the one place red is allowed as text: --red-400,
+     the only red that passes contrast on these surfaces (tokens.css) */
+  .detail.error {
+    color: var(--red-400);
   }
 
   .hint {

@@ -852,3 +852,33 @@ to stop a setup). Also corrected the stale "360 x 760" startup text —
 the pro screen has opened 360 x 628 since v0.7.3. The immediate
 workaround for a v0.7.4 pack, for the record: edit line 103 of its
 setup-offline.bat from `call wails dev` to `call wails dev -m`.
+
+**D69 — post-v1.6.5, unreleased: the feel pass — cross-fade the sets,
+never re-render them; measure transitions, don't eyeball them.**
+Three rules came out of this pass. (1) A tone flip must not swap DOM:
+the old DotRings rebuilt its circles on every tone change (one ring ↔
+five arcs), which made any CSS transition impossible by construction —
+the fix mounts both sets permanently and cross-fades them through
+`--dur-swap` (250 ms), with each ring as two nested groups (outer group
+owns the fade opacity, inner group owns the pulse animation; CSS
+animations override the opacity property they animate, so the fade and
+the pulse must live on separate elements to compose). The per-set fill
+replaces the tone-scoped `--ring-dot` token so the outgoing color
+survives its own fade. (2) A first attempt (dip the whole family to
+opacity 0, swap underneath, fade back) flickered — the sets changed at
+full opacity before the dip reached them; the lesson is that a swap
+hidden by a transition must be ordered AFTER the hide, and the simplest
+correct ordering is "never swap at all". (3) VLM frame reviews are a
+finder, not a judge: it called a measured 250 ms cross-fade a "pop"
+twice (sparse dots, sampled frames) and claimed a spinner was off-center
+that measures 0,0 — every visual claim this pass was settled by polling
+computed styles through a live transition or by bounding-box
+measurement. The same pass wired the About version to the backend
+(getAppInfo: the Wails `GetAppInfo` binding / `/api/appinfo`, null in
+preview → the line hides), ending the stale-hard-coded-number bug class
+the same way D65 ended it the first time; gave the drag an `armed`
+preview past halfway (LED previews the outcome, chevron lights and
+pauses — `armed ? !on : phase === 'connected'`, because the phase
+doesn't change until the release commits); and made the menu sheet trap
+Tab/Shift+Tab like the modal it claims to be (aria-modal since v0.7.0,
+but focus could leak out the back).

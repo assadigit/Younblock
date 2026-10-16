@@ -14,6 +14,7 @@ const BINDINGS = {
   connect: "Connect",
   disconnect: "Disconnect",
   getSnapshot: "GetSnapshot",
+  getAppInfo: "GetAppInfo",
 } as const;
 /** Wails event carrying a fresh Snapshot. */
 const STATUS_EVENT = "younblock:status";
@@ -21,12 +22,20 @@ const STATUS_EVENT = "younblock:status";
 
 import type { Snapshot } from "./types";
 
+/** App metadata from the host (internal/config on the Go side). */
+export interface AppInfo {
+  name: string;
+  version: string;
+}
+
 /** The backend surface the screen talks to. */
 export interface Backend {
   getSnapshot(): Promise<Snapshot>;
   subscribe(cb: (s: Snapshot) => void): () => void;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
+  /** The host's name/version, or null when this build has no host (preview). */
+  getAppInfo(): Promise<AppInfo | null>;
 }
 
 /** Create the backend for this environment (Wails, then HTTP, then preview). */
@@ -113,6 +122,24 @@ class WailsBackend implements Backend {
 
   async disconnect(): Promise<void> {
     await this.bindings[BINDINGS.disconnect]();
+  }
+
+  // GetAppInfo returns the same JSON the webui serves at /api/appinfo
+  // ({"name":..,"version":..,..}); the screen only needs those two fields.
+  private info: AppInfo | null = null;
+  async getAppInfo(): Promise<AppInfo | null> {
+    if (this.info) return this.info;
+    try {
+      const fn = this.bindings[BINDINGS.getAppInfo];
+      if (typeof fn !== "function") return null;
+      const raw = JSON.parse(String(await fn())) as Partial<AppInfo>;
+      if (raw && typeof raw.version === "string" && raw.version !== "") {
+        this.info = { name: String(raw.name ?? ""), version: raw.version };
+      }
+      return this.info;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -216,6 +243,23 @@ class HttpBackend implements Backend {
 
   async disconnect(): Promise<void> {
     await postCommand("/api/stop");
+  }
+
+  // /api/appinfo is the same document httpAvailable() probes; fetched once
+  // on demand and cached — the About sheet asks only when it is opened.
+  private infoPromise: Promise<AppInfo | null> | undefined;
+  getAppInfo(): Promise<AppInfo | null> {
+    if (!this.infoPromise) {
+      this.infoPromise = fetch("/api/appinfo", { cache: "no-store" })
+        .then((res) => (res.ok ? (res.json() as Promise<Partial<AppInfo>>) : null))
+        .then((info) =>
+          info && typeof info.version === "string" && info.version !== ""
+            ? { name: String(info.name ?? ""), version: info.version }
+            : null,
+        )
+        .catch(() => null);
+    }
+    return this.infoPromise;
   }
 
   /** Fold one fresh engine state into the snapshot, the bridge's mapping. */
@@ -329,6 +373,9 @@ function autoBackend(): Backend {
     async disconnect(): Promise<void> {
       return (await whenReady()).disconnect();
     },
+    async getAppInfo(): Promise<AppInfo | null> {
+      return (await whenReady()).getAppInfo();
+    },
   };
 }
 
@@ -376,6 +423,11 @@ function previewBackend(): Backend {
     subscribe(cb: (s: Snapshot) => void): () => void {
       listeners.add(cb);
       return () => listeners.delete(cb);
+    },
+    // No host behind a plain browser: null makes the About sheet hide its
+    // version line instead of inventing one that would go stale.
+    async getAppInfo(): Promise<AppInfo | null> {
+      return null;
     },
     async connect(): Promise<void> {
       if (snap.phase !== "disconnected" && snap.phase !== "error") return;

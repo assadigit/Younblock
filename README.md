@@ -27,6 +27,13 @@ when YouTube stops responding — and it always tells you what it changed.
   If your offline pack printed `403 Forbidden` or
   `'powershell' is not recognized`, download this release's pack.
 
+> In the works on main (not yet released): a "feel" pass on the
+> redesigned screen — the on/off flip cross-fades instead of popping,
+> dragging the pill past halfway previews what release will do, the
+> About sheet reads its version from the app instead of a number that
+> went stale, and the menu traps Tab like a proper dialog. See
+> [CHANGELOG.md](CHANGELOG.md) → Unreleased.
+
 **What's new in version 1.6.4** (the "two editions, real windows" release):
 
 > The full release history — every version, in plain language — now lives in

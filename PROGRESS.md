@@ -1634,3 +1634,87 @@ round-trip verified 16/16 byte-identical via the asset API; v0.7.5
 confirmed latest. The release notes also carry the one-line workaround
 for owners of the v0.7.4 pack (`call wails dev` → `call wails dev -m`
 in Notepad) so nobody has to re-download 174 MB to get unstuck.
+
+## Phase 20 — the feel pass (UI/UX, post-v0.7.5, unreleased)
+
+Ali's brief this session was an open-ended UI/UX pass (the goals list
+arrived unfilled, so the work was chosen from the repo's own evidence:
+a frame-by-frame review of the connect flip, the VLM gate history, and
+the two defects found on the way).
+
+**What the evidence said before anything was touched.** A recorded
+connect flow, extracted at 30 fps and reviewed frame by frame, confirmed
+three rough edges in the v1.6.5 choreography: the dotted rings POPPED
+(the single red ring vanished and the five green arcs appeared in the
+same frame), the status word snapped between states, and the timer block
+appeared with a jolt next to them. Plus one plain bug found by reading:
+MenuSheet's About section still said "Younblock 1.6.3" in a 1.6.5 app —
+the exact staleness class fixed once before (v0.7.3's hard-coded "1.5.0"),
+regressed at v0.7.4 because the number was typed into the frontend again.
+
+**The version fix (structural, not another bump).** `getAppInfo()` joined
+the Backend interface: the Wails adapter calls the existing `GetAppInfo`
+binding (same JSON the classic screen already parses), the HTTP adapter
+fetches `/api/appinfo` once and caches, and the preview adapter returns
+null — an honest "no host here", which makes MenuSheet hide the version
+line instead of inventing a number. The one copy of the version now lives
+where `--version` lives (internal/config). Verified in the browser that
+the line is gone in preview mode; the Wails/HTTP paths carry the classic
+screen's proven contract.
+
+**The choreography.** DotRings was restructured so both tone sets are
+always mounted: the off ring and the five on arcs cross-fade through
+250 ms (`--dur-swap`) while the family's cy transition (700 ms) carries
+them to the new center — no DOM swap, no timer, pure CSS. Each ring is
+two groups (outer owns the fade opacity, inner owns the pulse animation,
+so they compose instead of fighting); the fill moved from the shared
+`--ring-dot` tone token to per-set classes so the outgoing color stays
+correct while it dissolves. The five arcs pulse as an outward ripple
+(staggered by 0.45 s, negative delays around the middle ring so the wave
+is already running at mount — replacing a per-dot `animation-delay` that
+had been dead on arrival since the component was written). The status
+word is a `{#key phase}` span that rises in over 320 ms (`--dur-word`).
+
+**The micro-interactions.** PowerPill gained `pressed` (scale 0.98 under
+the pointer, inline with the drag transform so the 1:1 drag tracking is
+untouched) and `armed` — a drag past the halfway threshold now previews
+the release: the LED lights green while a connect is armed, dims back to
+resting red while a disconnect is (the first cut of this had a bug the
+E2E caught: while dragging up from connected the phase is still
+"connected", so the lit class stuck — the condition is now
+`armed ? !on : phase === 'connected'`), and the chevron in the direction
+of travel goes white, gains a glow and pauses its new idle nudge (a
+2 px breathe at the ring-pulse cadence). The error detail line moved to
+`--red-400` (the only red approved for text), and MenuSheet became a
+real modal: Tab and Shift+Tab now wrap inside the sheet instead of
+leaking to the dimmed screen behind it.
+
+**Verification (all on the final tree).** svelte-check 0/0; vite build
+clean; no Go file touched (go vet/test vacuous this phase — disclosed).
+Browser E2E at exactly 360×628 through the vite preview adapter: click
+connect → connecting → connected; cancel mid-connect; retry from the
+error state; full-drag connect with the armed state asserted mid-drag
+(LED lit + chevron armed at +40 px); drag-up disconnect with the dim-LED
+armed asserted; short-drag snap-back (thumb returns to rest, state
+unchanged); keyboard ArrowDown/ArrowUp/Enter (Escape correctly does
+nothing while connected); menu opens, focus lands on Close, Tab and
+Shift+Tab wrap, Escape closes and focus returns to the menu button; the
+version line absent in preview; zero console or page errors throughout.
+The three transition claims were verified by measurement, not eyeballing:
+computed-style polling through a live flip shows the ring cross-fade
+running 1→0 / 0→1 over ~250 ms and the timer block 0→1 with its rise
+over ~400 ms (two VLM "pop" judgments on sampled frames were refuted by
+these numbers); the word rise-in was VLM-confirmed on dense 33 ms frames.
+prefers-reduced-motion emulation: every new animation collapses to
+0.01 ms and connect still works. Responsive ladder re-checked at
+300×620 (root font 13.33 px, doc height = viewport, no scroll). The
+classic screen (`?ui=classic`) loads and runs clean — untouched, but
+sanity-checked because both screens share the dispatcher. VLM design
+review of the five states: its notes were each checked and came out
+by-design or refuted by measurement (spinner offset 0,0; word right
+edge 277.7 < 360; lowest arc dot 47.5 px above the stage bottom; the
+sheet scrolls by design, 810 px of content in a 429 px well).
+
+Not done this phase, deliberately: no version bump and no release (the
+work sits in CHANGELOG's [Unreleased]; the README's "What's new" gets
+its entry at release time), and the classic screen stays frozen (D66).

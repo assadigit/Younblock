@@ -72,6 +72,8 @@
   --dur-fast: 150ms;
   --dur-slide: 380ms;
   --dur-tone: 700ms;
+  --dur-swap: 250ms; /* the rings' cross-fade while the tone flips */
+  --dur-word: 320ms; /* the status word's rise-in on every phase change */
   --dur-pulse: 2.4s;
   --dur-pulse-busy: 1.1s;
   --dur-spin: 0.9s;

@@ -12,6 +12,49 @@ every release are on the
 
 ## [Unreleased]
 
+A feel pass on the redesigned connect screen: the state change is now a
+choreography instead of a set of hard cuts, the drag answers "what happens
+if I let go" before you let go, and the About sheet can no longer lie about
+its version number.
+
+### Fixed
+
+- **The About sheet showed a stale version** — "1.6.3" in a 1.6.5 app
+  (the same bug the v0.7.3 pass fixed when it was "1.5.0"). The number is
+  no longer typed into the frontend at all: the sheet asks the backend for
+  it (the `GetAppInfo` binding on Windows, `/api/appinfo` on the Linux
+  web edition), and in a plain browser preview — which has no host — the
+  version line is simply hidden rather than inventing a number.
+
+### Changed
+
+- **The connected/disconnected flip is one motion now.** The dotted rings
+  used to pop (one red ring vanished, five green arcs appeared in the same
+  frame); both sets now cross-fade over 250 ms while the family drifts to
+  its new center, and the five arcs pulse as an outward ripple instead of
+  one flat group pulse. The big status word ("Not Connected" →
+  "Connecting…" → "Connected") rises in softly instead of snapping.
+- **Dragging the pill past halfway now previews the outcome.** The LED on
+  the thumb lights green while a connect is armed (or dims back to red
+  while a disconnect is), and the chevron in the direction of travel
+  brightens and pauses its idle nudge — release-to-commit is visible
+  before you commit. The thumb also presses down (scale 0.98) under a
+  finger or mouse, and the chevrons breathe gently toward the swipe
+  direction while idle.
+- The error detail line ("Could not connect. Try again.") is now the
+  approved-for-text red (`--red-400`) instead of secondary grey — red is
+  for real errors, per the design language.
+
+### Added
+
+- The menu sheet now behaves like a proper modal: focus moves in when it
+  opens (already true), **Tab and Shift+Tab wrap inside it** (previously
+  Tab leaked to the dimmed screen behind), and focus returns to the menu
+  button on close (already true).
+
+All new motion stops under `prefers-reduced-motion`, verified: every
+animation collapses to 0.01 ms and the app remains fully usable.
+
 ## [v0.7.5] — 2026-10-16 (app 1.6.5)
 
 The "offline means offline" release: the offline pack from v0.7.4

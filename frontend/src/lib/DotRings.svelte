@@ -1,10 +1,12 @@
 <script lang="ts">
   // DotRings.svelte — the only decoration (design.md): a single red dotted
   // ring around the track when not connected; five green dotted arcs around
-  // the thumb when connected. App.svelte switches the --ring-dot token and
-  // recenters (cy): the track's center when off, the resting thumb when on.
-  // They pulse slowly, faster while busy, and never move under
-  // prefers-reduced-motion.
+  // the thumb when connected. Both sets are always mounted and cross-fade
+  // on the tone flip (App.svelte recenters the family: cy is the track's
+  // center when off, the resting thumb when on). Each ring pulses on its
+  // own phase, staggered so the connected arcs ripple from the inner one
+  // outward; everything runs faster while busy and stops under
+  // prefers-reduced-motion (app.css).
   export let tone: "on" | "off" = "off";
   export let busy = false;
   /** Vertical center of the ring family, in rem. */
@@ -13,6 +15,8 @@
   const CENTER_X = 11.25; // rem — the middle of the 22.5rem stage
   const START_DEG = -40; // the arcs stay open at the top
   const SWEEP_DEG = 260;
+  /** Phase offset between neighbouring rings, in seconds. */
+  const RIPPLE = 0.45;
 
   type Ring = { r: number; dot: number; opacity: number };
 
@@ -38,24 +42,33 @@
     return dots;
   }
 
-  $: rings = (tone === "on" ? ON_ARCS : OFF_RING).map((ring) => ({
-    ...ring,
-    dots: ringDots(ring.r),
-  }));
+  // Negative delays around the middle ring mean the ripple is already
+  // running the moment the family appears (a positive delay on the outer
+  // rings would leave them frozen for their first delay seconds).
+  function rippleDelay(index: number, total: number): number {
+    return (index - (total - 1) / 2) * RIPPLE;
+  }
 </script>
 
 <svg class="rings" class:busy data-tone={tone} viewBox="0 0 22.5 39.25" aria-hidden="true" focusable="false">
   <g class="family" style:--cy={`${cy}`}>
-    {#each rings as ring, ri}
-      {#each ring.dots as dot, di}
-        <circle
-          cx={dot.x}
-          cy={dot.y}
-          r={ring.dot}
-          fill-opacity={ring.opacity}
-          style:animation-delay={`${(ri * 5 + di) * 0.045}s`}
-        />
-      {/each}
+    {#each OFF_RING as ring, ri}
+      <g class="ring off" class:active={tone === "off"}>
+        <g class="pulse" style:animation-delay={`${rippleDelay(ri, OFF_RING.length)}s`}>
+          {#each ringDots(ring.r) as dot}
+            <circle cx={dot.x} cy={dot.y} r={ring.dot} fill-opacity={ring.opacity} />
+          {/each}
+        </g>
+      </g>
+    {/each}
+    {#each ON_ARCS as ring, ri}
+      <g class="ring on" class:active={tone === "on"}>
+        <g class="pulse" style:animation-delay={`${rippleDelay(ri, ON_ARCS.length)}s`}>
+          {#each ringDots(ring.r) as dot}
+            <circle cx={dot.x} cy={dot.y} r={ring.dot} fill-opacity={ring.opacity} />
+          {/each}
+        </g>
+      </g>
     {/each}
   </g>
 </svg>
@@ -70,16 +83,40 @@
   }
 
   .family {
-    fill: var(--ring-dot);
     /* Inside an SVG, CSS px = user units, and one user unit is one rem in
        this viewBox (360px / 22.5 units = 16px), so --cy is unitless. */
     transform: translateY(calc(var(--cy) * 1px));
     transition: transform var(--dur-tone) ease;
-    animation: pulse var(--dur-pulse) ease-in-out infinite;
   }
 
-  .rings.busy .family {
+  /* Each ring is two groups: the outer one owns the cross-fade opacity
+     (its own element, so it composes with — instead of being overridden
+     by — the pulse animation on the inner one). The fill lives on the
+     set, not a shared token, so the outgoing color stays correct while
+     it fades. */
+  .ring {
+    opacity: 0;
+    transition: opacity var(--dur-swap) ease;
+  }
+  .ring.active {
+    opacity: 1;
+  }
+  .ring.off {
+    fill: var(--red-400);
+  }
+  .ring.on {
+    fill: var(--green-led);
+  }
+
+  .pulse {
+    animation: pulse var(--dur-pulse) ease-in-out infinite;
+  }
+  .rings.busy .pulse {
     animation-duration: var(--dur-pulse-busy);
+  }
+  /* no reason to animate a set nobody can see */
+  .ring:not(.active) .pulse {
+    animation-play-state: paused;
   }
 
   @keyframes pulse {
