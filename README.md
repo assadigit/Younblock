@@ -27,12 +27,22 @@ when YouTube stops responding — and it always tells you what it changed.
   If your offline pack printed `403 Forbidden` or
   `'powershell' is not recognized`, download this release's pack.
 
-> In the works on main (not yet released): a "feel" pass on the
-> redesigned screen — the on/off flip cross-fades instead of popping,
-> dragging the pill past halfway previews what release will do, the
-> About sheet reads its version from the app instead of a number that
-> went stale, and the menu traps Tab like a proper dialog. See
-> [CHANGELOG.md](CHANGELOG.md) → Unreleased.
+**What's new in version 1.6.6** (the "feel" pass):
+
+- **The on/off switch is one smooth motion now.** The dotted rings
+  around the button cross-fade between red and green instead of
+  popping from one to the other, and the big status word
+  ("Not Connected" → "Connected") rises in softly.
+- **Drag the pill halfway and it shows you what happens next.** The
+  thumb's LED lights green while a connect is armed — or dims back to
+  red while a disconnect is — so you can see what releasing will do
+  before you let go.
+- **The About sheet can't show a stale version anymore.** It asks the
+  app itself for the number instead of trusting one that could go
+  stale between releases.
+- The menu now traps Tab like a proper dialog, the error line is
+  properly red, and every new motion switches itself off when the
+  system asks for reduced motion.
 
 **What's new in version 1.6.4** (the "two editions, real windows" release):
 

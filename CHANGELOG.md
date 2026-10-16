@@ -12,6 +12,8 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.6] — 2026-10-16 (app 1.6.6)
+
 A feel pass on the redesigned connect screen: the state change is now a
 choreography instead of a set of hard cuts, the drag answers "what happens
 if I let go" before you let go, and the About sheet can no longer lie about
