@@ -14,9 +14,10 @@ desktop baseline (§A) is recorded and green.
 | JDK version | **21.0.8 (Temurin, with javac)** | Gradle 9.8.1 launcher + AGP 9.2.0 + gomobile all verified on it | Verified 2026-10-16 (M3) |
 | Android Gradle Plugin | **9.2.0** (maven.google.com) | Compatible with Gradle 9.x; Kotlin support is built into AGP 9 (the separate kotlin-android plugin is rejected — D74) | Verified 2026-10-16 (M3) |
 | Gradle wrapper | **9.8.1**, committed wrapper (jar + gradlew + properties) | Reproducibility; fresh clones build without a local Gradle | Verified 2026-10-16 (M3) |
-| Go version | **1.27.2** (go.mod directive `go 1.26.0`) | Matches the desktop toolchain; vendored deps build under it | Verified 2026-10-16 |
+| Go version | **1.27.2** (go.mod directive `go 1.26.3` — bumped by the gVisor dependency at M4) | Matches the desktop toolchain; vendored deps build under it | Verified 2026-10-16 (M3; re-verified M4 after the reset) |
+| gVisor netstack | **gvisor.dev/gvisor v0.0.0-20260701204157-69c2d17aea96**, vendored (+6 MB, D68/D75) | The M4 userspace stack (internal/tunstack); the desktop lanes never compile it — the regression gate verifies | Verified 2026-10-16 (M4: vendored, 17/17 host tests, 4/4 ABI compile matrix) |
 | gomobile/JNI strategy | **`gomobile bind` AAR** (ADR-0004) over `mobile/` facade; x/mobile pinned as a **`go get -tool` directive** (v0.0.0-20261011034528); the bind runs with `GOFLAGS=-mod=mod` because vendor mode cannot answer `go list -m all` (D73) | String JSON API matches gomobile constraints; x/mobile BSD-3, maintained | Verified 2026-10-16 (M3: AAR built + javap'd) |
-| Userspace stack | tun2socks engine package primary; gVisor-direct alternative (ADR-0008) | MIT/Apache; production pedigree; measured switch criteria at M4 | Verified licenses/maintenance 2026-10-16 |
+| Userspace stack | **gVisor netstack direct** — ADR-0008's switch path exercised at M4 (D75); the tun2socks engine package is a CLI singleton whose UDP model demands a UDP-capable proxy, incompatible with the CONNECT-only door | MIT/Apache (Apache-2.0); production pedigree via the same core wiring tun2socks uses; device-measurable criteria ride with M5 | Verified 2026-10-16 (M4: internal/tunstack built and host-tested) |
 | Node/package manager | npm, Node v24.21.0, committed lockfile | Frontend unchanged; same lane as desktop | Verified 2026-10-16 |
 | wails CLI rule | desktop lanes only; always `-m` (D68) | Android lane never invokes wails | Verified (release v0.7.6 practice) |
 
@@ -57,7 +58,8 @@ Unchanged bundle; the Android lane runs the same `npm ci` →
 Wails-generated bindings are needed (the http adapter is used;
 `frontend/wailsjs/` is git-ignored and absent on Android).
 
-### C. Android build (validated at M3 2026-10-16; §5 verification applies per release)
+### C. Android build (validated at M3 2026-10-16; re-validated with the
+M4 TUN stack 2026-10-16; §5 verification applies per release)
 
 The real module names (doc 04 §3); run through `build-android.sh`, or
 individually:
@@ -69,6 +71,21 @@ gomobile bind -target=android/arm,android/arm64,android/amd64 \
 ./gradlew assembleDebug   # debug APK
 # verification: aapt2 dump badging, apksigner verify --print-certs, sha256sum
 ```
+
+M4 record (2026-10-16, after the sandbox reset re-cloned the repo at
+`1d20460` and the toolchain was reinstalled — JDK 21.0.12.1 with
+javac, cmdline-tools 12.0, platforms 26+36, build-tools 36.1.0, NDK
+28.2.13676358, gomobile/gobind via `go install` at the pinned x/mobile
+version): `gomobile bind` → younblock.aar **24,893,234 B** (3 ABIs;
+the gVisor netstack added ~7 MB over M3's AAR); `assembleDebug` →
+`app-debug.apk` **34,707,469 B**, SHA-256
+`8e9f702a364f1e41a0bf12fa3a89971fced6e993632b56f74b44a55d06c8219b`,
+badging: package io.github.assadigit/younblock 1.6.6 (versionCode 1),
+minSdk 26, targetSdk 36, `YounblockVpnService` present in the dumped
+manifest with `android.permission.BIND_VPN_SERVICE`; `apksigner
+verify --print-certs` OK (debug cert). The Kotlin compile validates
+the facade bindings (startTun/stopTun/getState) and the M4 shell
+(Bridge.kt, YounblockVpnService.kt, MainActivity connect flow).
 
 ## 3. Test layers
 

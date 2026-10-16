@@ -12,6 +12,30 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (Android port, M4 — not yet a released build)
+
+- **The routing path exists and is host-verified**: a gVisor-netstack
+  userspace stack (`internal/tunstack`) turns the VpnService TUN's IP
+  packets back into TCP flows and hands each one to the engine's
+  SOCKS5 front door — the same tunnel path (DoH resolve, protect()ed
+  dial, first-record fragmentation for routed domains) the browser
+  door uses. DNS from routed apps is answered by a virtual resolver
+  (fake-pool A records, empty AAAA, other UDP dropped), so apps stay
+  IPv4 and domains cross the door as domains. `YounblockVpnService`
+  (foreground, per-app allow-list defaulting to Chrome + YouTube,
+  fail-closed when no target is installed) plus the facade's
+  StartTun/StopTun lifecycle are compiled into a verified debug APK;
+  the engine's TUN contract and protocol policy are proven by
+  host tests against the real proxy server and engine, including the
+  protect() call-counting proof extended through the door. The
+  on-device gates (real DoH through the stack, QUIC fallback,
+  protect() on real sockets) remain honestly ⛔ — no emulator/device
+  in this environment (docs/android-port 05 M4).
+- Decisions D75 (gVisor-direct stack selection) and D76 (the TUN fd
+  contract: non-blocking before handover, single-owner) in
+  DECISIONS.md; gVisor vendored (+6 MB) per the vendor-means-vendor
+  rule.
+
 ## [v0.7.6] — 2026-10-16 (app 1.6.6)
 
 A feel pass on the redesigned connect screen: the state change is now a

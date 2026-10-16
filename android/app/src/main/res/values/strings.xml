@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Younblock</string>
+    <!-- The VPN notification (roadmap M4): honest, low-importance, no
+         marketing claims. "Connecting" covers the whole start sequence
+         until the stack is bound; "Active" is the carrying state. -->
+    <string name="vpn_notification_channel">VPN status</string>
+    <string name="vpn_notification_connecting">Connecting…</string>
+    <string name="vpn_notification_active">On — routing the selected apps</string>
 </resources>

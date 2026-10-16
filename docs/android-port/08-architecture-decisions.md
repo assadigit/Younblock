@@ -127,9 +127,15 @@ the in-process loopback webui server
 ## ADR-0008 — Userspace stack: tun2socks engine package (primary),
 gVisor netstack direct (alternative), hev-socks5-tunnel (fallback)
 
-- **Status:** Accepted 2026-10-16 as a **gated selection**: the M4
-  prototype measures the primary and may switch to the alternative
-  without a new ADR cycle if a listed criterion fails.
+- **Status:** Accepted 2026-10-16 as a **gated selection**; **resolved
+  at M4 (2026-10-16) to gVisor netstack direct** — the switch this ADR
+  pre-authorized, exercised on design-level evidence (D75): the
+  tun2socks `engine` package is a CLI global singleton whose UDP model
+  demands a UDP-capable proxy, and cannot integrate with the
+  CONNECT-only door (ADR-0009) or the engine's per-cycle server. The
+  device-measurable criteria below still apply to the chosen stack and
+  ride with the M5 device checklist (the wire is a channel endpoint;
+  fdbased is the documented same-seam upgrade).
 - **Criteria (measurable at M4):** TCP throughput and latency on a
   reference device/emulator within 2× of direct; CPU/battery within
   the app's notification-disclosed budget; clean integration with the

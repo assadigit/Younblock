@@ -125,22 +125,82 @@ host or a physical device at M4 (doc 09 carries it as the standing
 blocker). M3 is marked ✅ on the strength of the verified build +
 bridge + desktop criteria with that one recorded exception.
 
-### M4 — Prove the routing path — ▶ NEXT (needs the emulator/device blocker cleared for its on-device gates)
+### M4 — Prove the routing path — ✅ host-complete 2026-10-16 (on-device gates ⛔: the standing emulator/device blocker)
 
-- ⬜ VpnService + TUN (per-app allow-list, virtual DNS, routes per
-  ADR-0009/0010) + chosen stack (tun2socks engine package; switch to
-  gVisor-direct per ADR-0008 criteria if measured evidence demands).
-- ⬜ Stack → SOCKS5 door integration; DNS interceptor → DoH.
-- ⬜ Protect-hook on-device verification (no routing loop; every dial
-  protected — call-counting test first in M3's host tests).
-- ⬜ Protocol matrix tests: TCP through-path, DNS A/AAAA/other, UDP
-  drop incl. QUIC fallback on the real YouTube app (report, don't
-  guess), IPv6 fail-safe on dual-stack.
-- ⬜ Failure/cleanup: stop while active, partial-start injection,
-  timeouts, resets.
+The userspace stack and its wiring are done and host-verified; the
+on-device halves (real DoH through the stack, QUIC fallback on the
+real YouTube app, protect() on a real socket) remain ⛔ — this sandbox
+still has no /dev/kvm and no device (re-verified this session:
+`ls /dev/kvm` → No such file or directory). Host side of every gate:
 
-Exit criteria: the core traffic path has an end-to-end test on an
-emulator/device — not a UI-level success state.
+1. ✅ **The stack**: `internal/tunstack` — gVisor netstack direct
+   (ADR-0008's switch path exercised at design level, D75; the
+   tun2socks engine package is a CLI global singleton whose UDP model
+   demands a UDP-capable proxy — incompatible with the CONNECT-only
+   door, ADR-0009). Channel-endpoint wire (the fdbased upgrade is the
+   documented same-seam swap), tcp/udp forwarders wired before the NIC,
+   spoofing+promiscuous; gvisor.dev/gvisor pinned and **vendored**
+   (D68: vendor means vendor; +6 MB), `go 1.26.3` directive bumped by
+   the dependency.
+2. ✅ **Protocol policy in-tunnel (ADR-0009/0010), host-proven**: TCP
+   → door (domain ATYP 0x03 for fake-pool destinations so the door's
+   MatchAnyDomain fragmentation matches the browser path; literal IPs
+   cross honestly; unmapped fakes RST), UDP:53 → virtual DNS
+   (A=fake-pool 198.18.0.0/15 with FIFO eviction, AAAA empty, other
+   types empty, FORMERR/NOTIMP per shape — any destination address:53
+   answered, so hardcoded-DNS apps work), other UDP dropped
+   (fail-fast), IPv6 never enabled and dropped at the wire. Ten tests,
+   `internal/tunstack` 4.7 s `ok`, including the full through-path
+   against the REAL proxy Server (phone netstack → synthetic TUN →
+   stack → door → resolver → netx → echo origin).
+3. ✅ **The facade's TUN lifecycle** (`mobile/tun.go`): StartTun (engine
+   serving required; opens the door on the running server), StopTun
+   (idempotent; closes the door it opened on the same server),
+   TunStats, Shutdown-with-live-stack. Host tests drive the REAL engine
+   over a SOCK_SEQPACKET socketpair (packet-preserving like an
+   IFF_NO_PI TUN fd): DNS round-trip through the facade-built stack, a
+   hand-rolled SOCKS5 CONNECT through the engine's own door resolving
+   via the engine's (fake) DoH with the upstream dial protect()-ed
+   (the M3 call-counting proof extended through the facade), gates and
+   idempotency, Shutdown unwinds. Two real bugs the tests caught are
+   recorded as D76: the O_NONBLOCK/netpoller requirement (a blocking
+   foreign fd makes Stop hang forever — no Close can unwind a blocked
+   read(2)) and the fd single-owner rule (StartTun consumes the fd on
+   every path so Kotlin never double-closes).
+4. ✅ **The Kotlin service** (compile-verified into the M4 APK):
+   `YounblockVpnService` (foreground, connectedDevice type) — per-app
+   allow-list (Chrome+YouTube defaults; fail-closed when none is
+   installed: zero allowed apps would route EVERYTHING, the opposite
+   of the policy), virtual DNS 10.111.0.53, v4 default route + v6
+   blackhole route (ADR-0010), MTU 1500, protect() via the process-wide
+   VpnProtector (ADR-0011: engine dials protected while the TUN lives;
+   unprotected-but-correct when it does not), engine-state-driven
+   startTun/stopTun, onRevoke = disconnect, honest notification.
+   MainActivity wires the connect flow: page toggle → engine
+   connecting → VpnService.prepare() consent → service start. Manifest
+   carries the service (BIND_VPN_SERVICE, exported=false).
+5. ✅ **Build + desktop baseline**: gomobile bind → younblock.aar
+   (24,893,234 B, 3 ABIs — gVisor netstack added ~7 MB over M3);
+   assembleDebug → app-debug.apk 34,707,469 B, SHA-256
+   8e9f702a364f1e41a0bf12fa3a89971fced6e993632b56f74b44a55d06c8219b,
+   badging minSdk 26/target 36, YounblockVpnService in the manifest,
+   apksigner verify OK (debug cert). Toolchain restored this session
+   after another sandbox reset (JDK 21.0.12.1, SDK 26+36/36.1.0, NDK
+   28.2.13676358 — doc 06 §1 records the pins). Desktop baseline:
+   vet clean; `go test -count=1 ./...` **17/17 packages ok** (tunstack
+   and mobile grew); svelte-check 0/0; vite build clean; Android
+   library compile matrix 4/4 ABIs with `-mod=vendor`.
+6. ⛔ **On-device gates** (M4's exit criterion — an end-to-end traffic
+   test on an emulator/device): real DoH through the stack, the QUIC
+   fallback on the real YouTube app, protect() on real sockets, the
+   notification/consent flow live. Blocked by the environment, carried
+   in doc 09 as the standing blocker — not claimed, not dropped.
+
+Exit criteria verdict: **every host-runnable gate green with evidence
+above; the emulator/device end-to-end half ⛔ (no /dev/kvm, no device).
+M4 is marked ✅ host-complete on the M3 precedent (build + bridge +
+desktop verified, on-device half recorded), with the on-device gates
+folded into the M5 device checklist.**
 
 ### M5 — Core connection lifecycle and health reporting
 
@@ -178,7 +238,9 @@ Exit criteria: P0 + approved P1 features meet doc 02.
 
 ## Dependency order / critical path (unchanged)
 
-M3 → M4 → M5 → M6 → M7 → M8; M0–M2 complete.
+M3 → M4 → M5 → M6 → M7 → M8; M0–M4 complete (M4 host-complete;
+its on-device gates ride with M5's device checklist — doc 09's
+standing blocker).
 
 ## Change-control rules (unchanged)
 

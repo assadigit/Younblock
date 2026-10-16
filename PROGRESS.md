@@ -1884,3 +1884,97 @@ and the blocker is recorded in docs 05/09 for M4. Desktop regression
 after every shared-tree change and once more at the end: vet clean,
 16/16 packages ok, svelte-check 0/0, vite clean, platform-neutral OK,
 windows×2 + linux + android cross-builds OK.
+
+## M4 — the routing path (2026-10-16, host-complete)
+
+The session opened after another sandbox reset: the working tree had
+survived at `main @ 1d20460` with the M4 stack work in progress and
+uncommitted (internal/tunstack, gVisor in go.mod), but the toolchain,
+module cache and the worklog were gone. Recovery before any new code:
+Go 1.27.2 to ~/sdk/go (aliyun mirror), module cache via
+proxy.golang.org, `go mod vendor` (gVisor +6 MB — D68: vendor means
+vendor), the frontend bundle synced into internal/webui/dist (D74),
+and the desktop baseline re-run green BEFORE touching code.
+
+The uncommitted stack work was reviewed and completed rather than
+rewritten: one compile bug (a test discarded the echo origin it later
+asserted against), a leftover debug file (deleted), and a flaky
+TestStopWhileActive — root-caused, not retried away: buffered echo
+bytes can drain after Stop (a nil read is not a survived flow), while
+the flow stall that follows is correct TCP-over-a-dead-link behavior
+(the harness has no kernel to reset the flow; on a device the TUN
+interface teardown does it). The test now asserts what the stack owns:
+no traffic path survives Stop (a post-Stop write must never echo
+back), 5/5 stable.
+
+internal/tunstack is gVisor netstack direct (ADR-0008's switch path,
+resolved at design level — D75: the tun2socks engine package is a CLI
+global singleton whose UDP model demands a UDP-capable proxy; it
+cannot talk to our CONNECT-only door at all). Wire = channel endpoint
+over one-packet-per-Read/Write TUN semantics (fdbased is the
+documented same-seam upgrade); handlers before NIC; spoofing +
+promiscuous; IPv4-only by construction with v6 dropped at the wire
+(ADR-0010). In-tunnel policy (ADR-0009), all host-proven: TCP flows
+enter the SOCKS5 door with fake-pool destinations REVERSED to their
+domains (ATYP 0x03) so the door's MatchAnyDomain fragmentation matches
+the browser path exactly; literal IPs cross honestly; unmapped fakes
+RST; UDP:53 answered by the virtual DNS from the 198.18.0.0/15 pool
+(any destination address — hardcoded-DNS apps included), AAAA empty,
+other types empty; other UDP dropped fail-fast. Ten tests, including
+the full through-path against the REAL proxy Server: phone netstack →
+synthetic packet-preserving wire → stack → door → resolver → netx →
+echo origin.
+
+The facade's TUN lifecycle (mobile/tun.go): StartTun requires the
+engine serving and opens the door on the running server; StopTun is
+idempotent and closes the door it opened (same-server check across
+engine restarts); TunStats is diagnostics-only JSON; Shutdown always
+unwinds a live stack; a second StartTun on a live stack refuses
+TUN_ACTIVE loudly. The host tests drive the REAL engine over a
+SOCK_SEQPACKET socketpair (packet-preserving like an IFF_NO_PI TUN
+fd): a DNS round-trip through the facade-built stack, then a
+hand-rolled SOCKS5 CONNECT through the engine's own door — resolving
+via the engine's (fake) DoH, dialing through the protect()ed netx
+dialer, echoing payload — plus gates, idempotency and fd-consumption
+proofs. The suite caught two real bugs, now D76: (1) os.NewFile only
+netpoller-registers a foreign fd when O_NONBLOCK is already set — a
+blocking fd made StopTun deadlock forever (no Close can unwind a
+blocked read(2)); the facade sets O_NONBLOCK first (the production
+tun2socks pattern) with build-tagged helpers so Windows still
+compiles; (2) fd ownership is single-owner: StartTun consumes the fd
+on EVERY return, so Kotlin never double-closes (the refused-fd
+EPIPE test proves it).
+
+The Kotlin service: YounblockVpnService (foreground, connectedDevice)
+— per-app allow-list (Chrome+YouTube; fail-closed when none is
+installed: zero allowed apps would route EVERYTHING), virtual DNS
+10.111.0.53, v4 default route + v6 blackhole route, MTU 1500,
+VpnProtector attaching the service as the engine's protect hook
+(ADR-0011: dials protected while the TUN lives, honestly unprotected
+when it does not), engine-state-driven bind/unbind, onRevoke =
+disconnect, an honest low-importance notification. Bridge.kt holds
+the process-wide EngineEvents fan-out + VpnProtector; MainActivity
+wires the connect flow (page toggle → engine connecting → prepare()
+consent → service start → TUN on serving). Manifest carries the
+service (BIND_VPN_SERVICE, exported=false, connectedDevice type).
+
+Build lane, re-verified from the reinstalled toolchain (JDK 21.0.12.1,
+cmdline-tools 12.0, platforms 26+36, build-tools 36.1.0, NDK
+28.2.13676358, gomobile/gobind go-install'ed at the pinned x/mobile
+version): gomobile bind → younblock.aar 24,893,234 B (3 ABIs; the
+netstack added ~7 MB); assembleDebug → app-debug.apk 34,707,469 B,
+SHA-256 8e9f702a364f1e41a0bf12fa3a89971fced6e993632b56f74b44a55d06c8219b,
+badging minSdk 26/target 36, YounblockVpnService in the dumped
+manifest, apksigner verify OK (debug cert). The Kotlin compile
+validates every generated binding the shell calls (startTun/stopTun/
+getState).
+
+The honest ⛔, unchanged and re-verified: no /dev/kvm, no device —
+M4's on-device end-to-end gate (real DoH through the stack, QUIC
+fallback on the real YouTube app, protect() on real sockets, the
+notification/consent flow live) could not run; it is carried in docs
+05/06/09 and folded into M5's device checklist, never claimed. Desktop
+regression green at the end: vet clean; go test -count=1 ./...
+17/17 packages ok (tunstack 4.7 s, mobile 9.8 s); svelte-check 0/0;
+vite build clean; Android library compile matrix 4/4 ABIs with
+-mod=vendor.

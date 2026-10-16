@@ -10,8 +10,9 @@
         requested — the Go netmon reads interfaces in-process, verified this
         session, so the permission would be a lie.)
      The <queries> block covers the default allow-list targets (checking
-     they exist is what raises NO_TARGET_APPS later; M4/M6).
-     No <service> yet: YounblockVpnService is the M4 deliverable. -->
+     they exist is what raises the M6 NO_TARGET_APPS surface; M4
+     fail-closes when none is installed). The <service> is the M4
+     deliverable: YounblockVpnService, the routing path. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -41,5 +42,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The routing path (roadmap M4): foreground, connectedDevice
+             type, only the system may bind (BIND_VPN_SERVICE). The
+             app itself starts it explicitly from the connect flow. -->
+        <service
+            android:name=".YounblockVpnService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

@@ -62,58 +62,74 @@ fields" accurate at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** Phase 2 milestone **M3** — 2026-10-16 (build
-  scaffolding + platform-neutral engine boundary; tasks 1–7 all ✅,
-  exit criteria: APK build ✅ verified, bridge ✅ Go-level with
-  on-device ⛔, desktop baseline ✅; evidence in doc 05 M3).
+- **Phase completed:** Phase 2 milestone **M4** — 2026-10-16, host-
+  complete (the routing path: userspace stack + facade TUN lifecycle +
+  VpnService Kotlin shell; evidence in doc 05 M4). Exit criteria: all
+  host-runnable gates ✅ (tunstack 10 tests incl. the full through-
+  path against the real proxy Server; the facade suite through the
+  real engine incl. protect() call-counting through the door; Kotlin
+  compiled + verified APK 34,707,469 B); **on-device end-to-end ⛔**
+  (no /dev/kvm, no device — the standing blocker, re-verified this
+  session); desktop baseline ✅ 17/17 packages.
 - **Branch and commit:** `main`, this session's commit (see `git log -1`
   at handoff time); worktree clean after the commit. The session
-  opened from a **fresh clone at `e2986ba`** — the sandbox rehydrated
-  without the repo AND without `/home/z/my-project/worklog.md` (the
-  Task 1–3 entries were lost); reconciled by re-cloning, reinstalling
-  Go 1.27.2 to `~/sdk/go`, and re-running the baseline before any code
-  change. The worklog was recreated with this session's entry.
-- **Files changed this phase:** new — `internal/platform/android/`
-  (adapter + tests), `internal/platform/select_android.go`,
-  `internal/proxy/socks5.go` + `socks5_test.go`, `mobile/` (facade +
-  tests), `android/` (Gradle shell: wrapper, manifest, MainActivity,
-  resources, network security config), `build-android.sh`; additive
-  edits — `internal/platform/select_linux.go` + `select_other.go`
-  (build-constraint terms only), `internal/proxy/server.go` (SOCKS5
-  door fields + Stop teardown), `internal/webui/webui.go` (Events(),
-  real Close()), `.gitignore` (android rules), `go.mod`/`go.sum`/
-  `vendor/` (x/mobile tool directive, vendored). No desktop behavior
-  changed; verified by the full regression gate.
+  opened at `main @ 1d20460` with **M4 work in progress and
+  uncommitted** (internal/tunstack, go.mod/go.sum with gVisor) after
+  yet another sandbox reset that wiped the toolchain and
+  `/home/z/my-project/worklog.md` but left the working tree; the
+  uncommitted work was reviewed, completed (one compile bug in the
+  domain-flows test, the debug dump file deleted, the flaky
+  stop-while-active test made deterministic), and verified from
+  scratch (toolchain + module cache + vendor + baseline reinstalled
+  before any new code). The worklog was recreated with this session's
+  entry.
+- **Files changed this phase:** new — `internal/tunstack/` (stack,
+  wire, SOCKS5 client half, virtual DNS, 10 host tests), `mobile/
+  tun.go` + `tun_test.go` (StartTun/StopTun/TunStats),
+  `mobile/nonblock_unix.go` + `nonblock_other.go`,
+  `android/.../YounblockVpnService.kt`, `android/.../Bridge.kt`
+  (EngineEvents + VpnProtector); additive edits — `mobile/mobile.go`
+  (the tun field + Shutdown order + package doc),
+  `android/.../MainActivity.kt` (connect flow: consent → service),
+  `AndroidManifest.xml` (the service element), `strings.xml`
+  (notification), `go.mod`/`go.sum`/`vendor/` (gVisor pinned +
+  vendored, D68/D75). No desktop behavior changed; verified by the
+  full regression gate.
 - **Tests run and actual results:** `go vet ./...` clean;
-  `go test -count=1 ./...` **16/16 packages ok** (13 pre-existing +
-  platform/android + mobile + the root package already counted;
-  engine 8.0 s, proxy 9.7 s); `-race` clean on the SOCKS5 and mobile
-  suites; svelte-check 0/0; vite build clean; `check-platform-neutral`
-  OK; cross-builds windows/amd64+386, linux/amd64, android/arm64 all
-  OK; `gomobile bind` OK (AAR verified: 3 ABIs, javap'd classes);
-  `assembleDebug` OK — `app-debug.apk` 27,172,909 B, badging/apksigner/
-  sha256 verified (doc 05 M3 item 6).
-- **Current architecture decision / confidence:** unchanged ADRs
-  0003–0012; D71–D74 added (select wiring correction under the
-  `android` build tag; the webui control surface on the facade;
-  gomobile-vs-vendor-mode; the M3 shell pins + the permission-skeleton
-  decisions). Confidence: high on the bridge and build lane (all
-  verified), medium on runtime integration as before — the on-device
-  gates (protect-on-device, stack selection, QUIC fallback) are M4's
-  to prove.
+  `go test -count=1 ./...` **17/17 packages ok** (16 pre-existing +
+  tunstack; engine 8.3 s, proxy 9.7 s, mobile 9.8 s, tunstack 4.7 s —
+  the flaky first run of TestStopWhileActive was fixed, not retried
+  away: buffered-echo draining + the no-path-after-Stop assertion);
+  svelte-check 0/0; vite build clean; Android library compile matrix
+  4/4 ABIs with `-mod=vendor`; `gomobile bind` OK (AAR 24,893,234 B);
+  `assembleDebug` OK — app-debug.apk 34,707,469 B, badging/apksigner/
+  sha256 verified (doc 05 M4 item 5).
+- **Current architecture decision / confidence:** ADR-0008's gated
+  selection **resolved to gVisor netstack direct** (D75 — design-level
+  evidence: the tun2socks engine package cannot talk to a CONNECT-only
+  door); D76 records the facade's TUN contract (O_NONBLOCK before
+  os.NewFile or Stop deadlocks; the fd crosses the bridge exactly
+  once; one stack per engine on-phase; TUN_ACTIVE is the loud refusal).
+  Confidence: high on the host-verified chain (both stack and facade
+  suites exercise the REAL proxy Server/engine, not mocks); medium on
+  device behavior (the fdbased-vs-channel syscall question, real DoH
+  through the stack, QUIC fallback, protect() on real sockets) — all
+  ride with the M5 device checklist.
 - **Blocking questions:** none architectural. Standing environment
-  blocker: **no emulator (no /dev/kvm) and no device** — blocks the
-  launch half of M3's exit criteria (already carried above) and all
-  M4 on-device gates. Product confirmations wanted from Ali
-  (non-blocking, defaults chosen): target SDK level (36 shipped;
-  trivially changeable), allow-list defaults beyond Chrome+YouTube,
-  keystore handling (doc 07 §8).
-- **Exact next task:** **M4** — `YounblockVpnService` + TUN with the
-  per-app allow-list and virtual DNS (ADR-0009/0010), the userspace
-  stack selection behind the measured ADR-0008 criteria, stack →
-  SOCKS5 door integration, DNS interceptor → DoH, and the on-device
-  protect-hook proof. If the environment still lacks an emulator/
-  device at M4 time, build and host-test everything (the Go seams are
-  all in place: `Server.StartSocks5`, `platform.DialControl`, the
-  facade's protector) and report the device gates ⛔ with evidence —
-  do not fake them.
+  blocker: **no emulator (no /dev/kvm) and no device** — blocks M4's
+  on-device end-to-end gate (carried in doc 05 M4 item 6) and will
+  block M5's lifecycle/device tests. Product confirmations wanted from
+  Ali (non-blocking, defaults chosen): target SDK level (36 shipped),
+  allow-list defaults beyond Chrome+YouTube (M6 makes the list
+  configurable), keystore handling (doc 07 §8).
+- **Exact next task:** **M5** — core connection lifecycle and health
+  reporting (doc 05): the full consent flow (explain → prepare →
+  dialog → denial copy), the foreground-service state machine on top
+  of the M4 service (notification honesty, onRevoke, reconciliation,
+  no duplicate starts), partial-start failure injection at every step,
+  repeated connect/disconnect, network switching. Fold in M4's device
+  checklist whenever a KVM-capable host or a device appears (real DoH
+  through the stack, QUIC fallback on the real YouTube app, protect()
+  on real sockets). If the environment still lacks an emulator/device,
+  build and host-test everything and report the device gates ⛔ with
+  evidence — do not fake them.
