@@ -112,7 +112,7 @@ product's core consent).
 | `BIND_VPN_SERVICE` (service attribute, not app perm) | system-bound | only the system may bind YounblockVpnService | n/a | Yes |
 | VPN consent (`VpnService.prepare`) | system dialog | establishing the TUN | AwaitingConsent → Disconnected with explanation (AND-003) | Yes |
 | `<queries>` for target packages (11+) | n/a | checking Chrome/YouTube installed (`NO_TARGET_APPS`) | n/a | Yes |
-| `ACCESS_NETWORK_STATE` | install-time | netmon network-change detection (optional — Go polls interfaces; decide at M3 if needed) | n/a | To verify at M3 |
+| `ACCESS_NETWORK_STATE` | — | netmon network-change detection | n/a | **Not requested — verified at M3**: the Go netmon reads interfaces in-process (`net.InterfaceAddrs`) and never touches ConnectivityManager, so the permission would be a claim the code does not make (D74) |
 
 No location, no storage beyond app-private, no background location,
 no SYSTEM_ALERT_WINDOW, no request-install-packages. WebView

@@ -8,16 +8,16 @@ desktop baseline (§A) is recorded and green.
 
 | Item | Selected value | Why | Evidence/date |
 |---|---|---|---|
-| Minimum Android API | **26 (provisional)** | Carries forward Ali's prior decision (root 04-android-spec.md §5); FGS rules and per-app routing need ≥21; 26 covers the FGS-era requirements. Re-confirm at M3 against the chosen stack library's minSdk | Verified: prior decision; stack-library minSdk **to verify at M3** |
-| Target/compile API | Decide at M3 | Sideload distribution (ADR-0012) means Play's target-API policy is not binding; choose the newest stable that the FGS `connectedDevice` rules are settled for | Open — M3 |
-| Android ABIs | arm64-v8a (primary), armeabi-v7a (secondary), x86_64 (debug/emulator only) | Device reach; Go compile matrix green on all four (doc 01 §5) | Verified 2026-10-16 (compile level) |
-| JDK version | 17+ (provisional per prior spec; sandbox has JRE 21, no javac) | Gradle/AGP compatibility | To verify at M3 |
-| Android Gradle Plugin | To verify at M3 | Compatibility with the chosen Gradle | Open — M3 |
-| Gradle wrapper | Committed wrapper, version chosen at M3 | Reproducibility | Open — M3 |
+| Minimum Android API | **26** — VERIFIED at M3 | Carries forward Ali's prior decision (root 04-android-spec.md §5); FGS rules and per-app routing need ≥21; 26 covers the FGS-era requirements. The tun2socks/gVisor stack libraries impose no higher floor (pure Go). `aapt2 dump badging` reports `minSdkVersion:'26'` | Verified 2026-10-16 (M3, in the shipped APK) |
+| Target/compile API | **36** — VERIFIED at M3 | Sideload distribution (ADR-0012) means Play's target-API policy is not binding; Android 16 / API 36 is the newest stable with the FGS `connectedDevice` rules settled. `targetSdkVersion:'36'`, `compileSdkVersion 36` in the APK badging | Verified 2026-10-16 (M3) |
+| Android ABIs | arm64-v8a (primary), armeabi-v7a (secondary), x86_64 (debug/emulator only) | Device reach; Go compile matrix green on all four (doc 01 §5) | Verified 2026-10-16 (compile level); **runtime level in the M3 AAR/APK**: `native-code: 'arm64-v8a' 'armeabi-v7a' 'x86_64'` |
+| JDK version | **21.0.8 (Temurin, with javac)** | Gradle 9.8.1 launcher + AGP 9.2.0 + gomobile all verified on it | Verified 2026-10-16 (M3) |
+| Android Gradle Plugin | **9.2.0** (maven.google.com) | Compatible with Gradle 9.x; Kotlin support is built into AGP 9 (the separate kotlin-android plugin is rejected — D74) | Verified 2026-10-16 (M3) |
+| Gradle wrapper | **9.8.1**, committed wrapper (jar + gradlew + properties) | Reproducibility; fresh clones build without a local Gradle | Verified 2026-10-16 (M3) |
 | Go version | **1.27.2** (go.mod directive `go 1.26.0`) | Matches the desktop toolchain; vendored deps build under it | Verified 2026-10-16 |
-| gomobile/JNI strategy | **`gomobile bind` AAR** (ADR-0004) over `mobile/` facade | String JSON API matches gomobile constraints; x/mobile BSD-3, maintained | Verified 2026-10-16 |
+| gomobile/JNI strategy | **`gomobile bind` AAR** (ADR-0004) over `mobile/` facade; x/mobile pinned as a **`go get -tool` directive** (v0.0.0-20261011034528); the bind runs with `GOFLAGS=-mod=mod` because vendor mode cannot answer `go list -m all` (D73) | String JSON API matches gomobile constraints; x/mobile BSD-3, maintained | Verified 2026-10-16 (M3: AAR built + javap'd) |
 | Userspace stack | tun2socks engine package primary; gVisor-direct alternative (ADR-0008) | MIT/Apache; production pedigree; measured switch criteria at M4 | Verified licenses/maintenance 2026-10-16 |
-| Node/package manager | npm, Node v24, committed lockfile | Frontend unchanged; same lane as desktop | Verified 2026-10-16 |
+| Node/package manager | npm, Node v24.21.0, committed lockfile | Frontend unchanged; same lane as desktop | Verified 2026-10-16 |
 | wails CLI rule | desktop lanes only; always `-m` (D68) | Android lane never invokes wails | Verified (release v0.7.6 practice) |
 
 Do not hard-code local SDK paths or credentials; the Android lane
@@ -42,10 +42,13 @@ GOOS=android GOARCH=386   CGO_ENABLED=0 go build -mod=vendor ./...   # packages 
 GOOS=android GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor ./...   # packages ok (link needs NDK cgo)
 ```
 
-Environment limitations (unchanged, standing): no webkit2gtk → no GUI
-`wails dev` (desktop E2E uses the vite preview adapter); **no Android
-SDK / NDK / javac in the audit sandbox** → `gomobile bind`, Gradle,
-emulator all ⛔ until the toolchain is installed (doc 09).
+Environment limitations (updated 2026-10-16, post-M3): no webkit2gtk →
+no GUI `wails dev` (desktop E2E uses the vite preview adapter); **the
+Android toolchain IS installed now** (doc 05 M3 item 1) — what remains
+⛔ is runtime verification: this sandbox has no /dev/kvm (verified), so
+no emulator, and no physical device; the Kotlin-level bridge call and
+all M4 on-device gates wait for a KVM-capable host or a real device
+(doc 09).
 
 ### B. Frontend
 
@@ -54,15 +57,17 @@ Unchanged bundle; the Android lane runs the same `npm ci` →
 Wails-generated bindings are needed (the http adapter is used;
 `frontend/wailsjs/` is git-ignored and absent on Android).
 
-### C. Android build (defined at M3, validated at M8)
+### C. Android build (validated at M3 2026-10-16; §5 verification applies per release)
 
-Projected tasks (to be replaced with the real module names after the
-Gradle project exists — do not run these before then):
+The real module names (doc 04 §3); run through `build-android.sh`, or
+individually:
 
 ```sh
+gomobile bind -target=android/arm,android/arm64,android/amd64 \
+  -androidapi=26 -o android/app/libs/younblock.aar ./mobile   # GOFLAGS=-mod=mod
 ./gradlew projects        # verify layout
-./gradlew test            # Kotlin unit tests
 ./gradlew assembleDebug   # debug APK
+# verification: aapt2 dump badging, apksigner verify --print-certs, sha256sum
 ```
 
 ## 3. Test layers

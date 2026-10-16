@@ -1,8 +1,12 @@
-//go:build linux
+//go:build linux && !android
 
 // Package platform picks the Platform implementation for this build: the
-// real Windows adapter on Windows, the real Linux adapter on Linux, and
-// the call-recording stub everywhere else.
+// real Windows adapter on Windows, the real Linux adapter on Linux (but
+// not on Android — GOOS=android implies the linux tag in Go's build
+// rules, so the !android term routes Android to select_android.go; the
+// audit doc 01 §5 recorded the previous belief that android fell through
+// to select_other.go/stub, which was wrong — corrected this session,
+// DECISIONS.md D71), and the call-recording stub everywhere else.
 package platform
 
 import (

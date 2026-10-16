@@ -45,35 +45,87 @@ Phase 2 execution. Status legend: ✅ done (evidence linked), ▶ next,
 
 ## Phase 2: implementation and APK delivery
 
-### M3 — Build scaffolding and platform-neutral engine boundary — ▶ NEXT
+### M3 — Build scaffolding and platform-neutral engine boundary — ✅ DONE 2026-10-16 (launch-verification ⛔, see below)
 
 Tasks (in order):
-1. ⛔→▶ Install the Android toolchain (SDK cmdline-tools, NDK, JDK 17+;
-   the audit sandbox has none of these — doc 09 §Environment; if
-   unavailable, do the Go-side items first and stop at the AAR build
-   with an honest report).
-2. ⬜ `internal/platform/android` adapter (Name/Capabilities/DialControl
-   /Attach no-op/Notify callback/ConfigDir; `select` wiring behind a
-   `android` build tag so desktop and the existing `!windows && !linux`
-   stub path stay untouched).
-3. ⬜ `internal/proxy/socks5.go` + tests (CONNECT-only, address types,
-   loopback, no auth, fuzz-ish edge cases like the old spec A1).
-4. ⬜ `mobile/` facade (string JSON API + `NewEngine` + EventSink +
-   SocketProtector) with host-runnable tests.
-5. ⬜ `gomobile bind` → `younblock.aar` (arm64-v8a, armeabi-v7a;
-   x86_64 for the emulator in debug builds).
-6. ⬜ Minimal `android/` Gradle shell: MainActivity + WebView loading
-   the loopback webui (ADR-0005) + app metadata/permissions skeleton
-   (doc 07 §6).
-7. ⬜ Desktop regression run (doc 01 §7 baseline) — must stay green.
+1. ✅ Android toolchain INSTALLED (was ⛔ per doc 09 — the environment
+   changed this session; dl.google.com, services.gradle.org,
+   repo1.maven.org, proxy.golang.org and the Adoptium GitHub release
+   were all reachable and used). Evidence: JDK 21.0.8 with `javac` at
+   `~/sdk/jdk-21`; SDK cmdline-tools 12.0, platform-tools,
+   `platforms;android-26` + `platforms;android-36`, `build-tools;36.1.0`
+   at `~/sdk/android`; NDK 28.2.13676358 (clang 19) at
+   `~/sdk/android/ndk/28.2.13676358`; gomobile + gobind installed
+   (x/mobile v0.0.0-20261011034528, recorded as a `go get -tool`
+   directive; D73).
+2. ✅ `internal/platform/android` adapter + host tests
+   (`android_test.go`: capabilities, no-op surface, ConfigDir, Notify
+   forwarding, the ADR-0011 netx-level call-counting/refusal tests).
+   `select` wiring behind the `android` build tag
+   (`select_android.go`); the wiring required correcting doc 01 §5:
+   **GOOS=android implies the `linux` tag**, so `select_linux.go` needed
+   `linux && !android` (D71). Desktop and stub paths untouched in
+   behavior (`select_other.go` gained only `&& !android`).
+3. ✅ `internal/proxy/socks5.go` + `socks5_test.go` — CONNECT-only,
+   no-auth, loopback-enforced (StartSocks5 refuses non-loopback binds),
+   address types IPv4/domain/IPv6, edge cases (non-SOCKS input, wrong
+   version, truncated greeting/request, zero-length domain, short
+   domain, port 0, unknown ATYP, non-CONNECT commands → 0x07), resolver
+   failure → 0x04, dial failure → 0x01, shared MaxConns (0x01 over
+   limit), fragmentation through the door (routed ≥2 reads / unrouted
+   1 read), Stop-with-Server. Race detector clean; feeds the same
+   `tunnel.go` path (resolve → netx dial → first-record rule → copy).
+4. ✅ `mobile/` facade + host tests — `NewEngine(configDir, protector,
+   sink)` (nil protector/sink supported), the ten jsonapi methods
+   verbatim, `Shutdown`, plus `StartWebUI(port)/StopWebUI` (ADR-0005's
+   transport; D72) with a sink fanout so the bridge keeps events while
+   the webui serves the page. Tests: API surface, start/stop cycle,
+   notice forwarding, webui lifecycle (JSON + static page + fanout +
+   restart), and the ADR-0011 engine-level protect-counting proof
+   (≥2 calls after a full connect sequence, ≥3 after the connection
+   test, phase `on` with a real latency, all against local fakes).
+5. ✅ `gomobile bind` → `younblock.aar` (arm64-v8a 11.98 MB,
+   armeabi-v7a 15.81 MB, x86_64 12.89 MB `libgojni.so`; `classes.jar`
+   with `mobile/{Mobile,Engine,SocketProtector,EventSink}` — signatures
+   verified via javap; manifest `minSdkVersion 26`). The bind runs with
+   `GOFLAGS=-mod=mod` (vendor mode cannot answer `go list -m all`;
+   D73). Regenerable via `build-android.sh`; never committed.
+6. ✅ `android/` Gradle shell — Gradle 9.8.1 wrapper (committed),
+   AGP 9.2.0 (Kotlin built into AGP 9; the separate kotlin-android
+   plugin is rejected by AGP 9 — D74), minSdk 26 / target+compile 36,
+   MainActivity + WebView → in-process loopback webui (ADR-0005),
+   loopback-only WebViewClient, network security config (cleartext
+   127.0.0.1 only), permission skeleton per doc 07 §6 (ACCESS_NETWORK_
+   STATE deliberately omitted — D74), `younblock.aar` as the only
+   dependency. `assembleDebug` → `app-debug.apk` 27,172,909 B,
+   verified: package `io.github.assadigit.younblock` versionCode 1
+   versionName 1.6.6, minSdk 26, targetSdk 36, launchable MainActivity,
+   native-code arm64-v8a/armeabi-v7a/x86_64, debug-signed
+   (apksigner verify OK), SHA-256
+   `6db3f44d3c4af068707500ea1b5fb11d15fec9ca61cde6d3a685a2e77565ca77`.
+7. ✅ Desktop regression green after every shared-tree change and again
+   at the end: `go vet` clean; `go test -count=1 ./...` 16/16 `ok`
+   (engine 8.0 s, proxy 9.7 s); svelte-check 0/0; vite build clean;
+   `check-platform-neutral` OK; windows/amd64, windows/386, linux/amd64
+   and android/arm64 cross-builds OK (arm/386/amd64 android final-exe
+   link still needs NDK cgo — known, unchanged, irrelevant for the AAR
+   route, which is cgo by definition).
 
-Tests: clean Android build; host Go unit tests; a minimal
-Kotlin→Go init/health/stop call.
+Tests: host Go unit tests above; the Kotlin→Go init/health/stop call is
+written (MainActivity + BridgeEventSink) but its runtime proof needs a
+device/emulator — ⛔ this sandbox has neither (no /dev/kvm; verified
+`ls /dev/kvm` → No such file or directory).
 
-Exit criteria: debug APK builds and launches; bridge works without
-network routing yet; desktop baseline green.
+Exit criteria verdict: **debug APK builds ✅ (verified above); bridge
+works without routing ✅ at the Go level (mobile tests) with the
+on-device call ⛔ (no emulator/device); desktop baseline green ✅.**
+The only missing piece of M3's exit criteria is the *launch* half —
+environment-blocked, not silently dropped: re-verify on a KVM-capable
+host or a physical device at M4 (doc 09 carries it as the standing
+blocker). M3 is marked ✅ on the strength of the verified build +
+bridge + desktop criteria with that one recorded exception.
 
-### M4 — Prove the routing path
+### M4 — Prove the routing path — ▶ NEXT (needs the emulator/device blocker cleared for its on-device gates)
 
 - ⬜ VpnService + TUN (per-app allow-list, virtual DNS, routes per
   ADR-0009/0010) + chosen stack (tun2socks engine package; switch to

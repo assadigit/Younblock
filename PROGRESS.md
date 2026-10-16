@@ -1819,3 +1819,68 @@ documentation-only, as the pack requires. Environment blocker recorded
 honestly: this sandbox has no Android SDK/NDK/javac, so M3's AAR build
 cannot run here; the Go-side M3 items (platform adapter, SOCKS5 door,
 mobile facade) are host-testable without it.
+
+## Phase 22 — Android port, Phase 2 M3: the build lane is real (toolchain, doors, bridge, APK)
+
+The session opened from a fresh clone: the sandbox rehydrated without the
+repository AND without the worklog (Tasks 1–3 lost) — reconciled by
+re-cloning main @ e2986ba, reinstalling Go 1.27.2 to ~/sdk/go (D13's
+convention), and re-running the full desktop baseline BEFORE any code
+change (vet clean, 13+1 packages ok, svelte-check 0/0, vite clean).
+
+M3 task 1 — the toolchain, previously the standing blocker, is now
+INSTALLED and verified in use: JDK 21.0.8 with javac, Android SDK
+(cmdline-tools 12.0, platform-tools, platforms 26+36, build-tools
+36.1.0), NDK 28.2.13676358 (clang 19), gomobile + gobind via a
+`go get -tool` directive. dl.google.com, services.gradle.org,
+repo1.maven.org and proxy.golang.org were all reachable this session.
+
+The Go-side additions (all host-tested, race-clean, desktop-gated):
+
+- `internal/platform/android` — the platform adapter as pure Go (no build
+  tag): capabilities {perAppRouting}, the protect hook as a ControlFunc
+  (nil-protector = desktop behavior), the notice callback, no-op
+  OS-proxy surface. Its tests include the netx-level ADR-0011 proofs:
+  every dial (success, refusal, multi-address) calls protect exactly
+  once, and a refused protect aborts the dial. The `select` wiring
+  needed a spec correction — GOOS=android implies the `linux` tag, so
+  select_linux.go became `linux && !android` (D71); the audit's claim
+  that android fell through to the stub was wrong.
+- `internal/proxy/socks5.go` — the SOCKS5 front door: CONNECT-only,
+  no-auth, loopback-enforced, IPv4/domain/IPv6, feeding the same
+  tunnel.go path as the HTTP door (same resolve, same netx dial, same
+  first-record fragmentation rules). Ten test functions cover the
+  address matrix, the fuzz-ish edges, failure mapping (0x04 resolve /
+  0x01 dial), the shared MaxConns cap, fragmentation through the door
+  (routed ≥2 reads / unrouted 1) and Stop-with-Server.
+- `mobile/` — the gomobile facade: NewEngine(configDir, protector, sink)
+  with nil-tolerant doors, the ten jsonapi methods verbatim, Shutdown,
+  and StartWebUI/StopWebUI with a sink fanout so webui.New cannot
+  silently disconnect the bridge (D72 — a host test pins that exact
+  regression). The engine-level ADR-0011 proof runs a real connect
+  sequence and connection test against local fakes: ≥2 protect calls
+  after connecting, ≥3 after the test, phase `on` with a real latency.
+  webui gained additive Events()/Close() (a real Close: the old
+  listener-close left keep-alive pages half-alive — found by a failing
+  test, fixed in webui).
+
+The build lane: `gomobile bind` (GOFLAGS=-mod=mod; D73) produced
+younblock.aar — 3 ABIs, classes verified by javap — and the new
+`android/` Gradle shell (Gradle 9.8.1 wrapper committed, AGP 9.2.0 with
+built-in Kotlin, minSdk 26/target 36, loopback-only WebView, network
+security config for cleartext 127.0.0.1, the doc 07 §6 permission
+skeleton with ACCESS_NETWORK_STATE deliberately omitted — D74)
+assembled `app-debug.apk` (27,172,909 B), verified end-to-end: badging
+(package io.github.assadigit.younblock 1.6.6, minSdk 26, targetSdk 36,
+launchable MainActivity), native-code arm64-v8a/armeabi-v7a/x86_64,
+apksigner verify (debug cert), SHA-256
+6db3f44d3c4af068707500ea1b5fb11d15fec9ca61cde6d3a685a2e77565ca77.
+`build-android.sh` encodes the whole lane; the AAR is never committed.
+
+The honest ⛔: this sandbox has no /dev/kvm (verified) and no device, so
+the launch half of M3's exit criteria and the Kotlin-level bridge call
+could not be RUN — everything up to that point is verified evidence,
+and the blocker is recorded in docs 05/09 for M4. Desktop regression
+after every shared-tree change and once more at the end: vet clean,
+16/16 packages ok, svelte-check 0/0, vite clean, platform-neutral OK,
+windows×2 + linux + android cross-builds OK.

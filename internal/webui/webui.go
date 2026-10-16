@@ -47,6 +47,9 @@ type Server struct {
 	hub  *hub
 	port int
 	ln   net.Listener
+
+	mu  sync.Mutex
+	srv *http.Server // non-nil while Serve is running
 }
 
 // New creates the server for an engine and registers itself as the
@@ -70,9 +73,18 @@ func (s *Server) Listen() (string, error) {
 	return ln.Addr().String(), nil
 }
 
-// Serve runs the HTTP server until the listener closes (blocking).
+// Serve runs the HTTP server until the listener is closed. One Serve
+// per Server (the Listen → Serve → Close order the embedders use).
 func (s *Server) Serve() error {
-	return http.Serve(s.ln, s.handler())
+	srv := &http.Server{Handler: s.handler()}
+	s.mu.Lock()
+	s.srv = srv
+	s.mu.Unlock()
+	err := srv.Serve(s.ln)
+	s.mu.Lock()
+	s.srv = nil
+	s.mu.Unlock()
+	return err
 }
 
 // Addr reports the bound address (empty before Listen).
@@ -86,6 +98,32 @@ func (s *Server) Addr() string {
 // URL prints the address as the page the user opens.
 func (s *Server) URL() string {
 	return "http://" + s.Addr()
+}
+
+// Events returns the server's SSE hub as an engine.EventSink, for
+// embedders that fan engine events out to more than one consumer (the
+// Android facade serves the page AND forwards events across the bridge;
+// added with the M3 mobile work, additive, D71).
+func (s *Server) Events() engine.EventSink { return s.hub }
+
+// Close closes the listener and, when Serve is running, also ends every
+// established connection — closing the listener alone would leave
+// keep-alive pages half-alive, which matters for the Android embedder's
+// StopWebUI (added with the M3 mobile work, additive, D71). Safe to call
+// repeatedly; Listen may be called again afterwards.
+func (s *Server) Close() error {
+	s.mu.Lock()
+	ln, srv := s.ln, s.srv
+	s.ln, s.srv = nil, nil
+	s.mu.Unlock()
+	var err error
+	if ln != nil {
+		err = ln.Close()
+	}
+	if srv != nil {
+		_ = srv.Close()
+	}
+	return err
 }
 
 // handler wires every route.

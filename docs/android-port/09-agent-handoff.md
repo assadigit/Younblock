@@ -34,19 +34,27 @@ fields" accurate at every session boundary.
   only repository additions are the completed specs themselves (and
   the extraction of this pack from the zip Ali uploaded).
 
-## Environment / execution honesty
+## Environment / execution honesty (updated 2026-10-16, end of M3)
 
-- **This sandbox has no Android SDK, no NDK, and a JRE without
-  javac.** `gomobile bind`, Gradle builds, emulator and device tests
-  cannot run here until a toolchain is installed (M3 task 1). The
-  Go-side M3 items (platform adapter, SOCKS5 door, mobile facade +
-  host tests) are fully runnable without it.
-- proxy.golang.org and the Debian/Ubuntu mirrors are reachable from
-  this sandbox; the wails `-m` rule (D68) still applies to desktop
-  lanes.
-- The sandbox kills background processes when a Bash command ends
-  (verified twice across sessions); long builds run in foreground
-  chunks.
+- **The Android toolchain is installed and working now**: JDK 21.0.8
+  (Temurin, with javac), Android SDK (cmdline-tools 12.0,
+  platform-tools, platforms 26+36, build-tools 36.1.0), NDK
+  28.2.13676358, gomobile + gobind (x/mobile v0.0.0-20261011034528
+  via a `go get -tool` directive), Gradle 9.8.1 via the committed
+  wrapper. `dl.google.com`, `services.gradle.org`, `repo1.maven.org`,
+  `proxy.golang.org` and the Adoptium GitHub release were all reachable
+  and used this session.
+- **What is still ⛔ is runtime verification**: this sandbox has no
+  /dev/kvm (verified: `ls /dev/kvm` → No such file or directory), so no
+  emulator, and no physical device. The Kotlin-level init/health/stop
+  bridge call and every M4 on-device gate wait for a KVM-capable host
+  or a real device. The bridge itself is proven at the Go level
+  (mobile tests) and its Kotlin side is written and compiled into the
+  verified APK.
+- The wails `-m` rule (D68) still applies to desktop lanes; the
+  Android lane never invokes wails. The sandbox still kills background
+  processes when a Bash command ends; long builds ran as foreground
+  chunks (go/gradle caches carried the progress).
 - Do not claim source inspection, test success, APK creation, upload,
   or push without evidence. Do not commit secrets, signing keys, user
   settings, or private diagnostics. Do not undo unrelated working-tree
@@ -54,34 +62,58 @@ fields" accurate at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** Phase 1 (M0 audit, M1 feasibility, M2 spec
-  finalization) — 2026-10-16.
-- **Branch and commit:** `main` @ `36273fb` + this docs commit (see
-  `git log -1` at handoff time); worktree clean except the spec-pack
-  changes of this session.
-- **Files changed this phase:** `docs/android-port/*` (all ten docs
-  completed + this status), extracted from
-  `Younblock-Android-Specs.zip` (Ali's upload `36273fb`). No source
-  code touched.
+- **Phase completed:** Phase 2 milestone **M3** — 2026-10-16 (build
+  scaffolding + platform-neutral engine boundary; tasks 1–7 all ✅,
+  exit criteria: APK build ✅ verified, bridge ✅ Go-level with
+  on-device ⛔, desktop baseline ✅; evidence in doc 05 M3).
+- **Branch and commit:** `main`, this session's commit (see `git log -1`
+  at handoff time); worktree clean after the commit. The session
+  opened from a **fresh clone at `e2986ba`** — the sandbox rehydrated
+  without the repo AND without `/home/z/my-project/worklog.md` (the
+  Task 1–3 entries were lost); reconciled by re-cloning, reinstalling
+  Go 1.27.2 to `~/sdk/go`, and re-running the baseline before any code
+  change. The worklog was recreated with this session's entry.
+- **Files changed this phase:** new — `internal/platform/android/`
+  (adapter + tests), `internal/platform/select_android.go`,
+  `internal/proxy/socks5.go` + `socks5_test.go`, `mobile/` (facade +
+  tests), `android/` (Gradle shell: wrapper, manifest, MainActivity,
+  resources, network security config), `build-android.sh`; additive
+  edits — `internal/platform/select_linux.go` + `select_other.go`
+  (build-constraint terms only), `internal/proxy/server.go` (SOCKS5
+  door fields + Stop teardown), `internal/webui/webui.go` (Events(),
+  real Close()), `.gitignore` (android rules), `go.mod`/`go.sum`/
+  `vendor/` (x/mobile tool directive, vendored). No desktop behavior
+  changed; verified by the full regression gate.
 - **Tests run and actual results:** `go vet ./...` clean;
-  `go test -count=1 ./...` 13/13 `ok`; svelte-check 0/0; vite build
-  clean; `GOOS=android` build matrix — arm64 full-module exit 0,
-  arm/386/amd64 packages compile (final exe link needs NDK cgo);
-  `go vet` android/arm64 clean. Frontend/backend untouched otherwise.
-- **Current architecture decision / confidence:** VpnService +
-  per-app allow-list + userspace stack (tun2socks primary, gated) +
-  SOCKS5 door + unchanged engine + gomobile AAR + Svelte WebView via
-  in-process loopback webui. Confidence: high on code seams (all
-  verified in source), medium on runtime integration (prototype
-  pending SDK), device-level items explicitly gated at M4.
-- **Blocking questions:** none architectural. Environment blocker:
-  Android toolchain absent (M3 task 1). Product confirmations wanted
-  from Ali (non-blocking, defaults chosen): target SDK level,
-  allow-list defaults beyond Chrome+YouTube, keystore handling
-  (doc 07 §8).
-- **Exact next task:** **M3 task 1** — install/verify the Android
-  toolchain (SDK cmdline-tools, NDK, JDK 17+); if unavailable in the
-  execution environment, proceed with M3 tasks 2–4 (Go-side
-  `internal/platform/android`, `internal/proxy/socks5.go`,
-  `mobile/` facade — all host-testable) and report the AAR/Gradle
-  items as blocked with exact evidence.
+  `go test -count=1 ./...` **16/16 packages ok** (13 pre-existing +
+  platform/android + mobile + the root package already counted;
+  engine 8.0 s, proxy 9.7 s); `-race` clean on the SOCKS5 and mobile
+  suites; svelte-check 0/0; vite build clean; `check-platform-neutral`
+  OK; cross-builds windows/amd64+386, linux/amd64, android/arm64 all
+  OK; `gomobile bind` OK (AAR verified: 3 ABIs, javap'd classes);
+  `assembleDebug` OK — `app-debug.apk` 27,172,909 B, badging/apksigner/
+  sha256 verified (doc 05 M3 item 6).
+- **Current architecture decision / confidence:** unchanged ADRs
+  0003–0012; D71–D74 added (select wiring correction under the
+  `android` build tag; the webui control surface on the facade;
+  gomobile-vs-vendor-mode; the M3 shell pins + the permission-skeleton
+  decisions). Confidence: high on the bridge and build lane (all
+  verified), medium on runtime integration as before — the on-device
+  gates (protect-on-device, stack selection, QUIC fallback) are M4's
+  to prove.
+- **Blocking questions:** none architectural. Standing environment
+  blocker: **no emulator (no /dev/kvm) and no device** — blocks the
+  launch half of M3's exit criteria (already carried above) and all
+  M4 on-device gates. Product confirmations wanted from Ali
+  (non-blocking, defaults chosen): target SDK level (36 shipped;
+  trivially changeable), allow-list defaults beyond Chrome+YouTube,
+  keystore handling (doc 07 §8).
+- **Exact next task:** **M4** — `YounblockVpnService` + TUN with the
+  per-app allow-list and virtual DNS (ADR-0009/0010), the userspace
+  stack selection behind the measured ADR-0008 criteria, stack →
+  SOCKS5 door integration, DNS interceptor → DoH, and the on-device
+  protect-hook proof. If the environment still lacks an emulator/
+  device at M4 time, build and host-test everything (the Go seams are
+  all in place: `Server.StartSocks5`, `platform.DialControl`, the
+  facade's protector) and report the device gates ⛔ with evidence —
+  do not fake them.

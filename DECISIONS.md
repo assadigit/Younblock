@@ -903,3 +903,79 @@ in .gitignore un-hides exactly that one path) and build-offline-pack.sh
 refuses to zip without it. The rule this settles: if the build needs a
 file, the file is committed — mode bits included; "it works on my
 machine" is the bug, not the defense.
+
+**D71 — Android port M3: GOOS=android implies the `linux` build tag; the
+select wiring correction.** The audit (doc 01 §5) recorded that
+`GOOS=android` selects `select_other.go` (the stub). That was wrong:
+Go's build rules make the `android` tag imply `linux` (go/build:
+"android (implies linux)"), so a naive `//go:build android` selector
+collides with `select_linux.go` (duplicate `New` — the compile error
+that exposed this). The fix: `select_linux.go` carries
+`linux && !android`, `select_other.go` carries
+`!windows && !linux && !android`, and the new `select_android.go`
+carries `android`. Desktop builds are unchanged in behavior (on real
+Linux `linux && !android` is just `linux`); the edit is constraint-only,
+no logic touched. The new `internal/platform/android` adapter itself
+carries no build tag at all: it is pure Go (the protect hook and the
+notice callback arrive as plain funcs from the mobile facade), so its
+tests run on any host — which is exactly what M3 required.
+
+**D72 — the facade owns the WebView transport: StartWebUI/StopWebUI on
+`mobile.Engine`, with a sink fanout.** Doc 04 §4 listed only the engine's
+JSON methods; ADR-0005 needs the in-process webui served for the WebView,
+and something must start/stop it from Kotlin. Rather than widen the
+gomobile surface with the engine's internal state, the facade grew two
+string-friendly methods: `StartWebUI(port int32) (string, error)` and
+`StopWebUI()`. Two consequences worth recording. (1) `webui.New`
+installs its SSE hub as the engine's *only* sink — on Android that would
+silently disconnect the Kotlin EventSink (the shell needs events for the
+notification/service state). So while the webui runs, the engine's sink
+is a fanout: hub first (the page), bridge second (the shell), restored to
+bridge-only after StopWebUI. The regression this prevents is covered by
+a dedicated host test (the bridge must survive `webui.New`). (2) The
+webui package gained two additive methods: `Events()` (exposes the hub as
+an `engine.EventSink` for the fanout) and a real `Close()` — the old
+listener-close left keep-alive connections half-alive, which matters for
+an app whose StopWebUI must actually stop the page (caught by a failing
+host test, fixed in webui, not papered over in the caller). Bridge
+callbacks are wrapped with a recover: a throwing Kotlin callback drops
+that one event instead of killing the emitting goroutine.
+
+**D73 — gomobile in a vendored module: the tool directive, and
+`GOFLAGS=-mod=mod` for the bind.** Modern gomobile requires
+`golang.org/x/mobile` in the module graph — recorded the supported way:
+`go get -tool golang.org/x/mobile/cmd/gobind` (a `tool` directive in
+go.mod; D70's rule "if the build needs a file, the file is committed"
+applies to the vendored tree too, so `go mod vendor` carries
+x/mobile — the desktop lanes never compile it, verified by the
+regression gate). But gomobile also runs `go list -m -json all` on the
+repo to build its synthetic bindings module, and **vendor mode cannot
+answer that** ("can't compute 'all' using the vendor directory") — the
+failure is silent inside gomobile (it writes an empty go.mod, then
+`go mod tidy` dies with "missing module declaration"). The bind
+therefore runs with `GOFLAGS=-mod=mod`: the module graph is served from
+the module cache/proxy, while every normal build of the repo stays
+vendored. `build-android.sh` encodes this; the raw `gomobile bind`
+invocation in doc 06 §2C carries the flag in a comment.
+
+**D74 — the M3 shell pins and the permission skeleton's honest omissions.**
+Toolchain pins (all verified by building, not by documentation):
+JDK 21.0.8 (Temurin, with javac), Gradle 9.8.1 via a committed wrapper,
+AGP 9.2.0, minSdk 26 / target+compileSdk 36, debug-signed sideload
+builds (ADR-0012). Three findings from actually doing it: (1) AGP 9 has
+Kotlin support built in — applying the separate `org.jetbrains.kotlin.android`
+plugin fails the build with an instruction to remove it; the shell ships
+zero AndroidX dependencies (a plain Activity + WebView; the AAR is the
+only dependency). (2) `ACCESS_NETWORK_STATE` is deliberately NOT
+requested: doc 07 §6 listed it as "to verify at M3"; the Go netmon reads
+interfaces in-process (`net.InterfaceAddrs`) and never touches
+ConnectivityManager, so requesting it would be a claim the code does not
+make — the manifest carries exactly INTERNET, FOREGROUND_SERVICE,
+FOREGROUND_SERVICE_CONNECTED_DEVICE and POST_NOTIFICATIONS plus the
+`<queries>` block for the two default target apps. (3) The Kotlin-level
+bridge call (init/health/stop) is written and compiled into the verified
+APK, but this sandbox has no /dev/kvm and no device, so its *runtime*
+proof is ⛔ — recorded in doc 05/09 as the standing blocker, never
+claimed. The AAR itself is a build output (regenerated by
+`build-android.sh`), never committed; the Gradle wrapper jar IS committed
+so a fresh clone builds without a local Gradle.

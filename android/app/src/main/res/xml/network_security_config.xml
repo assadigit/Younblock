@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Loopback cleartext only (ADR-0005, doc 07 §6): the webui serves the
+     page over plain HTTP on 127.0.0.1 inside the app's own process — the
+     same trust boundary as the desktop window. Every other origin keeps
+     the platform default (no cleartext). -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

@@ -88,6 +88,11 @@ type Server struct {
 	tunnels map[*tunnelCloser]struct{}
 	wg      sync.WaitGroup
 
+	// SOCKS5 door (socks5.go): a second, optional loopback listener on the
+	// same relay. nil = closed (the default on every desktop build).
+	socksLn   net.Listener
+	socksPort int
+
 	active int32
 }
 
@@ -537,9 +542,18 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.running = false
 	ln := s.ln
 	s.ln = nil
+	// The SOCKS5 door, when open, goes down with the same Stop (its
+	// handlers are tracked by the same wg below). Captured under the
+	// same lock so it cannot race a concurrent StartSocks5/StopSocks5.
+	sl := s.socksLn
+	s.socksLn = nil
+	s.socksPort = 0
 	s.mu.Unlock()
 
 	ln.Close()
+	if sl != nil {
+		sl.Close()
+	}
 
 	done := make(chan struct{})
 	go func() {
