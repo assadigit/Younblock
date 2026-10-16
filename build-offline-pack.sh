@@ -45,6 +45,16 @@ echo "[2/6] installing the Windows node_modules (npm ci --os=win32)..."
   echo "the win32 rolldown binding is missing - the pack would not build on Windows" >&2
   exit 1
 }
+# The vendored WebView2 bootstrapper: wails embeds it into every Windows
+# build (go:embed in internal/webview2runtime). Without it the pack's
+# `wails dev` / `wails build` cannot compile the Windows apps — the
+# v0.7.4/v0.7.5 packs shipped without it and died with
+# "no matching files found". It is committed since v0.7.6.
+[ -s "$STAGE/Younblock/vendor/github.com/wailsapp/wails/v2/internal/webview2runtime/MicrosoftEdgeWebview2Setup.exe" ] || {
+  echo "the vendored WebView2 bootstrapper is missing from the tag" >&2
+  echo "vendor it (see the .gitignore exception) and re-tag" >&2
+  exit 1
+}
 # wails skips "npm install" when this committed marker matches package.json
 # (the marker file holds the md5 hex twice; compare its first 32 chars).
 MD5_NOW="$(md5sum "$STAGE/Younblock/frontend/package.json" | cut -d' ' -f1)"

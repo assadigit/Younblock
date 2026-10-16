@@ -43,6 +43,11 @@ when YouTube stops responding — and it always tells you what it changed.
 - The menu now traps Tab like a proper dialog, the error line is
   properly red, and every new motion switches itself off when the
   system asks for reduced motion.
+- **Building it yourself, offline?** The pack in this release fixes a
+  bug every pack since v0.7.4 had: the WebView2 bootstrapper file was
+  missing from `vendor\`, so `wails dev`/`wails build` could not
+  compile the Windows apps on a fresh machine. If your old pack
+  printed `no matching files found`, this one works.
 
 **What's new in version 1.6.4** (the "two editions, real windows" release):
 

@@ -21,6 +21,16 @@ its version number.
 
 ### Fixed
 
+- **The offline packs could not build the Windows apps.** Since the
+  pack was born (v0.7.4), its `vendor\` folder has been missing the
+  WebView2 bootstrapper (`MicrosoftEdgeWebview2Setup.exe`, 1.8 MB)
+  that the vendored wails embeds into every Windows build — so on a
+  fresh machine `wails dev` and `wails build` died with
+  `no matching files found` before a single line of the app compiled,
+  defeating the pack's whole "no internet" promise. The bootstrapper
+  is vendored in the repo now (a `.gitignore` exception un-hides it
+  from the `*.exe` rule), the pack builder refuses to zip without it,
+  and any fresh clone can build for Windows out of the box.
 - **Fresh clones couldn't build the native Linux packages.**
   `packaging/native/fetch-stack.sh` — which `build.sh` calls directly —
   was committed without its executable bit, so on a fresh clone the
