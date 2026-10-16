@@ -1619,3 +1619,18 @@ check-platform-neutral OK; svelte-check 0/0; vite build clean; the
 core reports 1.6.5. App code is byte-identical to v0.7.4 except the
 two version constants and the scripts, so the v0.7.4 live E2E carries
 over.
+
+**Release record — v0.7.5 (app 1.6.5).** Commit ef26a3a + annotated
+tag v0.7.5 pushed. build.sh produced the 14 platform builds at 1.6.5
+(4 Windows exes, 2 headless cores, 2 Linux web binaries, 3 debs,
+3 AppImages; flatpak skipped — tools gone again, stays 1.6.3,
+disclosed) and build-offline-pack.sh the setup zip (7.7 KB) plus the
+offline pack (166 MB → 174 MB as released; contents re-verified in the
+zip: fixed setup-offline.bat with `wails dev -m` and the full-path
+PowerShell, vendor/, tools/, the win32 rolldown binding). GitHub
+release id 414466717 "Younblock 1.6.5 — offline means offline"
+published with 16 assets and the real SHA-256 list in the notes;
+round-trip verified 16/16 byte-identical via the asset API; v0.7.5
+confirmed latest. The release notes also carry the one-line workaround
+for owners of the v0.7.4 pack (`call wails dev` → `call wails dev -m`
+in Notepad) so nobody has to re-download 174 MB to get unstuck.
