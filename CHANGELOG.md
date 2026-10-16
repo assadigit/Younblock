@@ -21,6 +21,14 @@ its version number.
 
 ### Fixed
 
+- **Fresh clones couldn't build the native Linux packages.**
+  `packaging/native/fetch-stack.sh` — which `build.sh` calls directly —
+  was committed without its executable bit, so on a fresh clone the
+  build silently skipped the native-window apps and shipped only the
+  web-edition packages (the release machine had a local `chmod`, which
+  is why the v0.7.5 artifacts came out fine). The bit is in the repo
+  now; `build-offline-pack.sh` gets its bit back too. Mode-only
+  change, no script text touched.
 - **The About sheet showed a stale version** — "1.6.3" in a 1.6.5 app
   (the same bug the v0.7.3 pass fixed when it was "1.5.0"). The number is
   no longer typed into the frontend at all: the sheet asks the backend for
