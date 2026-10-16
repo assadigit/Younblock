@@ -1718,3 +1718,49 @@ sheet scrolls by design, 810 px of content in a 429 px well).
 Not done this phase, deliberately: no version bump and no release (the
 work sits in CHANGELOG's [Unreleased]; the README's "What's new" gets
 its entry at release time), and the classic screen stays frozen (D66).
+
+## Release v0.7.6 — published to GitHub Releases
+
+Date: 2026-10-16 (Asia/Tehran). The feel pass (Phase 20) promoted from
+[Unreleased] to v0.7.6 / app 1.6.6: defaults.go and wails.json bumped,
+the CHANGELOG section dated, the README "What's new in version 1.6.6"
+written. Gates re-run on the release tree: svelte-check 0/0, vite
+build clean, go vet, the full -race suite green, and the built core
+reports "Younblock core 1.6.6".
+
+Three commits: a7a676b (the release: bump + changelog + README),
+99feb31 (executable bits back on fetch-stack.sh and
+build-offline-pack.sh — without them a fresh clone silently skipped
+the native Linux builds), c130ef1 (the WebView2 bootstrapper vendored
+— D70). The annotated tag v0.7.6 moved with the work and finally
+points at c130ef1, the exact tree every artifact below was built from;
+nothing public ever depended on an earlier position (the release and
+its assets were created last, from the final tree).
+
+Published with 16 assets: the four Windows exes (pro + classic, 64/32
+bit — byte-identical across all rebuilds: wails does not vcs-stamp),
+the two cores, the two Linux web binaries, three .debs (native amd64
+pro + classic, web i386), three AppImages (native x86_64 pro + classic
+at ~71 MB with the bundled webkit, web i686 at 3.8 MB), the setup zip
+(7.7 KB) and the offline pack (168 MB — now carrying the WebView2
+bootstrapper in vendor/ at 1.75 MB, verified inside the zip alongside
+vendor/modules.txt, tools/wails.exe and the win32 rolldown binding).
+Round-trip verified: every asset's GitHub-side sha256 digest matches
+the built file — 16/16 MATCH, and v0.7.6 confirmed latest. The
+SHA-256 list is in the release notes (release id 414970242).
+
+- The Flatpak was not rebuilt (flatpak/flatpak-builder missing from
+  this sandbox again); it stays at 1.6.3 and the release notes say so.
+- Also disclosed in the notes: the v0.7.4 and v0.7.5 offline packs
+  could not build the Windows apps (the missing bootstrapper, D70) —
+  owners of those packs hit `no matching files found`; this release's
+  pack fixes it.
+- This sandbox killed every background process the moment its Bash
+  command ended (verified with a marker process — nohup/setsid change
+  nothing), so the builds ran as foreground chunks; the jammy webkit
+  stack (211 packages), the Windows toolchain zips and the go/npm
+  caches carried the progress between chunks. proxy.golang.org was
+  reachable this session (the wails CLI, then the bootstrapper, came
+  out of its module cache).
+- The Windows and Linux-native visual walkthroughs remain Ali's, as
+  always.

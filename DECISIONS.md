@@ -882,3 +882,24 @@ pauses — `armed ? !on : phase === 'connected'`, because the phase
 doesn't change until the release commits); and made the menu sheet trap
 Tab/Shift+Tab like the modal it claims to be (aria-modal since v0.7.0,
 but focus could leak out the back).
+
+**D70 — v0.7.6: vendor the WebView2 bootstrapper; the tree must build
+from a fresh clone, not from the release machine's leftovers.**
+Two bugs surfaced while cutting v0.7.6, both the same species: the
+release machine's uncommitted local state made builds work there while
+every fresh clone failed. (1) `packaging/native/fetch-stack.sh` was
+committed 100644, so `build.sh`'s direct call to it silently failed and
+the native Linux packages were skipped on any fresh checkout — the
+v0.7.5 artifacts only shipped complete because that machine had a
+local `chmod`. The bit is in the repo now (as is
+`build-offline-pack.sh`'s). (2) Every offline pack since v0.7.4 has
+been missing `vendor/…/internal/webview2runtime/
+MicrosoftEdgeWebview2Setup.exe`: wails embeds that file into every
+Windows build (go:embed), the wails module zip ships it, but our
+`*.exe` ignore rule kept it out of the repo — so `wails dev` /
+`wails build` died on a fresh machine with `no matching files found`,
+defeating the pack's reason to exist. It is vendored now (a negation
+in .gitignore un-hides exactly that one path) and build-offline-pack.sh
+refuses to zip without it. The rule this settles: if the build needs a
+file, the file is committed — mode bits included; "it works on my
+machine" is the bug, not the defense.
