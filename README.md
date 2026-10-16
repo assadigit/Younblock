@@ -16,6 +16,17 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+**What's new in version 1.6.5** (the "offline means offline" release):
+
+- **The offline pack finally keeps its promise.** The v0.7.4 pack said
+  "no internet needed" but wails silently tried to download the
+  dependency list before building — on a filtered connection that
+  ended in `403 Forbidden` and the app never started. The pack now
+  skips that step entirely (everything it needs is inside the zip),
+  and the setup no longer depends on PowerShell being on PATH.
+  If your offline pack printed `403 Forbidden` or
+  `'powershell' is not recognized`, download this release's pack.
+
 **What's new in version 1.6.4** (the "two editions, real windows" release):
 
 > The full release history — every version, in plain language — now lives in

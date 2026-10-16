@@ -499,11 +499,13 @@ if ($Mode -eq 'dev') {
     Write-Host '=== Starting the app: wails dev ===' -ForegroundColor White
     Write-Host ''
     Write-Host '  The first build takes a few minutes - let it work.'
-    Write-Host '  The app window (360 x 760) opens by itself.'
+    Write-Host '  The app window (360 x 628) opens by itself.'
     Write-Host '  To stop the app: close this window.'
     Write-Host ''
     Push-Location $Repo
-    & wails dev
+    # -m skips "go mod tidy": the dependencies are vendored, and tidy
+    # would phone the internet for no benefit.
+    & wails dev -m
     Pop-Location
     Write-Host ''
     Write-Host 'The app has stopped.'

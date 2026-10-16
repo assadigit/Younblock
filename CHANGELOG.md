@@ -12,6 +12,38 @@ every release are on the
 
 ## [Unreleased]
 
+## [v0.7.5] — 2026-10-16 (app 1.6.5)
+
+The "offline means offline" release: the offline pack from v0.7.4
+promised "no internet needed" but died on machines without access to
+Go's module proxy — this one keeps the promise.
+
+### Fixed
+
+- **The offline pack now actually works offline.** `wails dev` and
+  `wails build` always run `go mod tidy` before compiling, and tidy
+  ignores the packed `vendor\` folder — it downloads the dependency
+  list from the internet first. On a filtered connection that meant
+  `403 Forbidden` from proxy.golang.org and the app never started.
+  Every wails call in the setup and build scripts now passes `-m`
+  (wails' "skip mod tidy" flag): the dependencies ship inside the
+  pack, so there is nothing to download, ever.
+- **`'powershell' is not recognized`** in the offline setup: the
+  optional "remember the tools for future windows" step called bare
+  `powershell`, which fails on systems whose PATH lacks the
+  WindowsPowerShell folder. It now calls PowerShell by its full
+  Windows path, silently, and can never stop the setup.
+- The offline setup's "The app window - 360 x 760" message was stale:
+  it now says 360 x 628, the window the redesigned screen actually
+  opens since v0.7.3.
+
+### Changed
+
+- `build.bat`, `build.sh` and `setup.ps1` build with `-m` too — the
+  tidy step added a network round-trip and zero value (go.mod and
+  go.sum are complete and vendored), so builds are faster and never
+  surprise-download on filtered networks.
+
 ## [v0.7.4] — 2026-10-16 (app 1.6.4)
 
 The two-editions release: every platform now ships **Younblock** (the

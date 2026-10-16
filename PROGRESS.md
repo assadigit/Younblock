@@ -1570,3 +1570,52 @@ asset downloaded back through the API is byte-identical (sha256) —
   allows (loader, geometry, helper spawning); the GL compositing itself
   needs real hardware — Ali's Linux Mint is the final visual check,
   alongside the standing Windows walkthrough.
+
+## Phase 19 — offline means offline (v0.7.5 / app 1.6.5)
+
+The bug report was the offline pack failing on a real machine:
+`'powershell' is not recognized` (a noisy but harmless line) followed
+by the real killer — `wails dev` printing a wall of `go: downloading`
+lines and dying with `403 Forbidden` from proxy.golang.org before the
+first compile. Root cause: wails runs `go mod tidy` unconditionally
+before every dev/build, and tidy does not read `vendor/` — it
+resolves the module graph through GOPROXY, so the "no internet
+needed" pack needed the internet after all.
+
+**The fix (D68).** Every wails invocation in the repo's scripts now
+carries `-m`, wails' own SkipModTidy flag (`wails dev -help`: "Skip
+mod tidy before compile"): setup-offline.bat's dev launch, all four
+builds in build.bat, all six in build.sh, setup.ps1's dev mode. With
+tidy skipped the flow goes straight to `go build`, which uses
+`vendor/` automatically; the pack stages source and vendor from the
+same `git archive` of the tag, so consistency is structural. The
+PowerShell line now calls `%SystemRoot%\System32\WindowsPowerShell\
+v1.0\powershell.exe` by full path (some machines have a PATH without
+it), output silenced, errorlevel never checked — a convenience step
+must not be able to stop a setup. The stale "360 x 760" startup text
+became 360 x 628 (the pro window since v0.7.3).
+
+**Proof it is offline now.** Simulated the user's machine exactly:
+empty GOMODCACHE, `GOPROXY=off` (any network access would abort),
+`GOTOOLCHAIN=local` — `wails build -m -platform windows/amd64`
+compiled the GUI exe in 4.5 s. The same `-m` gate covers `wails dev`
+(one shared code path, `cmd/wails/internal/dev/dev.go:63`), and the
+npm side was already covered by the package.json.md5 skip marker
+shipped in the pack.
+
+**A build-pipeline bug found on the way.** build.sh's web-edition
+packaging calls pass the package name as an extra argument, but
+build-deb.sh and build-appimage.sh accepted only the bare 3-arg web
+form — so the committed tree could not build the i386 deb or the i686
+AppImage at all (the v0.7.4 ones had been built with an uncommitted
+local fix that a sandbox reset then lost; caught when this release's
+build stopped at the same lines). Both scripts now accept 3 or 4 args
+in web mode, the name defaulting to "younblock" — the committed tree
+builds every asset by itself again.
+
+Gates on the bumped tree: go vet clean; the full `-race` suite passes
+every package (with the webkit stack env for the cgo main package);
+check-platform-neutral OK; svelte-check 0/0; vite build clean; the
+core reports 1.6.5. App code is byte-identical to v0.7.4 except the
+two version constants and the scripts, so the v0.7.4 live E2E carries
+over.

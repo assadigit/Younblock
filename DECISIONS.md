@@ -826,3 +826,29 @@ could not be screenshot-verified in the GL-less build sandbox (the
 GPU/WebProcess path needs real EGL); everything up to that point —
 loader, window geometry, helper spawning through the patched path —
 was verified under Xvfb.
+
+**D68 — v1.6.5: `-m` everywhere, or "vendor means vendor".** Every
+`wails dev` / `wails build` invocation in the repo's scripts now
+carries `-m` (wails' SkipModTidy flag, `cmd/wails/flags/buildcommon.go`).
+Reason: wails unconditionally runs `go mod tidy` before compiling, and
+tidy does not read `vendor/` — it resolves the module graph through
+GOPROXY (proxy.golang.org first). So the v0.7.4 offline pack was never
+offline: on the reported machine it printed a wall of `go: downloading`
+lines and died with `403 Forbidden` (the proxy is unreachable there)
+before the first compile. With `-m` the flow goes straight to
+`go build`, which uses `vendor/` automatically (go ≥ 1.14 with a
+consistent vendor/modules.txt — the pack stages source and vendor from
+the same `git archive` of the tag, so consistency is structural, not
+checked). The flag was added to setup-offline.bat's `wails dev`,
+build.bat's four builds, build.sh's six, and setup.ps1's dev mode:
+tidy adds a network round-trip and zero value when go.mod/go.sum are
+complete and vendored. Second fix from the same report: the offline
+setup's optional "persist PATH for future windows" step called bare
+`powershell` and failed noisily on a machine whose PATH lacks the
+WindowsPowerShell directory — now invoked by full path
+(`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`), output
+silenced, errorlevel never checked (a convenience step must not be able
+to stop a setup). Also corrected the stale "360 x 760" startup text —
+the pro screen has opened 360 x 628 since v0.7.3. The immediate
+workaround for a v0.7.4 pack, for the record: edit line 103 of its
+setup-offline.bat from `call wails dev` to `call wails dev -m`.

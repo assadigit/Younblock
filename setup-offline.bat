@@ -88,7 +88,10 @@ set "PATH=%GOBIN%;%PATH%"
 echo [3/4] Wails CLI ok
 
 rem --- [4/4] remember the tools for future windows ----------------
-powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','User'); $a=$env:LOCALAPPDATA+'\YounblockTools\go\bin;'+$env:LOCALAPPDATA+'\YounblockTools\nodejs;'+$env:USERPROFILE+'\go\bin'; if($p -notlike '*YounblockTools*'){[Environment]::SetEnvironmentVariable('Path', $p.TrimEnd(';')+';'+$a,'User')}"
+rem PowerShell is called by its full path because some systems
+rem have a PATH without it - and this optional remember-the-
+rem tools step must never be able to stop the setup.
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','User'); $a=$env:LOCALAPPDATA+'\YounblockTools\go\bin;'+$env:LOCALAPPDATA+'\YounblockTools\nodejs;'+$env:USERPROFILE+'\go\bin'; if($p -notlike '*YounblockTools*'){[Environment]::SetEnvironmentVariable('Path', $p.TrimEnd(';')+';'+$a,'User')}" >nul 2>&1
 echo [4/4] Done - the tools are ready.
 
 rem --- run --------------------------------------------------------
@@ -97,10 +100,13 @@ if /i "%~1"=="build" goto :runbuild
 echo === Starting the app: wails dev ===
 echo.
 echo   Keep this window OPEN while the app runs.
-echo   The app window - 360 x 760 - opens by itself.
+echo   The app window - 360 x 628 - opens by itself.
 echo   To stop the app: close this window.
 echo.
-call wails dev
+rem -m tells wails to skip "go mod tidy": the Go dependencies are
+rem already in the vendor\ folder, and tidy would try to download
+rem them from the internet - which this pack promises you never need.
+call wails dev -m
 echo.
 echo The app has stopped.
 goto :the_end

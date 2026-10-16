@@ -26,14 +26,14 @@ set GOARCH=
 if errorlevel 1 goto :fail
 
 echo [3/5] Building the app, 64-bit (younblock.exe)...
-call wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+call wails build -m -platform windows/amd64 -trimpath -ldflags "-s -w"
 if errorlevel 1 goto :fail
 if not exist build\bin\younblock.exe goto :fail
 copy /y build\bin\younblock.exe dist\younblock.exe >nul
 if errorlevel 1 goto :fail
 
 echo [4/5] Building the app, 32-bit (younblock-x86.exe)...
-call wails build -platform windows/386 -trimpath -ldflags "-s -w" -o younblock-x86.exe
+call wails build -m -platform windows/386 -trimpath -ldflags "-s -w" -o younblock-x86.exe
 if errorlevel 1 goto :fail
 if not exist build\bin\younblock-x86.exe goto :fail
 copy /y build\bin\younblock-x86.exe dist\younblock-x86.exe >nul
@@ -41,7 +41,7 @@ if errorlevel 1 goto :fail
 
 echo [5/7] Building the classic app, 64-bit (younblock-classic.exe)...
 set VITE_UI_VARIANT=classic
-call wails build -platform windows/amd64 -trimpath -ldflags "-s -w -X main.windowSize=360x760" -o younblock-classic.exe
+call wails build -m -platform windows/amd64 -trimpath -ldflags "-s -w -X main.windowSize=360x760" -o younblock-classic.exe
 if errorlevel 1 goto :fail
 if not exist build\bin\younblock-classic.exe goto :fail
 copy /y build\bin\younblock-classic.exe dist\younblock-classic.exe >nul
@@ -49,7 +49,7 @@ if errorlevel 1 goto :fail
 
 echo [6/7] Building the classic app, 32-bit (younblock-classic-x86.exe)...
 set GOARCH=386
-call wails build -platform windows/386 -trimpath -ldflags "-s -w -X main.windowSize=360x760" -o younblock-classic-x86.exe
+call wails build -m -platform windows/386 -trimpath -ldflags "-s -w -X main.windowSize=360x760" -o younblock-classic-x86.exe
 set GOARCH=
 set VITE_UI_VARIANT=
 if errorlevel 1 goto :fail

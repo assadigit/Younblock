@@ -27,8 +27,10 @@ if [ "${1:-}" = "native" ]; then
   shift
 fi
 
-if [ "$#" -ne 3 ] && [ "$MODE" = "web" ]; then
-  echo "usage: $0 <x86_64|i686> <binary> <version>" >&2
+# Web mode takes 3 args, or 4 when the name is passed explicitly
+# (build.sh does; it defaults to "younblock").
+if { [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; } && [ "$MODE" = "web" ]; then
+  echo "usage: $0 <x86_64|i686> <binary> <version> [name]" >&2
   exit 2
 fi
 if [ "$#" -ne 4 ] && [ "$MODE" = "native" ]; then

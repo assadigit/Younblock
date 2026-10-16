@@ -68,15 +68,15 @@ GOOS=windows GOARCH=386 go build -trimpath -ldflags "-s -w" -o dist/younblock-co
 echo "[4/8] Building the Windows apps (new screen + classic)..."
 if command -v wails >/dev/null 2>&1; then
   # The redesigned screen (360 x 628 client).
-  wails build -platform windows/amd64 -trimpath -ldflags "-s -w"
+  wails build -m -platform windows/amd64 -trimpath -ldflags "-s -w"
   cp build/bin/younblock.exe dist/younblock.exe
-  wails build -platform windows/386 -trimpath -ldflags "-s -w" -o younblock-x86.exe
+  wails build -m -platform windows/386 -trimpath -ldflags "-s -w" -o younblock-x86.exe
   cp build/bin/younblock-x86.exe dist/younblock-x86.exe
   # The classic screen (360 x 760 client, the v0.6.0 window).
-  VITE_UI_VARIANT=classic wails build -platform windows/amd64 -trimpath \
+  VITE_UI_VARIANT=classic wails build -m -platform windows/amd64 -trimpath \
     -ldflags "-s -w -X main.windowSize=360x760" -o younblock-classic.exe
   cp build/bin/younblock-classic.exe dist/younblock-classic.exe
-  VITE_UI_VARIANT=classic wails build -platform windows/386 -trimpath \
+  VITE_UI_VARIANT=classic wails build -m -platform windows/386 -trimpath \
     -ldflags "-s -w -X main.windowSize=360x760" -o younblock-classic-x86.exe
   cp build/bin/younblock-classic-x86.exe dist/younblock-classic-x86.exe
 else
@@ -94,9 +94,9 @@ if command -v wails >/dev/null 2>&1; then
     rm -f "$STACKENV"
     # webkit2gtk-4.1 from the jammy stack: glibc 2.35 floor — every Mint
     # since 21 runs the result.
-    wails build -platform linux/amd64 -tags webkit2_41 -trimpath -ldflags "-s -w"
+    wails build -m -platform linux/amd64 -tags webkit2_41 -trimpath -ldflags "-s -w"
     cp build/bin/younblock dist/younblock-linux-gui-amd64
-    VITE_UI_VARIANT=classic wails build -platform linux/amd64 -tags webkit2_41 \
+    VITE_UI_VARIANT=classic wails build -m -platform linux/amd64 -tags webkit2_41 \
       -trimpath -ldflags "-s -w -X main.windowSize=360x760" -o younblock-linux-gui-classic-amd64
     cp build/bin/younblock-linux-gui-classic-amd64 dist/younblock-linux-gui-classic-amd64
   else
