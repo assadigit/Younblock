@@ -1764,3 +1764,58 @@ SHA-256 list is in the release notes (release id 414970242).
   out of its module cache).
 - The Windows and Linux-native visual walkthroughs remain Ali's, as
   always.
+
+## Phase 21 — Android port, Phase 1: audit and architecture (docs only)
+
+Ali uploaded the Android specification pack (Younblock-Android-Specs.zip
+→ docs/android-port/, an 11-file planning baseline prepared without
+repository access) and asked for a safe wrap-up of the release session
+plus continuation from the specs. The pack itself demanded Phase 1
+first: source audit, feasibility validation, and the architecture
+decisions — documentation only, no app code, no APK.
+
+Wrap-up first: the session opened with 1531 files showing "modified" —
+diagnosed as sandbox-rehydration mode flips (every file blob-hashed
+against the index: zero content changes), silenced with a local
+core.fileMode=false, nothing discarded. Fast-forwarded main to Ali's
+36273fb and extracted the zip.
+
+The audit (doc 01 completed): the full Connect→engine→relay→DNS/TLS→
+OS-proxy→status trace with symbols — the relay is a loopback HTTP proxy
+(CONNECT + forward + PAC + health), the engine's phase machine gates
+"on" behind real self-tests, the DoH resolver and fragmentation are
+pure and portable, and the whole OS surface sits behind engine.Platform.
+Two finds that shaped everything: netx.Dialer's Control hook was
+written years ago *for* VpnService.protect(fd) (dialer.go says so), and
+the repo carries Ali's own prior Android plan (root 04-android-spec.md)
+locking "one engine, one UI".
+
+Feasibility (doc 03): the entire module compiles for GOOS=android on
+all four ABIs (arm64 links pure-Go; the others need NDK cgo only at
+final link); gomobile/x/mobile, tun2socks, gVisor netstack, hev and
+Intra are all permissive-licensed and actively maintained (fetched
+2026-10-16); Android 14+ FGS "connectedDevice" type requirements
+confirmed from current docs. Chrome Android has no user proxy setting
+and Android exposes no app-settable system proxy → VpnService with a
+per-app allow-list is the only path that meets the product goal; the
+browser-proxy mode survives as a documented Firefox-only fallback.
+
+Architecture accepted (doc 08, ADR-0003/0004/0005/0008-0012):
+VpnService + per-app allow-list (Chrome + YouTube app default) +
+userspace stack (tun2socks primary, gVisor-direct alternative, gated by
+M4 measurements) + a new SOCKS5 front door feeding the existing tunnel
+code + gomobile AAR over the engine's string JSON API + the existing
+Svelte bundle in a WebView served by the in-process webui server (the
+Linux web edition's transport, zero frontend changes — a simplification
+over the old spec's JS bridge that D50 made possible). DNS: A answered
+through DoH, AAAA empty (IPv4-only, fail-safe v6 routing), other UDP
+dropped — all disclosed.
+
+Baseline recorded green on the untouched tree: go vet clean, go test
+13/13 packages, svelte-check 0/0, vite build clean. Docs 02/05/06/07/09
+and the pack README were completed to match; the roadmap now shows
+M0-M2 done and M3 next. No application code changed — Phase 1 was
+documentation-only, as the pack requires. Environment blocker recorded
+honestly: this sandbox has no Android SDK/NDK/javac, so M3's AAR build
+cannot run here; the Go-side M3 items (platform adapter, SOCKS5 door,
+mobile facade) are host-testable without it.
