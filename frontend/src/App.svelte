@@ -38,6 +38,12 @@
   // never disagree with --version. Empty in a plain-browser preview, where
   // the sheet simply hides the line.
   let appVersion = ''
+  // M6: the host's platform + capabilities gate the sheet's Android-only
+  // surfaces (the apps row, the VPN-slot copy, the privacy disclosure, the
+  // diagnostics view). Unset in a preview — the sheet then renders exactly
+  // the desktop sections.
+  let platform = ''
+  let perAppRouting = false
   let stopListening: () => void = () => {}
   let clock: number | undefined
   // An error raised by this window itself (for example Go refused the call). It survives the
@@ -52,7 +58,14 @@
 
   onMount(() => {
     backend.getSnapshot().then((s) => (snap = s)).catch(() => {})
-    backend.getAppInfo().then((info) => (appVersion = info?.version ?? '')).catch(() => {})
+    backend
+      .getAppInfo()
+      .then((info) => {
+        appVersion = info?.version ?? ''
+        platform = info?.platform ?? ''
+        perAppRouting = info?.capabilities?.perAppRouting ?? false
+      })
+      .catch(() => {})
     stopListening = backend.subscribe((s) => (snap = s))
     clock = window.setInterval(() => (now = Date.now()), 250)
   })
@@ -158,7 +171,14 @@
 
     <div class="hint" class:visible={hint !== ''}>{hint}</div>
 
-    <MenuSheet open={menuOpen} version={appVersion} on:close={() => (menuOpen = false)} />
+    <MenuSheet
+      open={menuOpen}
+      version={appVersion}
+      {platform}
+      {perAppRouting}
+      {backend}
+      on:close={() => (menuOpen = false)}
+    />
   </div>
 </main>
 

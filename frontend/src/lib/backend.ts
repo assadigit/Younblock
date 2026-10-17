@@ -15,6 +15,9 @@ const BINDINGS = {
   disconnect: "Disconnect",
   getSnapshot: "GetSnapshot",
   getAppInfo: "GetAppInfo",
+  getSettings: "GetSettings",
+  saveSettings: "SaveSettings",
+  getDiagnosticReport: "GetDiagnosticReport",
 } as const;
 /** Wails event carrying a fresh Snapshot. */
 const STATUS_EVENT = "younblock:status";
@@ -22,10 +25,41 @@ const STATUS_EVENT = "younblock:status";
 
 import type { Snapshot } from "./types";
 
-/** App metadata from the host (internal/config on the Go side). */
+/** App metadata from the host (internal/config on the Go side). The
+ *  platform and capabilities fields gate the Android-only surfaces (the
+ *  apps row, the VPN-slot copy, the privacy disclosure); a preview build
+ *  has no host and they stay unset. */
 export interface AppInfo {
   name: string;
   version: string;
+  platform?: string;
+  capabilities?: {
+    perAppRouting?: boolean;
+    [key: string]: boolean | undefined;
+  };
+}
+
+/** The settings document (Go internal/config.Settings). Only the fields
+ *  this screen reads are typed; the index signature keeps a full-document
+ *  round-trip honest (fields this screen never touches survive a save). */
+export interface Settings {
+  version: number;
+  mode: string;
+  method: string;
+  port: number;
+  autoPort: boolean;
+  startWithWindows: boolean;
+  connectOnLaunch: boolean;
+  openBrowserOnConnect: boolean;
+  firstRunDone: boolean;
+  closeNoticeShown: boolean;
+  /** The Android per-app allow-list (schema v2, M6). */
+  apps?: string[];
+  advanced?: {
+    dohServers?: Array<{ name?: string; url?: string }>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 /** The backend surface the screen talks to. */
@@ -36,6 +70,13 @@ export interface Backend {
   disconnect(): Promise<void>;
   /** The host's name/version, or null when this build has no host (preview). */
   getAppInfo(): Promise<AppInfo | null>;
+  /** The current settings document, or null without a host. */
+  getSettings(): Promise<Settings | null>;
+  /** Saves a full settings document; resolves with the normalized
+   *  settings, rejects with a typed error. Null without a host. */
+  saveSettings(s: Settings): Promise<Settings>;
+  /** The redacted diagnostic report text, or null without a host. */
+  getDiagnosticReport(): Promise<string | null>;
 }
 
 /** Create the backend for this environment (Wails, then HTTP, then preview). */
@@ -125,7 +166,9 @@ class WailsBackend implements Backend {
   }
 
   // GetAppInfo returns the same JSON the webui serves at /api/appinfo
-  // ({"name":..,"version":..,..}); the screen only needs those two fields.
+  // ({"name":..,"version":..,"platform":..,"capabilities":{..}}); the
+  // screen keeps the platform/capability fields when the host sends them
+  // (Android gates its extra surfaces on them; desktops simply lack them).
   private info: AppInfo | null = null;
   async getAppInfo(): Promise<AppInfo | null> {
     if (this.info) return this.info;
@@ -134,9 +177,46 @@ class WailsBackend implements Backend {
       if (typeof fn !== "function") return null;
       const raw = JSON.parse(String(await fn())) as Partial<AppInfo>;
       if (raw && typeof raw.version === "string" && raw.version !== "") {
-        this.info = { name: String(raw.name ?? ""), version: raw.version };
+        this.info = {
+          name: String(raw.name ?? ""),
+          version: raw.version,
+          platform: typeof raw.platform === "string" ? raw.platform : undefined,
+          capabilities: raw.capabilities,
+        };
       }
       return this.info;
+    } catch {
+      return null;
+    }
+  }
+
+  // Settings and the diagnostic report: same JSON strings the webui
+  // serves at /api/settings and /api/report (app.go mirrors jsonapi.go).
+  async getSettings(): Promise<Settings | null> {
+    try {
+      const fn = this.bindings[BINDINGS.getSettings];
+      if (typeof fn !== "function") return null;
+      return JSON.parse(String(await fn())) as Settings;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveSettings(s: Settings): Promise<Settings> {
+    const fn = this.bindings[BINDINGS.saveSettings];
+    const reply = JSON.parse(String(await fn(JSON.stringify(s)))) as {
+      error?: string | null;
+    };
+    if (reply.error) throw new Error(reply.error);
+    return reply as Settings;
+  }
+
+  async getDiagnosticReport(): Promise<string | null> {
+    try {
+      const fn = this.bindings[BINDINGS.getDiagnosticReport];
+      if (typeof fn !== "function") return null;
+      const raw = JSON.parse(String(await fn())) as { report?: string };
+      return typeof raw.report === "string" ? raw.report : null;
     } catch {
       return null;
     }
@@ -254,12 +334,59 @@ class HttpBackend implements Backend {
         .then((res) => (res.ok ? (res.json() as Promise<Partial<AppInfo>>) : null))
         .then((info) =>
           info && typeof info.version === "string" && info.version !== ""
-            ? { name: String(info.name ?? ""), version: info.version }
+            ? {
+                name: String(info.name ?? ""),
+                version: info.version,
+                platform: typeof info.platform === "string" ? info.platform : undefined,
+                capabilities: info.capabilities,
+              }
             : null,
         )
         .catch(() => null);
     }
     return this.infoPromise;
+  }
+
+  // /api/settings (GET/POST) and /api/report carry the same JSON shapes
+  // the Wails bindings expose; the Android WebView reaches the very same
+  // server through its loopback URL (ADR-0005).
+  async getSettings(): Promise<Settings | null> {
+    try {
+      const res = await fetch("/api/settings", { cache: "no-store" });
+      if (!res.ok) return null;
+      return (await res.json()) as Settings;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveSettings(s: Settings): Promise<Settings> {
+    let res: Response;
+    try {
+      res = await fetch("/api/settings", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(s),
+      });
+    } catch {
+      throw new Error("network");
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const reply = (await res.json()) as { error?: string | null } & Settings;
+    if (reply.error) throw new Error(String(reply.error));
+    return reply;
+  }
+
+  async getDiagnosticReport(): Promise<string | null> {
+    try {
+      const res = await fetch("/api/report", { cache: "no-store" });
+      if (!res.ok) return null;
+      const raw = (await res.json()) as { report?: string };
+      return typeof raw.report === "string" ? raw.report : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Fold one fresh engine state into the snapshot, the bridge's mapping. */
@@ -376,6 +503,15 @@ function autoBackend(): Backend {
     async getAppInfo(): Promise<AppInfo | null> {
       return (await whenReady()).getAppInfo();
     },
+    async getSettings(): Promise<Settings | null> {
+      return (await whenReady()).getSettings();
+    },
+    async saveSettings(s: Settings): Promise<Settings> {
+      return (await whenReady()).saveSettings(s);
+    },
+    async getDiagnosticReport(): Promise<string | null> {
+      return (await whenReady()).getDiagnosticReport();
+    },
   };
 }
 
@@ -427,6 +563,18 @@ function previewBackend(): Backend {
     // No host behind a plain browser: null makes the About sheet hide its
     // version line instead of inventing one that would go stale.
     async getAppInfo(): Promise<AppInfo | null> {
+      return null;
+    },
+    // Same honesty for the M6 surfaces: without a host there are no real
+    // settings to show, no list to save, no report to render — the sheet
+    // hides the Android-only sections and the diagnostics button.
+    async getSettings(): Promise<Settings | null> {
+      return null;
+    },
+    async saveSettings(): Promise<Settings> {
+      throw new Error("no host");
+    },
+    async getDiagnosticReport(): Promise<string | null> {
       return null;
     },
     async connect(): Promise<void> {

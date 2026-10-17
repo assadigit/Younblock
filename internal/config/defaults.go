@@ -234,3 +234,18 @@ func Defaults() []DoHServer {
 func DefaultDomains() []string {
         return append([]string(nil), defaultYouTubeDomains...)
 }
+
+// defaultRoutedApps is the built-in per-app allow-list (ADR-0003): the
+// user's own Chrome and the YouTube app — the product's declared scope.
+var defaultRoutedApps = []string{
+	"com.android.chrome",
+	"com.google.android.youtube",
+}
+
+// DefaultApps returns the built-in per-app allow-list (a copy). The list
+// is settings schema v2's `apps` field (doc 04 §9): consumed only by the
+// Android VpnService when it builds the TUN; desktop editions carry the
+// field but never read it.
+func DefaultApps() []string {
+	return append([]string(nil), defaultRoutedApps...)
+}

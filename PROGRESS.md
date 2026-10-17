@@ -2068,3 +2068,83 @@ Desktop regression green at the end: vet clean; `go test -count=1
 ./...` 17/17 packages ok, run twice consecutively with no flakes;
 svelte-check 0/0; vite build clean; compile matrix 4/4 ABIs with
 -mod=vendor.
+
+## M6 — settings and mobile UX (2026-10-17, host-complete)
+
+The session opened after the THIRD recorded full sandbox wipe — the
+repo, the ~/sdk toolchain and the shared worklog were all gone.
+Recovery per the recorded state: re-clone at 4083e76 (clean, synced),
+toolchain rebuilt exactly per doc 06's pins (Go 1.27.2, JDK 21.0.12.1+1
+Temurin with javac — the system JDK is a JRE only, cmdline-tools 12.0,
+platforms 26+36, build-tools 36.1.0, NDK 28.2.13676358, gomobile/
+gobind at the pinned x/mobile), worklog rebuilt from the session
+prompt + repo records, and the desktop baseline re-verified GREEN
+before any M6 code: vet clean, 17/17 packages twice, svelte-check 0/0,
+vite clean (the webui dist synced first — the D74 trap).
+
+The milestone (doc 05 §M6, D79/D80):
+
+- **Schema v2**: `config.Settings` gains `Apps []string`;
+  `settingsVersion` → 2; migration is the existing mechanism (a v1
+  file lacks the field, `normalizeApps` fills Chrome+YouTube). The
+  load-bearing rule: empty-or-all-invalid RESTORES THE DEFAULTS — an
+  empty allow-list persisted would route every app (the opposite of
+  the product scope). Validation: package shape, dedupe, cap 32, case
+  preserved. `internal/config/apps_test.go`: the matrix, the cap, the
+  v1→v2 file migration with custom fields surviving, round-trips, the
+  exact JSON shape.
+- **The facade plumbing**: the engine's locked `Settings()` accessor +
+  `mobile.RoutedApps()` → `{"apps":[…]}` — the same normalized truth
+  behind settings.json, the jsonapi settings verbs and the Kotlin
+  service's read. `mobile/apps_test.go`: default, tracked-through-save,
+  all-invalid→defaults (both doors agree), persistence across an
+  engine recreate.
+- **The Kotlin consumption**: `readRoutedApps` at TUN establish, fail
+  closed (unreadable/empty → refuse to route), `DEFAULT_APPS` deleted
+  (no second copy to drift). Apply-on-next-connect by construction:
+  the list is baked into the builder at establish; the UI copy says
+  so. NO_TARGET_APPS deferred to M7 (a shell→engine error door is a
+  D78-class design question for the hardening milestone).
+- **The WebView UX**: `Backend` grew getSettings/saveSettings/
+  getDiagnosticReport (Wails/HTTP/preview — the preview returns null,
+  never invented data). The menu sheet's Android-only surfaces, gated
+  on AppInfo.platform/capabilities.perAppRouting so the desktop sheet
+  keeps its exact prior copy byte-for-byte: the Apps-to-unblock row
+  (scope intro line as the standing first-run copy; friendly labels
+  only for the two known packages; add-by-package-name with the saved
+  response as the validation authority — refused entries surface as
+  inline feedback, no client-side duplicate of the Go rules), the
+  VPN-slot/key-icon About lines, the Android How-it-works/Help
+  variants, the doc 07 §5 privacy section, and the diagnostics view
+  (the existing redacted report in a labeled scrollable region with
+  copy). A11y host-half: the generic focus trap covers every new
+  control, aria-labels, 2.75rem touch targets, rem typography,
+  role="alert" errors.
+
+Build lane, re-verified end-to-end after all M6 changes: `gomobile
+bind` → younblock.aar 25,097,538 B (3 ABIs; javap shows `routedApps()`
+bound alongside the M4/M5 surface); clean `assembleDebug` →
+app-debug.apk 35,194,757 B, SHA-256
+5669efd14a0a523249e55c9f2c7ab0d6b1edb62156c60d76c3ccc38cc59302dc,
+badging minSdk 26/target 36, YounblockVpnService + BIND_VPN_SERVICE in
+the dumped manifest, apksigner OK (debug cert). One honest build
+iteration: the first clean attempt failed at compileDebugKotlin (Kotlin
+call syntax for the new binding + a missing JSONArray import) — both
+errors printed, fixed, re-run CLEAN. The compile-matrix evidence
+sharpened: the honest 4/4 form is `go build` over the 18 non-main
+packages per ABI (arm64 links the full tree even at CGO_ENABLED=0;
+arm/386/amd64 main packages refuse the link without NDK cgo, exactly
+as doc 06 §A records).
+
+The honest ⛔, unchanged and re-verified (`ls /dev/kvm` → No such file
+or directory): no emulator, no device — the shared M4+M5 checklist
+(consent dialog live, notification channel, screen-off/Doze, real DoH
+through the stack, QUIC fallback on the real YouTube app, protect() on
+real sockets, onRevoke, reboot) now also carries M6's live-WebView
+halves (real rotation, font scaling, TalkBack, the apps row on a real
+screen). Never claimed, never dropped. Desktop regression green at the
+exit gate: vet clean; `go test -count=1 ./...` 17/17 packages ok, run
+twice consecutively; svelte-check 0/0; vite build clean; matrix 4/4
+ABIs with -mod=vendor.
+
+Next: M7 — regression, hardening, release preparation (doc 05 §M7).

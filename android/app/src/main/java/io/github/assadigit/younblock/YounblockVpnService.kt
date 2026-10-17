@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -42,9 +43,15 @@ import org.json.JSONObject
  *     connect intent survives (e.g. a consent result after rotation).
  *
  * TUN shape (ADR-0009/0010):
- *   - IPv4 default route into the TUN for the ALLOWED apps only
- *     (default list: Chrome + YouTube; M6 makes it configurable via
- *     the `apps` setting).
+ *   - IPv4 default route into the TUN for the ALLOWED apps only — the
+ *     `apps` settings list (schema v2, M6), read through the facade's
+ *     [mobile.Engine.routedApps] at establish time: the same normalized
+ *     list the WebView's Apps-to-unblock row edits and settings.json
+ *     persists. Defaults: Chrome + YouTube (ADR-0003). A change saved
+ *     while the TUN is live applies on the NEXT connect — the list is
+ *     baked into the VpnService builder at establish, and rebuilding an
+ *     established TUN under live traffic is riskier than the delay (the
+ *     UI copy says so; no silent re-route).
  *   - Virtual DNS 10.111.0.53: answered INSIDE the stack (any UDP:53
  *     destination is — the tunstack policy), real resolution happens
  *     at the SOCKS5 door through the engine's DoH resolver.
@@ -55,9 +62,11 @@ import org.json.JSONObject
  *
  * Fail-closed invariant: a VpnService.Builder with ZERO allowed
  * applications routes EVERY app's traffic — the exact opposite of the
- * product scope. If none of the allow-list packages is installed the
- * service refuses to establish, stops the engine, and stops (M6 turns
- * this into the engine's NO_TARGET_APPS error surface).
+ * product scope. If the configured list cannot be read, or none of its
+ * packages is installed, the service refuses to establish, stops the
+ * engine, and stops (the UI shows the app's state honestly; the
+ * NO_TARGET_APPS typed-error surface stays deferred to M7 with the
+ * other hardening).
  *
  * fd ownership (the facade's single-owner rule): after
  * engine.startTun(fd, mtu) returns — success OR refusal — the Go side
@@ -115,6 +124,7 @@ class YounblockVpnService : VpnService() {
 
     /** Builds the TUN (per-app allow-list, virtual DNS, v4+v6 routes). */
     private fun establishTun() {
+        val engine = EngineHolder.ensure(this)
         val builder = Builder()
             .setSession("Younblock")
             .setMtu(MTU)
@@ -133,8 +143,21 @@ class YounblockVpnService : VpnService() {
             Log.w(TAG, "v6 blackhole route refused: ${e.message}")
         }
 
+        // M6: the allow-list comes from the engine's normalized `apps`
+        // settings — the same truth the WebView edits (D79). Reading it
+        // fresh at establish time is what makes "changes apply on the
+        // next connect" true without any extra plumbing.
+        val apps = readRoutedApps(engine)
+        if (apps.isEmpty()) {
+            // Fail closed toward refusal — an empty list would route
+            // EVERYTHING. (Normalize prevents an empty list; landing here
+            // means the bridge read failed — a bug worth seeing loudly.)
+            Log.e(TAG, "allow-list unreadable; refusing to route")
+            stopSelfHonest()
+            return
+        }
         var allowed = 0
-        for (pkg in DEFAULT_APPS) {
+        for (pkg in apps) {
             try {
                 builder.addAllowedApplication(pkg)
                 allowed++
@@ -358,11 +381,15 @@ class YounblockVpnService : VpnService() {
         private const val TUN_ADDRESS = "10.111.0.1"
         private const val VIRTUAL_DNS = "10.111.0.53"
 
-        /** The default per-app allow-list (M6: the `apps` setting). */
-        private val DEFAULT_APPS = listOf(
-            "com.android.chrome",
-            "com.google.android.youtube",
-        )
+        /** Reads the configured per-app allow-list from the facade
+         *  (M6, D79): {"apps":[...]}. Never empty on a healthy engine —
+         *  Normalize fills the built-in defaults — so an empty result is
+         *  an honest refusal, not a silent route-everything fallback. */
+        private fun readRoutedApps(engine: mobile.Engine): List<String> =
+            runCatching {
+                val arr = JSONObject(engine.routedApps()).optJSONArray("apps") ?: JSONArray()
+                List(arr.length()) { arr.optString(it) }.filter { it.isNotBlank() }
+            }.getOrDefault(emptyList())
 
         /** Observable liveness for the Activity's connect flow. */
         @Volatile

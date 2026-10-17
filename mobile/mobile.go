@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/engine"
 	"github.com/assadigit/Younblock/internal/platform/android"
 	"github.com/assadigit/Younblock/internal/webui"
@@ -179,6 +180,30 @@ func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
 // "connecting" — never "on" without routing, never a misleading
 // "Connected".
 func (m *Engine) SetVpnReady(ready bool) { m.plat.SetStartReady(ready) }
+
+// RoutedApps is the M6 settings surface for the Kotlin service: the
+// per-app allow-list (schema v2) the VpnService bakes into its Builder
+// at TUN establish, as {"apps":["com.android.chrome",...]} — the same
+// normalized list GetSettings reports and the WebView's Apps-to-unblock
+// row edits (one truth, three doors). The list is read at establish
+// time: a change saved while the TUN is live applies on the NEXT
+// connect (rebuilding an established TUN under live traffic is riskier
+// than the delay, and the UI copy says so — no silent re-route).
+func (m *Engine) RoutedApps() string {
+	apps := m.eng.Settings().Apps
+	if len(apps) == 0 {
+		// Normalize guarantees non-empty; this guard exists so a future
+		// regression can at worst route the DEFAULT scope, never every app.
+		apps = config.DefaultApps()
+	}
+	out, err := json.Marshal(map[string][]string{"apps": apps})
+	if err != nil {
+		// Unreachable for a []string; if it ever fires, fail closed toward
+		// the default scope rather than an empty (route-everything) list.
+		out, _ = json.Marshal(map[string][]string{"apps": config.DefaultApps()})
+	}
+	return string(out)
+}
 
 // StartWebUI starts the in-process loopback control server (ADR-0005) on
 // the given port (0 = a free port) and returns the URL the WebView loads.

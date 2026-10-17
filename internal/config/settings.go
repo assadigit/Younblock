@@ -10,8 +10,11 @@ import (
 	"strings"
 )
 
-// settingsVersion is the settings file schema version.
-const settingsVersion = 1
+// settingsVersion is the settings file schema version. v2 (M6, doc 04
+// §9) adds the per-app allow-list `apps`; migration from v1 is the
+// existing mechanism: a v1 file simply lacks the field and Normalize
+// fills the built-in defaults.
+const settingsVersion = 2
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -42,10 +45,19 @@ type Settings struct {
 	ConnectOnLaunch  bool   `json:"connectOnLaunch"`
 	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
 	// profile, proxy flags) when the engine turns on. Default off.
-	OpenBrowserOnConnect bool     `json:"openBrowserOnConnect"`
-	FirstRunDone         bool     `json:"firstRunDone"`
-	CloseNoticeShown     bool     `json:"closeNoticeShown"`
-	Advanced             Advanced `json:"advanced"`
+	OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
+	FirstRunDone         bool `json:"firstRunDone"`
+	CloseNoticeShown     bool `json:"closeNoticeShown"`
+	// Apps is the Android per-app allow-list (ADR-0003, schema v2):
+	// the package names whose TCP+DNS the VpnService routes through
+	// the engine. Desktop editions persist the field but never read
+	// it — one settings.json serves every edition, and the classic
+	// screen's spread-based saves round-trip it untouched. Normalize
+	// restores the built-in defaults when the list is empty or
+	// all-invalid (an empty allow-list would route EVERY app — the
+	// opposite of the product scope).
+	Apps     []string `json:"apps"`
+	Advanced Advanced `json:"advanced"`
 }
 
 // DefaultSettings returns the built-in settings.
@@ -56,6 +68,7 @@ func DefaultSettings() Settings {
 		Method:   DefaultMethod,
 		Port:     ListenPort,
 		AutoPort: AutoPort,
+		Apps:     DefaultApps(),
 		Advanced: Advanced{
 			DoHServers: Defaults(),
 			Domains:    DefaultDomains(),
@@ -100,6 +113,7 @@ func Normalize(s Settings) Settings {
 	}
 	s.Advanced.DoHServers = normalizeDoH(s.Advanced.DoHServers)
 	s.Advanced.Domains = normalizeDomains(s.Advanced.Domains)
+	s.Apps = normalizeApps(s.Apps)
 	return s
 }
 
@@ -155,6 +169,74 @@ func normalizeDomains(list []string) []string {
 		return DefaultDomains()
 	}
 	return out
+}
+
+// maxApps caps the per-app allow-list: every entry becomes one
+// addAllowedApplication call at TUN establish; a runaway list would slow
+// the establish for no product value (the declared scope is a handful of
+// apps). Entries beyond the cap are dropped in first-seen order.
+const maxApps = 32
+
+// normalizeApps validates the per-app allow-list (schema v2, ADR-0003):
+// trimmed, shape-checked Android package names, de-duplicated in
+// first-seen order, capped. An empty or all-invalid result falls back to
+// the built-in defaults — a VpnService.Builder with ZERO allowed
+// applications routes EVERY app, the exact opposite of the product
+// scope, so an empty list must never persist (the Kotlin side fail-closes
+// independently when none of the listed packages is installed).
+func normalizeApps(list []string) []string {
+	seen := make(map[string]bool, len(list))
+	out := make([]string, 0, len(list))
+	for _, pkg := range list {
+		pkg = strings.TrimSpace(pkg)
+		if pkg == "" || seen[pkg] || !validAndroidPackage(pkg) {
+			continue
+		}
+		if len(out) == maxApps {
+			break
+		}
+		seen[pkg] = true
+		out = append(out, pkg)
+	}
+	if len(out) == 0 {
+		return DefaultApps()
+	}
+	return out
+}
+
+// validAndroidPackage reports whether s looks like an Android package
+// name: dot-separated segments of letters, digits and underscores, each
+// segment starting with a letter, at least two segments — the shape
+// Android's package world accepts (the VpnService builder rejects a name
+// it cannot resolve at establish time; validating here keeps the file
+// honest and the UI's feedback early). Case is preserved: package names
+// are case-sensitive on Android.
+func validAndroidPackage(s string) bool {
+	if len(s) < 3 || len(s) > 256 {
+		return false
+	}
+	segments := strings.Split(s, ".")
+	if len(segments) < 2 {
+		return false
+	}
+	for _, seg := range segments {
+		if len(seg) == 0 {
+			return false
+		}
+		for i, r := range seg {
+			switch {
+			case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+				// a letter is valid anywhere in a segment
+			case r >= '0' && r <= '9', r == '_':
+				if i == 0 {
+					return false // a segment starts with a letter
+				}
+			default:
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // Load reads settings.json from dir. Unknown fields are ignored. A corrupt

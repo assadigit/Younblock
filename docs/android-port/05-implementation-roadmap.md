@@ -317,14 +317,113 @@ The emulator/device observation half ⛔ (no /dev/kvm, no device). M5 is
 marked ✅ host-complete on the M3/M4 precedent (build + bridge +
 desktop verified, on-device half recorded, never faked).**
 
-### M6 — Settings and mobile UX
+### M6 — Settings and mobile UX — ✅ host-complete 2026-10-17 (on-device gates ⛔: the standing emulator/device blocker)
 
-- ⬜ `apps` settings field (schema v2 + Normalize + migration), the
-  Apps-to-unblock UI row, first-run copy, About lines (key-icon
-  honesty), Help/privacy disclosure (doc 07 §5), diagnostics view.
-- ⬜ Accessibility/rotation/font-scaling checks in the WebView.
+Settings schema v2 and the honest mobile UX are done and host-verified;
+the live-WebView observation halves (rotation, font scaling, TalkBack,
+the apps row on a real screen) remain ⛔ — no /dev/kvm, no device
+(re-verified this session: `ls /dev/kvm` → No such file or directory).
+Host side of every gate:
 
-Exit criteria: P0 + approved P1 features meet doc 02.
+1. ✅ **The `apps` settings field (D79 — schema v2 + Normalize +
+   migration)**: `config.Settings` gains `Apps []string` (json `apps`);
+   `settingsVersion` bumps to 2; migration is the existing version
+   mechanism — a v1 file simply lacks the field and `normalizeApps`
+   fills the built-in defaults (Chrome + YouTube, ADR-0003) so the
+   list can never persist empty (an empty allow-list would route EVERY
+   app — the opposite of the product scope; the Kotlin builder fails
+   closed independently when none of the listed packages is
+   installed). Validation: trim, Android-package shape (dot-separated
+   segments, each starting with a letter; case preserved — package
+   names are case-sensitive), dedupe first-seen, cap 32. Evidence:
+   `internal/config/apps_test.go` — defaults copy-ness, the full
+   validation matrix, the cap, the v1→v2 file migration (custom fields
+   survive, `apps` defaults filled, persisted file carries version 2 +
+   the list), round-trip, and the exact JSON shape the facade and UI
+   depend on. Desktop unchanged: the classic screen's spread-based
+   saves round-trip the field untouched; desktop platforms never read
+   it; the full regression gate stayed green.
+2. ✅ **The facade plumbing (one list, three doors)**: the engine gained
+   a locked `Settings()` copy accessor; `mobile.RoutedApps()` reports
+   `{"apps":[…]}` from the same normalized truth — the identical list
+   `GetSettings` serves and the WebView's Apps-to-unblock row edits.
+   Evidence: `mobile/apps_test.go` — default list, tracked-through-save,
+   all-invalid→defaults-restored (RoutedApps and GetSettings agree),
+   and persistence across an engine recreate (the process-death path).
+   `javap` on the rebuilt AAR's classes.jar shows `routedApps()` bound
+   alongside the M4/M5 methods.
+3. ✅ **The Kotlin consumption (apply-on-next-connect, D79)**:
+   `YounblockVpnService.establishTun` reads the configured list fresh
+   at establish time through `readRoutedApps` (fail closed: an
+   unreadable or empty list refuses to establish — never a silent
+   route-everything fallback; `DEFAULT_APPS` is deleted so no second
+   copy can drift). A change saved while the TUN is live applies on
+   the NEXT connect — the list is baked into the VpnService builder,
+   and rebuilding an established TUN under live traffic is riskier
+   than the delay; the UI copy says so. The NO_TARGET_APPS
+   typed-error surface stays deferred to M7 with the other hardening
+   (the shell-level failure currently logs and fails closed honestly).
+4. ✅ **The WebView UX (D80 — capability-gated honesty surfaces)**: the
+   pro screen's `Backend` grew `getSettings`/`saveSettings`/
+   `getDiagnosticReport` on all three transports (Wails bindings, the
+   webui's /api/settings + /api/report, preview null — no invented
+   data). The menu sheet gains, gated on what the host actually
+   reports (`AppInfo.platform`, `capabilities.perAppRouting`): the
+   **Apps-to-unblock row** (the scope intro line — the first-run copy,
+   present always because the disclosure IS the feature; friendly
+   labels only for the two known packages, anything else shows its
+   package name; remove with a last-one guard; add-by-package-name
+   with honest feedback when Normalize refuses the entry — the saved
+   response is the authority, the UI duplicates no validation rules);
+   the **Android About lines** (the VPN-slot/key-icon statement
+   replaces the desktop "not a VPN" line with the honest slot
+   disclosure — ADR-0007/doc 07 §1: no overstated VPN/privacy
+   language); the Android **How-it-works/Help** variants (the first
+   line's flow is the VPN slot, not a browser sending requests; the
+   key-icon explanation; apply-on-next-connect advice); the **Privacy
+   section** (doc 07 §5 → user copy: no analytics, no Younblock-run
+   server, DNS to the user-configured DoH providers, IP not hidden,
+   no extra encryption, local logs — every sentence
+   implementation-verified); and the **diagnostics view** (the
+   existing redacted GetDiagnosticReport in a scrollable view with a
+   copy button — no new report content invented). Desktop rendering
+   is unchanged: the sheet's desktop sections keep the exact copy,
+   byte for byte; the classic screen is untouched. Evidence:
+   svelte-check 0/0, vite build clean, the bundle synced into
+   internal/webui/dist (TestWebUILifecycle green) and into the M6 APK.
+5. ✅ **Accessibility (host-verifiable half)**: the sheet's generic
+   focus-trap query automatically includes every new control (remove
+   buttons, the add field, diagnostics buttons); aria-labels on every
+   icon-only control; 44 px touch targets (2.75 rem); rem typography
+   throughout for system font scaling; `role="alert"` on errors; the
+   report view is a labeled, scrollable region. The live halves —
+   TalkBack, real rotation, real font-scale observation in the
+   WebView — are ⛔ with the device checklist.
+6. ✅ **The build lanes, re-verified end-to-end after all M6 changes**:
+   desktop baseline `go vet ./...` clean; `go test -count=1 ./...`
+   **17/17 packages ok, run twice consecutively**; svelte-check 0/0;
+   vite build clean; Android library compile matrix **4/4 ABIs** with
+   `-mod=vendor` (arm64 additionally links the full tree); `gomobile
+   bind` → younblock.aar **25,097,538 B** (3 ABIs, `routedApps()` in
+   classes.jar); clean `assembleDebug` → **app-debug.apk 35,194,757
+   B**, SHA-256
+   `5669efd14a0a523249e55c9f2c7ab0d6b1edb62156c60d76c3ccc38cc59302dc`,
+   badging minSdk 26/target 36, `YounblockVpnService` +
+   `BIND_VPN_SERVICE` in the dumped manifest, `apksigner verify
+   --print-certs` OK (debug cert). The session opened after yet
+   another full sandbox wipe (repo re-cloned at 4083e76, toolchain
+   reinstalled per doc 06 pins, worklog rebuilt from the prompt +
+   repo records; the desktop baseline re-verified green before any
+   M6 code — see doc 06's M6 record).
+
+Exit criteria verdict: **the M6 scope of doc 02's P0/P1 set is
+met host-side — AND-010 (settings schema v2 + Normalize rejection +
+restart survival: apps_test.go) and AND-017 (the in-app scope/privacy
+disclosure: the sheet's copy is doc 07 §5 wired) now carry evidence;
+AND-012's "no universal claims" is enforced by the same copy; the
+desktop baseline never regressed (17/17 twice at the exit gate). The
+live-WebView observation half ⛔ (the shared device checklist). M6 is
+marked ✅ host-complete on the M3/M4/M5 precedent.**
 
 ### M7 — Regression, hardening, release preparation
 
@@ -340,7 +439,7 @@ Exit criteria: P0 + approved P1 features meet doc 02.
 
 ## Dependency order / critical path (unchanged)
 
-M3 → M4 → M5 → M6 → M7 → M8; M0–M5 complete (M4 and M5
+M3 → M4 → M5 → M6 → M7 → M8; M0–M6 complete (M4, M5 and M6
 host-complete; their on-device gates ride with the shared device
 checklist — doc 09's standing blocker).
 

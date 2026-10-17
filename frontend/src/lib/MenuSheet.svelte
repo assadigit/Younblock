@@ -3,15 +3,33 @@
   // works / Help. Escape and the red Close button dismiss it. While open
   // it behaves like a modal: focus moves in, Tab wraps inside, and focus
   // returns to the menu button on close.
+  //
+  // M6 (doc 05 §M6, doc 07 §5): on Android the sheet gains the honest
+  // mobile surfaces — the Apps-to-unblock row (the `apps` settings field,
+  // read and saved through the backend), the VPN-slot/key-icon About
+  // lines, the privacy disclosure, and the diagnostics view. Everything
+  // is gated on what the HOST actually reports (AppInfo.platform and
+  // capabilities.perAppRouting): the desktop sheet renders exactly the
+  // sections it always had — the same copy, byte for byte — and a
+  // preview build with no host shows no Android-only sections at all.
   import { createEventDispatcher } from "svelte";
+  import type { Backend, Settings } from "./backend";
 
   export let open = false;
   /** Host app version from the backend (backend.getAppInfo); empty hides
    *  the line — a dev preview has no host, and a hard-coded copy of the
    *  number here would go stale on the next bump (it already did once). */
   export let version = "";
+  /** Host platform from AppInfo ("android" on the phone; "" when absent). */
+  export let platform = "";
+  /** True only when the host reports the per-app routing capability. */
+  export let perAppRouting = false;
+  /** The backend for settings/report reads and saves (null in preview). */
+  export let backend: Backend | null = null;
 
   const dispatch = createEventDispatcher<{ close: void }>();
+
+  const android = platform === "android";
 
   // =====================================================================
   // CONFIG — edit the three texts here
@@ -21,6 +39,16 @@
     "It is not a VPN: it does not hide your IP address and adds no encryption — YouTube's own HTTPS still protects the content.",
   ];
 
+  // The Android About lines: the first keeps the product promise; the
+  // second replaces the desktop "not a VPN" line with the honest
+  // VPN-slot statement (ADR-0007 + doc 07 §1: no overstated VPN/privacy
+  // language — the app occupies Android's VPN slot, says so, and says
+  // what that does NOT mean).
+  const ABOUT_ANDROID = [
+    "Younblock helps YouTube load when the network gets in the way. It runs only on your device, with no account and no analytics.",
+    "It uses Android's VPN slot — that is the key icon you'll see while it runs — as a local traffic router for the apps you choose. It is still not a VPN: it does not hide your IP address and adds no encryption. YouTube's own HTTPS still protects the content.",
+  ];
+
   const HOW_IT_WORKS = [
     "Your browser sends its request to Younblock, which runs only on your PC.",
     "Younblock looks up YouTube's address with a secure DNS service, so the lookup can't be tampered with on the way.",
@@ -28,12 +56,148 @@
     "After that, everything flows normally, protected by YouTube's own HTTPS.",
   ];
 
+  // Android differs only in the first line: nothing "sends its request
+  // to Younblock" here — the chosen apps' traffic is routed in through
+  // the VPN slot (the whole flow stays on-device).
+  const HOW_IT_WORKS_ANDROID = [
+    "The apps you choose — Chrome and the YouTube app by default — have their traffic routed through Younblock, on your device.",
+    HOW_IT_WORKS[1],
+    HOW_IT_WORKS[2],
+    HOW_IT_WORKS[3],
+  ];
+
   const HELP = [
     "YouTube still doesn't load — turn Younblock off and on again, then fully close your browser and reopen it.",
     "The window disappeared — Younblock keeps running in the tray, near the clock. Click its icon to reopen it; choose Quit to stop it completely.",
     "My internet stopped after the app closed — the setting restores itself the next time the app starts.",
   ];
+
+  const HELP_ANDROID = [
+    "YouTube still doesn't load — turn Younblock off and on again, then restart the YouTube app or Chrome.",
+    "The key icon at the top of the screen — that is Android showing a VPN is active. It is Younblock routing only the apps on your list; tapping the icon opens Android's VPN settings, where you can revoke it any time.",
+    "An app you added doesn't seem routed — changes to the list apply the next time you connect. Turn Younblock off and on, and check the app is actually installed.",
+  ];
+
+  // The privacy disclosure (doc 07 §5, ADR-0007): every claim below is
+  // verified against the implementation — no analytics code exists, no
+  // Younblock-operated endpoint exists, DNS goes to the user-configured
+  // DoH providers, logs are local and rotating.
+  const PRIVACY = [
+    "Younblock collects nothing: no analytics, no crash reports, no account.",
+    "Nothing is sent to any Younblock-run server — none exists. The routed apps' traffic goes to its own destinations, and their DNS lookups go to the secure-DNS services you configure.",
+    "Your IP address is not hidden and no extra encryption is added.",
+    "Logs stay on this device and you can clear them from Android's app settings.",
+  ];
   // =====================================================================
+
+  // ---- the apps list (Android only) ------------------------------------
+
+  /** Friendly labels for the known packages; anything else shows its
+   *  package name — never a guess at what the app might be. */
+  const APP_LABELS: Record<string, string> = {
+    "com.android.chrome": "Chrome",
+    "com.google.android.youtube": "YouTube",
+  };
+
+  let settings: Settings | null = null;
+  let appsBusy = false;
+  let appsError = "";
+  let newApp = "";
+
+  $: apps = settings?.apps ?? [];
+
+  // Load the settings once the sheet is first opened on a host that
+  // actually has them (per-app routing capability). Re-reading on every
+  // open keeps the list fresh if the classic screen saved meanwhile.
+  let loadedForOpen = false;
+  $: if (open && perAppRouting && backend && !loadedForOpen) {
+    loadedForOpen = true;
+    void refreshSettings();
+  }
+  $: if (!open) loadedForOpen = false;
+
+  async function refreshSettings(): Promise<void> {
+    if (!backend) return;
+    try {
+      settings = await backend.getSettings();
+    } catch {
+      settings = null;
+    }
+  }
+
+  function appLabel(pkg: string): string {
+    return APP_LABELS[pkg] ?? pkg;
+  }
+
+  async function saveApps(next: string[], added?: string): Promise<void> {
+    if (!backend || !settings) return;
+    appsBusy = true;
+    appsError = "";
+    try {
+      // Full-document save: every other field round-trips untouched.
+      const saved = await backend.saveSettings({ ...settings, apps: next });
+      settings = saved;
+      if (added && !(saved.apps ?? []).includes(added)) {
+        // Normalize refused the entry — honest feedback, not a silent drop.
+        appsError = `“${added}” is not a valid Android package name.`;
+      }
+    } catch (e) {
+      appsError = e instanceof Error ? `Could not save: ${e.message}` : "Could not save. Try again.";
+    } finally {
+      appsBusy = false;
+    }
+  }
+
+  async function removeApp(pkg: string): Promise<void> {
+    await saveApps(apps.filter((p) => p !== pkg));
+  }
+
+  async function addApp(): Promise<void> {
+    const pkg = newApp.trim();
+    if (!pkg || appsBusy) return;
+    newApp = "";
+    if (apps.includes(pkg)) {
+      appsError = `“${pkg}” is already on the list.`;
+      return;
+    }
+    await saveApps([...apps, pkg], pkg);
+  }
+
+  // ---- diagnostics (Android only) --------------------------------------
+
+  let report: string | null = null;
+  let reportBusy = false;
+  let reportError = "";
+  let copied = false;
+  let copiedTimer: number | undefined;
+
+  async function runDiagnostics(): Promise<void> {
+    if (!backend || reportBusy) return;
+    reportBusy = true;
+    reportError = "";
+    try {
+      report = await backend.getDiagnosticReport();
+      if (report === null) reportError = "The report could not be created.";
+    } catch {
+      reportError = "The report could not be created. Try again.";
+    } finally {
+      reportBusy = false;
+    }
+  }
+
+  async function copyReport(): Promise<void> {
+    if (report === null) return;
+    try {
+      await navigator.clipboard.writeText(report);
+      copied = true;
+      window.clearTimeout(copiedTimer);
+      copiedTimer = window.setTimeout(() => (copied = false), 2000);
+    } catch {
+      reportError = "Copying failed — select the text and copy it manually.";
+    }
+  }
+
+  // ---- modal focus handling (unchanged from the desktop sheet) ---------
 
   let closeBtn: HTMLElement | undefined;
   let sheetEl: HTMLElement | undefined;
@@ -60,8 +224,9 @@
   }
 
   // Escape closes; Tab (and Shift+Tab) wrap inside the sheet — a modal
-  // dialog must not leak focus to the dimmed screen behind it. With the
-  // Close button as the only control, every Tab lands back on it.
+  // dialog must not leak focus to the dimmed screen behind it. The
+  // focusables query is generic, so every control the M6 sections add
+  // (remove buttons, the add field, diagnostics buttons) is trapped too.
   function onKeydown(e: KeyboardEvent) {
     if (!open) return;
     if (e.key === "Escape") {
@@ -107,9 +272,56 @@
   </button>
 
   <div class="content">
+    {#if perAppRouting}
+      <section aria-labelledby="apps-heading">
+        <h2 id="apps-heading">Apps to unblock</h2>
+        <p>Younblock routes only the apps on this list through the VPN slot — Chrome and the YouTube app by default. Other apps are untouched.</p>
+        {#if settings === null}
+          <p class="dim">Loading the list…</p>
+        {:else}
+          <ul class="apps" aria-label="Routed apps">
+            {#each apps as pkg (pkg)}
+              <li>
+                <span class="app-label">{appLabel(pkg)}</span>
+                {#if APP_LABELS[pkg]}
+                  <span class="app-pkg">{pkg}</span>
+                {/if}
+                <button
+                  type="button"
+                  class="remove"
+                  aria-label={`Remove ${appLabel(pkg)} (${pkg})`}
+                  title={`Remove ${appLabel(pkg)}`}
+                  disabled={appsBusy || apps.length <= 1}
+                  on:click={() => removeApp(pkg)}
+                >
+                  <svg viewBox="0 0 14 14" aria-hidden="true">
+                    <path d="M3 3l8 8M11 3l-8 8" />
+                  </svg>
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <form class="add" on:submit|preventDefault={addApp}>
+            <input
+              type="text"
+              aria-label="Add an app by its Android package name"
+              placeholder="com.example.app"
+              autocomplete="off"
+              spellcheck="false"
+              bind:value={newApp}
+              disabled={appsBusy}
+            />
+            <button type="submit" disabled={appsBusy || newApp.trim() === ""}>Add</button>
+          </form>
+          <p class="note">Add apps by their Android package name. Changes apply the next time you connect.</p>
+          {#if appsError}<p class="inline-error" role="alert">{appsError}</p>{/if}
+        {/if}
+      </section>
+    {/if}
+
     <section>
       <h2>About</h2>
-      {#each ABOUT as line}
+      {#each android ? ABOUT_ANDROID : ABOUT as line}
         <p>{line}</p>
       {/each}
       {#if version}<p class="version">Younblock {version}</p>{/if}
@@ -117,17 +329,47 @@
 
     <section>
       <h2>How it works</h2>
-      {#each HOW_IT_WORKS as line}
+      {#each android ? HOW_IT_WORKS_ANDROID : HOW_IT_WORKS as line}
         <p>{line}</p>
       {/each}
     </section>
 
+    {#if android}
+      <section aria-labelledby="privacy-heading">
+        <h2 id="privacy-heading">Privacy</h2>
+        {#each PRIVACY as line}
+          <p>{line}</p>
+        {/each}
+      </section>
+    {/if}
+
     <section>
       <h2>Help</h2>
-      {#each HELP as line}
+      {#each android ? HELP_ANDROID : HELP as line}
         <p>{line}</p>
       {/each}
     </section>
+
+    {#if android}
+      <section aria-labelledby="diag-heading">
+        <h2 id="diag-heading">Diagnostics</h2>
+        <p>A support report: version, connection state, counters and the last log lines — no website names unless you turned them on in the advanced settings.</p>
+        {#if report === null}
+          <button type="button" class="action" disabled={reportBusy} on:click={runDiagnostics}>
+            {reportBusy ? "Creating…" : "Create report"}
+          </button>
+        {:else}
+          <pre class="report" aria-label="Diagnostic report">{report}</pre>
+          <div class="diag-row">
+            <button type="button" class="action" on:click={copyReport}>
+              {copied ? "Copied" : "Copy report"}
+            </button>
+            <button type="button" class="action" on:click={() => (report = null)}>Clear</button>
+          </div>
+        {/if}
+        {#if reportError}<p class="inline-error" role="alert">{reportError}</p>{/if}
+      </section>
+    {/if}
   </div>
 </div>
 
@@ -242,5 +484,165 @@
   .version {
     margin-top: 0.75rem;
     color: var(--text-tertiary);
+  }
+
+  /* ---- the M6 apps section ---- */
+
+  .dim,
+  .note {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+  }
+
+  .apps {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+  }
+  .apps li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+  }
+  .app-label {
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    color: var(--text-secondary);
+  }
+  .app-pkg {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+  .apps li:not(:has(.app-pkg)) .app-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .remove {
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: -0.5rem -0.5rem -0.5rem 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--sheet-border);
+    background: transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 150ms ease;
+  }
+  .remove:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .remove:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .remove:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .remove svg {
+    width: 0.625rem;
+    height: 0.625rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    color: var(--text-secondary);
+  }
+
+  .add {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .add input {
+    flex: 1;
+    min-width: 0;
+    height: 2.75rem;
+    padding: 0 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sheet-border);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-family: inherit;
+  }
+  .add input::placeholder {
+    color: var(--text-tertiary);
+  }
+  .add input:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .add button,
+  .action {
+    height: 2.75rem;
+    min-width: 5.5rem;
+    padding: 0 1.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sheet-border);
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 150ms ease;
+  }
+  .add button:hover:not(:disabled),
+  .action:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .add button:focus-visible,
+  .action:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .add button:disabled,
+  .action:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .inline-error {
+    margin-top: 0.5rem;
+    color: var(--red-400);
+  }
+
+  /* ---- the diagnostics view ---- */
+
+  .report {
+    margin: 0.75rem 0 0;
+    max-height: 14rem;
+    overflow-y: auto;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sheet-border);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+  .diag-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
   }
 </style>

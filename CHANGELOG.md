@@ -12,6 +12,37 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (Android port, M6 — not yet a released build)
+
+- **The per-app allow-list is a setting (schema v2, D79)**:
+  `settings.json` gains the `apps` field; v1 files migrate through the
+  existing version mechanism (the built-in default list — Chrome +
+  YouTube — fills in). Normalize validates package shapes, dedupes,
+  caps the list at 32 and restores the built-in defaults when the list
+  is empty or all-invalid — an empty allow-list would route EVERY
+  app, the opposite of the product scope, so that state can never
+  persist. The same normalized list now feeds three doors: the file,
+  the settings API the WebView edits, and the new facade binding
+  `RoutedApps()` the VPN service reads when it builds the TUN.
+  Changes apply on the next connect (the list is baked into the TUN at
+  establish; the UI says so).
+- **The mobile settings/UX surfaces (D80)**: the Android menu sheet
+  gains the Apps-to-unblock row (friendly labels for the known two,
+  package names for anything else, add/remove with the engine's saved
+  response as the authority), the honest VPN-slot/key-icon About
+  lines (still not a VPN: no IP hiding, no added encryption), the
+  privacy disclosure (doc 07 §5: no analytics, no Younblock-run
+  server, DNS to the user-configured DoH providers, local logs), and
+  a diagnostics view over the existing redacted report. All of it is
+  gated on the host's reported platform/capabilities — the desktop
+  sheet renders its exact prior copy.
+- The M6 debug APK (35,194,757 B, SHA-256 5669efd1…02dc) with the
+  settings-driven allow-list and the new sheet is recorded in
+  docs/android-port/05–06; on-device observation gates (live
+  rotation/font-scale/TalkBack, the apps row on a real screen, plus
+  the standing M4+M5 checklist) remain blocked by the sandbox (no
+  /dev/kvm, no device) and are carried, never claimed.
+
 ### Added (Android port, M5 — not yet a released build)
 
 - **The connection lifecycle is host-verified**: the engine's connect

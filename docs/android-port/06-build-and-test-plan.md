@@ -108,6 +108,37 @@ lifecycle test was root-caused to the test harness's AutoPort=false
 and fixed at the source, mobile/tun_test.go); svelte-check 0/0; vite
 build clean; compile matrix 4/4 ABIs.
 
+M6 record (2026-10-17, after ANOTHER full sandbox wipe — the third:
+the repo re-cloned at `4083e76`, the worklog rebuilt from the session
+prompt + repo records, and the toolchain reinstalled per the §1 pins
+exactly as at M5; the desktop baseline was re-verified green — vet
+clean, 17/17 twice, svelte-check 0/0, vite clean — BEFORE any M6 code):
+`gomobile bind` (GOFLAGS=-mod=mod, 3 ABIs, androidapi 26) →
+younblock.aar **25,097,538 B** (`javap` on classes.jar shows the M6
+binding `routedApps()` alongside setVpnReady/vpnState/startTun/
+stopTun/getState/getSettings/saveSettings); clean `assembleDebug`
+(after one honest compile fix: the Kotlin read needed
+`engine.routedApps()` call syntax + the org.json.JSONArray import —
+the first clean attempt failed at compileDebugKotlin with both errors
+printed, fixed, re-run CLEAN) → `app-debug.apk` **35,194,757 B**,
+SHA-256
+`5669efd14a0a523249e55c9f2c7ab0d6b1edb62156c60d76c3ccc38cc59302dc`,
+badging: package io.github.assadigit/younblock 1.6.6 (versionCode 1),
+minSdk 26, targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64,
+`YounblockVpnService` + `BIND_VPN_SERVICE` in the dumped manifest,
+`apksigner verify --print-certs` OK (debug cert). The Kotlin compile
+validates the settings-driven allow-list consumption
+(readRoutedApps); the APK embeds the M6 Svelte bundle (the
+apps/privacy/diagnostics sheet). Exit baseline: vet clean; `go test
+-count=1 ./...` 17/17 packages ok, run twice consecutively; svelte-check
+0/0; vite build clean; Android library compile matrix 4/4 ABIs with
+`-mod=vendor` (the honest form: `go build` over the 18 non-main
+packages per ABI — on arm/386/amd64 the three main packages refuse
+the link without NDK cgo, exactly as §A records; arm64 links the full
+tree at CGO_ENABLED=0). Disk note: 4.5 GB free at the SDK/NDK restore,
+~2.9 GB free after the clean APK — caches cleaned before the big
+builds per the §1 hygiene rule.
+
 ## 3. Test layers
 
 ### Unit tests (Go, host-runnable — pattern matches the existing tree)

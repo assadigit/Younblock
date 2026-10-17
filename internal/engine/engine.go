@@ -317,6 +317,17 @@ func (e *Engine) Resolver() *doh.Resolver { return e.resolver.Load() }
 // MeasuredSleep reports the real 1 ms sleep length measured at startup.
 func (e *Engine) MeasuredSleep() time.Duration { return e.measuredSleep }
 
+// Settings returns a copy of the current, normalized settings. The value
+// is always normalized (Load and SaveSettingsJSON both run Normalize),
+// so callers may trust it as the engine's enforced view — the M6 facade
+// reads the per-app allow-list through here. A copy: the caller can
+// never race a concurrent save.
+func (e *Engine) Settings() config.Settings {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.settings
+}
+
 // Start begins the connect sequence asynchronously (phase 1 skeleton:
 // listener + attach; the quick check and heal sweep arrive in phase 2).
 // A second call while connecting cancels the first cleanly (file 01 §10.5).

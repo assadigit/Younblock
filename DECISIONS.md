@@ -1102,3 +1102,97 @@ execution another package's engine can hold 4525 during the gate's
 delayed bind, and the honest PORT_BUSY failure exposed it; the harness
 now writes the product default (AutoPort=true, matching
 DefaultSettings). Root-caused and fixed, not retried away.
+
+**D79 — the `apps` settings field (schema v2): one list behind three
+doors, apply-on-next-connect.** M6 adds the per-app allow-list to
+`config.Settings` (`Apps []string`, json `apps`) and bumps
+`settingsVersion` to 2 — migration is the existing mechanism, nothing
+new: a v1 file simply lacks the field, and `normalizeApps` fills the
+built-in defaults (Chrome + YouTube, ADR-0003), so Save persists v2
+with the list (apps_test.go proves the v1 file's custom fields survive
+verbatim). Validation: trim, Android-package shape (dot-separated
+segments, each starting with a letter; case preserved — package names
+are case-sensitive), dedupe first-seen, cap 32 (every entry becomes one
+addAllowedApplication call at establish). THE LOAD-BEARING RULE: an
+empty or all-invalid list RESTORES THE DEFAULTS — a VpnService.Builder
+with zero allowed applications routes EVERY app, the exact opposite of
+the product scope, so the route-everything state must never persist in
+the file; the Kotlin side fails closed independently when none of the
+listed packages is installed (zero addAllowedApplication successes →
+refuse to establish, stop, honest log). One list, three doors, one
+truth: settings.json, the jsonapi GetSettings/SaveSettings surface
+(the WebView's Apps-to-unblock row edits through POST /api/settings),
+and `mobile.RoutedApps()` (`{"apps":[…]}` from the engine's locked
+Settings() copy accessor) which the Kotlin service reads. The semantics
+the copy can lean on: the list is read FRESH at TUN establish — a
+change saved while the TUN is live applies on the NEXT connect. That
+is a choice, not an accident: the allow-list is baked into the
+VpnService builder, and rebuilding an established TUN under live
+traffic is riskier than the one-cycle delay; the UI says exactly
+"Changes apply the next time you connect", and reading at establish
+makes the sentence true with zero extra plumbing (no re-establish
+machinery, no settings-change listener, no live traffic surgery). The
+Kotlin DEFAULT_APPS constant is deleted — a second copy of the default
+list could drift from config.DefaultApps, and the honest failure mode
+(an unreadable list refuses to route) is better than a silent fallback
+to a possibly-stale copy. Desktop unchanged: the field round-trips
+through the classic screen's spread-based saves (JSON.parse keeps
+unknown fields at runtime, the spread copies them; even a path that
+dropped them would hit Normalize's defaults-restore), and desktop
+platforms never read it.
+
+**D80 — the M6 WebView UX: capability-gated honesty surfaces, the
+saved response as the authority.** The pro screen's menu sheet gains
+the Android-only surfaces — the Apps-to-unblock row, the VPN-slot/
+key-icon About lines, the doc 07 §5 privacy section, the diagnostics
+view — every one gated on what the HOST actually reports
+(`AppInfo.platform === "android"`, `capabilities.perAppRouting`), so
+the desktop sheet renders its exact prior sections byte for byte and
+a preview build (no host) shows no Android-only sections at all (the
+M5 discipline extended to UI: no desktop behavior change, no invented
+host data). The `Backend` interface grew `getSettings`/`saveSettings`/
+`getDiagnosticReport` with real implementations on all three transports
+(Wails bindings — app.go already exposed them; the webui's
+/api/settings + /api/report; the preview returns null/throws rather
+than fabricating). Design rules that keep the row honest: friendly
+labels exist ONLY for the two known packages — anything else shows its
+package name, never a guessed app identity; the add flow validates
+NOTHING client-side beyond non-empty — the engine's Normalize response
+IS the authority, and a refused entry surfaces as inline feedback
+("not a valid Android package name") instead of a silently dropped
+row (the UI duplicates no validation rules that could drift from the
+Go side); the remove button disables on the last entry (Normalize
+would restore the default anyway, but the UI should not offer a
+no-op). The About/How-it-works/Help Android variants replace the
+desktop flow sentences with the VPN-slot truth ("uses Android's VPN
+slot — the key icon you'll see while it runs — as a local traffic
+router for the apps you choose; still not a VPN: no IP hiding, no
+added encryption"), per ADR-0007/doc 07 §1 (no overstated VPN/privacy
+language) — the disclosure IS the product behavior. The privacy
+section is doc 07 §5 rendered as user copy (every sentence verified
+against the implementation: no analytics code, no Younblock-run
+endpoint, DNS to the user-configured DoH providers, local logs). The
+diagnostics view renders the EXISTING redacted GetDiagnosticReport in
+a labeled scrollable region with a copy button — no new report content
+invented for the UI. Accessibility: the sheet's generic focus-trap
+query picks up every new control automatically; aria-labels on
+icon-only buttons; 2.75 rem touch targets; rem typography for system
+font scaling; role="alert" errors. The live halves (TalkBack, real
+rotation, real font-scale) ride with the device checklist — never
+claimed host-side.
+
+**M6 session note (recovery + one honest build iteration):** the
+session opened after the third recorded full sandbox wipe (repo,
+~/sdk, worklog all gone) — re-cloned at 4083e76, toolchain reinstalled
+per doc 06's pins, worklog rebuilt from the prompt + repo records,
+baseline re-verified green before any M6 code. The first clean
+assembleDebug failed at compileDebugKotlin with two honest errors
+(Kotlin needs `engine.routedApps()` call syntax — the gomobile binding
+is a function, not a Kotlin property — and the org.json.JSONArray
+import); both printed, fixed, re-run CLEAN. The compile-matrix evidence
+was also sharpened this session: `go build ./...` on android/arm|386|
+amd64 with CGO_ENABLED=0 fails ONLY at the three main-package links
+("requires external (cgo) linking" — exactly what doc 06 §A's comment
+records), so the honest matrix form is `go build` over the 18 non-main
+packages per ABI (4/4 green; arm64 links the full tree even without
+cgo).

@@ -1,6 +1,6 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the M5 → M6 boundary (2026-10-17).
+**Status:** Updated at the M6 → M7 boundary (2026-10-17).
 This file is the live handoff; keep the fields in §"Current handoff
 fields" accurate at every session boundary.
 
@@ -62,98 +62,99 @@ fields" accurate at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** Phase 2 milestone **M5** — 2026-10-17, host-
-  complete (core connection lifecycle and health reporting; evidence
-  in doc 05 M5). Exit criteria: all host-runnable gates ✅ (the consent
-  gate D77 — an unpermitted engine holds at "connecting", outside the
-  start budget, cancellations quiet; the honest VpnState report D78 —
-  routing requires serving AND bound AND the live server's door, the
-  stale-stack case observable for reconciliation; the lifecycle suite
-  against the real engine+stack — consent hold/grant/deny, three
-  connect/disconnect cycles, PORT_BUSY injection, stale-stack refusal
-  + reconciliation, service death; the Kotlin consent flow +
-  single-flight + notification-from-vpnState + resume/death
-  reconciliation, compiled into the verified APK); **on-device
+- **Phase completed:** Phase 2 milestone **M6** — 2026-10-17, host-
+  complete (settings and mobile UX; evidence in doc 05 M6). Exit
+  criteria: all host-runnable gates ✅ (the `apps` settings field D79 —
+  schema v2 + Normalize validation/dedupe/cap + the v1→v2 migration
+  through the existing version mechanism, with the all-invalid→defaults
+  fail-closed rule so an empty allow-list can never persist; the facade
+  plumbing — the engine's locked Settings() accessor and
+  mobile.RoutedApps(), one normalized truth behind settings.json,
+  GetSettings/SaveSettings and the Kotlin service's establish-time
+  read, apply-on-next-connect semantics with the UI copy saying so;
+  the Kotlin consumption — readRoutedApps fails closed, DEFAULT_APPS
+  deleted so no second copy can drift; the WebView UX D80 — the
+  Apps-to-unblock row, the VPN-slot/key-icon About lines, the doc 07
+  §5 privacy disclosure, the diagnostics view, all capability-gated on
+  AppInfo so desktop renders byte-identical sections); **on-device
   observation ⛔** (no /dev/kvm, no device — the standing blocker,
-  re-verified this session; the M4+M5 device checklist rides together);
-  desktop baseline ✅ 17/17 packages (run twice; two real bugs found
-  and fixed while building the suite — the M4 DOOR-path fd leak
-  violating D76, and the harness's AutoPort=false fixed to the product
-  default).
+  re-verified this session; the shared M4+M5 device checklist now also
+  carries the live-WebView halves: real rotation, font scaling,
+  TalkBack, the apps row on a real screen); desktop baseline ✅ 17/17
+  packages, run twice consecutively at both the open and the exit
+  gates.
 - **Branch and commit:** `main`, this session's commit (see `git log -1`
-  at handoff time); worktree clean after the commit. The session
-  opened after a **full sandbox wipe** (the repo, ~/sdk toolchain and
-  the worklog were all gone): everything was recovered from the
-  recorded state — re-clone from the remote (token from the session
-  prompt) at `98cac30`, toolchain reinstalled per doc 06's pins
-  (Go 1.27.2, JDK 21.0.12.1+1 Temurin with javac, cmdline-tools 12.0,
-  platforms 26+36, build-tools 36.1.0, NDK 28.2.13676358, gomobile/
-  gobind at the pinned x/mobile), worklog recreated from the prompt +
-  repo records, and the desktop baseline re-verified GREEN before any
-  M5 code was written.
-- **Files changed this phase:** new — `internal/engine/gate_test.go`,
-  `internal/platform/android/gate_test.go`, `mobile/lifecycle_test.go`,
-  `mobile/vpnstate.go`; additive edits — `internal/engine/platform.go`
-  (the optional `StartGater` interface, D77),
-  `internal/engine/health.go` (connectSequence: run-lifetime ctx +
-  the gate wait before the listener, outside the start budget),
-  `internal/platform/android/android.go` (the start gate:
-  SetStartReady/WaitStartReady), `mobile/mobile.go` (NewEngine arms
-  the gate closed; the SetVpnReady facade door),
-  `mobile/tun.go` (door recorded in tunState; the D76 fd-close fix on
-  the two DOOR refusal paths), `mobile/tun_test.go` (the harness split
-  + AutoPort=true product default), `mobile/mobile_test.go`
-  (StartStopCycle opens the gate), `android/.../MainActivity.kt` (the
-  consent flow: explain-once → prepare → dialog → denial copy;
-  process-wide single-flight; resume reconciliation; activity-gone
-  cleanup), `android/.../YounblockVpnService.kt` (setVpnReady on TUN
-  establish, re-arm on every unwind; the vpnState-derived honest
-  notification; service-death engine stop; bind-refusal unwinding),
-  `android/.../strings.xml` (the consent + degraded notification
-  copy). No desktop behavior changed: desktop adapters do not
-  implement StartGater (the type assertion fails, the Start path is
-  byte-for-byte identical), verified by the full regression gate.
+  at handoff time); worktree clean after the commit. The session opened
+  after a **full sandbox wipe** (the third recorded one — the repo,
+  ~/sdk toolchain and the worklog were all gone): everything was
+  recovered from the recorded state — re-clone from the remote (token
+  from the session prompt) at `4083e76`, toolchain reinstalled per doc
+  06's pins (Go 1.27.2, JDK 21.0.12.1+1 Temurin with javac, cmdline-
+  tools 12.0, platforms 26+36, build-tools 36.1.0, NDK 28.2.13676358,
+  gomobile/gobind at the pinned x/mobile), worklog recreated from the
+  prompt + repo records, and the desktop baseline re-verified GREEN
+  before any M6 code was written.
+- **Files changed this phase:** new — `internal/config/apps_test.go`,
+  `mobile/apps_test.go`; additive edits — `internal/config/defaults.go`
+  (defaultRoutedApps + DefaultApps), `internal/config/settings.go`
+  (settingsVersion 2, the Apps field, normalizeApps +
+  validAndroidPackage + the maxApps cap), `internal/engine/engine.go`
+  (the locked Settings() copy accessor), `mobile/mobile.go`
+  (RoutedApps), `frontend/src/lib/backend.ts` (Settings type;
+  getSettings/saveSettings/getDiagnosticReport on the Wails, HTTP and
+  preview transports; AppInfo platform/capabilities),
+  `frontend/src/lib/MenuSheet.svelte` (the M6 sections: the apps row,
+  the Android About/How-it-works/Help variants, the privacy section,
+  the diagnostics view — capability/platform-gated), `frontend/src/
+  App.svelte` (platform + perAppRouting props), `android/.../
+  YounblockVpnService.kt` (readRoutedApps at establish, fail-closed,
+  DEFAULT_APPS deleted). No desktop behavior changed: the pro sheet's
+  desktop sections render the exact prior copy, the classic screen is
+  untouched, and the engine's Start path is unmodified (verified by
+  the full regression gate run twice).
 - **Tests run and actual results:** `go vet ./...` clean; `go test
-  -count=1 ./...` **17/17 packages ok**, run twice consecutively with
-  no flakes (engine 8.9 s, proxy 9.6 s, mobile 33.7 s — the lifecycle
-  suite dominates; tunstack 4.7 s); the concurrent-package PORT_BUSY
-  interaction that failed the first full run was root-caused (the
-  harness's AutoPort=false + fixed 4525 under `go test ./...`
-  concurrency) and fixed at the source, not retried away; svelte-check
-  0/0; vite build clean; Android library compile matrix 4/4 ABIs with
-  `-mod=vendor`; `gomobile bind` OK (AAR 24,893,759 B, `javap` shows
-  setVpnReady/vpnState); clean `assembleDebug` OK — app-debug.apk
-  34,711,941 B, sha256
-  c46026a7984d9fda69b45954436c630f625a74fecf451e6e50c2a3d2b6d5bf26,
-  badging/apksigner verified (doc 05 M5 item 5).
-- **Current architecture decision / confidence:** D77 (the platform
-  start gate: the engine's connect run waits for the platform's
-  permission/readiness door before the listener, holding "connecting"
-  — consent precedes routing, no new phase invented, desktops
-  byte-identical) and D78 (VpnState: the honest combined routing
-  report with the live-server identity check, plus the shell
-  reconciliation policy — service death stops the engine, the activity
-  cleans a gate-held connect, the notification only claims what the
-  report says). Confidence: high on the host-verified chain (every
-  lifecycle scenario runs the REAL engine and stack, not mocks);
-  medium on device behavior (the live dialog flow, notification
-  channel semantics under OEM shells, Doze/screen-off, real radio
-  switching) — all ride with the shared device checklist.
+  -count=1 ./...` **17/17 packages ok, run twice consecutively** at
+  both the open and exit gates (engine 8.9 s, proxy 9.6 s, mobile
+  33.7 s, tunstack 4.7 s); svelte-check 0/0; vite build clean;
+  Android library compile matrix **4/4 ABIs** with `-mod=vendor` (the
+  18 non-main packages per ABI; arm64 links the full tree at
+  CGO_ENABLED=0); `gomobile bind` OK (AAR 25,097,538 B, `javap` shows
+  routedApps); clean `assembleDebug` OK — app-debug.apk 35,194,757 B,
+  sha256
+  5669efd14a0a523249e55c9f2c7ab0d6b1edb62156c60d76c3ccc38cc59302dc,
+  badging minSdk 26 / target 36, 3 native ABIs; apksigner OK (debug
+  cert). One honest build iteration recorded: the first clean
+  assembleDebug failed at compileDebugKotlin (Kotlin call syntax +
+  a missing import — both errors printed, fixed, re-run CLEAN).
+- **Current architecture decision / confidence:** D79 (the `apps`
+  settings field — schema v2, one list behind three doors, empty-or-
+  all-invalid restores the built-in defaults so the route-everything
+  state can never persist, apply-on-next-connect with the read fresh
+  at establish) and D80 (the M6 WebView UX — capability-gated honesty
+  surfaces; the saved response is the validation authority; desktop
+  byte-identical). Confidence: high on the host-verified chain (the
+  schema/migration/facade tests run the real Normalize and the real
+  engine; the build lanes verify the binding and the APK); medium on
+  device behavior (the apps row in a real WebView, rotation/font-scale/
+  TalkBack, the allow-list's real routing behavior per configured app)
+  — all ride with the shared device checklist.
 - **Blocking questions:** none architectural. Standing environment
   blocker: **no emulator (no /dev/kvm) and no device** — blocks the
-  M4+M5 on-device checklist (live consent flow, notification behavior,
-  screen-off persistence, real DoH through the stack, QUIC fallback,
-  protect() on real sockets, reboot/revocation). Product confirmations
-  still wanted from Ali (non-blocking, defaults chosen): allow-list
-  defaults beyond Chrome+YouTube (M6 makes the list configurable),
-  keystore handling (doc 07 §8).
-- **Exact next task:** **M6** — settings and mobile UX (doc 05 §M6):
-  the `apps` settings field (schema v2 + Normalize + migration from
-  v1), the Apps-to-unblock UI row in the Svelte page (first-run copy,
-  About lines with the key-icon honesty, Help/privacy disclosure per
-  doc 07 §5), the diagnostics view, and accessibility/rotation/
-  font-scaling checks in the WebView. Host-testable first (the schema
-  + Normalize + migration + facade plumbing); the WebView UX halves
-  verify through the compile matrix and the M5 APK lane, with the
-  device checklist still ⛔ until a KVM-capable host or a real device
-  appears.
+  shared on-device checklist (live consent flow, notification
+  behavior, screen-off persistence, real DoH through the stack, QUIC
+  fallback, protect() on real sockets, reboot/revocation, plus M6's
+  live-WebView observation halves). Product confirmations still wanted
+  from Ali (non-blocking, defaults chosen): allow-list defaults beyond
+  Chrome+YouTube (the list is now user-configurable — the M6 answer),
+  keystore handling (doc 07 §8). Deferred to M7 by decision: the
+  NO_TARGET_APPS typed-error surface (the shell-level failure today
+  logs and fails closed honestly; a shell→engine error door is a
+  D78-class design question that belongs with the hardening).
+- **Exact next task:** **M7** — regression, hardening, release
+  preparation (doc 05 §M7): the full test matrix and desktop
+  regressions; the dependency/license audit re-run (doc 07 §7);
+  permission review; battery/behavior measurement on a real device;
+  reboot/revocation checks (AND-028) — the device-dependent halves
+  ⛔ until a KVM-capable host or a real device appears; the host side
+  (matrix re-run, audits, the NO_TARGET_APPS door decision, release
+  prep) is runnable now.
