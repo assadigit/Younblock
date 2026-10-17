@@ -389,7 +389,9 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		return
 	}
 
+	tDNS := time.Now()
 	ips, err := s.resolve(host)
+	dnsMS := time.Since(tDNS).Milliseconds()
 	if err != nil {
 		if s.cfg.Logger != nil {
 			s.cfg.Logger.Warn("dns lookup failed for tunnel", "reason", errKind(err))
@@ -399,9 +401,11 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		return
 	}
 
+	tDial := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
 	upstream, err := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, ips)
 	cancel()
+	dialMS := time.Since(tDial).Milliseconds()
 	if err != nil {
 		if s.cfg.Logger != nil {
 			if s.cfg.LogHostnames {
@@ -414,6 +418,7 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		s.countConnError()
 		return
 	}
+	s.logTunnelUp(host, dnsMS, dialMS)
 
 	if err := writeFull(client, []byte(statusConnectEstablished), s.cfg.RequestTimeout); err != nil {
 		s.countConnError()
@@ -498,13 +503,14 @@ func (s *Server) forwardRequest(client net.Conn, br *bufio.Reader, req *http.Req
 	clientSide := &bufferedConn{Conn: client, prefix: nil}
 	cIdle := &idleConn{Conn: clientSide, timeout: s.cfg.IdleTimeout}
 	uIdle := &idleConn{Conn: upstream, timeout: s.cfg.IdleTimeout}
+	relayMeter := &flowMeter{} // counted but not logged: one plain-http exchange, not a tunnel
 	bodyDone := make(chan struct{})
 	go func() {
 		defer close(bodyDone)
-		s.copyDir(cIdle, uIdle, true)
+		s.copyDir(cIdle, uIdle, true, relayMeter, nil)
 		closeWrite(upstream)
 	}()
-	s.copyDir(uIdle, cIdle, false)
+	s.copyDir(uIdle, cIdle, false, relayMeter, nil)
 	// The response is fully relayed; nothing more can usefully happen.
 	client.Close()
 	upstream.Close()

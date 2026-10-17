@@ -20,13 +20,16 @@
     font-weight: var(--fw-bold);
     color: var(--text-primary);
     line-height: 1.15;
+    /* M8-j: tabular figures when the face has them; the fixed boxes
+       below already guarantee steady spacing when it does not. */
+    font-variant-numeric: tabular-nums;
   }
   .digit {
-    width: 0.62em;
+    width: 0.66em;
     text-align: center;
   }
   .colon {
-    width: 0.36em;
+    width: 0.4em;
     text-align: center;
     opacity: 0.72;
   }

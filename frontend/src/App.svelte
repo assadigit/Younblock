@@ -218,7 +218,13 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: var(--stage-w);
+    /* M8-j (Ali's spacing report): the stage was fixed at --stage-w
+       (22.5rem, designed for a 360px viewport at 1x). On narrow
+       devices or with Android's font scale the rem width outgrew the
+       screen and pushed the timer/speeds numbers against the edges.
+       The stage now never exceeds the viewport; the centered layout
+       keeps its rhythm at any width or scale. */
+    width: min(var(--stage-w), 100vw);
     height: var(--stage-h);
     transform: translate(-50%, -50%);
   }
@@ -341,7 +347,11 @@
   .speeds {
     display: flex;
     justify-content: center;
-    gap: 1.1rem;
+    /* M8-j: 1.1rem left the two numbers nearer to each other than to
+       the screen edges (measured 24px between vs 29px margins at
+       320px/1.4x); widen the rhythm and keep each value unwrappable so
+       scaling never jams or breaks the pair. */
+    gap: 1.75rem;
     margin-top: 0.85rem;
     font-size: var(--fs-stats);
     font-weight: var(--fw-medium);
@@ -351,7 +361,8 @@
   .speeds span {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.5rem;
+    white-space: nowrap;
   }
   .speeds svg {
     width: 0.75rem;

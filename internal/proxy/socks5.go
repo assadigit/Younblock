@@ -201,7 +201,9 @@ func (s *Server) serveSocks5(conn net.Conn) {
 	// From here on this is the HTTP-CONNECT tunnel path, verbatim:
 	// resolve (DoH; literals skip DNS) → dial (netx, protected) →
 	// reply established → copy with the first-record rule.
+	tDNS := time.Now()
 	ips, err := s.resolve(host)
+	dnsMS := time.Since(tDNS).Milliseconds()
 	if err != nil {
 		if s.cfg.Logger != nil {
 			s.cfg.Logger.Warn("socks5 dns lookup failed", "reason", errKind(err))
@@ -210,9 +212,11 @@ func (s *Server) serveSocks5(conn net.Conn) {
 		s.countConnError()
 		return
 	}
+	tDial := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
 	upstream, err := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, ips)
 	cancel()
+	dialMS := time.Since(tDial).Milliseconds()
 	if err != nil {
 		if s.cfg.Logger != nil {
 			if s.cfg.LogHostnames {
@@ -225,6 +229,7 @@ func (s *Server) serveSocks5(conn net.Conn) {
 		s.countConnError()
 		return
 	}
+	s.logTunnelUp(host, dnsMS, dialMS)
 
 	s.socks5ReplyAddr(conn, upstream.LocalAddr())
 

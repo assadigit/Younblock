@@ -20,11 +20,12 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 3: the D87 build (the default list extended to
-        // Chrome, Firefox, Opera and Brave), so it installs OVER
-        // v1.6.6-android-debug.2 (same pinned debug certificate — D85).
-        // The D84 rule: every debug build bumps this.
-        versionCode = 3
+        // versionCode 4: the M8-j build (Ali's first device feedback:
+        // the numbers-spacing fix + the per-flow tunnel timing
+        // instrumentation for the video-start delay), so it installs
+        // OVER v1.6.6-android-debug.3 (same pinned debug certificate —
+        // D85). The D84 rule: every debug build bumps this.
+        versionCode = 4
         versionName = "1.6.6"
     }
 
