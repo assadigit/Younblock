@@ -848,3 +848,27 @@ First Windows test build, published to GitHub Releases.
   clarifying paragraph so the flag cannot be misread as a stability
   claim — it is still the debug-signed device-test build,
   collaborator-visible only; nothing about the artifacts changed.
+
+### Fixed (Android port — the keystore helper survives PowerShell-less PATH machines, D90; no app change, the APK bytes untouched)
+
+- `make-release-keystore.bat` no longer depends on the PATH variable
+  finding PowerShell (Ali's first field report: "'powershell' is not
+  recognized" — the ceremony stopped at password generation, exit
+  code 4). PowerShell is now located by its full standard install
+  path first — the same fix the desktop setup scripts took at v0.7.5
+  — then through where.exe; and if PowerShell cannot be found at
+  all, a pure-cmd fallback generator builds the password (six RANDOM
+  draws, digits and dashes, ~90 bits) so the ceremony always
+  completes. The .md backup and the final summary record which
+  generator produced the password. The fixed script ships on a new
+  helper-maintenance release, v1.6.6-android-debug.4 (a regular
+  release, D89) — it carries only the .bat; the app is unchanged
+  and debug.3's APK remains the current build (D84: identical bytes
+  are never re-released), with a pointer note added to debug.3's
+  page superseding its older helper asset.
+- Also recorded: the answer to "can't I use an online keyring
+  generator instead?" — no. An online generator would hand the app's
+  signing identity and password to a third party; the D88 boundary
+  stands (signing secrets are generated where they are used). A
+  one-line manual keytool alternative is documented in the release
+  notes for machines without PowerShell.

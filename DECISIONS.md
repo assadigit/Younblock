@@ -1708,3 +1708,52 @@ body (8,579 → 9,017 chars); zero Go/Svelte/app code touched — the
 M8-d gates at the unchanged clean tree stand as the baseline of
 record (~/sdk still wiped; no lane can run without the reinstall,
 and none was needed for a metadata change).
+
+**D90 — the keystore ceremony survives PowerShell-less PATH
+machines (2026-10-17, the device-test feedback loop's sixth session,
+M8-h).** Ali's first field report from the helper arrived — the
+ceremony stopped at password generation: "'powershell' is not
+recognized as an internal or external command" — his PATH variable
+does not include PowerShell even though Windows ships it (the same
+environment class the desktop setup scripts already fixed at v0.7.5:
+"the setup no longer depends on PowerShell being on PATH"). THE
+FIX: make-release-keystore.bat now locates powershell.exe by its
+full standard install path first
+(%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe —
+setup-offline.bat's shipped pattern), then through where.exe; and if
+PowerShell cannot be found at all, a pure-cmd fallback builds the
+password from six RANDOM draws (digits and dashes, about 90 bits)
+inside the script itself — the step can never dead-end again, and
+both the .md backup and the DONE summary record which generator
+produced the password. His accompanying question ("can't I use an
+online keyring generator instead?") is ruled NO: an online
+generator would put the app's signing identity — the private key
+and its password — through a third party's server; D88's boundary
+stands (signing secrets are generated where they are used, never
+transiting any website, chat, agent or repo). A one-line manual
+keytool alternative is documented in the release notes for machines
+without PowerShell (keytool masks the password itself). DELIVERY:
+the fixed script ships as v1.6.6-android-debug.4 — a REGULAR
+release (D89) carrying ONLY the .bat, no APK (the app is unchanged
+and debug.3's APK remains the current build — D84's
+no-identical-re-release rule), tagged at the fix commit cb28507 and
+Latest-marked; debug.3's release page gained a one-paragraph pointer
+note superseding its older helper asset.
+
+Evidence: the new file on disk — 13,683 B, sha256
+ee35e4565dadf2a4a1c6e150208b8749aa6e5c3b8aec6303cc57025c06939558,
+pure ASCII, CRLF; structural desk-check clean (even quote counts
+per line, block parentheses balanced to zero, the D88 PS one-liner
+unchanged apart from the exe resolution); the pattern itself is
+proven in production — setup-offline.bat's full-path call has
+shipped to real machines since v0.7.5. The release lane verified
+live through the GitHub API: debug.4 created regular (draft=false,
+prerelease=false) at the fix commit, its asset uploaded and the
+served bytes re-downloaded and hashed byte-exact (sha256 match,
+13,683 B), /releases/latest → debug.4; debug.3's body 9,017 →
+9,650 chars, prefix byte-identical, the note present exactly once.
+The Windows execution itself remains ⛔ on this Linux host, as at
+D88 — the script self-verifies on Ali's machine (the read-back
+round trip), and every failure path carries its own message. Zero
+Go/Svelte/app code touched; versionCode stays 3; ~/sdk still wiped
+(the reinstall caution stands for the next code-touching session).

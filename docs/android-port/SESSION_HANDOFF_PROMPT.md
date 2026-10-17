@@ -1,4 +1,4 @@
-# Prompt — Continue the Younblock Android port (device-test feedback loop, after debug.3)
+# Prompt — Continue the Younblock Android port (device-test feedback loop, after debug.3 + the debug.4 helper fix)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,7 +6,7 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-g / D89 session close)
+## Where the project stands (verified at the M8-h / D90 session close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
@@ -31,9 +31,10 @@ working clone carries the credential in its `origin` remote URL).
   release-keystore ceremony is now a shipped script** — Ali's ask
   ("give me a bat file that auto creates it's password locally on my
   system and backs up that password as an md file").
-  `make-release-keystore.bat` sits at the repo root AND is a second
-  asset on the debug.3 release (11,527 B, sha256
-  82e6dded…4090): one double-click on his Windows machine locates
+  `make-release-keystore.bat` sits at the repo root (its first copy
+  on the debug.3 release is superseded — the current asset lives on
+  debug.4, see the D90 bullet below): one double-click on his
+  Windows machine locates
   keytool, generates a 32-char password with Windows' CSPRNG (never
   through chat/agent/repo), creates the keystore with every keytool
   prompt pre-filled (RSA 4096, PKCS12, 10950 days), verifies it by
@@ -53,12 +54,28 @@ working clone carries the credential in its `origin` remote URL).
   M8-f round between them verified every delivery surface with zero
   repo changes. Future debug builds ship the same way — regular
   releases, never flagged prerelease (D89).
+- **M8-h / D90 (no app change, the APK is untouched): the keystore
+  ceremony survives PowerShell-less PATH machines.** Ali's first
+  field report — the helper stopped at password generation
+  ("'powershell' is not recognized"; his PATH leaves PowerShell
+  out — the desktop setup scripts' v0.7.5 environment class). The
+  fixed script resolves powershell.exe by its full standard install
+  path first, then where.exe, and falls back to a pure-cmd generator
+  (six RANDOM draws, ~90 bits) when PowerShell cannot be found at
+  all; the .md backup records which generator ran. His
+  online-generator question ruled NO — the signing identity never
+  transits a third party. Shipped as `v1.6.6-android-debug.4` — a
+  REGULAR release (D89) carrying ONLY the fixed .bat (13,683 B,
+  sha256 ee35e456…9558), Latest-marked; no APK re-attached (D84:
+  the app is unchanged — debug.3's APK is the current build; its
+  page carries the pointer note superseding the older helper).
 - **`v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are
   superseded** (kept as history; debug.1's release page carries the
   D85 install-blocked troubleshooting guide, which still applies to
   downloads from Iranian networks).
-- **The project's remaining input is Ali's device observations** from
-  debug.3: doc 10 §"Device test circle" is the checklist — the YouTube
+- **The project's remaining input is Ali's DEVICE observations** from
+  debug.3 (the M8-h helper report was PC-side): doc 10 §"Device test
+  circle" is the checklist — the YouTube
   app and the installed default browsers out of the box (row 2),
   youtube.com in each installed browser (row 4), .ir direct, stop
   paths, battery, network switch, QUIC fallback. Everything
@@ -80,19 +97,21 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
-   M8-c, M8-d, M8-e, … (this prompt describes the state after M8-g;
-   the next is M8-h).
+   M8-c, M8-d, M8-e, … (this prompt describes the state after M8-h;
+   the next is M8-i).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
-   debug.3 edition + §"Device test circle" — Ali's checklist), doc 06
-   (the M8-c…M8-g records), doc 08 + `DECISIONS.md` (D1–D89; **the
-   next decision number is D90**), and the tail of `PROGRESS.md`.
+   debug.3 + debug.4 editions + §"Device test circle" — Ali's
+   checklist), doc 06 (the M8-c…M8-h records), doc 08 +
+   `DECISIONS.md` (D1–D90; **the next decision number is D91**), and
+   the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
 4. Check whether Ali's device-test feedback from debug.3 has arrived
-   (session messages). If none has arrived yet, STOP after reporting
-   state — do not invent work, do not "improve" shipped code without a
-   reported reason.
+   (session messages — the M8-h PowerShell report was PC-side, not a
+   device observation). If no device feedback has arrived yet, STOP
+   after reporting state — do not invent work, do not "improve"
+   shipped code without a reported reason.
 5. Make the desktop baseline GREEN before writing any code:
    `go vet ./...`; `go test -count=1 ./...` (expect **17/17 packages
    ok**, run twice consecutively); webui `svelte-check` (0/0) and
@@ -107,7 +126,8 @@ working clone carries the credential in its `origin` remote URL).
 
 ## The task — the device-test feedback loop
 
-For each issue Ali reports from `v1.6.6-android-debug.3`:
+For each issue Ali reports from `v1.6.6-android-debug.3` (device
+side) or the fixed helper on `v1.6.6-android-debug.4` (PC side):
 
 - Root-cause first (the project's standing discipline: failures are
   root-caused and fixed, never retried away, never hidden). The
@@ -210,8 +230,8 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D90),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-h, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D91),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-i, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 
@@ -220,7 +240,8 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know (note the ~/sdk state; doc 06's M8-e
 entry records it wiped); (2) repo state — branch, HEAD,
-cleanliness; (3) baseline results; (4) whether Ali's debug.3 feedback
-has arrived, and if so the exact first issue you will address. Then
-execute — or, if no feedback has arrived, stop after the state report
-and say so plainly.
+cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
+from debug.3 has arrived (helper/PC-side reports do not count), and
+if so the exact first issue you will address. Then execute — or, if
+no feedback has arrived, stop after the state report and say so
+plainly.

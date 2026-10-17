@@ -540,3 +540,27 @@ D89, docs 06/07/09/10, README, PROGRESS, CHANGELOG,
 SESSION_HANDOFF_PROMPT. No lanes ran — ZERO Go/Svelte/app code
 touched; versionCode stays 3; ~/sdk remains wiped (the reinstall
 caution stands for the next code-touching session).
+
+M8-h record (2026-10-17, later again; the sixth feedback round —
+D90, PowerShell-less PATH): Ali's first helper field report: the
+ceremony stopped with "'powershell' is not recognized" — his PATH
+does not include PowerShell (the desktop setup scripts' v0.7.5
+environment class). The fix, desk-checked to the D88 standard: the
+script resolves powershell.exe by full standard path first
+(setup-offline.bat's shipped pattern), then where.exe, then a
+pure-cmd fallback (six RANDOM draws, digits and dashes, ~90 bits);
+the .md backup and DONE summary record the generator; structural
+checks on the new file clean (even quotes per line, block parens
+balanced, pure ASCII CRLF, 13,683 B, sha256 ee35e456…9558). No
+lanes ran — no Go/Svelte/app code touched (~/sdk still wiped; not
+needed: a batch-file fix). Delivery: the fix committed at cb28507
+and tagged v1.6.6-android-debug.4 — a REGULAR release (D89),
+Latest-marked, carrying only the fixed .bat; the APK is NOT
+re-attached (D84: the app is unchanged, debug.3's APK is the
+current build); the asset's served bytes re-downloaded through the
+API and hashed byte-exact; debug.3's body gained the pointer note
+superseding its older helper asset (9,017 → 9,650 chars, prefix
+byte-identical); docs synced in the follow-up commit (this record
+among them). The Windows execution itself remains ⛔ on this host
+(as at D88); the script self-verifies on Ali's machine. Next Task
+ID M8-i; next decision D91.

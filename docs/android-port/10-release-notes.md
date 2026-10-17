@@ -1,18 +1,19 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the D89 session (2026-10-17, the device-test
-feedback loop's fifth round; the M8-e/D88 helper asset stands in
-§1, and D89's release-flag change — the android circle now ships as
-regular releases in the private repo — is recorded in §1 too). This
-document now holds two things: §1 the **shipped** debug test-circle
-release (`v1.6.6-android-debug.3`, a regular release in the private
-repo per D89 — the same text lives on the GitHub release itself;
-`v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are superseded
-by it and kept as history below, their flags switched to regular
+**Status:** updated at the D90 session (2026-10-17, the device-test
+feedback loop's sixth round: the keystore helper was fixed after
+Ali's first field report — §1's debug.4 note records it — and the
+D89 release-flag change before it stands in §1 too). This document
+now holds two things: §1 the **shipped** debug test-circle release
+(`v1.6.6-android-debug.3`, a regular release in the private repo per
+D89 — the same text lives on the GitHub release itself — plus the
+`v1.6.6-android-debug.4` helper-fix maintenance release documented
+below it; `v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are
+superseded and kept as history, their flags switched to regular
 releases with debug.3's), and §2 the **public v1 DRAFT**, unpublished
 until the ⛔ device gates close or Ali explicitly accepts shipping
 with them recorded as known limitations. Every claim traces to
-implementation evidence (docs 01–09, DECISIONS.md D1–D89).
+implementation evidence (docs 01–09, DECISIONS.md D1–D90).
 
 ## 1. v1.6.6-android-debug.3 — the device test circle (SHIPPED — a regular release in the private repo, D89)
 
@@ -90,6 +91,29 @@ the SHA-256 fingerprint and the full keytool record. Not needed for
 this debug build; it exists so the signed lane is ready the day you
 decide to publish (doc 07 §8 / D88). The keystore and that backup
 never go in the repo.
+
+**The helper-fix maintenance release: v1.6.6-android-debug.4 (D90,
+2026-10-17 — no new APK).** Ali's first run of the helper on his
+machine stopped at password generation — "'powershell' is not
+recognized as an internal or external command": his PATH variable
+does not include PowerShell (Windows itself ships it; the desktop
+setup scripts took the same fix at v0.7.5). The fixed
+`make-release-keystore.bat` (13,683 B, SHA-256
+`ee35e4565dadf2a4a1c6e150208b8749aa6e5c3b8aec6303cc57025c06939558`,
+pure ASCII, CRLF) resolves PowerShell by its full standard install
+path instead of through PATH, and if PowerShell cannot be found at
+all the script's own fallback generator builds the password — the
+ceremony always completes, and the .md backup records which
+generator ran. debug.4 is a regular release (D89) carrying ONLY the
+fixed helper: **the app itself is unchanged — keep using debug.3's
+`app-debug.apk` above** (D84: identical bytes are never re-released;
+debug.3's page carries the pointer note superseding its older helper
+asset). Ali's "can't I use an online keyring generator instead?" is
+answered NO (D90): the keystore is the app's signing identity —
+whoever holds it and its password can sign updates as you — so it
+is made once, on your own machine, and never passes through any
+server, website or chat. The release body documents a one-line
+manual keytool alternative for machines without PowerShell.
 
 **Superseded: v1.6.6-android-debug.2** (versionCode 2, SHA-256
 `9cca38c9…811b`) — the D86 build: it put the YouTube app on the

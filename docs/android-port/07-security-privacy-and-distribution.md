@@ -208,6 +208,24 @@ against the final artifact.
   stay as published apart from debug.3's one-paragraph D89 note. The
   prerelease flag's real semantics (public update channels, the
   public Latest badge) return only if the repo ever goes public.
+- **D90 (2026-10-17, M8-h): the keystore ceremony survives
+  PowerShell-less PATH machines.** Ali's first field report: the
+  script stopped at password generation — "'powershell' is not
+  recognized" — his PATH leaves PowerShell out (the same
+  environment class the desktop setup scripts fixed at v0.7.5). The
+  script now locates powershell.exe by its full standard path first
+  (setup-offline.bat's exact pattern), then where.exe, and if
+  PowerShell cannot be found at all a pure-cmd fallback builds the
+  password from six RANDOM draws (digits and dashes, ~90 bits) —
+  the step can never dead-end again, and the .md backup records
+  which generator ran. His online-generator question ("can't I use
+  an online keyring generator instead?") is answered NO in the
+  ruling: the signing identity never transits a third party (D88's
+  boundary); the one-line manual keytool alternative is documented
+  in the release notes instead. Ships as v1.6.6-android-debug.4 —
+  a regular release (D89) carrying only the fixed .bat (no APK;
+  the app is unchanged — D84), with debug.3's page carrying the
+  pointer note.
 - When the signed lane returns: release APK signed with that local
   keystore, never committed (`.gitignore`), created and backed up
   with `make-release-keystore.bat` (README documents the steps;

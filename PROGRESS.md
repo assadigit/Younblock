@@ -2593,3 +2593,29 @@ README, CHANGELOG and the session prompt updated. Zero app code; the
 APK bytes untouched (D84 respected — a flag flip is metadata, not a
 build); versionCode stays 3. Ali's device observations from debug.3
 remain the open input (next Task ID M8-h).
+
+M8-h — the sixth feedback round (2026-10-17): D90, the ceremony
+survives PowerShell-less PATH machines. Ali's first field report
+arrived — not a device observation yet but the helper's first real
+run: make-release-keystore.bat stopped at password generation with
+"'powershell' is not recognized as an internal or external command"
+(his PATH leaves PowerShell out; Windows itself ships it — the same
+environment class the desktop setup scripts fixed at v0.7.5). Fix:
+the script resolves powershell.exe by its full standard install path
+first (setup-offline.bat's shipped pattern), then where.exe, and
+falls back to a pure-cmd six-RANDOM-draw generator (digits and
+dashes, ~90 bits) when PowerShell cannot be found at all — the step
+can never dead-end; the .md backup and DONE summary record the
+generator used. His online-generator question ruled NO (D90: the
+signing identity never transits a third party; D88's boundary
+stands); a one-line manual keytool alternative documented in the
+release notes. Delivery: v1.6.6-android-debug.4 — a regular release
+(D89) carrying ONLY the fixed .bat (13,683 B, sha256
+ee35e456…9558; no APK — the app is unchanged, debug.3's APK stays
+current per D84), tagged at the fix commit cb28507, Latest-marked
+(the asset's served bytes re-downloaded and verified byte-exact);
+debug.3's page gained a pointer note superseding its older helper
+asset (body 9,017 → 9,650 chars, prefix byte-identical). Zero app
+code; versionCode stays 3; ~/sdk still wiped (reinstall before
+Go/Svelte work stands). The device-test observations from debug.3
+remain the open input (next Task ID M8-i).

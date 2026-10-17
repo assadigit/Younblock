@@ -31,7 +31,9 @@ For now this is a **debug-signed test build, not a release** ("we're not
 releasing yet"): download `app-debug.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) (the
 `v1.6.6-android-debug.3` release — a regular release in this private
-repo (D89); sign in with your
+repo (D89); the repo's Latest release, `v1.6.6-android-debug.4`, is a
+helper-script fix that carries no new APK — the app is still
+debug.3's. Sign in with your
 GitHub account), then sideload it:
 
 1. Allow installs from your browser app (Settings → Apps → special access →
@@ -51,13 +53,18 @@ install over this one.
 **When a public release happens**, the APK gets signed with your own release
 keystore — created and backed up locally, never committed. The repo ships a
 one-double-click helper for the whole ceremony: `make-release-keystore.bat`
-(also attached to the `v1.6.6-android-debug.3` release). Put it in a private
+(attached to the `v1.6.6-android-debug.4` release — D90 fixed it after the
+first field report: it no longer needs PowerShell on PATH, and it works even
+when PowerShell can't be found at all). Put it in a private
 folder — not inside the repo, not inside a synced/cloud folder — and
 double-click it: it generates the password on your machine with Windows' own
 crypto RNG, creates the keystore with every keytool question pre-filled (the
 certificate serial number and SHA-256 fingerprint are recorded into the
 backup automatically), and writes a `younblock-keystore-backup_<date>.md`
-next to it. Keep the keystore and that backup in **two different safe
+next to it. Never use an online keystore generator instead — the keystore is
+your app's signing identity, and whoever holds it and its password can sign
+updates as you; it should never pass through anyone else's server. Keep the
+keystore and that backup in **two different safe
 places** — losing either means the next signed release needs
 uninstall-before-update. The full plan:
 [docs/android-port/07-security-privacy-and-distribution.md](docs/android-port/07-security-privacy-and-distribution.md) §8.
