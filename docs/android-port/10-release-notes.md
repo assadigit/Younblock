@@ -1,16 +1,16 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the first device-observation session (2026-10-17,
-D85). This document now holds two things: §1 the **shipped** debug
-test-circle release (`v1.6.6-android-debug.1`, a prerelease on the
-private repo — the same text lives on the GitHub release itself,
-including the install-blocked troubleshooting section added when Ali's
-first observation arrived), and §2 the **public v1 DRAFT**, unpublished
-until the ⛔ device gates close or Ali explicitly accepts shipping
-with them recorded as known limitations. Every claim traces to
-implementation evidence (docs 01–09, DECISIONS.md D1–D85).
+**Status:** updated at the D86 session (2026-10-17, the device-test
+feedback loop's second round). This document now holds two things: §1
+the **shipped** debug test-circle release (`v1.6.6-android-debug.2`, a
+prerelease on the private repo — the same text lives on the GitHub
+release itself; `v1.6.6-android-debug.1` is superseded by it and kept
+as history below), and §2 the **public v1 DRAFT**, unpublished until
+the ⛔ device gates close or Ali explicitly accepts shipping with them
+recorded as known limitations. Every claim traces to implementation
+evidence (docs 01–09, DECISIONS.md D1–D86).
 
-## 1. v1.6.6-android-debug.1 — the device test circle (SHIPPED, prerelease)
+## 1. v1.6.6-android-debug.2 — the device test circle (SHIPPED, prerelease)
 
 A debug-signed build for **Ali's own device testing** — "we're not
 releasing yet" (D84): this is not a public release. Expect Android's
@@ -18,30 +18,59 @@ releasing yet" (D84): this is not a public release. Expect Android's
 both are expected and honest for this circle.
 
 **The honest headline.** Younblock for Android helps YouTube load
-when the network gets in the way. It routes **only the apps you add
-to its list** — none are routed by default — through an on-device
-engine that uses secure DNS and TLS record splitting, exactly like
-the desktop edition. It is **not a VPN in the privacy sense**: it
-does not hide your IP address, adds no encryption, and sends nothing
-to any Younblock-operated server (none exists). It uses Android's
-VPN slot as a **local traffic-routing interface** — that is the key
-icon you will see while it runs.
+when the network gets in the way. It routes **only the apps on its
+list** — the YouTube app is added by default, and you add or remove
+apps in the menu (D86) — through an on-device engine that uses secure
+DNS and TLS record splitting, exactly like the desktop edition. It is
+**not a VPN in the privacy sense**: it does not hide your IP address,
+adds no encryption, and sends nothing to any Younblock-operated server
+(none exists). It uses Android's VPN slot as a **local
+traffic-routing interface** — that is the key icon you will see while
+it runs.
 
-**The artifact.** `app-debug.apk`, 35,567,561 B, SHA-256
-`ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64`;
+**What changed since debug.1** (Ali's observation: "the first version
+didnt work, whether in youtube app or youtube in chrome" — root
+cause: debug.1's list was born empty (D83) and its entry path demanded
+exact package names, so typing "youtube" was refused and nothing was
+ever routed):
+
+- **The YouTube app is the default list entry (D86)** — a fresh
+  install routes the YouTube app out of the box, and a debug.1 install
+  updating to this build gets the default through the one-time v3
+  settings migration (its saved empty list was the shipped default,
+  never a choice).
+- **Adding apps is now usable**: the menu's Apps-to-unblock row gains
+  one-tap quick-add buttons for the known apps (YouTube, Chrome) and
+  the type-in field accepts friendly names — "youtube" and "chrome"
+  resolve to their packages; other apps still need the package name.
+- Same debug certificate as debug.1 (pinned in the repo, D85): this
+  build **installs over** debug.1 as an update — no uninstall needed,
+  settings survive.
+- YouTube **in Chrome** still needs Chrome on the list (it is not part
+  of the default — D86 implements the literal ruling): open the menu,
+  tap the **+ Chrome** chip, reconnect. youtube.com inside other
+  browsers is the same one-tap add.
+
+**The artifact.** `app-debug.apk`, 35,716,265 B, SHA-256
+`9cca38c9e904755ea2a4359650b8815c2756cf4f88272f91ca1809190026811b`;
 applicationId `io.github.assadigit.younblock`, versionName 1.6.6,
-versionCode 1; Android 8.0+ (minSdk 26), targets API 36; native code
-for arm64-v8a, armeabi-v7a and x86_64; debug certificate (SHA-256
-digest `c76bb7c61ec623892eabc37ac90ac1bc0041d39490f2d48073676d6e2ed
-8551d`), apksigner v2-scheme verified. Successive debug builds bump
-versionCode and install over this one (same certificate — **pinned
-in the repo since D85** at `android/app/debug.keystore`, so the
-promise survives sandbox wipes; the clean rebuild is byte-identical:
-sha256 match).
+versionCode 2; Android 8.0+ (minSdk 26), targets API 36; native code
+for arm64-v8a, armeabi-v7a and x86_64; the same pinned debug
+certificate as debug.1 (SHA-256 digest `c76bb7c61ec623892eabc37ac90ac
+1bc0041d39490f2d48073676d6e2ed8551d`, at `android/app/debug.keystore`
+since D85), apksigner v2-scheme verified; the four-permission manifest,
+no testOnly.
+
+**Superseded: v1.6.6-android-debug.1** (versionCode 1, SHA-256
+`ccf46a2e…7b64`) — the first test-circle build; shipped with the
+born-empty list (D83) whose entry-path gap is what debug.2 fixes. Its
+release page carries the install-blocked troubleshooting guide (D85),
+which still applies unchanged to downloads from Iranian networks.
 
 **Install (private repo, doc 07 §8).** Download the APK from this
 release with your GitHub account, allow installs from your browser
-app, accept the Play Protect warning, install. Nothing auto-starts;
+app, accept the Play Protect warning, install. If debug.1 is already
+installed, this build updates it in place. Nothing auto-starts;
 connecting is always a user action.
 
 ### If the install is blocked — read this first (D85)
@@ -83,24 +112,29 @@ The build environment has no emulator and no device (verified — doc
 until observed on your device**. This circle is the checklist's
 closure path; report pass/fail per row plus the in-app diagnostics
 report (Menu → Diagnostics → copy) and your device model + Android
-version:
+version. **If anything "doesn't work", the diagnostics report is the
+single most valuable thing to send** — it carries the engine's own
+view of what happened, redacted for privacy:
 
-1. **Install + first launch** — the sideload path above works; the
-   app opens on the connect screen; rotation, font scaling and
-   TalkBack behave; the sheet's Apps-to-unblock row renders.
-2. **First connect, empty list** — the first connect with an empty
-   allow-list refuses with the honest NO_TARGET_APPS message (none
-   of the apps on your list is installed — because the list is
-   empty; nothing is routed by default).
-3. **Add the YouTube app** (`com.google.android.youtube`) to the
-   list (Menu → Apps to unblock), connect again: the consent
-   explanation → the system VPN dialog → Allow; the key icon
-   appears; the notification honestly tracks connecting / active /
-   degraded.
-4. **The product's purpose** — YouTube actually loads in the
+1. **Install + first launch** — the sideload path works (the D85
+   troubleshooting guide covers blocked installs); the app opens on
+   the connect screen; rotation, font scaling and TalkBack behave;
+   the sheet's Apps-to-unblock row renders **with the YouTube app
+   already on the list and the + Chrome quick-add chip visible**.
+2. **First connect (the default list)** — the YouTube app is routed
+   out of the box: the consent explanation → the system VPN dialog →
+   Allow; the key icon appears; the notification honestly tracks
+   connecting / active / degraded. (If you emptied the list on
+   purpose, the connect refuses with the honest NO_TARGET_APPS
+   message instead.)
+3. **The product's purpose** — YouTube actually loads in the
    YouTube app (browse + video playback) while connected; the
    self-test and recovery behave when YouTube stops responding.
-5. **.ir stays direct** — with a routed app (e.g. a browser you
+4. **youtube.com in Chrome** — tap **+ Chrome** in the menu,
+   reconnect, and YouTube loads inside Chrome as well (Chrome is NOT
+   part of the default — D86 — so this row tests the one-tap add
+   path too).
+5. **.ir stays direct** — with a routed app (e.g. the browser you
    added), any `.ir` site loads as if Younblock were not there: no
    unblocking, no fragmentation, always direct (D83/D84's ruling;
    their name lookups still use your configured secure-DNS
@@ -125,13 +159,15 @@ review against the shipped debug artifact.
 
 ### What it does
 
-- Routes the TCP traffic of the apps you add to the allow-list (the
-  list starts empty — D83; it is editable in-app, changes apply on the
-  next connect; an empty list or all-uninstalled entries refuse the
-  connect with the honest reason).
+- Routes the TCP traffic of the apps on the allow-list (the YouTube
+  app is the default entry — D86; the list is editable in-app,
+  changes apply on the next connect; an emptied list or
+  all-uninstalled entries refuse the connect with the honest
+  reason).
 - Resolves the routed apps' DNS through the secure-DNS (DoH) providers
-  you configure, tried in order (defaults: RethinkDNS, ElectroDNS,
-  Ruby).
+  you configure, tried in order (defaults: RethinkDNS, Cloudflare,
+  Google — matching internal/config's defaultDoHServers; this line
+  previously named a stale set and was corrected at D86).
 - Splits the first TLS record for the routed YouTube domains into
   smaller pieces — the same fragmentation the desktop edition uses.
 - Leaves every website ending in .ir completely untouched — no

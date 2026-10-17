@@ -430,7 +430,7 @@ class HttpBackend implements Backend {
       message:
         phase === "error"
           ? state.error?.code === "NO_TARGET_APPS"
-            ? "Your apps-to-unblock list is empty, or none of its apps is installed. Add an app in the menu, then try again."
+            ? "None of the apps on your list is installed — or the list is empty (YouTube was the default; it may have been removed). Add an app in the menu, then try again."
             : "Could not connect. Try again."
           : null,
     };

@@ -1,8 +1,9 @@
 package config
 
-// apps_test.go — the M6 schema-v2 tests (doc 05 §M6, doc 04 §9),
-// updated for D83 (no allow-list default): the `apps` field, its
-// Normalize rules, and the v1 → v2 migration.
+// apps_test.go — the per-app allow-list tests (doc 04 §9; M6 schema v2,
+// D83's empty default, now D86's YouTube default + the v3 one-time
+// migration): the `apps` field, its Normalize rules, the v1/v2 → v3
+// migrations, and the user-agency rule (a saved empty list stays empty).
 
 import (
 	"encoding/json"
@@ -13,25 +14,31 @@ import (
 	"testing"
 )
 
-func TestDefaultAppsIsEmpty(t *testing.T) {
-	// D83: no allow-list default — the list starts empty and the user
-	// adds the apps. The M7 NO_TARGET_APPS door fails a connect closed
-	// on an empty list, so "empty" is a safe default, not a
-	// route-everything hazard.
-	if got := DefaultApps(); len(got) != 0 {
-		t.Errorf("DefaultApps() = %v, want empty (D83)", got)
+func TestDefaultAppsIsYouTube(t *testing.T) {
+	// D86: the default added list is the YouTube app — Ali's ruling
+	// after his first device observation ("mAKE the youtube default
+	// added list"). Fresh copies, never a shared slice.
+	want := []string{"com.google.android.youtube"}
+	if got := DefaultApps(); !reflect.DeepEqual(got, want) {
+		t.Errorf("DefaultApps() = %v, want %v (D86)", got, want)
 	}
-	if s := DefaultSettings(); len(s.Apps) != 0 {
-		t.Errorf("DefaultSettings().Apps = %v, want empty", s.Apps)
+	if s := DefaultSettings(); !reflect.DeepEqual(s.Apps, want) {
+		t.Errorf("DefaultSettings().Apps = %v, want %v", s.Apps, want)
 	}
-	// The empty list marshals as [] — an explicit, honest empty list
-	// (never null) in the compact form the facade emits.
-	b, err := json.Marshal(DefaultSettings())
+	// Each call returns an independent copy (mutating one must not
+	// leak into the next caller's list).
+	a, b := DefaultApps(), DefaultApps()
+	a[0] = "mutated.example.app"
+	if !reflect.DeepEqual(b, want) {
+		t.Errorf("DefaultApps() slices share backing storage: %v", b)
+	}
+	// The marshaled shape the facade and the WebView depend on.
+	bs, err := json.Marshal(DefaultSettings())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), `"apps":[]`) {
-		t.Errorf("marshaled settings = %s, want apps:[]", b)
+	if !strings.Contains(string(bs), `"apps":["com.google.android.youtube"]`) {
+		t.Errorf("marshaled settings = %s, want the YouTube default in apps", bs)
 	}
 }
 
@@ -41,9 +48,10 @@ func TestNormalizeAppsRules(t *testing.T) {
 		in   []string
 		want []string
 	}{
-		// D83: an empty or all-invalid list STAYS empty — never restored
-		// to any default. The NO_TARGET_APPS door owns what happens at
-		// connect; an empty list must persist honestly.
+		// An empty or all-invalid list STAYS empty — the user's own
+		// state under D86 (they removed the last entry, or a partial
+		// save emptied it). The NO_TARGET_APPS door owns what happens
+		// at connect; empty must persist honestly, never restore.
 		{"nil stays empty", nil, []string{}},
 		{"empty stays empty", []string{}, []string{}},
 		{"trim and keep order", []string{"  com.android.chrome ", "org.mozilla.firefox"}, []string{"com.android.chrome", "org.mozilla.firefox"}},
@@ -78,7 +86,11 @@ func TestNormalizeAppsCap(t *testing.T) {
 	}
 }
 
-func TestNormalizeKeepsAppsEmptyAndBumpsVersion(t *testing.T) {
+func TestNormalizeKeepsNilAppsEmptyAndBumpsVersion(t *testing.T) {
+	// Normalize is the validator, not the migration: nil arrives here
+	// only from partial payloads (a full-document save always carries
+	// apps), and the fail-closed answer is the honest empty list. The
+	// D86 default is filled by DefaultSettings and the Load migration.
 	s := DefaultSettings()
 	s.Version = 1
 	s.Apps = nil
@@ -86,17 +98,15 @@ func TestNormalizeKeepsAppsEmptyAndBumpsVersion(t *testing.T) {
 	if n.Version != settingsVersion {
 		t.Errorf("version = %d, want %d", n.Version, settingsVersion)
 	}
-	// D83: a v1 file's absent apps field migrates to the honest EMPTY
-	// list — the user adds apps in the UI; nothing is routed until then.
 	if len(n.Apps) != 0 {
-		t.Errorf("apps = %v, want empty (D83)", n.Apps)
+		t.Errorf("apps = %v, want empty (Normalize never fills a default)", n.Apps)
 	}
 	if n.Apps == nil {
 		t.Error("apps is nil, want a non-nil empty slice (marshals as [])")
 	}
 }
 
-func TestSettingsV2MigrationFromV1File(t *testing.T) {
+func TestSettingsV3MigrationFromV1File(t *testing.T) {
 	dir := t.TempDir()
 	// A real v1-era file: version 1, no apps field, custom values the
 	// migration must preserve.
@@ -111,13 +121,13 @@ func TestSettingsV2MigrationFromV1File(t *testing.T) {
 	if err != nil || notice != "" {
 		t.Fatalf("Load: %v notice=%q", err, notice)
 	}
-	if s.Version != 2 {
-		t.Errorf("version = %d, want 2 (migrated)", s.Version)
+	if s.Version != settingsVersion {
+		t.Errorf("version = %d, want %d (migrated)", s.Version, settingsVersion)
 	}
-	// D83: the v1 file had no apps field — the migrated list is the
-	// honest EMPTY list (no default), and it persists as [].
-	if len(s.Apps) != 0 {
-		t.Errorf("apps = %v, want empty (D83)", s.Apps)
+	// The v1 file had no apps field — the never-configured state — so
+	// it migrates to the D86 default: the YouTube app (D86).
+	if want := []string{"com.google.android.youtube"}; !reflect.DeepEqual(s.Apps, want) {
+		t.Errorf("apps = %v, want %v (D86 default)", s.Apps, want)
 	}
 	// The v1 values survive the migration verbatim.
 	if s.Mode != ModeAll || s.Method != MethodLegacy || s.Port != 4530 || s.AutoPort {
@@ -129,7 +139,7 @@ func TestSettingsV2MigrationFromV1File(t *testing.T) {
 	if strings.Join(s.Advanced.Domains, ",") != "youtube.com,youtu.be" {
 		t.Errorf("v1 domains lost: %v", s.Advanced.Domains)
 	}
-	// Persisting the migrated settings writes a v2 file carrying apps.
+	// Persisting the migrated settings writes a v3 file carrying apps.
 	if err := Save(dir, s); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -141,12 +151,81 @@ func TestSettingsV2MigrationFromV1File(t *testing.T) {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatal(err)
 	}
-	if raw["version"].(float64) != 2 {
-		t.Errorf("saved version = %v, want 2", raw["version"])
+	if raw["version"].(float64) != float64(settingsVersion) {
+		t.Errorf("saved version = %v, want %d", raw["version"], settingsVersion)
 	}
 	apps, ok := raw["apps"].([]any)
-	if !ok || len(apps) != 0 {
-		t.Fatalf("saved apps = %v, want the honest empty list", raw["apps"])
+	if !ok || len(apps) != 1 || apps[0] != "com.google.android.youtube" {
+		t.Fatalf("saved apps = %v, want the D86 default", raw["apps"])
+	}
+}
+
+// TestSettingsV3MigrationFromDebug1EmptyList is THE device case (D86):
+// debug.1 shipped with apps:[] (D83) and an entry path that refused
+// friendly names, so its v2 files carry the born-empty shipped default —
+// never a user choice. The update to the D86 build migrates that file to
+// the YouTube default, which is exactly Ali's requested outcome.
+func TestSettingsV3MigrationFromDebug1EmptyList(t *testing.T) {
+	dir := t.TempDir()
+	v2Empty := `{"version":2,"mode":"youtube","method":"auto","port":4525,"autoPort":true,` +
+		`"startWithWindows":false,"connectOnLaunch":false,"openBrowserOnConnect":false,` +
+		`"firstRunDone":true,"closeNoticeShown":false,"apps":[],` +
+		`"advanced":{"dohServers":[],"domains":[]}}`
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(v2Empty), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, _, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if s.Version != settingsVersion {
+		t.Errorf("version = %d, want %d", s.Version, settingsVersion)
+	}
+	if want := []string{"com.google.android.youtube"}; !reflect.DeepEqual(s.Apps, want) {
+		t.Fatalf("apps = %v, want the D86 default (the debug.1 born-empty list migrates)", s.Apps)
+	}
+}
+
+// TestSettingsV3EmptyListIsUserAgency: once the file IS v3, an empty list
+// is the user's own (they removed the last entry) and must never be
+// refilled by a later load — the agency rule the M6→M8-a line kept.
+func TestSettingsV3EmptyListIsUserAgency(t *testing.T) {
+	dir := t.TempDir()
+	s := DefaultSettings()
+	s.Apps = []string{}
+	if err := Save(dir, s); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(got.Apps) != 0 {
+		t.Errorf("apps = %v, want the user's empty list kept (agency, never restore)", got.Apps)
+	}
+	if got.Apps == nil {
+		t.Error("apps is nil, want non-nil []")
+	}
+}
+
+// TestSettingsV2CustomListSurvives: a debug.1 user who DID configure a
+// list keeps it verbatim — the migration only fills the born-empty state.
+func TestSettingsV2CustomListSurvives(t *testing.T) {
+	dir := t.TempDir()
+	v2Custom := `{"version":2,"mode":"youtube","method":"auto","port":4525,"autoPort":true,` +
+		`"startWithWindows":false,"connectOnLaunch":false,"openBrowserOnConnect":false,` +
+		`"firstRunDone":true,"closeNoticeShown":false,"apps":["com.android.chrome","com.google.android.youtube"],` +
+		`"advanced":{"dohServers":[],"domains":[]}}`
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(v2Custom), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, _, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{"com.android.chrome", "com.google.android.youtube"}
+	if !reflect.DeepEqual(s.Apps, want) {
+		t.Errorf("apps = %v, want the user's list kept verbatim: %v", s.Apps, want)
 	}
 }
 

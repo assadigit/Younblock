@@ -20,7 +20,11 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        // versionCode 2: the D86 build (the YouTube default + the entry
+        // path fix), so it installs OVER v1.6.6-android-debug.1 (same
+        // pinned debug certificate — D85). The D84 rule: every debug
+        // build bumps this.
+        versionCode = 2
         versionName = "1.6.6"
     }
 

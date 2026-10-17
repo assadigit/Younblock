@@ -354,3 +354,49 @@ didn't let me install it"):
   the next release rides on the next code-changing observation.
   Exit gates: vet clean; go test 17/17 ×2; svelte-check 0/0; vite
   build clean; webui dist zero-diff (the D74 trap checked).
+
+M8-c record (2026-10-17; the fifth consecutive no-wipe session — repo
+at d9f48d6 at the open, toolchain verified, worklog carried; the
+device-test feedback loop's second round, Ali's ruling D86 + the first
+functional observation "the first version didnt work, whether in
+youtube app or youtube in chrome"; debug.1's download_count had reached
+2 — the install completed):
+
+- The root-cause pass BEFORE any fix: the whole routing chain read
+  end-to-end — tunstack.go/dns.go (UDP:53 to any destination answered
+  by the virtual DNS; fake-IP reversal; AAAA/HTTPS answered empty —
+  correct client-fallback semantics), socks5.go + server.go
+  (routedHost: the mode/list rule minus .ir; fragmentation on the
+  first record for routed domains), YounblockVpnService.kt (establish,
+  allowed-apps, virtual DNS, v6 blackhole). Conclusion: the ENGINE
+  chain is sound; the failure is the SHELL — the born-empty list (D83)
+  plus an entry path that refused everything but exact package names,
+  so "youtube" could not be added and nothing ever routed.
+- The D86 implementation: DefaultApps=[com.google.android.youtube];
+  settingsVersion 2→3 with the one-time migration (v1/v2 absent-or-
+  empty apps → the default; v3 empty = user agency, kept; custom lists
+  kept); RoutedApps unchanged (fail-toward-empty guard stays);
+  frontend — quick-add chips (+ YouTube / + Chrome), friendly-name
+  aliases in the add field, the honest copy updates (intro, empty
+  state, note, How-it-works, the NO_TARGET_APPS message); Kotlin
+  comments updated to the D86 semantics, behavior unchanged.
+- Lanes: vet clean; go test 17/17 ×2 (exit 0 both); -race green on
+  config/engine/mobile; svelte-check 0/0; vite build clean + dist
+  synced (TestWebUILifecycle re-run green on the new bundle — the D74
+  trap checked); compile matrix 4/4 ABIs — the exact historical form
+  re-derived (`go build ./internal/... ./mobile/...` = the 18 non-main
+  packages per ABI; arm64 additionally links the full tree `./...`;
+  a probing subtlety was resolved: `go build` with an EMPTY package
+  list builds the main package, which legitimately requires cgo on
+  arm/386/amd64 — earlier "failures" were that, not the matrix);
+  gomobile bind → younblock.aar 25,162,951 B (javap: the full binding
+  set); clean assembleDebug → app-debug.apk 35,716,265 B, sha256
+  9cca38c9e904755ea2a4359650b8815c2756cf4f88272f91ca1809190026811b,
+  versionCode 2 (the D84 rule), the pinned D85 certificate
+  (c76bb7c6…8551d — installs over debug.1 in place), badging minSdk 26
+  / target 36 / 3 ABIs, the four-permission manifest, no testOnly; the
+  D86 WebView copy verified embedded in the AAR's libgojni.so.
+- The release lane: v1.6.6-android-debug.2 (prerelease) on the M8-c
+  commit; the APK uploaded; verified via the API after creation. Doc
+  10's stale DoH default list corrected to the code truth
+  (RethinkDNS, Cloudflare, Google).

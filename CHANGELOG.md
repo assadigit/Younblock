@@ -748,3 +748,35 @@ First Windows test build, published to GitHub Releases.
   to the published release. No debug.2 yet — the artifact itself is
   unchanged; the next release rides on the next code-changing
   observation.
+
+### Changed (Android port — the device-test feedback loop, session 2, D86 — v1.6.6-android-debug.2)
+
+- **The YouTube app is the default allow-list entry (D86, Ali's
+  ruling)**: a fresh install routes the YouTube app out of the box —
+  debug.1's born-empty list (D83) is superseded. A saved empty list
+  still means empty: removing the last entry is a user choice that
+  persists, and the connect refuses with the honest NO_TARGET_APPS
+  reason instead of restoring anything.
+- **One-time settings migration (schema v3)**: a v1/v2 settings file
+  whose apps list is absent or empty migrates to the YouTube default —
+  that empty was the shipped default of the debug.1 era, never a user
+  choice (its entry path refused friendly names, so "empty" almost
+  always meant "never successfully configured" — the exact state
+  behind Ali's "the first version didnt work, whether in youtube app
+  or youtube in chrome"). Custom lists survive verbatim; a v3 empty
+  list is the user's own and stays. Updating installs over debug.1
+  (versionCode 2, same pinned debug certificate) with settings intact.
+- **Adding apps is now usable**: the Apps-to-unblock row gains one-tap
+  quick-add chips for the known apps (+ YouTube, + Chrome) and the
+  type-in field accepts friendly names — "youtube" and "chrome"
+  resolve to their packages; other apps still need their Android
+  package name. The engine's saved response remains the validation
+  authority.
+- The honest copy updated wherever it claimed the list "starts empty"
+  (menu sheet, How-it-works, the refusal message, README, release
+  notes), and the release notes' stale default DoH provider list
+  corrected to the code truth (RethinkDNS, Cloudflare, Google).
+- Root-cause record: the engine's routing chain (virtual DNS, fake-IP
+  reversal, the SOCKS5 door, per-app TUN establish) was audited
+  end-to-end and found sound — the failure debug.1 showed on-device was
+  the empty list plus the package-name-only entry path, not the engine.

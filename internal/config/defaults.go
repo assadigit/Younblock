@@ -235,13 +235,15 @@ func DefaultDomains() []string {
 	return append([]string(nil), defaultYouTubeDomains...)
 }
 
-// DefaultApps returns the built-in per-app allow-list: EMPTY (Ali's
-// ruling, DECISIONS.md D83 — "there is no allow-list default"). The
-// list starts empty and the user adds the apps to unblock; the M7
-// NO_TARGET_APPS refusal door (D81) is what makes an empty list safe —
-// a connect with no apps fails closed with the typed reason instead
-// of ever routing every app. Saved files keep their lists: the ruling
-// changes the default, never user data.
+// DefaultApps returns the built-in per-app allow-list: the YouTube app
+// (Ali's ruling, DECISIONS.md D86 — "mAKE the youtube default added list",
+// received after his first device observation that nothing worked with the
+// D83 empty default: the entry path expected an exact package name, so
+// typing "youtube" was refused and the list never grew). The list starts
+// with com.google.android.youtube and the user adds or removes from
+// there; SAVING an empty list still means empty (user agency — the M7
+// NO_TARGET_APPS refusal door, D81, owns what happens at connect, never a
+// restore-to-default). A fresh copy every call; never share the slice.
 func DefaultApps() []string {
-	return []string{}
+	return []string{"com.google.android.youtube"}
 }

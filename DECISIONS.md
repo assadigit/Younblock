@@ -1449,3 +1449,78 @@ evidence:
   (it is byte-reproducible), so a re-release would churn tags without
   fixing a device-side or network-side cause. The next debug build
   rides on the next observation batch that changes code.
+
+**D86 — Ali's YouTube-default ruling + the first functional device
+observation's root cause (2026-10-17, the device-test feedback loop's
+second session, M8-c).** Ali's message: "mAKE the youtube default
+added list. the first version didnt work, whether in youtube app or
+youtube in chrome." Two inputs: a product ruling and the first
+functional observation from an installed build (the release asset's
+download_count reached 2 — the install completed this time).
+
+The observation was root-caused BEFORE the fix, by reading the whole
+routing chain end-to-end (tunstack DNS interception, the SOCKS5 door,
+routedHost, the Kotlin establish path — all sound):
+
+- THE ROOT CAUSE IS THE PRODUCT SHELL, NOT THE ENGINE. debug.1's list
+  was born EMPTY (D83), and the ONLY entry path was a text field that
+  demanded exact Android package names ("Add apps by their Android
+  package name"). Typing "youtube" — what any normal user types — was
+  REFUSED by package-shape validation (a package name needs
+  dot-separated segments), so the product's own namesake app could not
+  realistically be added, the list stayed empty, every connect took the
+  NO_TARGET_APPS refusal, and nothing ever routed — in the YouTube app
+  or anywhere else. Exactly "didn't work, whether in youtube app or
+  youtube in chrome" (Chrome was never on the list either, so
+  youtube.com in Chrome was untouched by design).
+- THE RULING, IMPLEMENTED: DefaultApps() = ["com.google.android.youtube"]
+  (D83's empty default superseded). A SAVED EMPTY LIST STILL MEANS
+  EMPTY — user agency is preserved (removing the last entry must stick;
+  the M7 NO_TARGET_APPS door owns the connect, never a
+  restore-to-default). Fresh installs route the YouTube app out of the
+  box.
+- THE v3 SCHEMA MIGRATION (settingsVersion 2→3, the existing version
+  mechanism): a v1/v2 file whose apps list is absent or empty carries
+  the SHIPPED default of its era, not a user choice — debug.1 was born
+  with apps:[] and its entry path refused friendly names, so "empty" in
+  a v2 file almost always means "never successfully configured" (the
+  exact state on Ali's device). Load migrates it to the D86 default; a
+  v3 file's empty list (the user's own, under this build) is kept; any
+  v1/v2 list with entries is kept verbatim. THE UPDATE INSTALLS OVER
+  debug.1 (versionCode 2, the pinned D85 certificate) AND ITS SAVED
+  SETTINGS SURVIVE — the migration is what makes the ruling reach the
+  one device that reported the problem.
+- THE ENTRY-PATH FIX: the Apps-to-unblock row gains one-tap quick-add
+  chips for the known apps (+ YouTube, + Chrome — rendered when not
+  already listed) and the type-in field accepts friendly names
+  ("youtube", "chrome", case-insensitive) resolved to their packages
+  client-side; the engine's saved response stays the validation
+  authority (no rule duplication). Other apps still need the package
+  name.
+- CHROME IS NOT IN THE DEFAULT (the open question carried): the ruling
+  names YouTube only, so the default is exactly [youtube]. youtube.com
+  in Chrome needs Chrome on the list — the + Chrome chip makes that one
+  tap, and the release notes / row 4 of the test circle teach it. If
+  Ali wants Chrome pre-added too, that is a one-line change + a
+  versionCode bump away.
+- The functional chain stays as audited: UDP:53 to ANY destination is
+  answered by the virtual DNS (the YouTube app's hardcoded 8.8.8.8
+  queries included); fake-IP destinations reverse to domains at the
+  door (fragmentation decisions identical to the browser path); QUIC
+  fallback remains the designed device gate (row 9).
+
+Evidence: config tests (the default, the copy-ness, the v1/v2→v3
+migration matrix incl. THE debug.1-empty-file case, the v3-agency case,
+custom-list survival); mobile tests (the default through RoutedApps,
+the debug.1-file migration through a real engine, the emptied-list
+refusal state); vet clean; 17/17 ×2; -race green on config/engine/
+mobile; svelte-check 0/0; vite build + dist sync (TestWebUILifecycle
+re-run green on the new bundle); compile matrix 4/4 ABIs (18 non-main
+packages each; arm64 links the full tree — the exact historical form,
+re-derived this session); gomobile bind → younblock.aar 25,162,951 B
+(javap: the full binding set); clean assembleDebug → app-debug.apk
+35,716,265 B, sha256 9cca38c9…811b, versionCode 2, the pinned D85
+certificate (c76bb7c6…8551d), badging minSdk 26/target 36/3 ABIs, the
+four-permission manifest, no testOnly; the D86 copy verified embedded
+in the AAR's native library. Released as v1.6.6-android-debug.2 through
+the same lane.

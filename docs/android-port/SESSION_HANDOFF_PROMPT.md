@@ -1,4 +1,4 @@
-# Prompt — Continue the Younblock Android port (device-test feedback loop, after the first observation)
+# Prompt — Continue the Younblock Android port (device-test feedback loop, after debug.2)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,47 +6,40 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the D85 session close)
+## Where the project stands (verified at the M8-c / D86 session close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
   the full binding set, the Kotlin VPN service (consent gate, honest
   routing report, the NO_TARGET_APPS refusal door, run generations),
-  the mobile settings/UX (the empty-default apps allow-list — D83/D84,
-  confirmed by Ali — and the .ir never-processed rule), the audits,
-  and the packaging.
-- **The first distributable build is shipped**: the GitHub prerelease
-  **`v1.6.6-android-debug.1`** (D84 — Ali's keystore ruling: the
-  debug-APK-only test circle; "we're not releasing yet", so no signed
-  variant exists). The artifact is the M8-a clean-build APK,
-  35,567,561 B, SHA-256 ccf46a2e…7b64 (apksigner v2 OK, debug cert
-  digest c76bb7c6…8551d; badging io.github.assadigit.younblock 1.6.6
-  versionCode 1, minSdk 26 / target 36, 3 ABIs; the four-permission
-  manifest + launcher-intent `<queries>`).
-- **Ali's first device observation has been ingested and handled
-  (D85)**: "Android didn't let me install it." The artifact was
-  exonerated end-to-end first (the served bytes re-downloaded and
-  verified; no `testOnly`; zip intact), and the asset's
-  download_count was **0** — the probable cause is an interrupted
-  download from the Iranian network, with the install-unknown-apps
-  gate, Play Protect, or a sub-8.0 device as the remaining branches.
-  The ordered troubleshooting path now lives ON THE LIVE RELEASE BODY
-  (doc 10 §1 mirrors it), and **the debug certificate is pinned in
-  the repo** at `android/app/debug.keystore` (D85) — vendored and
-  wired as the debug signingConfig, verified byte-identical on a
-  clean rebuild — so successive debug builds install over debug.1 as
-  updates even across sandbox wipes. No debug.2 was cut (nothing
-  about the artifact changed).
-- **The project's remaining input is Ali's device observations**: his
-  retry result for the install (the file size he gets + the exact
-  on-screen wording if it still fails), then the rest of the test
-  circle (doc 10 §"Device test circle") — first-launch, the live
-  consent dialog, notification behavior, screen-off/Doze, real DoH,
-  the YouTube app's QUIC→TCP fallback, protect() on real sockets, the
-  .ir direct path on a real radio, stop/reboot paths, battery,
-  rotation/font-scale/TalkBack. Everything device-side is ⛔ in the
-  sandbox (no /dev/kvm, no device — never claimed, never faked) and
-  is waiting on that feedback.
+  the mobile settings/UX, the audits, and the packaging.
+- **The current test-circle build is `v1.6.6-android-debug.2`** (D86,
+  versionCode 2, the pinned debug certificate — installs over debug.1
+  in place, settings survive): the YouTube app is the DEFAULT allow-list
+  entry (Ali's ruling "mAKE the youtube default added list"), a
+  one-time v3 settings migration carries debug.1's born-empty v2 files
+  to the default, and the entry path is usable (quick-add chips
+  + YouTube / + Chrome; the type-in field accepts "youtube"/"chrome").
+  Root cause of his "the first version didnt work, whether in youtube
+  app or youtube in chrome": the born-empty list (D83) plus a
+  package-name-only entry path — nothing was ever routed; the engine's
+  routing chain was audited end-to-end and found sound (D86 records
+  the audit).
+- **`v1.6.6-android-debug.1` is superseded** (kept as history; its
+  release page carries the D85 install-blocked troubleshooting guide,
+  which still applies to downloads from Iranian networks).
+- **The project's remaining input is Ali's device observations** from
+  debug.2: doc 10 §"Device test circle" is the checklist — the YouTube
+  app out of the box (row 2), youtube.com in Chrome via the + Chrome
+  chip (row 4 — Chrome is NOT in the default; the ruling names YouTube
+  only, and "Chrome in the default too?" is the carried open product
+  question), .ir direct, stop paths, battery, network switch, QUIC
+  fallback. Everything device-side is ⛔ in the sandbox (no /dev/kvm,
+  no device — never claimed, never faked) and waits on that feedback.
+  **The diagnostics report (Menu → Diagnostics → copy) is the single
+  most valuable evidence when anything fails** — it carries the
+  engine's own redacted view (DoH provider state, self-test results,
+  recent log ring).
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
@@ -59,19 +52,19 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
-   M8-c, … (this prompt describes the state after M8-b).
-2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (§"If the
-   install is blocked" + §"Device test circle" — Ali's checklist),
-   doc 06 (the M8 record incl. the release lane + the D85 record),
-   doc 08 + `DECISIONS.md` (D1–D85; **the next decision number is
-   D86**), and the tail of `PROGRESS.md`.
+   M8-c, … (this prompt describes the state after M8-c; the next is
+   M8-d).
+2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
+   debug.2 edition + §"Device test circle" — Ali's checklist), doc 06
+   (the M8-c record), doc 08 + `DECISIONS.md` (D1–D86; **the next
+   decision number is D87**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
-4. Check whether Ali's retry result / further device-test feedback has
-   arrived (session messages). If none has arrived yet, STOP after
-   reporting state — do not invent work, do not "improve" shipped
-   code without a reported reason.
+4. Check whether Ali's device-test feedback from debug.2 has arrived
+   (session messages). If none has arrived yet, STOP after reporting
+   state — do not invent work, do not "improve" shipped code without a
+   reported reason.
 5. Make the desktop baseline GREEN before writing any code:
    `go vet ./...`; `go test -count=1 ./...` (expect **17/17 packages
    ok**, run twice consecutively); webui `svelte-check` (0/0) and
@@ -81,18 +74,23 @@ working clone carries the credential in its `origin` remote URL).
 
 ## The task — the device-test feedback loop
 
-For each issue Ali reports from `v1.6.6-android-debug.1`:
+For each issue Ali reports from `v1.6.6-android-debug.2`:
 
 - Root-cause first (the project's standing discipline: failures are
   root-caused and fixed, never retried away, never hidden). The
-  diagnostics report (in-app, redacted) + device model/Android
-  version are the expected inputs. For install-stage reports, the
-  discriminating facts are the downloaded file's size (must be
-  ≈ 35,567,561 B) and the exact on-screen wording — the branches are
-  enumerated in doc 10 §"If the install is blocked".
+  diagnostics report (in-app, redacted) + device model/Android version
+  are the expected inputs; for "YouTube still doesn't load" the
+  discriminating evidence is the report's DoH/self-test sections plus
+  whether the key icon was up (TUN established) and which surface
+  (app vs browser, which browser).
 - Fix at the correct layer (engine/facade/Kotlin/WebView), keeping
-  the D77–D85 honesty rules binding: the UI may only claim what the
-  engine actually enforces; ⛔ gates are listed, never dropped.
+  the D77–D86 honesty rules binding: the UI may only claim what the
+  engine actually enforces; ⛔ gates are listed, never dropped. The
+  D86 audit (DECISIONS.md) records the chain's verified shape —
+  UDP:53 to ANY destination is answered by the virtual DNS; fake-IP
+  destinations reverse to domains at the SOCKS5 door; routedHost is
+  the mode/list rule minus .ir; QUIC fallback is the designed device
+  gate (row 9).
 - Record each closed checklist row with Ali's measured evidence (doc
   07 §9 / doc 10 §"Device test circle"); rows without observations
   stay open — never mark them complete.
@@ -100,13 +98,16 @@ For each issue Ali reports from `v1.6.6-android-debug.1`:
   rule: updates install over the previous debug build) and cut the
   next debug prerelease through the release lane (tag the commit,
   upload the APK, verify via the API, record asset size + digest)
-  WHEN a code change warrants it — do not re-release identical
-  bytes. The pinned keystore (D85) guarantees the same certificate,
-  so updates install over debug.1 without an uninstall. Full lane
-  before release: desktop baseline; compile matrix; `gomobile bind`;
-  **clean** `assembleDebug` (only clean builds are honest); artifact
-  verification (sha256, apksigner, badging, manifest dump — doc 06's
-  records); commit.
+  WHEN a code change warrants it — do not re-release identical bytes.
+  The pinned keystore (D85) guarantees the same certificate. Full lane
+  before release: desktop baseline; the compile matrix in its exact
+  form (`go build ./internal/... ./mobile/...` = the 18 non-main
+  packages per ABI ×4, plus arm64 linking the full tree `./...` — do
+  not batch-build with an empty package list: that builds the MAIN
+  package, which legitimately requires cgo on arm/386/amd64);
+  `gomobile bind`; **clean** `assembleDebug`; artifact verification
+  (sha256, apksigner, badging, manifest dump — doc 06's records);
+  commit.
 - If Ali decides to release publicly: the signed-release decision
   returns (doc 07 §8 — his local keystore or an EC key, never
   committed; README backup steps), and doc 10 §2 (the public v1
@@ -114,8 +115,8 @@ For each issue Ali reports from `v1.6.6-android-debug.1`:
 
 ## Environment (this sandbox resets without warning — verify, don't assume)
 
-Layout as verified at the D85 session close (four consecutive
-no-wipe sessions before it — but verify anyway):
+Layout as verified at the M8-c close (fifth consecutive no-wipe
+session before it — but verify anyway):
 
 - Repo: `/home/z/my-project/Younblock`, `vendor/` committed (D68: use
   `-mod=vendor`; the Android lane never invokes wails; desktop lanes
@@ -129,15 +130,13 @@ no-wipe sessions before it — but verify anyway):
   accepted). Exact PATH / JAVA_HOME / ANDROID_HOME setup: doc 06.
 - **The debug signing key is IN THE REPO** (D85):
   `android/app/debug.keystore`, wired as the debug signingConfig —
-  the same certificate that signed v1.6.6-android-debug.1. After a
+  the same certificate that signed debug.1 AND debug.2. After a
   sandbox wipe + re-clone, assembleDebug signs identically with NO
-  extra step (this was the hole D85 closed).
-- No /dev/kvm (re-verified at M8/D85). Disk is a ~9.9 GB box — clean
-  Go/Gradle build caches before big builds.
+  extra step.
+- No /dev/kvm (re-verified at M8/M8-b/M8-c). Disk is a ~9.9 GB box —
+  clean Go/Gradle build caches before big builds.
 - The sandbox kills background processes when a Bash command ends —
   run long builds as foreground chunks.
-- The honest compile-matrix form: `go build` over the 18 non-main
-  packages per ABI at CGO_ENABLED=0 (arm64 links the full tree).
 - After a re-clone: `git config core.fileMode false` and
   `chmod +x android/gradlew`.
 
@@ -170,13 +169,13 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   (the full regression gate is part of every change set).
 - Do not assume Wails or desktop proxy semantics transfer to Android;
   the ADRs (doc 08) are the ground truth.
-- The honesty rules D77–D85 bind: the UI/release notes may only claim
+- The honesty rules D77–D86 bind: the UI/release notes may only claim
   what the engine actually enforces; privacy copy follows
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D86),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-c, M8-d, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D87),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-d, M8-e, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 
@@ -184,7 +183,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
-cleanliness; (3) baseline results; (4) whether Ali's retry result /
-device-test feedback has arrived, and if so the exact first issue you
-will address. Then execute — or, if no feedback has arrived, stop
-after the state report and say so plainly.
+cleanliness; (3) baseline results; (4) whether Ali's debug.2 feedback
+has arrived, and if so the exact first issue you will address. Then
+execute — or, if no feedback has arrived, stop after the state report
+and say so plainly.

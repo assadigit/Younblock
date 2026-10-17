@@ -215,11 +215,11 @@ func (m *Engine) FailStart(code string) string {
 // connect (rebuilding an established TUN under live traffic is riskier
 // than the delay, and the UI copy says so — no silent re-route).
 //
-// D83: the list legitimately starts EMPTY — there is no allow-list
-// default — and the M7 NO_TARGET_APPS door (D81) turns an empty list
-// into an honest refusal at connect. The guard below therefore fails
-// toward the EMPTY list (refusal), never toward any non-empty default:
-// the failure direction inverted with the ruling.
+// D86: the list starts with the YouTube app (Ali's ruling after the
+// debug.1 device observation). The guard below still fails toward the
+// EMPTY list (the NO_TARGET_APPS refusal), never toward the default:
+// an engine state broken enough to lose its settings must refuse, not
+// silently route anything.
 func (m *Engine) RoutedApps() string {
 	apps := m.eng.Settings().Apps
 	if apps == nil {

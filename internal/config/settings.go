@@ -11,11 +11,15 @@ import (
 )
 
 // settingsVersion is the settings file schema version. v2 (M6, doc 04
-// §9) adds the per-app allow-list `apps`; migration from v1 is the
-// existing mechanism: a v1 file simply lacks the field and the list
-// stays EMPTY (D83 — there is no allow-list default; the user adds
-// apps in the UI).
-const settingsVersion = 2
+// §9) added the per-app allow-list `apps`; v3 (D86) is the one-time
+// migration of the debug.1-era empty list to the YouTube default: a
+// v1/v2 file's absent-or-empty apps field was the SHIPPED default
+// under D83 ("no allow-list default"), never a user choice, so it
+// migrates to the D86 default [com.google.android.youtube]. A v3
+// file's empty list is the user's own (they removed the last entry)
+// and is kept empty — the NO_TARGET_APPS door owns what happens at
+// connect, never a restore-to-default.
+const settingsVersion = 3
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -49,13 +53,14 @@ type Settings struct {
 	OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
 	FirstRunDone         bool `json:"firstRunDone"`
 	CloseNoticeShown     bool `json:"closeNoticeShown"`
-	// Apps is the Android per-app allow-list (ADR-0003, schema v2):
-	// the package names whose TCP+DNS the VpnService routes through
-	// the engine. Desktop editions persist the field but never read
-	// it — one settings.json serves every edition, and the classic
-	// screen's spread-based saves round-trip it untouched. The list
-	// starts EMPTY (D83: no default entries); an empty list never
-	// routes — the M7 NO_TARGET_APPS door refuses the connect.
+	// Apps is the Android per-app allow-list (ADR-0003, schema v2,
+	// default D86): the package names whose TCP+DNS the VpnService
+	// routes through the engine. The list starts with the YouTube app
+	// (Ali's ruling D86); removing every entry is a user choice that
+	// persists — the M7 NO_TARGET_APPS door (D81) refuses that connect
+	// closed. Desktop editions persist the field but never read it —
+	// one settings.json serves every edition, and the classic screen's
+	// spread-based saves round-trip it untouched.
 	Apps     []string `json:"apps"`
 	Advanced Advanced `json:"advanced"`
 }
@@ -179,14 +184,18 @@ const maxApps = 32
 
 // normalizeApps validates the per-app allow-list (schema v2, ADR-0003):
 // trimmed, shape-checked Android package names, de-duplicated in
-// first-seen order, capped. An empty result is KEPT — the empty list
-// is the honest default (D83: no allow-list default), and the M7
-// NO_TARGET_APPS door (D81) fails a connect closed when nothing is on
-// it. The empty slice is non-nil so it marshals as [] — an explicit,
-// honest empty list, never a route-everything fallback (a
-// VpnService.Builder with zero allowed applications would route EVERY
-// app, which is why the Kotlin side refuses to establish on an empty
-// list instead of dropping the per-app restriction).
+// first-seen order, capped. An empty result is KEPT — under D86 the
+// fresh default is the YouTube app, so a list that arrives empty (or
+// all-invalid) here was EMPTIED by its owner (the UI row, a partial
+// save payload) and empty is the honest persisted state; the M7
+// NO_TARGET_APPS door (D81) fails that connect closed. The empty
+// slice is non-nil so it marshals as [] — an explicit, honest empty
+// list, never a route-everything fallback (a VpnService.Builder with
+// zero allowed applications would route EVERY app, which is why the
+// Kotlin side refuses to establish on an empty list instead of
+// dropping the per-app restriction). The never-restored rule stands:
+// the D86 default lives in DefaultApps/DefaultSettings and the v3
+// Load migration, never in this validator.
 func normalizeApps(list []string) []string {
 	seen := make(map[string]bool, len(list))
 	out := make([]string, 0, len(list))
@@ -263,6 +272,17 @@ func Load(dir string) (s Settings, notice string, err error) {
 	if loaded.Version > settingsVersion {
 		// A future version's file: keep what we understand, ignore the rest.
 		loaded.Version = settingsVersion
+	}
+	// The v3 migration (D86): every v1/v2 file whose apps list is
+	// absent or empty carries the SHIPPED default of its era, not a
+	// user choice — debug.1 was born with apps:[] (D83) and its entry
+	// path refused friendly names, so "empty" in a v2 file almost
+	// always means "never successfully configured", exactly the state
+	// Ali's device reported ("the first version didnt work"). Fill the
+	// D86 default; a v3 empty (the user removed the last entry) is
+	// left alone, as is any v1/v2 list with entries.
+	if loaded.Version < settingsVersion && len(loaded.Apps) == 0 {
+		loaded.Apps = DefaultApps()
 	}
 	return Normalize(loaded), "", nil
 }

@@ -1,7 +1,8 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the first device-observation session (2026-10-17,
-D85) — **Phase 2 host-complete; the test circle is live**. This file is
+**Status:** Updated at the D86 session (2026-10-17, the device-test
+feedback loop's second round) — **Phase 2 host-complete; the test
+circle is on its second build**. This file is
 the live handoff; keep the fields in §"Current handoff fields" accurate
 at every session boundary.
 
@@ -63,75 +64,74 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's FIRST session
-  (2026-10-17, D85) — Ali's first observation ingested ("Android
-  didn't let me install it"), diagnosed with evidence, and the fixes
-  shipped. Phase 2 (M0–M8) remains host-complete beneath it.
-- **The project's state now:** the observation was diagnosed BEFORE
-  any fix: the published artifact was exonerated end-to-end (the
-  bytes GitHub serves were re-downloaded this session and hash to the
-  recorded sha256 ccf46a2e…7b64; apksigner v2 OK with the recorded
-  debug cert c76bb7c6…8551d; badging minSdk 26/target 36/vc 1; the
-  binary manifest has debuggable=true but NO testOnly; the zip is
-  intact — 20 entries, testzip clean), and the release asset's
-  download_count was **0** — the probable cause is an interrupted
-  download on Ali's phone (GitHub release assets are served from
-  release-assets.githubusercontent.com, frequently unreliable from
-  Iranian networks), with the two expected gates
-  (install-unknown-apps; Play Protect) or a sub-8.0 device as the
-  remaining branches. Three things shipped: (1) the ordered
-  troubleshooting path is now ON THE LIVE RELEASE BODY (PATCHed via
-  the API, HTTP 200 — the help sits where the retry happens) and in
-  doc 10 §1; (2) **D85 — the pinned debug keystore**: the exact key
-  that signed debug.1 is vendored at `android/app/debug.keystore` and
-  wired as the debug signingConfig, making the "successive debug
-  builds install over this one (same certificate)" promise
-  wipe-proof (verified: clean assembleDebug → same cert digest, and
-  the rebuild is byte-identical, sha256 match); (3) no debug.2 was cut
-  — nothing about the artifact changed, so a re-release would churn
-  tags without fixing a device/network-side cause. Awaiting from Ali:
-  the retry result (the file size he gets + the exact on-screen
-  wording if it still fails) and the rest of the test-circle rows
-  (doc 10 §"Device test circle").
-- **Branch and commit:** `main`, the D85 session commit (see
-  `git log -1` at handoff time); worktree clean after the commit; the
-  release tag `v1.6.6-android-debug.1` (prerelease) still points at
-  the M8 commit f61bfae — the release body was amended in place, the
-  asset unchanged.
-- **Files changed this phase:** `android/app/build.gradle.kts` (the
-  pinned debug signingConfig), `android/app/debug.keystore` (NEW —
-  the vendored test-circle key), DECISIONS.md (D85), doc 09 (this
-  handoff), doc 10 (the troubleshooting section + the D85 pin note),
-  doc 06 (the D85 build-lane record), PROGRESS.md, CHANGELOG.md,
-  SESSION_HANDOFF_PROMPT.md. No Go, Kotlin or frontend code changed.
-- **Tests run and actual results:** the artifact lanes on the SERVED
-  release bytes (download → sha256 match; apksigner verify +
-  --print-certs; aapt2 badging + manifest dump) — all green; the
-  keystore pinning lane (clean assembleDebug 37/37 tasks, BUILD
-  SUCCESSFUL; apksigner on the rebuild → the same certificate digest;
-  byte-identical sha256 vs the release); the exit gates (vet clean,
-  go test 17/17 ×2, svelte-check 0/0, vite build clean, webui dist
-  zero-diff) — see the session worklog for the evidence.
-- **Current architecture decision / confidence:** D85 (the pinned
-  debug keystore + the first observation's diagnosis). Confidence:
-  high — the artifact chain is verified end-to-end and the update
-  promise is now wipe-proof. Every device claim remains explicitly
-  unclaimed pending Ali's observations. Next decision ID: D86.
-- **Blocking questions:** none product-side. The keystore question is
-  ANSWERED (D84 — debug-only for now; the debug key is pinned per
-  D85; release signing returns only for the public release). The
-  allow-list question is ANSWERED and implemented (D83, confirmed by
-  Ali at M8). Standing environment blocker: no /dev/kvm, no device —
-  mitigated by Ali's own device testing through the debug release;
-  the first install attempt surfaced a network-side failure mode
-  instead (the truncated-download branch, D85).
+- **Phase completed:** the device-test feedback loop's SECOND session
+  (2026-10-17, D86, Task ID M8-c) — Ali's ruling ("mAKE the youtube
+  default added list") implemented, and his first FUNCTIONAL
+  observation ("the first version didnt work, whether in youtube app
+  or youtube in chrome") root-caused and fixed. Phase 2 (M0–M8)
+  remains host-complete beneath it; debug.1's install had completed
+  (download_count 2).
+- **The project's state now:** the observation was root-caused BEFORE
+  any fix by reading the whole routing chain (tunstack DNS/UDP policy,
+  the SOCKS5 door, routedHost, the Kotlin establish) — all sound; the
+  failure was the SHELL: debug.1's born-empty list (D83) plus an entry
+  path that demanded exact package names, so typing "youtube" was
+  refused, the list never grew, every connect took the NO_TARGET_APPS
+  refusal, and nothing ever routed. D86 implements the ruling at the
+  right layer: DefaultApps = [com.google.android.youtube]; a one-time
+  v3 settings migration carries debug.1's saved born-empty files to
+  the default (their empty was the shipped default, never a choice; a
+  v3 empty stays empty — user agency); the Apps-to-unblock row gains
+  one-tap quick-add chips (+ YouTube / + Chrome) and friendly-name
+  aliases ("youtube", "chrome"); the honest copy updated everywhere
+  (menu sheet, How-it-works, the NO_TARGET_APPS message, README, doc
+  07 §1, doc 10). CHROME IS NOT IN THE DEFAULT (the ruling names
+  YouTube only) — the + Chrome chip and test-circle row 4 teach the
+  one-tap add; adding Chrome to the default is an open product
+  question if Ali asks. The new build is **v1.6.6-android-debug.2**
+  (versionCode 2, the pinned D85 certificate — installs over debug.1
+  in place, settings survive). The engine/chain behavior is unchanged
+  and remains unclaimed device-side pending Ali's next round.
+- **Branch and commit:** `main`, the M8-c commit (see `git log -1` at
+  handoff time); worktree clean after the commit; the release tag
+  `v1.6.6-android-debug.2` (prerelease) points at it; debug.1's tag
+  still points at f61bfae (superseded, its release page keeps the D85
+  troubleshooting guide).
+- **Files changed this phase:** internal/config (defaults.go,
+  settings.go — settingsVersion 3 + the migration; apps_test.go),
+  mobile (mobile.go comment; apps_test.go incl. the debug.1-file
+  migration test), frontend (MenuSheet.svelte — chips/aliases/copy;
+  backend.ts — the NO_TARGET_APPS message), android (build.gradle.kts
+  versionCode 2; YounblockVpnService.kt comments), README, doc 06
+  (M8-c record), doc 07 §1, doc 09 (this handoff), doc 10 (the
+  debug.2 edition + the DoH-list correction), DECISIONS.md (D86),
+  PROGRESS.md, CHANGELOG.md, SESSION_HANDOFF_PROMPT.md.
+- **Tests run and actual results:** vet clean; go test 17/17 ×2 (exit
+  0 both passes); -race green on config/engine/mobile; svelte-check
+  0/0; vite build clean; webui dist synced + TestWebUILifecycle green
+  on the new bundle; compile matrix 4/4 ABIs (18 non-main packages
+  each; arm64 links the full tree); gomobile bind (AAR 25,162,951 B,
+  javap bindings verified); clean assembleDebug (APK 35,716,265 B,
+  sha256 9cca38c9…811b, versionCode 2, pinned cert, badging +
+  manifest verified); the D86 copy verified embedded in the AAR; the
+  GitHub release verified through the API after creation.
+- **Current architecture decision / confidence:** D86 (the YouTube
+  default + the v3 migration + the usable entry path). Confidence:
+  high host-side — the root cause is closed at the exact layer that
+  produced it. Device-side: the routing chain is audited but its
+  on-device behavior (real DoH reachability, QUIC fallback, DPI
+  evasion on his radio) is still ⛔ pending his observations; the
+  diagnostics report (Menu → Diagnostics → copy) is the requested
+  evidence if anything still fails. Next decision ID: D87.
+- **Blocking questions:** none product-side. Open (non-blocking):
+  whether Chrome should join the default list (currently one tap
+  away). The signed-release decision returns only when a public
+  release is planned (doc 07 §8).
 - **Exact next task:** continue the **device-test feedback loop**:
-  ingest Ali's retry result and the remaining test-circle rows
-  (doc 10 §"Device test circle" is the checklist), fix what they
-  surface (root-cause discipline, the D77–D85 honesty rules binding
-  as ever), bump `versionCode` and cut the next debug build
-  (`v1.6.6-android-debug.2`…) through the same release lane (doc 06's
-  M8 record) WHEN a code change warrants it, and close checklist rows
-  with his measured evidence. When Ali decides to release publicly,
-  the signed-release decision returns (doc 07 §8: his local keystore
-  or an EC key; never committed).
+  ingest Ali's results from v1.6.6-android-debug.2 — first the
+  YouTube app out of the box (row 2), then youtube.com in Chrome via
+  the + Chrome chip (row 4), the rest of doc 10's test circle, and the
+  diagnostics report for anything that fails. Fix what surfaces
+  (root-cause discipline; the D77–D86 honesty rules binding as ever),
+  bump `versionCode` and cut `v1.6.6-android-debug.3` through the
+  same release lane WHEN a code change warrants it.

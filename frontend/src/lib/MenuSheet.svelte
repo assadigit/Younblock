@@ -62,11 +62,11 @@
   ];
 
   // Android differs only in the first line: nothing "sends its request
-  // to Younblock" here — the chosen apps' traffic is routed in through
-  // the VPN slot (the whole flow stays on-device). D83: no default
-  // apps — the list starts empty and the user adds what to unblock.
+  // to Younblock" here — the listed apps' traffic is routed in through
+  // the VPN slot (the whole flow stays on-device). D86: the YouTube app
+  // is the default list entry; the user adds or removes from there.
   const HOW_IT_WORKS_ANDROID = [
-    "The apps you add to your list — none are routed until you do — have their traffic routed through Younblock, on your device.",
+    "The apps on your list — the YouTube app is added by default — have their traffic routed through Younblock, on your device. Nothing else is routed.",
     HOW_IT_WORKS[1],
     HOW_IT_WORKS[2],
     HOW_IT_WORKS[3],
@@ -108,12 +108,35 @@
     "com.google.android.youtube": "YouTube",
   };
 
+  /** Friendly-name aliases the add field accepts (D86): typing
+   *  "youtube" or "chrome" resolves to the package instead of being
+   *  refused as an invalid package shape — the debug.1 entry path
+   *  demanded exact package strings, which is how the product's own
+   *  namesake ended up un-addable and nothing ever routed (Ali's
+   *  first device observation). */
+  const APP_ALIASES: Record<string, string> = {
+    youtube: "com.google.android.youtube",
+    chrome: "com.android.chrome",
+  };
+
+  /** Resolve a user-typed entry: a known friendly name becomes its
+   *  package; anything else crosses as typed (the engine's save
+   *  response stays the validation authority). */
+  function resolveAppInput(raw: string): string {
+    return APP_ALIASES[raw.trim().toLowerCase()] ?? raw.trim();
+  }
+
   let settings: Settings | null = null;
   let appsBusy = false;
   let appsError = "";
   let newApp = "";
 
   $: apps = settings?.apps ?? [];
+
+  /** The known apps not yet on the list — the quick-add chips (D86:
+   *  adding the product's own namesake must be one tap, not a
+   *  package-name spelling test). */
+  $: quickAdds = Object.keys(APP_LABELS).filter((p) => !apps.includes(p));
 
   // Load the settings once the sheet is first opened on a host that
   // actually has them (per-app routing capability). Re-reading on every
@@ -162,13 +185,20 @@
   }
 
   async function addApp(): Promise<void> {
-    const pkg = newApp.trim();
+    const pkg = resolveAppInput(newApp);
     if (!pkg || appsBusy) return;
     newApp = "";
     if (apps.includes(pkg)) {
-      appsError = `“${pkg}” is already on the list.`;
+      appsError = `${appLabel(pkg)} is already on the list.`;
       return;
     }
+    await saveApps([...apps, pkg], pkg);
+  }
+
+  /** One-tap add for the known apps (the quick-add chips): the same
+   *  save path as typing, with the same saved-response authority. */
+  async function quickAdd(pkg: string): Promise<void> {
+    if (appsBusy || apps.includes(pkg)) return;
     await saveApps([...apps, pkg], pkg);
   }
 
@@ -284,12 +314,12 @@
     {#if perAppRouting}
       <section aria-labelledby="apps-heading">
         <h2 id="apps-heading">Apps to unblock</h2>
-        <p>Younblock routes only the apps on this list through the VPN slot — the list starts empty; add the apps you want to unblock. Other apps are untouched, and websites ending in .ir are never routed: they always connect directly.</p>
+        <p>Younblock routes only the apps on this list through the VPN slot — the YouTube app comes already added; add or remove apps to change what routes. Other apps are untouched, and websites ending in .ir are never routed: they always connect directly.</p>
         {#if settings === null}
           <p class="dim">Loading the list…</p>
         {:else}
           {#if apps.length === 0}
-            <p class="dim">No apps yet — nothing is routed until you add one. Connecting will ask you to add an app first.</p>
+            <p class="dim">No apps on the list — nothing is routed. YouTube was the default; add it back (or any app), then connect.</p>
           {/if}
           <ul class="apps" aria-label="Routed apps">
             {#each apps as pkg (pkg)}
@@ -313,11 +343,25 @@
               </li>
             {/each}
           </ul>
+          {#if quickAdds.length > 0}
+            <div class="quickadd" role="group" aria-label="Quick-add an app">
+              {#each quickAdds as pkg (pkg)}
+                <button
+                  type="button"
+                  class="chip"
+                  disabled={appsBusy}
+                  on:click={() => quickAdd(pkg)}
+                >
+                  + {appLabel(pkg)}
+                </button>
+              {/each}
+            </div>
+          {/if}
           <form class="add" on:submit|preventDefault={addApp}>
             <input
               type="text"
-              aria-label="Add an app by its Android package name"
-              placeholder="com.example.app"
+              aria-label="Add an app — a friendly name or an Android package name"
+              placeholder="youtube, chrome, or com.example.app"
               autocomplete="off"
               spellcheck="false"
               bind:value={newApp}
@@ -325,7 +369,7 @@
             />
             <button type="submit" disabled={appsBusy || newApp.trim() === ""}>Add</button>
           </form>
-          <p class="note">Add apps by their Android package name. Changes apply the next time you connect.</p>
+          <p class="note">Tap a button above to add an app, or type a name — “youtube” and “chrome” are recognized; other apps need their Android package name. Changes apply the next time you connect.</p>
           {#if appsError}<p class="inline-error" role="alert">{appsError}</p>{/if}
         {/if}
       </section>
@@ -577,6 +621,38 @@
     display: flex;
     gap: 0.5rem;
     margin-top: 0.75rem;
+  }
+
+  .quickadd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .chip {
+    height: 2.25rem;
+    padding: 0 0.9375rem;
+    border-radius: 999px;
+    border: 1px solid var(--sheet-border);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 150ms ease;
+  }
+  .chip:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .chip:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .chip:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   .add input {
     flex: 1;

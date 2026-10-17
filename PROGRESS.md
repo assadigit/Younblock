@@ -2403,3 +2403,69 @@ checked). No Go, Kotlin or frontend code changed this session. Standing
 ⛔ re-verified implicitly by the observation itself: the device gates
 close on Ali's device, and the first one (install) is now mid-loop —
 his retry result is the next input.
+
+## Android port — the device-test feedback loop, session 2: the YouTube default (D86, 2026-10-17)
+
+Ali's second message carried the first product ruling of the loop and
+the first functional observation: "mAKE the youtube default added list.
+the first version didnt work, whether in youtube app or youtube in
+chrome." The release asset's download_count had reached 2 — the
+install completed this time, so the observation is a real on-device
+result.
+
+Root-caused before any fix, by reading the whole routing chain
+end-to-end (tunstack.go/dns.go — UDP:53 to any destination answered by
+the virtual DNS, fake-IP reversal to domains, AAAA/HTTPS answered
+empty with correct client-fallback semantics; socks5.go + server.go —
+the routedHost mode/list-minus-.ir decision and first-record
+fragmentation; YounblockVpnService.kt — the establish path). The chain
+is sound; the failure was the shell: debug.1's list was born empty
+(D83), and the only entry path was a text field demanding exact Android
+package names — typing "youtube" was refused by package-shape
+validation, so the product's own namesake could not realistically be
+added, the list never grew, every connect took the NO_TARGET_APPS
+refusal, and nothing ever routed. Exactly "didn't work, whether in
+youtube app or youtube in chrome" (Chrome was never on the list, so
+youtube.com in Chrome was untouched by design).
+
+D86 implements the ruling at the right layer:
+
+- DefaultApps = [com.google.android.youtube]; a SAVED empty list still
+  means empty (user agency — removing the last entry must stick; the
+  NO_TARGET_APPS door owns the connect, never a restore-to-default).
+- settingsVersion 2→3 with a one-time migration: v1/v2 files whose
+  apps list is absent or empty (the shipped default of their era, never
+  a choice — the exact state on Ali's device) migrate to the default;
+  v3 empties are the user's own and stay; custom lists survive
+  verbatim. The update installs over debug.1 (versionCode 2, the pinned
+  D85 certificate) with settings intact — the migration is what makes
+  the ruling reach the device that reported the problem.
+- The entry path became usable: one-tap quick-add chips (+ YouTube /
+  + Chrome) and friendly-name aliases ("youtube", "chrome") resolved
+  client-side, the engine's saved response staying the validation
+  authority. The honest copy updated everywhere it claimed "starts
+  empty" (menu sheet, How-it-works, the NO_TARGET_APPS message, README,
+  doc 07 §1, doc 10) — plus doc 10's stale DoH default list corrected
+  to the code truth (RethinkDNS, Cloudflare, Google).
+- Chrome is NOT in the default (the ruling names YouTube only); the +
+  Chrome chip and test-circle row 4 teach the one-tap add, and the
+  open question is carried in the handoff.
+
+Lanes, all with evidence: vet clean; go test 17/17 ×2 (exit 0 both);
+-race green on config/engine/mobile; svelte-check 0/0; vite build clean
++ dist synced (TestWebUILifecycle green on the new bundle); the compile
+matrix re-derived in its exact historical form (18 non-main packages
+per ABI ×4; arm64 links the full tree — including resolving a probing
+subtlety: `go build` with an empty package list builds the main
+package, which legitimately needs cgo on arm/386/amd64); gomobile bind
+→ AAR 25,162,951 B (javap bindings); clean assembleDebug → APK
+35,716,265 B, sha256 9cca38c9…811b, versionCode 2, the pinned
+certificate, the four-permission manifest, no testOnly, the D86 copy
+verified embedded in libgojni.so. Released as v1.6.6-android-debug.2
+through the same lane (tag, upload, API verification).
+
+The device gates remain ⛔ and ride with doc 10's test circle; the
+diagnostics report (Menu → Diagnostics → copy) is the requested
+evidence if anything still fails on his radio — especially real DoH
+reachability and the QUIC→TCP fallback, the two behaviors no host lane
+can prove.
