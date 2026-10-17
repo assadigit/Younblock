@@ -612,3 +612,37 @@ stays 3; the APK bytes are unchanged. Disk: 4.3 GB free after the
 restore. Next: M8-i-b, the device-results ingestion (and the
 fixed helper's first DONE output) — the environment is READY for
 an immediate fix-→-bump-→-debug.5 cycle when that data lands.
+
+M8-i record, part b (2026-10-17, the second M8-i exchange — Task
+ID M8-i-b, another PC-side round; the DEVICE results still have
+not arrived): Ali reported "I created a key chain now what should
+i have to do? also the last release only has keychain, no apk to
+download." Read: (1) the keystore ceremony SUCCEEDED on his
+machine — the D88/D90 loop's first completed run (which generator
+ran / the DONE output were not pasted; the shareable identifiers,
+if ever needed, are the certificate serial + SHA-256 fingerprint —
+never the password). (2) A real delivery-UX report: the Latest
+release (debug.4) shows only the helper .bat in its asset list,
+and its title said "(no new APK)" — accurate but not actionable;
+Ali had to ask where the app is. Fix (delivery-lane only, D84
+untouched — no bytes duplicated, the pointer strengthened): the
+debug.4 release TITLE retitled through the API from "…the keystore
+helper fixed (no new APK)" to "…the keystore helper fixed · no APK
+here — the app is on debug.3" (release id 415870871; make_latest=
+"true" on the PATCH — debug.4 stays the repo's Latest, verified
+through /releases/latest after; tag, body, and assets unchanged).
+The body's first line already carried the direct APK link
+(unchanged); the README's download line already explains the split
+(unchanged). What Ali was told: the APK to install is debug.3's
+app-debug.apk (35,816,233 B, installs over debug.1/.2 in place —
+the pinned debug certificate); the keystore needs NOTHING now —
+it is for the future signed public release (README §signed lane:
+keep younblock-release.keystore + younblock-keystore-backup_<
+date>.md in two different safe places, private, never committed,
+never paste the .md in chat — it holds the password); and the
+actual next input remains the device test circle (doc 10) with the
+diagnostics report for failures. Offered, not decided: attaching
+the APK to debug.4 as well (every release page carrying the app)
+is Ali's call against D84's no-duplicate discipline — he has not
+ruled. Zero app code; no release cut; versionCode stays 3; the
+device-results ingestion moves to the next Task ID, M8-j.

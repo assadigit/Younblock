@@ -1,9 +1,9 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the M8-i-a recovery round (2026-10-17, the
-device-test feedback loop's seventh session — a readiness round:
-no device feedback arrived, so NO code was touched; the wiped
-toolchain was restored and the baseline re-verified green) —
+**Status:** Updated at the M8-i-b round (2026-10-17, the
+device-test feedback loop's eighth exchange — still PC-side: the
+keystore ceremony completed on Ali's machine and the release-page
+clarity fix shipped; the DEVICE results remain the open input) —
 **Phase 2 host-complete; the test circle is on its third build,
 published as regular releases in the private repo, and the keystore
 helper survives PowerShell-less PATH machines (D90, shipped as
@@ -69,21 +69,26 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's SEVENTH
-  session (2026-10-17, Task ID M8-i-a — the recovery/readiness
-  round): no device feedback arrived (checked the session messages
-  AND the GitHub API — zero issues), so per the standing rule no
-  code was touched and no release cut; instead the fourth sandbox
-  wipe was repaired — ~/sdk restored per doc 06 §1 pins (with one
-  operational discovery recorded there: the cmdline-tools `12.0`
-  alias URL now 404s; the versioned `11076708` URL is the same
-  cmdline-tools 12.0) and the full baseline re-verified GREEN on
-  the unchanged tree f8b2edc. Beneath it: M8-h/D90 (the
-  PowerShell-less-PATH helper fix, debug.4), M8-g/D89 (regular
-  releases in the private repo), M8-e/D88 (the ceremony script),
-  the M8-f verification round. Phase 2 (M0–M8) remains
-  host-complete; the DEVICE observations from debug.3 have STILL
-  not arrived — the M8-h helper report was PC-side.
+- **Phase completed:** the device-test feedback loop's EIGHTH
+  exchange (2026-10-17, Task ID M8-i-b — PC-side: the keystore
+  question + the release-page confusion). Ali reported the keystore
+  ceremony COMPLETED on his machine ("I created a key chain") — the
+  D88/D90 loop's first finished run; the DONE output was not pasted
+  (if evidence is ever needed: the certificate serial + SHA-256
+  fingerprint are the shareable identifiers — never the password).
+  His second point was a delivery-UX report: the Latest release
+  (debug.4) carries only the helper .bat and its title said
+  "(no new APK)" — accurate but not actionable. Fix: the debug.4
+  release title retitled through the API to "…the keystore helper
+  fixed · no APK here — the app is on debug.3" (make_latest="true"
+  on the PATCH; debug.4 stays Latest, verified; tag/body/assets
+  unchanged; D84 untouched — the pointer strengthened, no bytes
+  duplicated). Beneath it: the M8-i-a recovery round (the toolchain
+  restored, baseline green — the environment is READY), M8-h/D90
+  (the PowerShell-less-PATH helper fix, debug.4), M8-g/D89 (regular
+  releases in the private repo), M8-e/D88 (the ceremony script).
+  Phase 2 (M0–M8) remains host-complete; the DEVICE observations
+  from debug.3 have STILL not arrived.
 - **The project's state now:** the app is unchanged at the debug.3
   state — the five-app default allow-list (the YouTube app plus the
   Chrome, Firefox, Opera and Brave browsers, D87), the v4 migration,
@@ -116,12 +121,12 @@ at every session boundary.
   tag points at 096e8c0 and debug.1's at f61bfae (both superseded,
   their release pages keep the D85 troubleshooting guide).
 - **Files changed this phase:** documentation only — doc 06 (the
-  M8-i-a recovery record + the cmdline-tools URL wrinkle), doc 09
-  (this handoff), PROGRESS.md, SESSION_HANDOFF_PROMPT.md — plus the
-  git-ignored environment wiring (~/sdk/env.sh,
-  android/local.properties). ZERO Go/Kotlin/Svelte/app code
-  touched; versionCode stays 3; the APK bytes are unchanged; no
-  release was cut.
+  M8-i part-b record), doc 09 (this handoff), PROGRESS.md,
+  SESSION_HANDOFF_PROMPT.md — plus ONE delivery-lane metadata edit
+  through the GitHub API: the debug.4 release title retitled to
+  point at debug.3's APK. ZERO Go/Kotlin/Svelte/app code touched;
+  versionCode stays 3; the APK bytes are unchanged; no release was
+  cut; no release bytes changed.
 - **Tests run and actual results:** the full restored baseline, run
   BEFORE anything else on the unchanged clean tree f8b2edc:
   `go vet ./...` clean; `go test -count=1 ./...` **17/17 packages ok
@@ -163,17 +168,19 @@ at every session boundary.
   report was PC-side).
 - **Exact next task:** continue the **device-test feedback loop**:
   ingest Ali's DEVICE results from v1.6.6-android-debug.3 (Task ID
-  M8-i-b) — the YouTube app and the installed default browsers out of
+  M8-j) — the YouTube app and the installed default browsers out of
   the box (row 2), youtube.com in each installed browser (row 4), the
   rest of doc 10's test circle, and the diagnostics report for
-  anything that fails. The first run of the FIXED helper
-  (v1.6.6-android-debug.4) is also expected: its DONE output (which
-  generator, serial, SHA-256 fingerprint) closes the D88/D90
-  ceremony loop. Fix what surfaces (root-cause discipline; the
+  anything that fails. The keystore is DONE on his side (M8-i-b) —
+  nothing more to do with it until a public release is planned.
+  Fix what the device data surfaces (root-cause discipline; the
   D77–D90 honesty rules binding as ever), bump `versionCode` and cut
   `v1.6.6-android-debug.5` through the same release lane — a REGULAR
   release (D89) — WHEN an app code change warrants it. The
-  environment is READY for that cycle now (M8-i-a restored it);
+  environment is READY for that cycle (M8-i-a restored it);
   verify with `. ~/sdk/env.sh && go version` before building, and
   only reinstall if ~/sdk is actually wiped again (doc 06 §1 + the
-  cmdline-tools URL wrinkle recorded there).
+  cmdline-tools URL wrinkle recorded there). Open offer on the
+  table, awaiting Ali's ruling: attaching the APK to every release
+  page (relaxing D84's no-duplicate discipline) — do NOT do it
+  unilaterally.

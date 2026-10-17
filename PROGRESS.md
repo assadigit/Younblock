@@ -2646,3 +2646,32 @@ unchanged. The device-test observations from debug.3 and the
 fixed helper's first DONE output remain the open input (next Task
 ID M8-i-b) — the environment is READY for the immediate
 fix-→-bump-→-debug.5 cycle when they land.
+
+M8-i-b — the eighth feedback-loop exchange, still PC-side
+(2026-10-17): Ali's report: "I created a key chain now what should
+i have to do? also the last release only has keychain, no apk to
+download." (1) The keystore ceremony COMPLETED on his machine —
+the D88/D90 loop's first finished run (the DONE output was not
+pasted; the shareable identifiers if ever needed are the
+certificate serial + SHA-256 fingerprint — never the password).
+(2) A delivery-UX report: the Latest release (debug.4) carries
+only the helper .bat, and its title said "(no new APK)" —
+accurate but not actionable. Fix, delivery-lane metadata only
+(D84 untouched): the debug.4 release title retitled through the
+API to "…the keystore helper fixed · no APK here — the app is on
+debug.3" (make_latest="true" on the PATCH — debug.4 stays the
+repo's Latest, verified through /releases/latest; tag, body, and
+assets unchanged). The body's first line (with the direct APK
+link) and the README's download line already carried the story —
+unchanged. Ali was told: the APK to install is debug.3's
+app-debug.apk (35,816,233 B; installs over debug.1/.2 in place —
+the pinned debug certificate); the keystore needs nothing now
+(keep younblock-release.keystore + the .md backup in two
+different safe places, private, never pasted — the .md holds the
+password; it is used only when the signed public release is
+planned); and the real next input is the device test circle
+(doc 10) with the diagnostics report for anything that fails.
+Offered for his ruling, not decided: attaching the APK to every
+release page (relaxing D84). Zero app code; no release cut;
+versionCode stays 3; the APK bytes unchanged. The DEVICE results
+from debug.3 remain the open input (next Task ID M8-j).

@@ -6,7 +6,7 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-i-a recovery-round close)
+## Where the project stands (verified at the M8-i-b round close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
@@ -96,6 +96,20 @@ working clone carries the credential in its `origin` remote URL).
   cmdline-tools `12.0` alias URL now 404s — the versioned
   `11076708` URL is the same cmdline-tools 12.0. The environment is
   READY for the immediate fix-→-bump-→-debug.5 cycle.
+- **M8-i-b (no app change, 2026-10-17): the keystore ceremony completed
+  + the release-page clarity fix.** Ali reported "I created a key chain
+  now what should i have to do? also the last release only has
+  keychain, no apk to download." The ceremony is DONE on his side
+  (keep the .keystore + .md backup private and safe; nothing to do
+  with it until a signed public release is planned — and never paste
+  the backup .md anywhere, it holds the password). The APK lives on
+  debug.3's release page by design (D84: helper-only releases carry
+  no duplicate APK); the debug.4 release title was retitled through
+  the API to "…the keystore helper fixed · no APK here — the app is
+  on debug.3" so the releases list itself says where the app is
+  (Latest marker kept; tag/body/assets unchanged). Open offer
+  awaiting Ali's ruling: attach the APK to every release page
+  (relaxing D84).
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
@@ -109,8 +123,8 @@ working clone carries the credential in its `origin` remote URL).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
    M8-c, M8-d, M8-e, … (this prompt describes the state after the
-   M8-i-a recovery round; the next real task is M8-i-b — the
-   device-results ingestion).
+   M8-i-b round; the next real task is M8-j — the device-results
+   ingestion).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.3 + debug.4 editions + §"Device test circle" — Ali's
    checklist), doc 06 (the M8-c…M8-i records), doc 08 +
@@ -245,7 +259,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
   handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D91),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-i-b, … per
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-j, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 
