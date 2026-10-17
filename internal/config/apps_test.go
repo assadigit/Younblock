@@ -1,7 +1,8 @@
 package config
 
-// apps_test.go — the M6 schema-v2 tests (doc 05 §M6, doc 04 §9): the
-// `apps` field, its Normalize rules, and the v1 → v2 migration.
+// apps_test.go — the M6 schema-v2 tests (doc 05 §M6, doc 04 §9),
+// updated for D83 (no allow-list default): the `apps` field, its
+// Normalize rules, and the v1 → v2 migration.
 
 import (
 	"encoding/json"
@@ -12,20 +13,25 @@ import (
 	"testing"
 )
 
-func TestDefaultApps(t *testing.T) {
-	got := DefaultApps()
-	want := []string{"com.android.chrome", "com.google.android.youtube"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("DefaultApps() = %v, want %v", got, want)
+func TestDefaultAppsIsEmpty(t *testing.T) {
+	// D83: no allow-list default — the list starts empty and the user
+	// adds the apps. The M7 NO_TARGET_APPS door fails a connect closed
+	// on an empty list, so "empty" is a safe default, not a
+	// route-everything hazard.
+	if got := DefaultApps(); len(got) != 0 {
+		t.Errorf("DefaultApps() = %v, want empty (D83)", got)
 	}
-	if s := DefaultSettings(); !reflect.DeepEqual(s.Apps, want) {
-		t.Errorf("DefaultSettings().Apps = %v, want %v", s.Apps, want)
+	if s := DefaultSettings(); len(s.Apps) != 0 {
+		t.Errorf("DefaultSettings().Apps = %v, want empty", s.Apps)
 	}
-	// A copy, not the package-level slice: mutating the result must not
-	// corrupt the built-in default.
-	got[0] = "mutated"
-	if DefaultApps()[0] != "com.android.chrome" {
-		t.Fatal("DefaultApps() returned the package-level slice (not a copy)")
+	// The empty list marshals as [] — an explicit, honest empty list
+	// (never null) in the compact form the facade emits.
+	b, err := json.Marshal(DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"apps":[]`) {
+		t.Errorf("marshaled settings = %s, want apps:[]", b)
 	}
 }
 
@@ -35,12 +41,15 @@ func TestNormalizeAppsRules(t *testing.T) {
 		in   []string
 		want []string
 	}{
-		{"nil falls back to defaults", nil, DefaultApps()},
-		{"empty falls back to defaults", []string{}, DefaultApps()},
-		{"trim and keep order", []string{"  com.android.chrome ", "com.google.android.youtube"}, DefaultApps()},
+		// D83: an empty or all-invalid list STAYS empty — never restored
+		// to any default. The NO_TARGET_APPS door owns what happens at
+		// connect; an empty list must persist honestly.
+		{"nil stays empty", nil, []string{}},
+		{"empty stays empty", []string{}, []string{}},
+		{"trim and keep order", []string{"  com.android.chrome ", "org.mozilla.firefox"}, []string{"com.android.chrome", "org.mozilla.firefox"}},
 		{"dedupe", []string{"com.android.chrome", "com.android.chrome"}, []string{"com.android.chrome"}},
-		{"drop invalid shapes", []string{"chrome", "com", "1com.example", "com.1example", "com.exa mple", "com.exa:mple", "com..example", ".com.example", "com.example."}, DefaultApps()},
-		{"all-invalid falls back to defaults", []string{"no dot", "!!!", ""}, DefaultApps()},
+		{"drop invalid shapes", []string{"chrome", "com", "1com.example", "com.1example", "com.exa mple", "com.exa:mple", "com..example", ".com.example", "com.example."}, []string{}},
+		{"all-invalid stays empty", []string{"no dot", "!!!", ""}, []string{}},
 		{"mixed keeps the valid ones", []string{"com.android.chrome", "not a package", "org.mozilla.firefox"}, []string{"com.android.chrome", "org.mozilla.firefox"}},
 		{"case preserved", []string{"Com.Example.App"}, []string{"Com.Example.App"}},
 		{"underscores and digits accepted", []string{"com.example_2.app3"}, []string{"com.example_2.app3"}},
@@ -69,7 +78,7 @@ func TestNormalizeAppsCap(t *testing.T) {
 	}
 }
 
-func TestNormalizeFillsAppsAndBumpsVersion(t *testing.T) {
+func TestNormalizeKeepsAppsEmptyAndBumpsVersion(t *testing.T) {
 	s := DefaultSettings()
 	s.Version = 1
 	s.Apps = nil
@@ -77,8 +86,13 @@ func TestNormalizeFillsAppsAndBumpsVersion(t *testing.T) {
 	if n.Version != settingsVersion {
 		t.Errorf("version = %d, want %d", n.Version, settingsVersion)
 	}
-	if !reflect.DeepEqual(n.Apps, DefaultApps()) {
-		t.Errorf("apps = %v, want defaults restored", n.Apps)
+	// D83: a v1 file's absent apps field migrates to the honest EMPTY
+	// list — the user adds apps in the UI; nothing is routed until then.
+	if len(n.Apps) != 0 {
+		t.Errorf("apps = %v, want empty (D83)", n.Apps)
+	}
+	if n.Apps == nil {
+		t.Error("apps is nil, want a non-nil empty slice (marshals as [])")
 	}
 }
 
@@ -100,8 +114,10 @@ func TestSettingsV2MigrationFromV1File(t *testing.T) {
 	if s.Version != 2 {
 		t.Errorf("version = %d, want 2 (migrated)", s.Version)
 	}
-	if !reflect.DeepEqual(s.Apps, DefaultApps()) {
-		t.Errorf("apps = %v, want the built-in defaults filled in", s.Apps)
+	// D83: the v1 file had no apps field — the migrated list is the
+	// honest EMPTY list (no default), and it persists as [].
+	if len(s.Apps) != 0 {
+		t.Errorf("apps = %v, want empty (D83)", s.Apps)
 	}
 	// The v1 values survive the migration verbatim.
 	if s.Mode != ModeAll || s.Method != MethodLegacy || s.Port != 4530 || s.AutoPort {
@@ -129,11 +145,8 @@ func TestSettingsV2MigrationFromV1File(t *testing.T) {
 		t.Errorf("saved version = %v, want 2", raw["version"])
 	}
 	apps, ok := raw["apps"].([]any)
-	if !ok || len(apps) != 2 {
-		t.Fatalf("saved apps = %v, want the two defaults", raw["apps"])
-	}
-	if apps[0] != "com.android.chrome" || apps[1] != "com.google.android.youtube" {
-		t.Errorf("saved apps = %v, want chrome+youtube", apps)
+	if !ok || len(apps) != 0 {
+		t.Fatalf("saved apps = %v, want the honest empty list", raw["apps"])
 	}
 }
 

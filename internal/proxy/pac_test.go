@@ -79,6 +79,27 @@ func TestPACManualModeHasNoProxy(t *testing.T) {
 	}
 }
 
+func TestPACDirectTLDGuard(t *testing.T) {
+	// D83: every host under .ir is answered DIRECT before any mode or
+	// list rule — the browser never sends them through the app. The
+	// guard must run FIRST: a .ir entry on the user's own routed list
+	// is still sent DIRECT.
+	guard := `if (host === "ir" || shExpMatch(host, "*.ir")) { return "DIRECT"; }`
+	for _, mode := range []config.Mode{config.ModeYouTube, config.ModeAll} {
+		pac := PAC(4525, []string{"example.ir", "youtube.com"}, mode)
+		if !strings.Contains(pac, guard) {
+			t.Errorf("%s PAC missing the .ir DIRECT guard in:\n%s", mode, pac)
+		}
+		if i, j := strings.Index(pac, guard), strings.Index(pac, "PROXY"); i < 0 || j < 0 || i > j {
+			t.Errorf("%s PAC order wrong: the .ir guard must precede every PROXY rule\n%s", mode, pac)
+		}
+	}
+	// Manual mode never proxies anything; its one-line body stays as is.
+	if pac := PAC(4525, config.DefaultDomains(), config.ModeManual); strings.Contains(pac, "*.ir") {
+		t.Errorf("manual PAC grew a redundant guard:\n%s", pac)
+	}
+}
+
 func TestPACGeneratorIsDeterministic(t *testing.T) {
 	a := PAC(4525, config.DefaultDomains(), config.ModeYouTube)
 	b := PAC(4525, config.DefaultDomains(), config.ModeYouTube)

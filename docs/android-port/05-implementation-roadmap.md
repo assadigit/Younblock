@@ -514,6 +514,62 @@ battery/reboot/revocation and live-observation halves ⛔ with the shared
 device checklist. M7 is marked ✅ host-complete on the M3–M6
 precedent.**
 
+### M8-a — Ali's two product rulings, implemented — ✅ host-complete 2026-10-17 (pre-M8 scope amendment; DECISIONS.md D83)
+
+Not a planned milestone: Ali answered the two standing product
+questions between M7 and M8, and the answers changed shipped behavior,
+so they were implemented and verified as their own change set before
+M8 freezes the release artifacts.
+
+- **Ruling 1 — no allow-list default.** `DefaultApps()` returns the
+  empty list; `Normalize` keeps an empty/all-invalid list (the M6
+  restore-defaults rule removed); `RoutedApps` fails toward the EMPTY
+  list; the Kotlin establish routes the empty list through the M7
+  typed door `failStart("NO_TARGET_APPS")` (previously empty meant
+  "bridge bug" and stopped silently — with no defaults it is the
+  normal fresh state, and the silent stop would hang a gate-held run);
+  the UI drops the last-entry guard, adds the empty-state line, and
+  the NO_TARGET_APPS message covers both empty and none-installed.
+  Saved files keep their lists (the default changes, never user data).
+- **Ruling 2 — .ir never touches the app.** `internal/config/direct.go`
+  (`UnderDirectTLD`) + `Server.routedHost` — the one decision both
+  doors share: the mode/list rule minus the never-processed TLDs, which
+  win over ModeAll AND over the user's own domain list. The PAC emits
+  the .ir DIRECT guard as its first line (youtube + all modes), so a
+  desktop browser never sends .ir to the app (youtube mode already
+  behaved this way by the PAC fallthrough; ModeAll is the real, ruled
+  behavior change — disclosed in the changelog). The SOCKS5 door (the
+  Android TUN path) makes the same decision; .ir traffic that must
+  transit the TUN (per-app routing is all-or-nothing per app) exits as
+  a plain direct dial — never fragmented, never redirected, never
+  claimed. One honest limit stated in-app and in doc 07 §5: .ir
+  lookups still resolve through the configured DoH providers (no other
+  resolver exists on Android; ACCESS_NETWORK_STATE is deliberately not
+  requested, D74).
+- **The latent <queries> bug the ruling exposed.** The manifest listed
+  only the old defaults (chrome+youtube), so a USER-ADDED package
+  would be invisible (Android 11+ package filtering) and refused as
+  "not installed" even when installed. The block is now the
+  launcher-intent query (MAIN + LAUNCHER — every launchable app
+  visible, no QUERY_ALL_PACKAGES; non-launchable packages cannot be
+  verified: the honest limit, doc 07 §6).
+- Tests: `direct_test.go` (truth table), `apps_test.go` inverted
+  expectations (config + mobile), `TestDirectTLDStaysUnfragmentedInAll
+  Mode`/`EvenWhenListed` (behavior), `TestSocks5DirectTLDStaysUnfragm
+  ented` (the door proof), `TestPACDirectTLDGuard`.
+- Lanes, all with evidence: gofmt-canonical on every touched file (the
+  two pre-existing space-indented files untouched); vet clean;
+  **17/17 ×2**; -race green on the seven key packages (engine 10.4 s,
+  proxy 17.9 s, mobile 38.3 s); svelte-check 0/0; vite build clean +
+  webui dist synced (TestWebUILifecycle green on the new bundle);
+  matrix **4/4 ABIs** (arm64 full tree, 18 non-main × arm/386/amd64);
+  `gomobile bind` → **younblock.aar 25,160,550 B** (javap: the nine
+  bindings); clean `assembleDebug` → **app-debug.apk 35,567,561 B**,
+  SHA-256 `ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bf
+  d37b64`, badging minSdk 26/target 36/3 ABIs, the dumped manifest
+  carries the launcher-intent `<queries>` and exactly doc 07 §6's
+  permission inventory, apksigner OK (debug cert).
+
 ### M8 — Package, verify, hand off
 
 - ⬜ Debug + release (signed) APKs; artifact path/ID/version/ABI/

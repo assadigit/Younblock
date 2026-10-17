@@ -47,11 +47,12 @@ import org.json.JSONObject
  *     `apps` settings list (schema v2, M6), read through the facade's
  *     [mobile.Engine.routedApps] at establish time: the same normalized
  *     list the WebView's Apps-to-unblock row edits and settings.json
- *     persists. Defaults: Chrome + YouTube (ADR-0003). A change saved
- *     while the TUN is live applies on the NEXT connect — the list is
- *     baked into the VpnService builder at establish, and rebuilding an
- *     established TUN under live traffic is riskier than the delay (the
- *     UI copy says so; no silent re-route).
+ *     persists. D83: the list starts EMPTY — there is no default — and
+ *     the user adds the apps to unblock. A change saved while the TUN
+ *     is live applies on the NEXT connect — the list is baked into the
+ *     VpnService builder at establish, and rebuilding an established
+ *     TUN under live traffic is riskier than the delay (the UI copy
+ *     says so; no silent re-route).
  *   - Virtual DNS 10.111.0.53: answered INSIDE the stack (any UDP:53
  *     destination is — the tunstack policy), real resolution happens
  *     at the SOCKS5 door through the engine's DoH resolver.
@@ -62,11 +63,12 @@ import org.json.JSONObject
  *
  * Fail-closed invariant: a VpnService.Builder with ZERO allowed
  * applications routes EVERY app's traffic — the exact opposite of the
- * product scope. If the configured list cannot be read, or none of its
- * packages is installed, the service refuses to establish, stops the
- * engine, and stops (the UI shows the app's state honestly; the
- * NO_TARGET_APPS typed-error surface stays deferred to M7 with the
- * other hardening).
+ * product scope. If the list is empty (the honest DEFAULT state until
+ * the user adds an app — D83), cannot be read, or none of its packages
+ * is installed, the service refuses to establish through the M7 typed
+ * door (D81): the engine fails the connect run with NO_TARGET_APPS,
+ * the page shows the honest reason, and this service stops with the
+ * state reconciled.
  *
  * fd ownership (the facade's single-owner rule): after
  * engine.startTun(fd, mtu) returns — success OR refusal — the Go side
@@ -150,9 +152,21 @@ class YounblockVpnService : VpnService() {
         val apps = readRoutedApps(engine)
         if (apps.isEmpty()) {
             // Fail closed toward refusal — an empty list would route
-            // EVERYTHING. (Normalize prevents an empty list; landing here
-            // means the bridge read failed — a bug worth seeing loudly.)
-            Log.e(TAG, "allow-list unreadable; refusing to route")
+            // EVERYTHING. D83: the empty list is the honest DEFAULT
+            // state now (no allow-list defaults; the user has not added
+            // any app yet), so this is the normal first-connect outcome,
+            // not only a bridge-read failure. Either way the refusal is
+            // the typed NO_TARGET_APPS door (D81): the engine fails the
+            // gate-held run and the page shows the honest "add an app
+            // first" reason, never a silent unwind.
+            Log.w(TAG, "allow-list empty (no apps added yet, or unreadable); refusing to route")
+            val res = engine.failStart("NO_TARGET_APPS")
+            if (!res.contains("\"error\":null")) {
+                // NOT_HELD (the engine was not held at the gate — e.g. a
+                // restart cycle) or BAD_CODE: the honest-stop path below
+                // owns the engine either way; this is only visible.
+                Log.w(TAG, "failStart: $res")
+            }
             stopSelfHonest()
             return
         }
@@ -395,9 +409,11 @@ class YounblockVpnService : VpnService() {
         private const val VIRTUAL_DNS = "10.111.0.53"
 
         /** Reads the configured per-app allow-list from the facade
-         *  (M6, D79): {"apps":[...]}. Never empty on a healthy engine —
-         *  Normalize fills the built-in defaults — so an empty result is
-         *  an honest refusal, not a silent route-everything fallback. */
+         *  (M6, D79; D83): {"apps":[...]}. The list starts EMPTY —
+         *  there are no defaults — so an empty result is either the
+         *  honest empty state or a bridge-read failure; both take the
+         *  typed refusal above (never a silent route-everything
+         *  fallback). */
         private fun readRoutedApps(engine: mobile.Engine): List<String> =
             runCatching {
                 val arr = JSONObject(engine.routedApps()).optJSONArray("apps") ?: JSONArray()

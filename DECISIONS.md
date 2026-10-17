@@ -1275,3 +1275,71 @@ codifying the zombie (not to the fix), the test was rewritten to its
 documented intent, and the suite went green twice — the M5-era
 "root-caused and fixed, not retried away" discipline, applied to our
 own new code.
+
+**D83 — Ali's two product rulings (2026-10-17, pre-M8): no allow-list
+default, and .ir never touches the app.** Two answers arrived for the
+two standing product questions (doc 09): (1) "There is no allow-list
+defaults" — the apps allow-list starts EMPTY; no package is routed
+until the user adds it. (2) "keep every domain with .ir blocked — when
+opening any domain with .ir, this app must not be used and its routes
+must not work" — every host under the .ir TLD stays outside Younblock's
+machinery, in every mode and both editions.
+
+Consequences, implemented as one change set (M8-a):
+- THE EMPTY LIST IS NOW A FIRST-CLASS STATE. DefaultApps() returns the
+  empty list; Normalize KEEPS an empty or all-invalid list (the M6
+  "restore the defaults" rule is gone); mobile.RoutedApps' failure
+  direction INVERTED — it fails toward the EMPTY list, because the M7
+  refusal door (D81) is what makes empty safe. The Kotlin establish
+  now routes the empty list through failStart("NO_TARGET_APPS") too —
+  the old path treated empty as a bridge-read bug and stopped
+  silently; with no defaults, empty is the NORMAL fresh state, and a
+  silent stop would leave a gate-held run hanging. The UI drops the
+  last-entry guard (the list may go empty), shows an empty-state line,
+  and the NO_TARGET_APPS message honestly covers both "empty" and
+  "none installed". Saved files keep their lists — the ruling changes
+  the default, never user data.
+- THE .ir RULE LIVES AT THE ONE DECISION POINT BOTH DOORS SHARE:
+  Server.routedHost = the mode/list rule (D46) MINUS the
+  never-processed TLDs (internal/config/direct.go, UnderDirectTLD).
+  The rule wins over ModeAll AND over the user's own domain list: a
+  .ir host is never fragmented, never http→https-redirected —
+  resolved and dialed direct, byte-transparent. The PAC carries the
+  same rule as its FIRST line (youtube and all modes), so a desktop
+  browser sends .ir DIRECT and the app never even sees it — this
+  preserves desktop youtube-mode behavior (the PAC fallthrough already
+  kept .ir out) and EXTENDS the guarantee to ModeAll, which previously
+  sent .ir through the fragmenting path: a real, ruled behavior change
+  on the desktop, disclosed here and in the changelog. The SOCKS5 door
+  (the Android TUN path) gets the same decision — on Android the
+  routed apps' .ir traffic still transits the TUN (per-app routing is
+  all-or-nothing per app), but exits as a plain direct dial: no
+  fragmentation, no redirect, no coverage claim.
+- ONE HONEST LIMIT, STATED (doc 07 §5): on Android, .ir lookups still
+  resolve through the configured DoH providers — the process has no
+  other resolver (no /etc/resolv.conf on Android; ConnectivityManager
+  would need ACCESS_NETWORK_STATE, deliberately not requested, D74).
+  The in-app Privacy copy and doc 07 say so plainly.
+- THE <queries> BLOCK HAD TO BROADEN (a real latent bug the ruling
+  exposed): it listed only com.android.chrome and
+  com.google.android.youtube — the old defaults — so any USER-ADDED
+  package would be invisible to PackageManager (Android 11+ package
+  filtering) and addAllowedApplication would refuse it as "not
+  installed" even when installed. The block is now the launcher-intent
+  query (MAIN + LAUNCHER), which makes every launchable app visible
+  without QUERY_ALL_PACKAGES; non-launchable packages cannot be
+  verified and are refused as not-installed — the honest limit, in
+  doc 07 §6 and the manifest comment.
+
+Evidence: internal/config/direct_test.go (the truth table),
+apps_test.go's inverted expectations, behavior_test.go's
+TestDirectTLDStaysUnfragmentedInAllMode/EvenWhenListed,
+socks5_test.go's TestSocks5DirectTLDStaysUnfragmented (the door
+proof), pac_test.go's TestPACDirectTLDGuard; the full gates — 17/17
+twice, -race 7/7, svelte-check 0/0, vite clean + webui dist synced,
+matrix 4/4, gomobile bind (AAR 25,160,550 B; javap shows the nine
+bindings), clean assembleDebug (APK 35,567,561 B, sha256
+ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64;
+badging minSdk 26/target 36, 3 ABIs; the dumped manifest carries the
+launcher-intent queries and exactly the doc 07 §6 permission
+inventory; apksigner OK, debug cert).

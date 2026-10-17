@@ -41,13 +41,16 @@
 
   // The Android About lines: the first keeps the product promise; the
   // second replaces the desktop "not a VPN" line with the honest
-  // VPN-slot statement (ADR-0007 + doc 07 §1: no overstated VPN/privacy
-  // language — the app occupies Android's VPN slot, says so, and says
-  // what that does NOT mean); the third is the open-source attribution
-  // doc 07 §7 requires for the Android lane's permissive dependencies.
+  // VPN-slot statement (ADR-0007 + doc 07 §1: no overstated VPN/privacy/
+  // coverage language — the app occupies Android's VPN slot, says so,
+  // and says what that does NOT mean); the third is the .ir scope rule
+  // (D83 — never processed, always direct); the fourth is the
+  // open-source attribution doc 07 §7 requires for the Android lane's
+  // permissive dependencies.
   const ABOUT_ANDROID = [
     "Younblock helps YouTube load when the network gets in the way. It runs only on your device, with no account and no analytics.",
     "It uses Android's VPN slot — that is the key icon you'll see while it runs — as a local traffic router for the apps you choose. It is still not a VPN: it does not hide your IP address and adds no encryption. YouTube's own HTTPS still protects the content.",
+    "Websites ending in .ir are never processed: no unblocking, no fragmentation — they always connect directly, exactly as if Younblock were not running.",
     "Open-source components: the gVisor network stack (Apache-2.0) and gomobile (BSD-3).",
   ];
 
@@ -60,9 +63,10 @@
 
   // Android differs only in the first line: nothing "sends its request
   // to Younblock" here — the chosen apps' traffic is routed in through
-  // the VPN slot (the whole flow stays on-device).
+  // the VPN slot (the whole flow stays on-device). D83: no default
+  // apps — the list starts empty and the user adds what to unblock.
   const HOW_IT_WORKS_ANDROID = [
-    "The apps you choose — Chrome and the YouTube app by default — have their traffic routed through Younblock, on your device.",
+    "The apps you add to your list — none are routed until you do — have their traffic routed through Younblock, on your device.",
     HOW_IT_WORKS[1],
     HOW_IT_WORKS[2],
     HOW_IT_WORKS[3],
@@ -83,11 +87,14 @@
   // The privacy disclosure (doc 07 §5, ADR-0007): every claim below is
   // verified against the implementation — no analytics code exists, no
   // Younblock-operated endpoint exists, DNS goes to the user-configured
-  // DoH providers, logs are local and rotating.
+  // DoH providers, logs are local and rotating. The last line states the
+  // .ir rule and its one honest limit (D83: never routed; lookups still
+  // use the DoH providers — on Android the app has no other resolver).
   const PRIVACY = [
     "Younblock collects nothing: no analytics, no crash reports, no account.",
     "Nothing is sent to any Younblock-run server — none exists. The routed apps' traffic goes to its own destinations, and their DNS lookups go to the secure-DNS services you configure.",
     "Your IP address is not hidden and no extra encryption is added.",
+    "Websites ending in .ir are never routed or unblocked — they connect directly. Their name lookups still use your secure-DNS services: on Android the app has no other resolver.",
     "Logs stay on this device and you can clear them from Android's app settings.",
   ];
   // =====================================================================
@@ -277,10 +284,13 @@
     {#if perAppRouting}
       <section aria-labelledby="apps-heading">
         <h2 id="apps-heading">Apps to unblock</h2>
-        <p>Younblock routes only the apps on this list through the VPN slot — Chrome and the YouTube app by default. Other apps are untouched.</p>
+        <p>Younblock routes only the apps on this list through the VPN slot — the list starts empty; add the apps you want to unblock. Other apps are untouched, and websites ending in .ir are never routed: they always connect directly.</p>
         {#if settings === null}
           <p class="dim">Loading the list…</p>
         {:else}
+          {#if apps.length === 0}
+            <p class="dim">No apps yet — nothing is routed until you add one. Connecting will ask you to add an app first.</p>
+          {/if}
           <ul class="apps" aria-label="Routed apps">
             {#each apps as pkg (pkg)}
               <li>
@@ -293,7 +303,7 @@
                   class="remove"
                   aria-label={`Remove ${appLabel(pkg)} (${pkg})`}
                   title={`Remove ${appLabel(pkg)}`}
-                  disabled={appsBusy || apps.length <= 1}
+                  disabled={appsBusy}
                   on:click={() => removeApp(pkg)}
                 >
                   <svg viewBox="0 0 14 14" aria-hidden="true">

@@ -9,10 +9,10 @@
         no request-install-packages; ACCESS_NETWORK_STATE deliberately NOT
         requested — the Go netmon reads interfaces in-process, verified this
         session, so the permission would be a lie.)
-     The <queries> block covers the default allow-list targets (checking
-     they exist is what raises the M6 NO_TARGET_APPS surface; M4
-     fail-closes when none is installed). The <service> is the M4
-     deliverable: YounblockVpnService, the routing path. -->
+     The <queries> block is the launcher-app visibility the user-driven
+     allow-list needs (D83; the block's own comment says why). The
+     <service> is the M4 deliverable: YounblockVpnService, the routing
+     path. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -21,8 +21,18 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
-        <package android:name="com.android.chrome" />
-        <package android:name="com.google.android.youtube" />
+        <!-- D83: the allow-list has no defaults — the user adds any
+             launchable app's package name. Package visibility (Android
+             11+) hides apps this process cannot see, and
+             addAllowedApplication fails for invisible packages as if
+             they were not installed; the launcher-intent query makes
+             every launchable app visible without QUERY_ALL_PACKAGES.
+             Non-launchable packages cannot be verified and are refused
+             as not-installed — the honest limit (doc 07 §6). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application

@@ -233,6 +233,20 @@ func (s *Server) pacData() (config.Mode, []string) {
 	return s.cfg.Mode, s.cfg.Domains
 }
 
+// routedHost reports whether host gets the app's processing — the
+// first-record fragmentation and the http→https redirect. It is the
+// one decision every door shares: the mode/list rule (D46) minus the
+// never-processed TLDs, which win over every mode AND over the user's
+// domain list — every host under .ir relays untouched, whatever the
+// settings say (D83).
+func (s *Server) routedHost(host string) bool {
+	if config.UnderDirectTLD(host) {
+		return false
+	}
+	mode, domains := s.pacData()
+	return mode == config.ModeAll || MatchAnyDomain(host, domains)
+}
+
 // fragmentData returns the current preset and config.
 func (s *Server) fragmentData() (fragment.Preset, fragment.Config) {
 	s.mu.Lock()
@@ -327,11 +341,10 @@ func (s *Server) handle(conn net.Conn) {
 	case routeRedirect:
 		// Absolute-form http:// request. Hosts this app routes keep the
 		// http->https redirect (file 01 §7); anything else (youtube mode
-		// with the manual system proxy sending every host here) is
-		// forwarded like a normal proxy so plain-http sites keep working
-		// (D46).
-		mode, domains := s.pacData()
-		if mode == config.ModeAll || MatchAnyDomain(req.URL.Hostname(), domains) {
+		// with the manual system proxy sending every host here, or a
+		// never-processed .ir host in any mode — D46/D83) is forwarded
+		// like a normal proxy so plain-http sites keep working.
+		if s.routedHost(req.URL.Hostname()) {
 			s.reply(conn, "HTTP/1.1 302 Found\r\nLocation: "+rt.https+"\r\nContent-Length: 0\r\n\r\n")
 			return
 		}
@@ -408,11 +421,11 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		return
 	}
 
-	// In youtube mode only the routed hosts are fragmented; everything
-	// else relays untouched (the manual system proxy sends every host
-	// here — D46).
-	mode, domains := s.pacData()
-	fragmentTLS := mode == config.ModeAll || MatchAnyDomain(host, domains)
+	// Only the routed hosts are fragmented; everything else relays
+	// untouched (the manual system proxy sends every host here — D46),
+	// and the never-processed TLDs stay untouched in every mode, even
+	// when the user's own list names them (.ir — D83).
+	fragmentTLS := s.routedHost(host)
 
 	clientSide := &bufferedConn{Conn: client, prefix: drainBuffered(br)}
 	s.runBidirectionalCopy(clientSide, upstream, host, fragmentTLS)

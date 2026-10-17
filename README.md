@@ -355,7 +355,8 @@ Notes on the two new switches:
 - "Send all browser traffic" and the Advanced "Unblock mode" are the same setting:
   the switch is on when the mode is "All websites". Every browser that follows the
   Windows proxy setting (Chrome, Edge, …) then sends everything except local
-  addresses through Younblock.
+  addresses through Younblock. Websites ending in .ir are the one exception: they
+  are always sent DIRECT, never through the app, whatever the mode says.
 - The separate Chrome window uses its own profile folder
   (`%LOCALAPPDATA%\Younblock\chrome-profile`), so your normal Chrome — its tabs,
   logins and history — is never touched. That window is hard-wired to Younblock's

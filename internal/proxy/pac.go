@@ -9,9 +9,11 @@ import (
 
 // PAC returns the proxy auto-config script served at /proxy.pac
 // (file 01, section 8). In youtube mode it sends the YouTube domain list
-// through the local proxy and everything else direct; in all mode it sends
-// everything except localhost and private ranges. DIRECT is always the
-// fallback, so if the app is not running the browser goes direct.
+// through the local proxy and everything else direct; in all mode it
+// sends everything except localhost, private ranges and the
+// never-processed TLDs (.ir — D83); in manual mode nothing is proxied.
+// DIRECT is always the fallback, so if the app is not running the
+// browser goes direct.
 func PAC(port int, domains []string, mode config.Mode) string {
 	var b strings.Builder
 	b.WriteString("// Younblock proxy auto-config script (generated; do not edit).\n")
@@ -19,6 +21,7 @@ func PAC(port int, domains []string, mode config.Mode) string {
 	b.WriteString("  host = String(host).toLowerCase();\n")
 	switch mode {
 	case config.ModeAll:
+		writeDirectTLDGuard(&b)
 		b.WriteString("  if (isPlainHostName(host)) { return \"DIRECT\"; }\n")
 		b.WriteString("  if (shExpMatch(host, \"*.local\")) { return \"DIRECT\"; }\n")
 		b.WriteString("  var resolved = dnsResolve(host);\n")
@@ -35,6 +38,7 @@ func PAC(port int, domains []string, mode config.Mode) string {
 		// it must not send anything through the proxy.
 		b.WriteString("  return \"DIRECT\";\n")
 	default: // youtube mode
+		writeDirectTLDGuard(&b)
 		for _, d := range domains {
 			d = strings.ToLower(strings.TrimSpace(d))
 			if d == "" {
@@ -47,6 +51,17 @@ func PAC(port int, domains []string, mode config.Mode) string {
 	}
 	b.WriteString("}\n")
 	return b.String()
+}
+
+// writeDirectTLDGuard emits the never-processed-TLD lines (the .ir rule,
+// D83): whatever the mode or the routed list says, these hosts are
+// answered DIRECT — the browser never sends them through the app, so
+// on the desktop they never even reach it. The guard runs FIRST, so a
+// .ir entry on the user's own routed list is still sent DIRECT.
+func writeDirectTLDGuard(b *strings.Builder) {
+	for _, tld := range config.DirectTLDs() {
+		fmt.Fprintf(b, "  if (host === %q || shExpMatch(host, %q)) { return \"DIRECT\"; }\n", tld, "*."+tld)
+	}
 }
 
 // MatchDomain reports whether host is domain or a subdomain of it

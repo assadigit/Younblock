@@ -1,17 +1,19 @@
-# 10 — v1 Release Notes (DRAFT — M7)
+# 10 — v1 Release Notes (DRAFT — M7, updated M8-a)
 
 **Status:** DRAFT for the first Android release, prepared at M7
-(2026-10-17). Nothing here may be published until the ⛔ device gates
-(§"Open before release") close or Ali explicitly accepts shipping with
-them recorded as known limitations. Every claim below traces to
-implementation evidence (docs 01–09, DECISIONS.md D1–D82); M8 performs
-the final copy review against the built artifact.
+(2026-10-17) and updated at M8-a the same day for Ali's two product
+rulings (D83: no allow-list default; .ir never processed). Nothing
+here may be published until the ⛔ device gates (§"Open before
+release") close or Ali explicitly accepts shipping with them recorded
+as known limitations. Every claim below traces to implementation
+evidence (docs 01–09, DECISIONS.md D1–D83); M8 performs the final copy
+review against the built artifact.
 
 ## The honest headline
 
 Younblock for Android helps YouTube load when the network gets in the
-way. It routes **only the apps you choose** — Chrome and the YouTube
-app by default — through an on-device engine that uses secure DNS and
+way. It routes **only the apps you add to its list** — none are routed
+by default — through an on-device engine that uses secure DNS and
 TLS record splitting, exactly like the desktop edition. It is **not a
 VPN in the privacy sense**: it does not hide your IP address, adds no
 encryption, and sends nothing to any Younblock-operated server (none
@@ -20,14 +22,19 @@ interface** — that is the key icon you will see while it runs.
 
 ## What it does
 
-- Routes the TCP traffic of the allow-listed apps (Chrome + YouTube by
-  default; the list is editable in-app, changes apply on the next
-  connect).
+- Routes the TCP traffic of the apps you add to the allow-list (the
+  list starts empty — D83; it is editable in-app, changes apply on the
+  next connect; an empty list or all-uninstalled entries refuse the
+  connect with the honest reason).
 - Resolves the routed apps' DNS through the secure-DNS (DoH) providers
   you configure, tried in order (defaults: RethinkDNS, ElectroDNS,
   Ruby).
 - Splits the first TLS record for the routed YouTube domains into
   smaller pieces — the same fragmentation the desktop edition uses.
+- Leaves every website ending in .ir completely untouched — no
+  unblocking, no fragmentation: always a direct connection, exactly as
+  if Younblock were not running (D83; their name lookups still use
+  your configured secure-DNS providers).
 - Keeps a persistent, honest status notification while routing: active
   only when traffic actually routes, degraded when partially working,
   connecting otherwise.
@@ -54,9 +61,13 @@ interface** — that is the key icon you will see while it runs.
 - **UDP beyond DNS is dropped**: routed apps fall back to TCP. The
   YouTube app's QUIC-to-TCP fallback behavior is a device gate (§Open)
   — reported when measured, not promised here.
-- **Supported path**: Chrome and the YouTube app over TCP, with the
+- **Supported path**: launchable Android apps over TCP (added by you;
+  the tested circle is Chrome and the YouTube app), with the
   configured DoH providers. No support claims beyond the per-app
   allow-list and the tested matrix.
+- **.ir websites are always direct** (D83) — never routed, fragmented
+  or redirected; non-launchable packages cannot be verified and are
+  refused as not-installed (the launcher-visibility limit, doc 07 §6).
 - **Per-app list changes apply on the next connect** (the list is
   baked into the TUN at establish).
 - **Nothing auto-starts after reboot** (AND-028): connecting is always

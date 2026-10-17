@@ -12,8 +12,9 @@ import (
 
 // settingsVersion is the settings file schema version. v2 (M6, doc 04
 // §9) adds the per-app allow-list `apps`; migration from v1 is the
-// existing mechanism: a v1 file simply lacks the field and Normalize
-// fills the built-in defaults.
+// existing mechanism: a v1 file simply lacks the field and the list
+// stays EMPTY (D83 — there is no allow-list default; the user adds
+// apps in the UI).
 const settingsVersion = 2
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
@@ -52,10 +53,9 @@ type Settings struct {
 	// the package names whose TCP+DNS the VpnService routes through
 	// the engine. Desktop editions persist the field but never read
 	// it — one settings.json serves every edition, and the classic
-	// screen's spread-based saves round-trip it untouched. Normalize
-	// restores the built-in defaults when the list is empty or
-	// all-invalid (an empty allow-list would route EVERY app — the
-	// opposite of the product scope).
+	// screen's spread-based saves round-trip it untouched. The list
+	// starts EMPTY (D83: no default entries); an empty list never
+	// routes — the M7 NO_TARGET_APPS door refuses the connect.
 	Apps     []string `json:"apps"`
 	Advanced Advanced `json:"advanced"`
 }
@@ -179,11 +179,14 @@ const maxApps = 32
 
 // normalizeApps validates the per-app allow-list (schema v2, ADR-0003):
 // trimmed, shape-checked Android package names, de-duplicated in
-// first-seen order, capped. An empty or all-invalid result falls back to
-// the built-in defaults — a VpnService.Builder with ZERO allowed
-// applications routes EVERY app, the exact opposite of the product
-// scope, so an empty list must never persist (the Kotlin side fail-closes
-// independently when none of the listed packages is installed).
+// first-seen order, capped. An empty result is KEPT — the empty list
+// is the honest default (D83: no allow-list default), and the M7
+// NO_TARGET_APPS door (D81) fails a connect closed when nothing is on
+// it. The empty slice is non-nil so it marshals as [] — an explicit,
+// honest empty list, never a route-everything fallback (a
+// VpnService.Builder with zero allowed applications would route EVERY
+// app, which is why the Kotlin side refuses to establish on an empty
+// list instead of dropping the per-app restriction).
 func normalizeApps(list []string) []string {
 	seen := make(map[string]bool, len(list))
 	out := make([]string, 0, len(list))
@@ -197,9 +200,6 @@ func normalizeApps(list []string) []string {
 		}
 		seen[pkg] = true
 		out = append(out, pkg)
-	}
-	if len(out) == 0 {
-		return DefaultApps()
 	}
 	return out
 }

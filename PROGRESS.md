@@ -2219,3 +2219,63 @@ vite clean; matrix 4/4 ABIs.
 
 Next: M8 — package, verify, hand off (doc 05 §M8; the keystore
 question for Ali becomes blocking for the signed release APK).
+
+## Android port — M8-a: Ali's two product rulings, implemented (2026-10-17)
+
+Between M7 and M8, Ali answered the two standing product questions, and
+the answers changed shipped behavior — so they were implemented and
+verified as their own change set (D83, doc 05 M8-a) before M8 freezes
+the release artifacts:
+
+- **"There is no allow-list defaults."** The apps allow-list starts
+  EMPTY; nothing is routed until the user adds an app. The M6
+  restore-defaults Normalize rule is removed; RoutedApps fails toward
+  the empty list; the Kotlin establish routes the empty list through
+  the M7 typed door failStart("NO_TARGET_APPS") (the old silent stop
+  would have hung a gate-held run — empty is the normal fresh state
+  now); the UI drops the last-entry guard, shows the empty state, and
+  the NO_TARGET_APPS message covers both empty and none-installed.
+  Saved files keep their lists — the default changes, never user data.
+- **"Keep every domain with .ir blocked — when opening any domain with
+  .ir, this app must not be used and its routes should not work."**
+  internal/config/direct.go (UnderDirectTLD) + Server.routedHost — the
+  one decision both doors share: the mode/list rule minus the
+  never-processed TLDs, which win over ModeAll AND over the user's own
+  domain list. The PAC emits the .ir DIRECT guard as its first line
+  (youtube + all modes — youtube mode already kept .ir out by
+  fallthrough; ModeAll is the real, ruled behavior change, disclosed in
+  the changelog). The SOCKS5 door makes the same decision: .ir traffic
+  that transits the Android TUN exits as a plain direct dial — never
+  fragmented, never redirected, never claimed. Honest limit stated
+  in-app and in doc 07 §5: .ir lookups still resolve through the
+  configured DoH providers (no other resolver on Android;
+  ACCESS_NETWORK_STATE deliberately not requested, D74).
+- **The latent <queries> bug the ruling exposed**: the manifest listed
+  only the two former defaults, so a user-added package would have been
+  invisible (Android 11+ package filtering) and refused as "not
+  installed" even when installed. The block is now the launcher-intent
+  query (every launchable app visible, no QUERY_ALL_PACKAGES;
+  non-launchable packages cannot be verified — the stated limit).
+
+Build lane, re-verified end-to-end after the changes: gofmt-canonical
+on every touched file; vet clean; 17/17 packages twice; -race green on
+the seven key packages; svelte-check 0/0; vite build clean + webui
+dist synced (TestWebUILifecycle green on the new bundle); compile
+matrix 4/4 ABIs; `gomobile bind` → younblock.aar 25,160,550 B (javap:
+the nine bindings); clean `assembleDebug` → app-debug.apk 35,567,561
+B, SHA-256 ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bf
+d37b64, badging minSdk 26/target 36/3 ABIs, the dumped manifest
+carries the launcher-intent <queries> and exactly doc 07 §6's
+permission inventory, apksigner OK (debug cert).
+
+The honest ⛔, unchanged (`ls /dev/kvm` → No such file or directory):
+all device-side gates (live consent, notification behavior, screen-off/
+Doze, real DoH, QUIC fallback, protect() on real sockets, the .ir
+direct path observed on a real radio, live rotation/font-scale/
+TalkBack) ride with the shared device checklist — carried, never
+claimed.
+
+Next: M8 — package, verify, hand off (doc 05 §M8). The allow-list
+question is now ANSWERED and implemented; the keystore question
+(doc 07 §8) is the one remaining product decision, and it is blocking
+for M8's signed release APK.

@@ -15,17 +15,22 @@ traffic-routing interface for the allow-listed apps only** (ADR-0003/
 against the audited code):
 
 - "Younblock uses Android's VPN feature only as a local tunnel for the
-  apps you choose (Chrome and the YouTube app by default). Nothing is
-  sent to any Younblock server."
+  apps you add to its list — none are routed by default. Nothing is
+  sent to any Younblock server." (D83: no allow-list default)
 - "Android shows a key icon because Younblock occupies the VPN slot.
   It is not a VPN." (the old spec's honest line, kept verbatim)
 - "Your IP address is not hidden. Traffic to sites is protected only
   by the sites' own HTTPS."
 - "DNS requests for the routed apps go to the secure-DNS providers you
   configure in Settings."
-- Scope statement: TCP traffic of the allow-listed apps is processed;
-  other apps, and non-TCP traffic except DNS, are untouched; IPv6 is
-  intentionally disabled (fail-safe, ADR-0010).
+- "Websites ending in .ir are never processed — no unblocking, no
+  fragmentation: they always connect directly, exactly as if Younblock
+  were not running." (D83)
+- Scope statement: TCP traffic of the allow-listed apps is processed
+  (the list starts empty — D83); other apps, and non-TCP traffic
+  except DNS, are untouched; every host under .ir is excluded from the
+  app's machinery in every mode (D83); IPv6 is intentionally disabled
+  (fail-safe, ADR-0010).
 
 ## 2. Permission and consent
 
@@ -99,7 +104,14 @@ product's core consent).
   via app data clear; no sync.
 - Provider selections/diagnostics synced anywhere: no.
 - Other apps' traffic: only the allow-listed apps', TCP + DNS as
-  above; the list is user-editable (M6) and shown in the footer.
+  above; the list is user-editable (M6), starts EMPTY (D83 — no
+  default), and is shown in the footer.
+- .ir domains (D83): never routed, never fragmented, never
+  redirected — connected direct, byte-transparent. One honest limit:
+  on Android their name lookups still resolve through the configured
+  DoH providers (the process has no other resolver; ACCESS_NETWORK_
+  STATE is deliberately not requested — D74). The in-app Privacy
+  section and the About sheet state both halves.
 
 ## 6. Android permissions and platform behavior — inventory
 
@@ -111,7 +123,7 @@ product's core consent).
 | `POST_NOTIFICATIONS` (13+) | runtime request | state notification | app remains fully functional; state visible in-app; re-request politely on next connect | Yes for AND-018 UX; degrades gracefully |
 | `BIND_VPN_SERVICE` (service attribute, not app perm) | system-bound | only the system may bind YounblockVpnService | n/a | Yes |
 | VPN consent (`VpnService.prepare`) | system dialog | establishing the TUN | AwaitingConsent → Disconnected with explanation (AND-003) | Yes |
-| `<queries>` for target packages (11+) | n/a | checking Chrome/YouTube installed (`NO_TARGET_APPS`) | n/a | Yes |
+| `<queries>` launcher-intent (11+) | n/a | seeing launchable apps so a user-added package is checked — and routed — honestly (`NO_TARGET_APPS`) | n/a | Yes (D83: the list is user-driven; the old chrome+youtube-only block would have made every user-added package invisible → refused as "not installed"; non-launchable packages cannot be verified — the stated limit) |
 | `ACCESS_NETWORK_STATE` | — | netmon network-change detection | n/a | **Not requested — verified at M3**: the Go netmon reads interfaces in-process (`net.InterfaceAddrs`) and never touches ConnectivityManager, so the permission would be a claim the code does not make (D74) |
 
 No location, no storage beyond app-private, no background location,

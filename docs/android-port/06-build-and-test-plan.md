@@ -249,3 +249,27 @@ in CI.
 - Desktop baseline never silently regressed.
 - Build reproducible from a clean machine with the repo's
   instructions.
+
+M8-a record (2026-10-17; the second consecutive no-wipe session —
+repo at 707cf04, toolchain verified, baseline green before any change:
+vet clean, 17/17 ×2, svelte-check 0/0, vite clean): Ali's two product
+rulings (D83) — the empty allow-list default and the .ir
+never-processed rule — implemented and fully re-verified: `gomobile
+bind` (GOFLAGS=-mod=mod, 3 ABIs, androidapi 26) → younblock.aar
+**25,160,550 B** (javap: the nine bindings — failStart/getSettings/
+getState/routedApps/saveSettings/setVpnReady/startTun/stopTun/
+vpnState); clean `assembleDebug` → `app-debug.apk` **35,567,561 B**,
+SHA-256
+`ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64`,
+badging: package io.github.assadigit/younblock 1.6.6 (versionCode 1),
+minSdk 26, targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64;
+the dumped manifest carries the D83 launcher-intent `<queries>` (MAIN
++ LAUNCHER) and exactly doc 07 §6's four permissions (ACCESS_NETWORK_
+STATE absent); apksigner verify OK (debug cert). Matrix 4/4 ABIs
+(arm64 full tree; 18 non-main × arm/386/amd64); -race green on the
+seven key packages (engine 10.4 s, proxy 17.9 s, mobile 38.3 s);
+17/17 ×2 at the exit; webui dist synced (TestWebUILifecycle green on
+the new bundle). Disk: ~1.9 GB free at the exit (Go module cache
+cleaned mid-session and re-fetched through the bind — network
+reachable); `go clean -modcache` forces the re-download on the next
+`-mod=mod` lane, budget ~5 min.

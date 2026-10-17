@@ -6,24 +6,29 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M7 → M8 handoff)
+## Where the project stands (verified at the M8-a → M8 handoff)
 
-- Phase 2 of the Android port, final milestone. M0–M7 complete; M7 is
-  **host-complete** at `main` (the M7 commit; see `git log -1`): the
-  NO_TARGET_APPS refusal door (D81 — shell→engine typed errors through
-  the start gate, the phase machine stays the single truth), the
-  spawn-race zombie closed by run generations (D82 — a cancelled Start
-  can never be resurrected by its own goroutine; one test had been
-  passing through the bug), the `-race` lane green on the seven key
-  packages, the dependency/license audit (all permissive; About
-  attribution added), the permission review (the built APK's manifest
-  is exactly doc 07 §6's inventory), and the release-notes draft
-  (doc 10). Verified debug APK: 35,298,149 B, sha256 f27b7eef…491.
+- Phase 2 of the Android port, final milestone. M0–M7 complete, plus
+  **M8-a** (2026-10-17, host-complete, D83): Ali's two product rulings
+  — the apps allow-list has NO default (empty until the user adds an
+  app; the empty connect fails through the M7 NO_TARGET_APPS door with
+  an honest message), and every .ir domain never touches the app (no
+  fragmentation, no redirect, always direct — winning over every mode
+  and the user's own list, enforced at the one decision both doors
+  share plus the PAC's first line; .ir lookups still resolve through
+  the configured DoH providers on Android — the stated limit). The
+  latent <queries> bug fixed: the manifest now uses the launcher-intent
+  query so user-added packages are actually visible. M7 before it:
+  the NO_TARGET_APPS refusal door (D81), run generations (D82), the
+  `-race` lane, the audit + permission review, the release-notes draft
+  (doc 10, updated for D83). Verified debug APK after M8-a:
+  35,567,561 B, sha256 ccf46a2e…7b64.
 - Standing environment blocker (never claimed, never dropped): **no
   /dev/kvm and no device** — the shared checklist (live consent,
   notification channel, screen-off/Doze, real DoH, QUIC fallback,
-  protect(), reboot/onRevoke, rotation/font-scale/TalkBack, battery)
-  rides together; M8's install/launch smoke-test halves are ⛔ too.
+  protect(), reboot/onRevoke, rotation/font-scale/TalkBack, battery,
+  the .ir direct path on a real radio) rides together; M8's
+  install/launch smoke-test halves are ⛔ too.
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
@@ -36,12 +41,12 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite.
-2. Read the spec pack, at minimum: doc 09 (handoff), doc 05 §M8 (your
-   milestone), doc 06 (build commands + the M7 record), doc 07 (§8
-   signing/keystore, §9 the checklist's open rows), doc 10 (the
-   release-notes draft you will finalize), doc 08 + `DECISIONS.md`
-   (D1–D82; **the next decision number is D83**), and the tail of
-   `PROGRESS.md`.
+2. Read the spec pack, at minimum: doc 09 (handoff), doc 05 §M8-a and
+   §M8 (the D83 record + your milestone), doc 06 (build commands + the
+   M7 record), doc 07 (§8 signing/keystore, §9 the checklist's open
+   rows), doc 10 (the release-notes draft you will finalize — already
+   updated for D83), doc 08 + `DECISIONS.md` (D1–D83; **the next
+   decision number is D84**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
@@ -75,13 +80,13 @@ Scope (doc 05 §M8; doc 09 "Exact next task"):
   the platform-requirements recheck (doc 07 §9's remaining M8 rows).
 - Docs/notes updated end-to-end; commit/push with the
   pre-existing-change rule.
-- The D77–D82 honesty rules bind to the end: every claim in the
+- The D77–D83 honesty rules bind to the end: every claim in the
   release notes traces to evidence; ⛔ gates stay listed, never
   quietly dropped.
 
 ## Environment (this sandbox resets without warning — verify, don't assume)
 
-Intact layout, as verified at handoff (the M7 session was the first
+Intact layout, as verified at handoff (the M7 and M8-a sessions ran
 with NO wipe — but verify anyway):
 
 - Repo: `/home/z/my-project/Younblock`, `vendor/` committed (D68: use
@@ -93,9 +98,9 @@ with NO wipe — but verify anyway):
 - Android SDK at `~/sdk/android` (cmdline-tools 12.0, platform-tools,
   platforms 26/36, build-tools 36.1.0, NDK 28.2.13676358, licenses
   accepted). Exact PATH / JAVA_HOME / ANDROID_HOME setup: doc 06.
-- No /dev/kvm (verified at the M7 handoff). Disk is a ~9.9 GB box —
-  clean Go/Gradle build caches before big builds; ~3 GB free at the
-  M7 exit.
+- No /dev/kvm (verified at the M8-a handoff). Disk is a ~9.9 GB box —
+  clean Go/Gradle build caches before big builds; ~1.9 GB free at the
+  M8-a exit.
 - The sandbox kills background processes when a Bash command ends —
   run long builds as foreground chunks.
 - The honest compile-matrix form: `go build` over the 18 non-main
@@ -136,7 +141,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 - When you finish: update doc 05 (M8 evidence), doc 06 (build record),
   doc 07 §9 (close or carry the M8 rows), doc 09 §"Current handoff
   fields" (→ Phase 2 COMPLETE), doc 10 (finalized), `PROGRESS.md`,
-  `DECISIONS.md` (from D83), `CHANGELOG.md`; append the worklog entry
+  `DECISIONS.md` (from D84), `CHANGELOG.md`; append the worklog entry
   (Task ID M8); commit and push.
 
 ## Required first response

@@ -651,3 +651,38 @@ First Windows test build, published to GitHub Releases.
   docs/android-port/05–06; battery/behavior, reboot/revocation and all
   live-observation gates remain ⛔ (no /dev/kvm, no device) and are
   carried, never claimed.
+
+### Changed (Android port, M8-a — Ali's two product rulings, D83 — not yet a released build)
+
+- **The apps allow-list has NO default (Ali's ruling)**: the list
+  starts empty and nothing is routed until the user adds an app. The
+  M6 "empty restores the built-in Chrome+YouTube default" rule is
+  gone — the M7 NO_TARGET_APPS refusal door is what makes the empty
+  list safe, and it now also covers the empty state (the connect
+  fails with the typed reason and an honest "add an app" message,
+  instead of the old silent stop that treated an empty list as a
+  bridge bug). The UI drops the last-entry guard and shows an
+  empty-state line. Existing saved lists are kept — the ruling
+  changes the default, never user data.
+- **Websites ending in .ir never touch the app (Ali's ruling)**: in
+  every mode and both editions, .ir hosts are never fragmented, never
+  redirected — resolved and dialed direct, byte-transparent. The
+  desktop PAC answers DIRECT for them first (youtube mode already
+  behaved this way by fallthrough; **"All websites" mode is a real
+  behavior change** — it previously sent .ir through the fragmenting
+  path). The Android SOCKS5 door makes the same decision, and the
+  rule wins even over a .ir entry on the user's own domain list.
+  Honest limit, stated in-app: on Android, .ir name lookups still
+  resolve through the configured secure-DNS providers (the app has no
+  other resolver there).
+- **The manifest's `<queries>` block broadened to the launcher-intent
+  form** — a latent bug the ruling exposed: the old block listed only
+  the two former default packages, so any user-added package would
+  have been invisible to PackageManager (Android 11+ package
+  filtering) and refused as "not installed" even when installed. Every
+  launchable app is now visible; non-launchable packages cannot be
+  verified and are refused honestly.
+- The M8-a debug APK (35,567,561 B, SHA-256 ccf46a2e…7b64) with both
+  rulings applied is recorded in docs/android-port/05–06; the standing
+  device gates remain ⛔ (no /dev/kvm, no device) and are carried,
+  never claimed.

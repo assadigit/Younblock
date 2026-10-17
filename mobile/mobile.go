@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/engine"
 	"github.com/assadigit/Younblock/internal/platform/android"
 	"github.com/assadigit/Younblock/internal/webui"
@@ -215,18 +214,23 @@ func (m *Engine) FailStart(code string) string {
 // time: a change saved while the TUN is live applies on the NEXT
 // connect (rebuilding an established TUN under live traffic is riskier
 // than the delay, and the UI copy says so — no silent re-route).
+//
+// D83: the list legitimately starts EMPTY — there is no allow-list
+// default — and the M7 NO_TARGET_APPS door (D81) turns an empty list
+// into an honest refusal at connect. The guard below therefore fails
+// toward the EMPTY list (refusal), never toward any non-empty default:
+// the failure direction inverted with the ruling.
 func (m *Engine) RoutedApps() string {
 	apps := m.eng.Settings().Apps
-	if len(apps) == 0 {
-		// Normalize guarantees non-empty; this guard exists so a future
-		// regression can at worst route the DEFAULT scope, never every app.
-		apps = config.DefaultApps()
+	if apps == nil {
+		apps = []string{} // marshal [] — an explicit, honest empty list
 	}
 	out, err := json.Marshal(map[string][]string{"apps": apps})
 	if err != nil {
-		// Unreachable for a []string; if it ever fires, fail closed toward
-		// the default scope rather than an empty (route-everything) list.
-		out, _ = json.Marshal(map[string][]string{"apps": config.DefaultApps()})
+		// Unreachable for a []string; if it ever fires, fail toward the
+		// empty list — the NO_TARGET_APPS refusal owns what happens next,
+		// never route-everything.
+		out = []byte(`{"apps":[]}`)
 	}
 	return string(out)
 }

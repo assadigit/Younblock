@@ -1,20 +1,23 @@
 package mobile
 
 // apps_test.go — the M6 facade surface for the per-app allow-list
-// (docs/android-port 05 §M6, 04 §9): RoutedApps reports the engine's
-// normalized `apps` settings — the same truth GetSettings reports and
-// the WebView's Apps-to-unblock row edits — so the Kotlin service, the
-// settings file and the UI can never disagree about what routes.
+// (docs/android-port 05 §M6, 04 §9; D83: no allow-list default):
+// RoutedApps reports the engine's normalized `apps` settings — the
+// same truth GetSettings reports and the WebView's Apps-to-unblock
+// row edits — so the Kotlin service, the settings file and the UI can
+// never disagree about what routes. The list starts EMPTY; an empty
+// list is the honest refusal state, never route-everything.
 
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/assadigit/Younblock/internal/config"
 )
 
-func TestRoutedAppsDefault(t *testing.T) {
+func TestRoutedAppsDefaultIsEmpty(t *testing.T) {
 	m, err := NewEngine(t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
@@ -22,12 +25,18 @@ func TestRoutedAppsDefault(t *testing.T) {
 	defer m.Shutdown()
 
 	got := m.RoutedApps()
+	// D83: no default — the fresh engine reports the honest empty list,
+	// as an explicit [] (never null: the Kotlin reader must see an
+	// array, and stopSelfHonest's refusal path depends on it).
+	if !strings.Contains(got, `"apps":[]`) {
+		t.Fatalf("RoutedApps() = %s, want the explicit empty list {\"apps\":[\"…]}", got)
+	}
 	var parsed map[string][]string
 	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
 		t.Fatalf("RoutedApps() = %s (not a JSON object with an apps list): %v", got, err)
 	}
-	if !reflect.DeepEqual(parsed["apps"], config.DefaultApps()) {
-		t.Errorf("RoutedApps() apps = %v, want the built-in defaults %v", parsed["apps"], config.DefaultApps())
+	if len(parsed["apps"]) != 0 {
+		t.Errorf("RoutedApps() apps = %v, want empty (D83: no default)", parsed["apps"])
 	}
 }
 
@@ -63,10 +72,11 @@ func TestRoutedAppsTracksSavedSettings(t *testing.T) {
 		t.Errorf("GetSettings().Apps = %v, want %v — the two doors disagree", s.Apps, want)
 	}
 
-	// An emptied/invalid list cannot persist: Normalize restores the
-	// defaults, and RoutedApps reports them (a VpnService with zero
-	// allowed apps would route EVERYTHING — fail toward the default
-	// scope, never the route-everything scope).
+	// An emptied/invalid list persists as the honest EMPTY list (D83):
+	// Normalize keeps it empty, RoutedApps reports it, and the Kotlin
+	// establish refuses to route (the M7 NO_TARGET_APPS door) — a
+	// VpnService with zero allowed apps would route EVERYTHING, so the
+	// empty list rides with the typed refusal, never a fallback.
 	saved = m.SaveSettings(`{"apps":["not a package",""]}`)
 	if !jsonErrNull(saved) {
 		t.Fatalf("SaveSettings(all-invalid) = %s, want error:null", saved)
@@ -75,8 +85,16 @@ func TestRoutedAppsTracksSavedSettings(t *testing.T) {
 	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
 		t.Fatalf("RoutedApps() = %s: %v", got, err)
 	}
-	if !reflect.DeepEqual(parsed["apps"], config.DefaultApps()) {
-		t.Errorf("all-invalid apps = %v, want the defaults restored", parsed["apps"])
+	if len(parsed["apps"]) != 0 {
+		t.Errorf("all-invalid apps = %v, want the honest empty list", parsed["apps"])
+	}
+	// The settings door agrees (one truth, two views).
+	settings = m.GetSettings()
+	if err := json.Unmarshal([]byte(settings), &s); err != nil {
+		t.Fatalf("GetSettings = %s: %v", settings, err)
+	}
+	if len(s.Apps) != 0 {
+		t.Errorf("GetSettings().Apps = %v, want empty — the two doors disagree", s.Apps)
 	}
 }
 

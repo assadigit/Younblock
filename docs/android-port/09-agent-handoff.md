@@ -62,85 +62,73 @@ fields" accurate at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** Phase 2 milestone **M7** — 2026-10-17, host-
-  complete (regression, hardening, release preparation; evidence in
-  doc 05 M7). Exit criteria: all host-runnable gates ✅ (the
-  NO_TARGET_APPS typed-error door D81 — the gate refusal through the
-  engine's ordinary failure path, engine/adapter/facade suites; the
-  M5-era spawn-race zombie closed by run generations D82, with the
-  test that had codified it fixed to its true intent; the -race lane
-  green on the seven key packages; the dependency/license audit with
-  the AAR's real closure and the About attribution line; the
-  permission review — the built APK's manifest is exactly doc 07 §6's
-  inventory, ACCESS_NETWORK_STATE absent; the release-notes draft
-  doc 10; doc 02 §7 traceability updated); **on-device halves ⛔**
-  (battery/behavior, reboot/revocation AND-028, live
-  consent/notification/WebView observation — the standing blocker,
-  re-verified); desktop baseline ✅ 17/17 packages, run twice
-  consecutively at both the open and exit gates.
+- **Phase completed:** Phase 2 milestone **M8-a** — Ali's two product
+  rulings, implemented — 2026-10-17, host-complete (DECISIONS.md D83,
+  evidence in doc 05 M8-a; sits between M7 and M8 because the answers
+  changed shipped behavior before the release freeze). Ruling 1: no
+  allow-list default — the list starts empty, the M6 restore-defaults
+  rule removed, RoutedApps fails toward empty, the Kotlin establish
+  routes the empty list through failStart("NO_TARGET_APPS"), the UI
+  shows the empty state and the message covers empty/none-installed;
+  saved lists kept. Ruling 2: .ir never touches the app —
+  config/direct.go + Server.routedHost (the shared door decision), the
+  PAC's first line, no fragmentation/redirect ever, wins over ModeAll
+  and the user's list; honest limit stated (.ir lookups still use the
+  DoH providers on Android). The latent <queries> bug fixed
+  (launcher-intent visibility for user-added packages). **On-device
+  halves ⛔** (the standing blocker, re-verified); desktop baseline ✅
+  17/17 twice at the exit gate (ModeAll's .ir exclusion is the ruled,
+  disclosed desktop behavior change).
 - **Branch and commit:** `main`, this session's commit (see `git log -1`
-  at handoff time); worktree clean after the commit. The session
-  opened with the environment INTACT (the first recorded session
-  without a wipe): repo at `57adf1a`, toolchain verified with
-  commands, worklog carried over — only the standing blocker
-  re-verified.
-- **Files changed this phase:** new — `mobile/failstart_test.go`,
-  `docs/android-port/10-release-notes.md`; additive edits —
-  `internal/engine/platform.go` (PlatformRefusalError + the StartGater
-  refusal contract), `internal/engine/health.go` (the connect run's
-  refusal branch + the D82 generation registration replacing
-  setRunCancel), `internal/engine/engine.go` (mapErrorCode's refusal
-  case + runGen + Start's generation capture),
-  `internal/platform/android/android.go` (the gate's refuse/latch/
-  deliver machinery + RefuseStart), `mobile/mobile.go` (FailStart),
-  `frontend/src/lib/backend.ts` (the state error.code surface + the
-  NO_TARGET_APPS message), `frontend/src/lib/MenuSheet.svelte` (the
-  About attribution line), `android/.../YounblockVpnService.kt`
-  (establishTun calls failStart on the zero-targets path),
-  `internal/engine/gate_test.go` + `internal/platform/android/
-  gate_test.go` + `internal/engine/engine_test.go` (the refusal and
-  generation suites; the idempotency test's honest form), doc 05/06/
-  07/09, doc 02 §7, README's reading order, DECISIONS/PROGRESS/
-  CHANGELOG.
+  at handoff time); worktree clean after the commit.
+- **Files changed this phase:** new — `internal/config/direct.go`,
+  `internal/config/direct_test.go`; additive edits —
+  `internal/config/{defaults.go,settings.go,apps_test.go}` (the
+  empty-default rule + inverted expectations),
+  `internal/proxy/{pac.go,pac_test.go,server.go,socks5.go,behavior_
+  test.go,socks5_test.go}` (routedHost + the .ir guard + the door
+  proofs), `mobile/{mobile.go,apps_test.go}` (fail-toward-empty),
+  `android/.../YounblockVpnService.kt` (the empty-list refusal through
+  the typed door) + `AndroidManifest.xml` (launcher-intent queries),
+  `frontend/src/lib/{backend.ts,MenuSheet.svelte}` + classic `en.json`
+  (the honest copy), doc 04 §9 / 05 (M8-a) / 07 (§1/§5/§6) / 09 / 10,
+  README, DECISIONS (D83) / PROGRESS / CHANGELOG.
 - **Tests run and actual results:** `go vet ./...` clean; `go test
-  -count=1 ./...` **17/17 packages ok, run twice consecutively**
-  (engine 9.1 s, mobile 33.7 s); `go test -race -count=1` green on
-  the seven key packages (engine 10.4 s, android 2.1 s, mobile 38.4 s,
-  tunstack 2.3 s, proxy 11.4 s, webui 1.1 s, config 1.0 s);
-  svelte-check 0/0; vite build clean; compile matrix **4/4 ABIs**
-  with `-mod=vendor`; `gomobile bind` OK (AAR 25,072,133 B, `javap`
-  shows failStart); clean `assembleDebug` OK — app-debug.apk
-  35,298,149 B, sha256
-  f27b7eef014f61eff35405f4406bfe9c33d4e34a918f9949eaad417d561c6491,
-  badging minSdk 26 / target 36, 3 native ABIs; the manifest's
-  permission set dumped and verified against the inventory; apksigner
-  OK (debug cert). One honest regression iteration: D82's honest
-  cancel broke TestEngineStartIsIdempotent — root-caused (the test
-  codified the zombie), fixed the test to its true intent, full suite
-  green twice after.
-- **Current architecture decision / confidence:** D81 (the platform
-  refusal door: shell→engine typed error through the start gate, the
-  phase machine stays the single truth, atomic delivery that survives
-  the re-arm race, NOT_HELD on an open gate, the facade's code
-  whitelist) and D82 (run generations: every cancel supersedes spawned
-  runs; the stale-check and registration are one critical section).
-  Confidence: high on the host chain (refusal/generation/race suites
-  + the -race lane); the device halves ride with the checklist.
-- **Blocking questions:** none architectural. Standing environment
-  blocker: **no emulator (no /dev/kvm) and no device** — the shared
-  checklist (consent live, notification channel, screen-off/Doze,
-  real DoH, QUIC fallback, protect(), reboot/onRevoke, live
-  rotation/font-scale/TalkBack, battery measurement). Product
-  confirmations still wanted from Ali (non-blocking, defaults
-  chosen): allow-list defaults beyond Chrome+YouTube, keystore
-  handling (doc 07 §8) — M8 needs the keystore decision to produce
-  the signed release APK.
+  -count=1 ./...` **17/17 packages ok, run twice consecutively**;
+  `go test -race -count=1` green on the seven key packages (engine
+  10.4 s, proxy 17.9 s, mobile 38.3 s); svelte-check 0/0; vite build
+  clean + webui dist synced (TestWebUILifecycle green on the new
+  bundle); compile matrix **4/4 ABIs** with `-mod=vendor` (arm64 full
+  tree; 18 non-main × arm/386/amd64); `gomobile bind` OK — AAR
+  25,160,550 B, `javap` shows the nine bindings; clean `assembleDebug`
+  OK — app-debug.apk 35,567,561 B, sha256
+  ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64,
+  badging minSdk 26 / target 36, 3 native ABIs; the dumped manifest
+  carries the launcher-intent `<queries>` and exactly doc 07 §6's
+  permission inventory; apksigner OK (debug cert).
+- **Current architecture decision / confidence:** D83 (no allow-list
+  default — the empty list is a first-class state whose safety is the
+  M7 refusal door; and the .ir never-processed rule at the one
+  decision point both doors share, winning over every mode and list,
+  with the DoH-resolution limit stated). Confidence: high on the host
+  chain (truth-table + door + PAC suites, the full gates); the device
+  halves (the .ir direct path on a real radio included) ride with the
+  checklist. Next decision ID: D84.
+- **Blocking questions:** one product decision remains — **the
+  keystore handling (doc 07 §8), now BLOCKING for M8's signed release
+  APK**: who generates the release keystore and where it lives (the
+  spec's rule: local, never committed, README backup steps); the
+  recommended split — Ali generates his own locally per README steps,
+  and the sandbox's M8 release lane is proven with a clearly-labeled
+  placeholder he replaces. The allow-list question is ANSWERED and
+  implemented (D83). Standing environment blocker: **no emulator (no
+  /dev/kvm) and no device** — the shared checklist.
 - **Exact next task:** **M8** — package, verify, hand off (doc 05
   §M8): debug + release (signed) APKs with artifact path/ID/version/
   ABI/checksum recorded; install + smoke-test (the device-dependent
   install/launch halves ⛔ without a device — document with evidence);
-  doc 10's release notes finalized against the artifact; docs/notes
-  updated; commit/push with the pre-existing-change rule. The host
-  side (build both variants, record everything, finalize docs) is
-  runnable now; the release keystore question for Ali becomes
-  blocking for the signed variant.
+  doc 10's release notes finalized against the artifact (the M8-a
+  copy review already reflects D83); docs/notes updated; commit/push
+  with the pre-existing-change rule. The host side (build both
+  variants, record everything, finalize docs) is runnable now — the
+  release keystore answer is the one open input.

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/fragment"
 )
 
@@ -657,6 +658,60 @@ func TestSocks5FragmentedFirstRecord(t *testing.T) {
 		t.Fatalf("unrouted host's first record arrived in %d reads, want 1 (unfragmented)", got)
 	}
 	conn2.Close()
+}
+
+// TestSocks5DirectTLDStaysUnfragmented: the .ir rule (D83) through the
+// Android door — a domain-type CONNECT to a .ir host relays untouched
+// even in route-all mode, the mode that fragments everything else.
+// Mirrors TestSocks5FragmentedFirstRecord's shape.
+func TestSocks5DirectTLDStaysUnfragmented(t *testing.T) {
+	srv, _ := newTestServer(t, func(c *Config) {
+		c.Mode = config.ModeAll
+		c.FragmentConfig = fragment.Config{Min: 80, Max: 200, Pause: 5 * time.Millisecond}
+	})
+	door := startSocks5Door(t, srv)
+
+	recLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { recLn.Close() })
+	rec := &recordingListener{Listener: recLn}
+	go func() {
+		for {
+			c, err := rec.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				io.Copy(io.Discard, c)
+			}(c)
+		}
+	}()
+	upPort := recLn.Addr().(*net.TCPAddr).Port
+
+	record := make([]byte, 5+200)
+	record[0], record[1], record[2] = 0x16, 0x03, 0x03
+	record[3], record[4] = 0x00, 200
+
+	conn, rep := socks5Connect(t, door, 0x03, "example.ir", upPort)
+	if rep != 0x00 {
+		t.Fatalf(".ir: REP = %#x, want 0x00", rep)
+	}
+	if _, err := conn.Write(record); err != nil {
+		t.Fatal(err)
+	}
+	halfClose(conn)
+	time.Sleep(200 * time.Millisecond)
+	if rc := rec.latest(); rc == nil || rc.reads.Load() != 1 {
+		got := int64(-1)
+		if rc != nil {
+			got = rc.reads.Load()
+		}
+		t.Fatalf(".ir first record arrived in %d reads, want 1 (never fragmented, even in all mode)", got)
+	}
+	conn.Close()
 }
 
 func TestSocks5ConnLimit(t *testing.T) {

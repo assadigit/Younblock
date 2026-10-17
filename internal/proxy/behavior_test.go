@@ -547,6 +547,111 @@ func TestAllModeFragmentsEveryHost(t *testing.T) {
 	t.Fatalf("routed host's first record arrived in %d reads, want >= 2 (fragmented)", reads)
 }
 
+// TestDirectTLDStaysUnfragmentedInAllMode: the never-processed TLDs
+// (the .ir rule, D83) relay untouched even in route-all mode — the
+// app's machinery never touches them, whatever the mode says.
+func TestDirectTLDStaysUnfragmentedInAllMode(t *testing.T) {
+	rawLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &recordingListener{Listener: rawLn}
+	upPort := rawLn.Addr().(*net.TCPAddr).Port
+	go func() {
+		for {
+			c, err := rec.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				io.Copy(io.Discard, c)
+			}(c)
+		}
+	}()
+	t.Cleanup(func() { rawLn.Close() })
+
+	// All mode — the strongest case: the mode says fragment everything,
+	// and the .ir rule still wins.
+	srv, _ := newTestServer(t, func(c *Config) {
+		c.Mode = config.ModeAll
+		c.FragmentConfig.Min = 80
+		c.FragmentConfig.Max = 120
+		c.FragmentConfig.Pause = 5 * time.Millisecond
+	})
+	conn := rawTunnel(t, srv.Addr(), fmt.Sprintf("example.ir:%d", upPort))
+	defer conn.Close()
+	if _, err := conn.Write(tlsLikeRecord(400)); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if rc := rec.latest(); rc != nil {
+			if reads, _ := rc.stats(); reads >= 1 {
+				time.Sleep(150 * time.Millisecond) // let any further pieces land
+				reads, _ = rc.stats()
+				if reads != 1 {
+					t.Fatalf(".ir first record arrived in %d reads, want 1 (never fragmented, even in all mode)", reads)
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("upstream saw no data")
+}
+
+// TestDirectTLDStaysUnfragmentedEvenWhenListed: the .ir rule wins over
+// the user's routed list too — a listed .ir host relays untouched.
+func TestDirectTLDStaysUnfragmentedEvenWhenListed(t *testing.T) {
+	rawLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &recordingListener{Listener: rawLn}
+	upPort := rawLn.Addr().(*net.TCPAddr).Port
+	go func() {
+		for {
+			c, err := rec.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				io.Copy(io.Discard, c)
+			}(c)
+		}
+	}()
+	t.Cleanup(func() { rawLn.Close() })
+
+	// Youtube mode with the .ir host ON the routed list: without the
+	// rule it would fragment; the rule must keep it untouched.
+	srv, _ := newTestServer(t, func(c *Config) {
+		c.Domains = []string{"example.ir"}
+		c.FragmentConfig.Min = 80
+		c.FragmentConfig.Max = 120
+		c.FragmentConfig.Pause = 5 * time.Millisecond
+	})
+	conn := rawTunnel(t, srv.Addr(), fmt.Sprintf("example.ir:%d", upPort))
+	defer conn.Close()
+	if _, err := conn.Write(tlsLikeRecord(400)); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if rc := rec.latest(); rc != nil {
+			if reads, _ := rc.stats(); reads >= 1 {
+				time.Sleep(150 * time.Millisecond) // let any further pieces land
+				reads, _ = rc.stats()
+				if reads != 1 {
+					t.Fatalf("listed .ir first record arrived in %d reads, want 1 (the rule beats the list)", reads)
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("upstream saw no data")
+}
+
 func TestProxyAnswers405ForOtherMethods(t *testing.T) {
 	srv, _ := newTestServer(t, nil)
 	conn, err := net.DialTimeout("tcp", srv.Addr(), 3*time.Second)

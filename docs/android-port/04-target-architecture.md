@@ -216,7 +216,9 @@ Disconnect plus re-permission on next connect.
   in app-private storage via `ConfigDir()`.
 - No desktop paths, no OS proxy state, no secrets (schema verified —
   audit §3.10). Migration = existing `settingsVersion` mechanism
-  (bump to 2 when adding `apps`; `Normalize` fills defaults).
+  (bump to 2 when adding `apps`; the list migrates to the honest
+  EMPTY default — D83: no allow-list default; the user adds apps and
+  the NO_TARGET_APPS door refuses an empty connect).
 - Diagnostics redaction unchanged (R21: hostnames off by default).
 
 ## 10. Desktop separation

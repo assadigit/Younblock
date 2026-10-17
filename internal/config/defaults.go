@@ -143,32 +143,32 @@ var HealSweepOrder = []Method{MethodBalanced, MethodStrong, MethodLight, MethodL
 
 // defaultDoHServers — secure-DNS services tried in order until one answers.
 var defaultDoHServers = []DoHServer{
-        {
-                Name:      "RethinkDNS",
-                URL:       "https://sky.rethinkdns.com/?dns={dns}",
-                Bootstrap: []string{"172.67.162.27"},
-        },
-        {
-                Name:      "Cloudflare",
-                URL:       "https://cloudflare-dns.com/dns-query?dns={dns}",
-                Bootstrap: []string{"1.1.1.1", "1.0.0.1"},
-        },
-        {
-                Name:      "Google",
-                URL:       "https://dns.google/dns-query?dns={dns}",
-                Bootstrap: []string{"8.8.8.8", "8.8.4.4"},
-        },
+	{
+		Name:      "RethinkDNS",
+		URL:       "https://sky.rethinkdns.com/?dns={dns}",
+		Bootstrap: []string{"172.67.162.27"},
+	},
+	{
+		Name:      "Cloudflare",
+		URL:       "https://cloudflare-dns.com/dns-query?dns={dns}",
+		Bootstrap: []string{"1.1.1.1", "1.0.0.1"},
+	},
+	{
+		Name:      "Google",
+		URL:       "https://dns.google/dns-query?dns={dns}",
+		Bootstrap: []string{"8.8.8.8", "8.8.4.4"},
+	},
 }
 
 // defaultYouTubeDomains — hosts the PAC script sends through the proxy in "youtube" mode.
 var defaultYouTubeDomains = []string{
-        "youtube.com",
-        "youtu.be",
-        "googlevideo.com",
-        "ytimg.com",
-        "ggpht.com",
-        "youtube-nocookie.com",
-        "youtubei.googleapis.com",
+	"youtube.com",
+	"youtu.be",
+	"googlevideo.com",
+	"ytimg.com",
+	"ggpht.com",
+	"youtube-nocookie.com",
+	"youtubei.googleapis.com",
 }
 
 // =======================================================================
@@ -177,75 +177,71 @@ var defaultYouTubeDomains = []string{
 type Mode string
 
 const (
-        // ModeYouTube proxies only the YouTube domain list (default).
-        ModeYouTube Mode = "youtube"
-        // ModeAll proxies every host except localhost and private ranges.
-        ModeAll Mode = "all"
-        // ModeManual touches nothing; the UI shows the address to enter by hand.
-        ModeManual Mode = "manual"
+	// ModeYouTube proxies only the YouTube domain list (default).
+	ModeYouTube Mode = "youtube"
+	// ModeAll proxies every host except localhost and private ranges.
+	ModeAll Mode = "all"
+	// ModeManual touches nothing; the UI shows the address to enter by hand.
+	ModeManual Mode = "manual"
 )
 
 // Method selects the fragmentation preset.
 type Method string
 
 const (
-        // MethodAuto starts with balanced and lets auto-heal choose.
-        MethodAuto Method = "auto"
-        // MethodLight sends few, large pieces.
-        MethodLight Method = "light"
-        // MethodBalanced is the default first try.
-        MethodBalanced Method = "balanced"
-        // MethodStrong sends smaller pieces.
-        MethodStrong Method = "strong"
-        // MethodLegacy reproduces the old Python rule exactly.
-        MethodLegacy Method = "legacy"
+	// MethodAuto starts with balanced and lets auto-heal choose.
+	MethodAuto Method = "auto"
+	// MethodLight sends few, large pieces.
+	MethodLight Method = "light"
+	// MethodBalanced is the default first try.
+	MethodBalanced Method = "balanced"
+	// MethodStrong sends smaller pieces.
+	MethodStrong Method = "strong"
+	// MethodLegacy reproduces the old Python rule exactly.
+	MethodLegacy Method = "legacy"
 )
 
 // Valid reports whether m is a known mode.
 func (m Mode) Valid() bool {
-        return m == ModeYouTube || m == ModeAll || m == ModeManual
+	return m == ModeYouTube || m == ModeAll || m == ModeManual
 }
 
 // Valid reports whether m is a known method.
 func (m Method) Valid() bool {
-        return m == MethodAuto || m == MethodLight || m == MethodBalanced ||
-                m == MethodStrong || m == MethodLegacy
+	return m == MethodAuto || m == MethodLight || m == MethodBalanced ||
+		m == MethodStrong || m == MethodLegacy
 }
 
 // DoHServer is one secure-DNS service: a display name, a URL template that
 // contains {dns} where the encoded query goes, and bootstrap IP addresses used
 // to reach the service before DNS itself works.
 type DoHServer struct {
-        Name      string   `json:"name"`
-        URL       string   `json:"url"`
-        Bootstrap []string `json:"bootstrap"`
+	Name      string   `json:"name"`
+	URL       string   `json:"url"`
+	Bootstrap []string `json:"bootstrap"`
 }
 
 // Defaults returns the built-in DoH server list (a copy).
 func Defaults() []DoHServer {
-        out := make([]DoHServer, len(defaultDoHServers))
-        for i, s := range defaultDoHServers {
-                out[i] = DoHServer{Name: s.Name, URL: s.URL, Bootstrap: append([]string(nil), s.Bootstrap...)}
-        }
-        return out
+	out := make([]DoHServer, len(defaultDoHServers))
+	for i, s := range defaultDoHServers {
+		out[i] = DoHServer{Name: s.Name, URL: s.URL, Bootstrap: append([]string(nil), s.Bootstrap...)}
+	}
+	return out
 }
 
 // DefaultDomains returns the built-in YouTube domain list (a copy).
 func DefaultDomains() []string {
-        return append([]string(nil), defaultYouTubeDomains...)
+	return append([]string(nil), defaultYouTubeDomains...)
 }
 
-// defaultRoutedApps is the built-in per-app allow-list (ADR-0003): the
-// user's own Chrome and the YouTube app — the product's declared scope.
-var defaultRoutedApps = []string{
-	"com.android.chrome",
-	"com.google.android.youtube",
-}
-
-// DefaultApps returns the built-in per-app allow-list (a copy). The list
-// is settings schema v2's `apps` field (doc 04 §9): consumed only by the
-// Android VpnService when it builds the TUN; desktop editions carry the
-// field but never read it.
+// DefaultApps returns the built-in per-app allow-list: EMPTY (Ali's
+// ruling, DECISIONS.md D83 — "there is no allow-list default"). The
+// list starts empty and the user adds the apps to unblock; the M7
+// NO_TARGET_APPS refusal door (D81) is what makes an empty list safe —
+// a connect with no apps fails closed with the typed reason instead
+// of ever routing every app. Saved files keep their lists: the ruling
+// changes the default, never user data.
 func DefaultApps() []string {
-	return append([]string(nil), defaultRoutedApps...)
+	return []string{}
 }

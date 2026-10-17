@@ -18,9 +18,10 @@
 //     resolve through the DoH resolver (IP literals skip DNS), dial
 //     through the one netx.Dialer (protected on Android), fragment the
 //     first TLS record for routed domains, copy both ways with the idle
-//     timeout. Fragmentation follows the existing mode rules — with the
-//     domain address type the stack's fake-DNS lets the same
-//     MatchAnyDomain decision the browser path makes apply here too.
+//     timeout. Fragmentation follows the mode rules minus the
+//     never-processed TLDs — with the domain address type the stack's
+//     fake-DNS lets the same routedHost decision the browser path makes
+//     apply here too (.ir relays untouched in every mode — D83).
 package proxy
 
 import (
@@ -33,8 +34,6 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
-
-	"github.com/assadigit/Younblock/internal/config"
 )
 
 // SOCKS5 wire constants (RFC 1928).
@@ -229,8 +228,10 @@ func (s *Server) serveSocks5(conn net.Conn) {
 
 	s.socks5ReplyAddr(conn, upstream.LocalAddr())
 
-	mode, domains := s.pacData()
-	fragmentTLS := mode == config.ModeAll || MatchAnyDomain(host, domains)
+	// The one routed-host decision, shared with the HTTP door: the
+	// mode/list rule minus the never-processed TLDs — a .ir host relays
+	// untouched whatever the mode or list says (D83).
+	fragmentTLS := s.routedHost(host)
 	clientSide := &bufferedConn{Conn: conn, prefix: drainBuffered(br)}
 	s.runBidirectionalCopy(clientSide, upstream, host, fragmentTLS)
 }
