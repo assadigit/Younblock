@@ -273,3 +273,49 @@ the new bundle). Disk: ~1.9 GB free at the exit (Go module cache
 cleaned mid-session and re-fetched through the bind — network
 reachable); `go clean -modcache` forces the re-download on the next
 `-mod=mod` lane, budget ~5 min.
+
+M8 record (2026-10-17; the third consecutive no-wipe session — repo
+at 9a05f05, toolchain verified: go1.27.2, javac 21.0.12.1, NDK
+28.2.13676358; baseline green at the open BEFORE any work: vet clean,
+17/17 ×2, svelte-check 0/0, vite clean, webui dist synced with zero
+diff). D84 — the debug-APK-only test circle — reshaped the milestone:
+no signed variant, no release keystore; the debug APK is the
+distributed artifact. **No application code changed at M8** (docs +
+release only), so the shipped artifact is the M8-a clean-build output,
+re-verified on disk before distribution instead of pointlessly
+rebuilt (a rebuild would only churn build timestamps; the honest form
+is the recorded artifact re-verified):
+
+- `sha256sum android/app/build/outputs/apk/debug/app-debug.apk` →
+  `ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64`
+  (35,567,561 B — the exact M8-a record);
+- `apksigner verify --print-certs` → Verifies, v2 scheme true, signer
+  CN=Android Debug, cert SHA-256 digest
+  `c76bb7c61ec623892eabc37ac90ac1bc0041d39490f2d48073676d6e2ed8551d`;
+- `aapt2 dump badging` → package io.github.assadigit.younblock
+  versionName 1.6.6 versionCode 1, minSdkVersion 26, targetSdkVersion
+  36, native-code arm64-v8a/armeabi-v7a/x86_64;
+- the dumped manifest → exactly the four permissions of doc 07 §6 +
+  the launcher-intent `<queries>` (MAIN + LAUNCHER);
+- `javap` on the AAR's classes.jar → the full binding set
+  (newEngine, start/startTun/stopTun, setVpnReady, getState/vpnState,
+  getSettings/saveSettings, routedApps, failStart, getAppInfo,
+  getDiagnosticReport, runConnectionTest, autoFix, shutdown);
+- `go list -deps ./mobile` (vendor mode) → the same audited closure
+  as M7 (gVisor pkg subset, golang.org/x/{net,sync,sys,time,exp} +
+  x/mobile, google/btree).
+
+**The release lane (new at M8):** tag `v1.6.6-android-debug.1`
+(prerelease) on the M8 commit; the APK uploaded as the release asset
+through the GitHub API; verified after creation via the API — tag,
+prerelease flag, asset name/size, and the downloaded asset's SHA-256
+matching the on-disk artifact. **The D84 versionCode rule: every
+successive debug build bumps `versionCode` (android/app/
+build.gradle.kts) so it installs over the previous one (same debug
+certificate); this first artifact keeps versionCode 1 / versionName
+1.6.6.** The platform-requirements recheck (doc 07 §9) ran against
+developer.android.com primary sources this session. Disk at the exit:
+~1.9 GB free. The standing ⛔ (no /dev/kvm → no emulator, no device)
+was re-verified: install/launch smoke and the traffic-path halves are
+handed to Ali's device through the release's test circle (doc 10
+§"Device test circle") — never claimed here.

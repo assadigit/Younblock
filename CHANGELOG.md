@@ -686,3 +686,38 @@ First Windows test build, published to GitHub Releases.
   rulings applied is recorded in docs/android-port/05–06; the standing
   device gates remain ⛔ (no /dev/kvm, no device) and are carried,
   never claimed.
+
+### Added (Android port, M8 — package, verify, hand off, D84 — the debug test circle)
+
+- **The first distributable Android build** — the debug-APK-only test
+  circle (Ali's keystore ruling, D84: "keep it debug version… we're
+  not releasing yet. but release in github for me to download and
+  debug"): no signed variant exists at this stage; the debug APK is
+  published as the GitHub prerelease **v1.6.6-android-debug.1** on the
+  private repo, downloadable with Ali's own GitHub account for device
+  testing. The artifact is the M8-a clean-build output — M8 changed no
+  application code — re-verified on disk before distribution:
+  `app-debug.apk`, 35,567,561 B, SHA-256 ccf46a2e…7b64; apksigner
+  v2-scheme OK (debug certificate, digest recorded); badging
+  io.github.assadigit.younblock 1.6.6 (versionCode 1), minSdk 26 /
+  target 36, native-code arm64-v8a/armeabi-v7a/x86_64; the manifest's
+  four-permission inventory and launcher-intent `<queries>` verified
+  in the shipped file.
+- **The release carries the device test circle** (doc 10): the
+  checklist of everything the build environment could never verify
+  (no /dev/kvm, no device — install/first-launch, the live consent
+  dialog, notification behavior, screen-off/Doze, real DoH, the
+  YouTube app's QUIC→TCP fallback, protect() on real sockets, the
+  .ir direct path on a real radio, stop/reboot paths, battery) —
+  handed to Ali's device through the release notes, never claimed
+  here. His observations are the feedback loop that closes those
+  gates and drives any v1.6.6-android-debug.2 fix build.
+- M8's verification record: the baseline gate (vet clean, 17/17
+  packages twice, svelte-check 0/0, vite clean, webui dist synced),
+  the dependency-closure re-run (the same audited permissive set),
+  the platform-requirements recheck against developer.android.com
+  primary sources, three of doc 07 §9's release-blocking rows closed,
+  and the README's Android sideload section (the unknown-apps + Play
+  Protect + built-for-testing warnings, all expected for this circle).
+  **Every future debug build bumps versionCode** so it installs over
+  the previous one (same debug certificate) — the D84 rule.

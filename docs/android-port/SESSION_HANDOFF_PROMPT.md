@@ -1,4 +1,4 @@
-# Prompt — Continue the Younblock Android port at M8
+# Prompt — Continue the Younblock Android port after M8 (device-test feedback loop)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,29 +6,33 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-a → M8 handoff)
+## Where the project stands (verified at the M8 close)
 
-- Phase 2 of the Android port, final milestone. M0–M7 complete, plus
-  **M8-a** (2026-10-17, host-complete, D83): Ali's two product rulings
-  — the apps allow-list has NO default (empty until the user adds an
-  app; the empty connect fails through the M7 NO_TARGET_APPS door with
-  an honest message), and every .ir domain never touches the app (no
-  fragmentation, no redirect, always direct — winning over every mode
-  and the user's own list, enforced at the one decision both doors
-  share plus the PAC's first line; .ir lookups still resolve through
-  the configured DoH providers on Android — the stated limit). The
-  latent <queries> bug fixed: the manifest now uses the launcher-intent
-  query so user-added packages are actually visible. M7 before it:
-  the NO_TARGET_APPS refusal door (D81), run generations (D82), the
-  `-race` lane, the audit + permission review, the release-notes draft
-  (doc 10, updated for D83). Verified debug APK after M8-a:
-  35,567,561 B, sha256 ccf46a2e…7b64.
-- Standing environment blocker (never claimed, never dropped): **no
-  /dev/kvm and no device** — the shared checklist (live consent,
-  notification channel, screen-off/Doze, real DoH, QUIC fallback,
-  protect(), reboot/onRevoke, rotation/font-scale/TalkBack, battery,
-  the .ir direct path on a real radio) rides together; M8's
-  install/launch smoke-test halves are ⛔ too.
+- **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
+  Go engine ported and hardened behind ADRs, the gomobile facade with
+  the full binding set, the Kotlin VPN service (consent gate, honest
+  routing report, the NO_TARGET_APPS refusal door, run generations),
+  the mobile settings/UX (the empty-default apps allow-list — D83/D84,
+  confirmed by Ali — and the .ir never-processed rule), the audits,
+  and the packaging.
+- **The first distributable build is shipped**: the GitHub prerelease
+  **`v1.6.6-android-debug.1`** (D84 — Ali's keystore ruling: the
+  debug-APK-only test circle; "we're not releasing yet", so no signed
+  variant exists). The artifact is the M8-a clean-build APK,
+  35,567,561 B, SHA-256 ccf46a2e…7b64, re-verified on disk and against
+  the uploaded release asset (apksigner v2 OK, debug cert digest
+  c76bb7c6…8551d; badging io.github.assadigit.younblock 1.6.6
+  versionCode 1, minSdk 26 / target 36, 3 ABIs; the four-permission
+  manifest + launcher-intent `<queries>`).
+- **The project's one remaining input is Ali's device observations**:
+  the release notes carry the device test circle (doc 10 §"Device
+  test circle") — install/first-launch, the live consent dialog,
+  notification behavior, screen-off/Doze, real DoH, the YouTube app's
+  QUIC→TCP fallback, protect() on real sockets, the .ir direct path on
+  a real radio, stop/reboot paths, battery, rotation/font-scale/
+  TalkBack. Everything device-side is ⛔ in the sandbox (no /dev/kvm,
+  no device — never claimed, never faked) and is waiting on that
+  feedback.
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
@@ -41,66 +45,71 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite.
-2. Read the spec pack, at minimum: doc 09 (handoff), doc 05 §M8-a and
-   §M8 (the D83 record + your milestone), doc 06 (build commands + the
-   M7 record), doc 07 (§8 signing/keystore, §9 the checklist's open
-   rows), doc 10 (the release-notes draft you will finalize — already
-   updated for D83), doc 08 + `DECISIONS.md` (D1–D83; **the next
-   decision number is D84**), and the tail of `PROGRESS.md`.
+2. Read the spec pack, at minimum: doc 09 (handoff), doc 05 §M8 (the
+   close-out record), doc 06 (the M8 record incl. the release lane),
+   doc 10 (§"Device test circle" — Ali's checklist), doc 08 +
+   `DECISIONS.md` (D1–D84; **the next decision number is D85`),
+   and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
-4. Make the desktop baseline GREEN before writing any code:
+4. Check whether Ali's device-test feedback has arrived (session
+   messages). If none has arrived yet, STOP after reporting state —
+   do not invent work, do not "improve" shipped code without a
+   reported reason.
+5. Make the desktop baseline GREEN before writing any code:
    `go vet ./...`; `go test -count=1 ./...` (expect **17/17 packages
    ok**, run twice consecutively); webui `svelte-check` (0/0) and
    `vite build`. D74 trap: a stale webui dist fails
    `TestWebUILifecycle` (in the mobile package) — sync
    `frontend/dist → internal/webui/dist` before judging.
-5. Start M8 (section below).
 
-## The M8 task — package, verify, hand off
+## The task — the device-test feedback loop
 
-Scope (doc 05 §M8; doc 09 "Exact next task"):
+For each issue Ali reports from `v1.6.6-android-debug.1`:
 
-- Build BOTH variants: the debug APK (the standing lane) and the
-  release APK. **The keystore question for Ali becomes blocking for
-  the signed variant**: doc 07 §8 says a local keystore, never
-  committed, README backup steps. If Ali has not provided one, create
-  a fresh local keystore (documented command), sign, record the cert
-  fingerprint — and note explicitly that losing it means
-  uninstall-before-update; never commit it.
-- Record for every artifact: exact path + size, variant, application
-  ID, versionName/Code, ABIs, min/target SDK, signing state, SHA-256,
-  and which of doc 06 §5's five verification levels actually ran
-  (compiled / installed / UI smoke / engine integrated / target
-  traffic path). Install + launch smoke: ⛔ without a device —
-  document with evidence, never fake.
-- Finalize doc 10's release notes against the shipped artifact (M8's
-  copy review vs doc 07 §1); re-run the dependency-closure check and
-  the platform-requirements recheck (doc 07 §9's remaining M8 rows).
-- Docs/notes updated end-to-end; commit/push with the
-  pre-existing-change rule.
-- The D77–D83 honesty rules bind to the end: every claim in the
-  release notes traces to evidence; ⛔ gates stay listed, never
-  quietly dropped.
+- Root-cause first (the project's standing discipline: failures are
+  root-caused and fixed, never retried away, never hidden). The
+  diagnostics report (in-app, redacted) + device model/Android
+  version are the expected inputs.
+- Fix at the correct layer (engine/facade/Kotlin/WebView), keeping
+  the D77–D84 honesty rules binding: the UI may only claim what the
+  engine actually enforces; ⛔ gates are listed, never dropped.
+- Record each closed checklist row with Ali's measured evidence (doc
+  07 §9 / doc 10 §"Device test circle"); rows without observations
+  stay open — never mark them complete.
+- **Bump `versionCode`** in `android/app/build.gradle.kts` (the D84
+  rule: updates install over the previous debug build; same debug
+  certificate), then run the full lane: desktop baseline; compile
+  matrix; `gomobile bind`; **clean** `assembleDebug` (only clean
+  builds are honest); artifact verification (sha256, apksigner,
+  badging, manifest dump — doc 06's M8 record); commit; then cut the
+  next debug prerelease (`v1.6.6-android-debug.2`, …) through the
+  same release lane (tag the M-commit, upload the APK, verify via the
+  API, record asset size + digest).
+- If Ali decides to release publicly: the signed-release decision
+  returns (doc 07 §8 — his local keystore or an EC key, never
+  committed; README backup steps), and doc 10 §2 (the public v1
+  DRAFT) is finalized against that artifact.
 
 ## Environment (this sandbox resets without warning — verify, don't assume)
 
-Intact layout, as verified at handoff (the M7 and M8-a sessions ran
-with NO wipe — but verify anyway):
+Layout as verified at the M8 close (three consecutive no-wipe
+sessions before it — but verify anyway):
 
 - Repo: `/home/z/my-project/Younblock`, `vendor/` committed (D68: use
   `-mod=vendor`; the Android lane never invokes wails; desktop lanes
   keep the `wails -m` rule).
 - Go 1.27.2 at `~/sdk/go/bin` — **not on PATH; source `~/sdk/env.sh`**.
 - JDK 21.0.12.1+1 (Temurin, javac present) at `~/sdk/jdk-21.0.12.1+1`
-  (the system JDK is a JRE without javac — use the Temurin one).
+  (the system JDK is a JRE without javac — use the Temurin one; its
+  `bin/javap` is the AAR inspector).
 - Android SDK at `~/sdk/android` (cmdline-tools 12.0, platform-tools,
   platforms 26/36, build-tools 36.1.0, NDK 28.2.13676358, licenses
   accepted). Exact PATH / JAVA_HOME / ANDROID_HOME setup: doc 06.
-- No /dev/kvm (verified at the M8-a handoff). Disk is a ~9.9 GB box —
-  clean Go/Gradle build caches before big builds; ~1.9 GB free at the
-  M8-a exit.
+- No /dev/kvm (re-verified at M8). Disk is a ~9.9 GB box — clean
+  Go/Gradle build caches before big builds; ~1.9 GB free at the M8
+  exit.
 - The sandbox kills background processes when a Bash command ends —
   run long builds as foreground chunks.
 - The honest compile-matrix form: `go build` over the 18 non-main
@@ -130,23 +139,25 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   narrow scope.
 - Scoped commits; small steps; baseline green after each; no
   force-push; no unrelated changes; **no secrets or signing keys
-  committed** (the M8 keystore especially — .gitignore it); preserve
-  Windows/Linux desktop behavior (the full regression gate is part of
-  every milestone).
+  committed**; preserve Windows/Linux desktop behavior (the full
+  regression gate is part of every change set).
 - Do not assume Wails or desktop proxy semantics transfer to Android;
   the ADRs (doc 08) are the ground truth.
-- The honesty rules D77–D82 bind M8: the UI/release notes may only
-  claim what the engine actually enforces; privacy copy follows
+- The honesty rules D77–D84 bind: the UI/release notes may only claim
+  what the engine actually enforces; privacy copy follows
   implementation evidence; ⛔ gates are listed, never dropped.
-- When you finish: update doc 05 (M8 evidence), doc 06 (build record),
-  doc 07 §9 (close or carry the M8 rows), doc 09 §"Current handoff
-  fields" (→ Phase 2 COMPLETE), doc 10 (finalized), `PROGRESS.md`,
-  `DECISIONS.md` (from D84), `CHANGELOG.md`; append the worklog entry
-  (Task ID M8); commit and push.
+- When you finish: update doc 05/06 (the evidence record), doc 07 §9 /
+  doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D85),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-b, M8-c, … per
+  feedback round); commit and push; cut the debug release with the
+  bumped versionCode and record the artifact.
 
 ## Required first response
 
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
-cleanliness; (3) baseline results; (4) the exact first M8 task you will
-execute. Then execute it — do not stop after repeating instructions.
+cleanliness; (3) baseline results; (4) whether Ali's device-test
+feedback has arrived, and if so the exact first issue you will
+address. Then execute — or, if no feedback has arrived, stop after
+the state report and say so plainly.

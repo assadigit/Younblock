@@ -570,17 +570,76 @@ M8 freezes the release artifacts.
   carries the launcher-intent `<queries>` and exactly doc 07 §6's
   permission inventory, apksigner OK (debug cert).
 
-### M8 — Package, verify, hand off
+### M8 — Package, verify, hand off — ✅ host-complete 2026-10-17 (DECISIONS.md D84)
 
-- ⬜ Debug + release (signed) APKs; artifact path/ID/version/ABI/
-  checksum recorded; install + smoke-test; docs/notes updated;
-  commit/push with the pre-existing-change rule.
+The keystore ruling arrived at the open and reshaped the milestone:
+**the debug-APK-only test circle (D84)** — "yes keep it debug
+version. we're not releasing yet. but release in github for me to
+download and debug." No signed variant exists at this stage; the
+debug APK is the distributed artifact, published as a GitHub Release
+on the private repo for Ali's own device testing.
 
-## Dependency order / critical path (unchanged)
+- **The shipped artifact** — `app-debug.apk`, 35,567,561 B, SHA-256
+  `ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64`:
+  the M8-a clean-build output, re-verified on disk BEFORE any
+  distribution (no code changed this milestone, so the tree is
+  identical; a rebuild would only churn timestamps — the honest form
+  is the re-verified recorded artifact). Re-verified lanes, each with
+  its command output: sha256 match against the M8-a record;
+  `apksigner verify --print-certs` — v2 scheme OK, debug certificate
+  SHA-256 digest `c76bb7c61ec623892eabc37ac90ac1bc0041d39490f2d480736
+  76d6e2ed8551d`; `aapt2 dump badging` — package
+  `io.github.assadigit.younblock` versionName 1.6.6 / versionCode 1,
+  minSdk 26, targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64;
+  the dumped manifest carries exactly doc 07 §6's four permissions
+  and the launcher-intent `<queries>`; `javap` on the AAR's classes —
+  the full binding set incl. `failStart(String)` and `routedApps()`.
+- **Doc 06 §5's verification levels, honestly attributed**: compiled
+  ✅ (the M8-a matrix 4/4 ABIs; three ABIs inside this APK); engine
+  integrated ✅ host-side (the mobile suite in the 17/17 gate);
+  installed / UI smoke / target traffic path — ⛔ in this sandbox (no
+  /dev/kvm, no device, re-verified) and **handed to Ali's device**
+  through the release's test circle (doc 10 §"Device test circle"):
+  his observations are the recorded evidence the next session
+  ingests. Nothing device-side is claimed.
+- **Dependency-closure re-run** against the final artifact: `go list
+  -deps ./mobile` — the same audited set as M7 (gVisor `pkg` netstack
+  subset, golang.org/x/{net,sync,sys,time,exp} + x/mobile,
+  google/btree), all permissive, LICENSEs vendored.
+- **Platform-requirements recheck** against developer.android.com
+  primary sources (doc 07 §9's last M8 row): VpnService/Builder
+  per-app routing; BIND_VPN_SERVICE "only the system can bind";
+  package-visibility filtering + `<queries>` on API 30+;
+  foreground-service types required targeting API 34+ (the app
+  declares connectedDevice with its permission, verified in the
+  dumped manifest); POST_NOTIFICATIONS as an API 33+ runtime
+  permission. The device-behavior halves ride with Ali's checklist.
+- **The release**: tag `v1.6.6-android-debug.1` (prerelease) on the
+  M8 commit, the APK attached as the release asset, verified through
+  the GitHub API after creation — tag, prerelease flag, asset size
+  and SHA-256 digest match the on-disk artifact. Successive debug
+  builds bump `versionCode` so they update over each other (same
+  debug cert — the D84 rule, carried in doc 06's M8 record).
+- **Docs finalized**: doc 10 re-titled for the debug test circle with
+  the device-test checklist added; README gained the Android
+  sideload section (doc 07 §8's obligation); doc 07 §8/§9 updated
+  (D84; three M8 rows closed, the device row given its closure
+  path); doc 09 → Phase 2 COMPLETE; PROGRESS/CHANGELOG/DECISIONS
+  (D84) updated; SESSION_HANDOFF_PROMPT refreshed to the post-M8
+  edition.
+- **Baseline at the exit**: vet clean; 17/17 packages ×2 consecutive;
+  svelte-check 0/0; vite build clean; webui dist synced with zero
+  diff. No application code changed this milestone — the gate ran at
+  the open and stands at the close.
 
-M3 → M4 → M5 → M6 → M7 → M8; M0–M7 complete (M4–M7
+## Dependency order / critical path (updated at M8)
+
+M3 → M4 → M5 → M6 → M7 → M8; **M0–M8 complete** (M4–M8
 host-complete; their on-device gates ride with the shared device
-checklist — doc 09's standing blocker).
+checklist — which now has its concrete closure path: Ali's own
+device testing through the D84 debug release `v1.6.6-android-debug.1`,
+per doc 10 §"Device test circle"). Phase 2 is host-complete; the
+project's next input is Ali's device observations.
 
 ## Change-control rules (unchanged)
 

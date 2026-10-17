@@ -1,8 +1,8 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the M7 → M8 boundary (2026-10-17).
-This file is the live handoff; keep the fields in §"Current handoff
-fields" accurate at every session boundary.
+**Status:** Updated at M8 close (2026-10-17) — **Phase 2
+host-complete**. This file is the live handoff; keep the fields in
+§"Current handoff fields" accurate at every session boundary.
 
 ## If starting Phase 2 (implementation) — CURRENT
 
@@ -62,73 +62,70 @@ fields" accurate at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** Phase 2 milestone **M8-a** — Ali's two product
-  rulings, implemented — 2026-10-17, host-complete (DECISIONS.md D83,
-  evidence in doc 05 M8-a; sits between M7 and M8 because the answers
-  changed shipped behavior before the release freeze). Ruling 1: no
-  allow-list default — the list starts empty, the M6 restore-defaults
-  rule removed, RoutedApps fails toward empty, the Kotlin establish
-  routes the empty list through failStart("NO_TARGET_APPS"), the UI
-  shows the empty state and the message covers empty/none-installed;
-  saved lists kept. Ruling 2: .ir never touches the app —
-  config/direct.go + Server.routedHost (the shared door decision), the
-  PAC's first line, no fragmentation/redirect ever, wins over ModeAll
-  and the user's list; honest limit stated (.ir lookups still use the
-  DoH providers on Android). The latent <queries> bug fixed
-  (launcher-intent visibility for user-added packages). **On-device
-  halves ⛔** (the standing blocker, re-verified); desktop baseline ✅
-  17/17 twice at the exit gate (ModeAll's .ir exclusion is the ruled,
-  disclosed desktop behavior change).
-- **Branch and commit:** `main`, this session's commit (see `git log -1`
-  at handoff time); worktree clean after the commit.
-- **Files changed this phase:** new — `internal/config/direct.go`,
-  `internal/config/direct_test.go`; additive edits —
-  `internal/config/{defaults.go,settings.go,apps_test.go}` (the
-  empty-default rule + inverted expectations),
-  `internal/proxy/{pac.go,pac_test.go,server.go,socks5.go,behavior_
-  test.go,socks5_test.go}` (routedHost + the .ir guard + the door
-  proofs), `mobile/{mobile.go,apps_test.go}` (fail-toward-empty),
-  `android/.../YounblockVpnService.kt` (the empty-list refusal through
-  the typed door) + `AndroidManifest.xml` (launcher-intent queries),
-  `frontend/src/lib/{backend.ts,MenuSheet.svelte}` + classic `en.json`
-  (the honest copy), doc 04 §9 / 05 (M8-a) / 07 (§1/§5/§6) / 09 / 10,
-  README, DECISIONS (D83) / PROGRESS / CHANGELOG.
+- **Phase completed:** Phase 2 milestone **M8** — package, verify,
+  hand off — host-complete 2026-10-17 (DECISIONS.md D84; evidence in
+  doc 05 §M8 and doc 06's M8 record). **M0–M8 are all complete
+  host-side; the port is packaged and distributed.** The keystore
+  ruling arrived at the open and reshaped M8: the debug-APK-only test
+  circle — no signed variant exists; the debug APK
+  (`app-debug.apk`, 35,567,561 B, SHA-256 ccf46a2e…7b64 — the M8-a
+  clean-build output, re-verified on disk: apksigner v2 OK with the
+  debug cert digest recorded, badging 1.6.6/vc1/minSdk 26/target 36/
+  3 ABIs, the four-permission manifest, javap bindings) is published
+  as the GitHub prerelease **`v1.6.6-android-debug.1`** for Ali's own
+  device testing. No application code changed at M8 (docs + release
+  only); the baseline gate (vet clean, 17/17 ×2, svelte-check 0/0,
+  vite clean, dist synced) ran at the open and stands.
+- **The project's state now:** every host-runnable lane is green and
+  evidenced; every device-side gate is ⛔ in the sandbox (no /dev/kvm,
+  no device — re-verified) and **handed to Ali's device** through the
+  release's test circle (doc 10 §"Device test circle"): install +
+  launch smoke, the live consent dialog, notification channel
+  behavior, screen-off/Doze, real DoH, the YouTube app's QUIC→TCP
+  fallback, protect() on real sockets, the .ir direct path on a real
+  radio, rotation/font-scale/TalkBack, battery, reboot/onRevoke, and
+  the IPv4/IPv6 + TCP/UDP measured rows. His observations are the
+  next session's input and become the recorded evidence that closes
+  the checklist.
+- **Branch and commit:** `main`, the M8 commit (see `git log -1` at
+  handoff time); worktree clean after the commit; the release tag
+  `v1.6.6-android-debug.1` (prerelease) points at it.
+- **Files changed this phase:** no application code — doc 05 §M8 +
+  critical-path, doc 06's M8 record, doc 07 §8/§9 (D84 + three M8
+  rows closed), doc 09 (this handoff), doc 10 (the debug test-circle
+  edition + the device test circle), README (the Android sideload
+  section), DECISIONS.md (D84), PROGRESS.md, CHANGELOG.md,
+  SESSION_HANDOFF_PROMPT.md (the post-M8 edition).
 - **Tests run and actual results:** `go vet ./...` clean; `go test
   -count=1 ./...` **17/17 packages ok, run twice consecutively**;
-  `go test -race -count=1` green on the seven key packages (engine
-  10.4 s, proxy 17.9 s, mobile 38.3 s); svelte-check 0/0; vite build
-  clean + webui dist synced (TestWebUILifecycle green on the new
-  bundle); compile matrix **4/4 ABIs** with `-mod=vendor` (arm64 full
-  tree; 18 non-main × arm/386/amd64); `gomobile bind` OK — AAR
-  25,160,550 B, `javap` shows the nine bindings; clean `assembleDebug`
-  OK — app-debug.apk 35,567,561 B, sha256
-  ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64,
-  badging minSdk 26 / target 36, 3 native ABIs; the dumped manifest
-  carries the launcher-intent `<queries>` and exactly doc 07 §6's
-  permission inventory; apksigner OK (debug cert).
-- **Current architecture decision / confidence:** D83 (no allow-list
-  default — the empty list is a first-class state whose safety is the
-  M7 refusal door; and the .ir never-processed rule at the one
-  decision point both doors share, winning over every mode and list,
-  with the DoH-resolution limit stated). Confidence: high on the host
-  chain (truth-table + door + PAC suites, the full gates); the device
-  halves (the .ir direct path on a real radio included) ride with the
-  checklist. Next decision ID: D84.
-- **Blocking questions:** one product decision remains — **the
-  keystore handling (doc 07 §8), now BLOCKING for M8's signed release
-  APK**: who generates the release keystore and where it lives (the
-  spec's rule: local, never committed, README backup steps); the
-  recommended split — Ali generates his own locally per README steps,
-  and the sandbox's M8 release lane is proven with a clearly-labeled
-  placeholder he replaces. The allow-list question is ANSWERED and
-  implemented (D83). Standing environment blocker: **no emulator (no
-  /dev/kvm) and no device** — the shared checklist.
-- **Exact next task:** **M8** — package, verify, hand off (doc 05
-  §M8): debug + release (signed) APKs with artifact path/ID/version/
-  ABI/checksum recorded; install + smoke-test (the device-dependent
-  install/launch halves ⛔ without a device — document with evidence);
-  doc 10's release notes finalized against the artifact (the M8-a
-  copy review already reflects D83); docs/notes updated; commit/push
-  with the pre-existing-change rule. The host side (build both
-  variants, record everything, finalize docs) is runnable now — the
-  release keystore answer is the one open input.
+  svelte-check 0/0; vite build clean; webui dist synced (zero diff);
+  artifact lanes re-run on the shipped APK (sha256, apksigner
+  --print-certs, aapt2 badging, manifest dump, javap — outputs
+  recorded in doc 06's M8 record); dependency closure re-run (same
+  audited set as M7); platform requirements re-verified against
+  developer.android.com primary sources. The GitHub release verified
+  through the API after creation (tag, prerelease flag, asset size +
+  digest match).
+- **Current architecture decision / confidence:** D84 (the
+  debug-APK-only test circle — the debug APK distributed via GitHub
+  Releases on the private repo; successive debug builds bump
+  versionCode; the signed-release alternatives stay documented for
+  the future public release). Confidence: high on the entire host
+  chain; every device claim remains explicitly unclaimed pending
+  Ali's observations. Next decision ID: D85.
+- **Blocking questions:** none product-side. The keystore question is
+  ANSWERED (D84 — debug-only for now; revisit only when a public
+  release is planned). The allow-list question is ANSWERED and
+  implemented (D83, confirmed by Ali at M8). Standing environment
+  blocker: no /dev/kvm, no device — now mitigated by Ali's own
+  device testing through the debug release.
+- **Exact next task:** the **device-test feedback loop** (no fixed
+  milestone number): ingest Ali's observations from
+  `v1.6.6-android-debug.1` (doc 10 §"Device test circle" is the
+  checklist), fix what his testing surfaces (root-cause discipline,
+  the D77–D83 honesty rules binding as ever), bump `versionCode` and
+  cut the next debug build (`v1.6.6-android-debug.2`…) with the same
+  release lane (doc 06's M8 record), and close checklist rows with
+  his measured evidence. When Ali decides to release publicly, the
+  signed-release decision returns (doc 07 §8: his local keystore or
+  an EC key; never committed).

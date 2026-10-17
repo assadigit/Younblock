@@ -1343,3 +1343,56 @@ ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64;
 badging minSdk 26/target 36, 3 ABIs; the dumped manifest carries the
 launcher-intent queries and exactly the doc 07 §6 permission
 inventory; apksigner OK, debug cert).
+
+**D84 — Ali's keystore/distribution ruling (2026-10-17, at M8): the
+debug-APK-only test circle.** The last open product question — the
+keystore handling (doc 07 §8), blocking for M8's signed release APK —
+is answered verbatim: "yes keep it debug version. we're not releasing
+yet. but release in github for me to download and debug. So i guess;
+Alternatives: EC key, or no signed release / debug-APK-only test
+circle — tell the team and M8 will follow that decision."
+
+Consequences, implemented at M8:
+- NO SIGNED RELEASE APK AT THIS STAGE. The alternatives stay
+  documented for whenever a public release happens (Ali generates his
+  own local keystore per doc 07 §8's README steps, or an EC key);
+  M8 follows the debug-only one. Doc 07 §8 now records the test
+  circle's distribution model; the public-v1 release notes (doc 10)
+  remain a DRAFT — "we're not releasing yet" is recorded, not
+  contradicted.
+- THE DEBUG APK IS THE DISTRIBUTED ARTIFACT, VIA GITHUB RELEASES on
+  the private repo (prerelease-flagged tag `v1.6.6-android-debug.1`),
+  so Ali downloads it with his own GitHub credentials and installs it
+  on a real device — the first actual path toward closing the shared
+  device checklist. The sandbox's own install/launch smoke halves
+  remain ⛔ (no /dev/kvm, no device, re-verified this session); the
+  release hands those gates to Ali's device together with the test
+  circle in doc 10 §"Device test circle" — his observations become the
+  recorded evidence in the next session.
+- UPDATES INSTALL OVER THE PREVIOUS only while versionCode increases
+  across successive debug builds (same debug certificate): every
+  future debug build bumps `versionCode` (the rule is carried in doc
+  06's M8 record and the handoff). This first artifact keeps
+  versionCode 1 / versionName 1.6.6 (the port inherited the desktop
+  version line).
+- RULING 1 CONFIRMED AS SHIPPED, verbatim: "Ruling 1 — no allow-list
+  default: Allow-list starts empty; nothing is routed until apps are
+  added. youtube is allow list." D83 already implements exactly this;
+  "youtube is allow list" reads as the canonical use case — the user
+  adds the YouTube app (the app the product exists for) to the list,
+  and the YouTube domains remain the domain-level unblock target. No
+  code change; D83 stands.
+
+Evidence: the M8 lane record (doc 05 §M8, doc 06) — the on-disk
+artifact re-verified as the M8-a clean-build output before any
+distribution (sha256 match ccf46a2e…7b64; apksigner v2-scheme OK,
+debug certificate digest c76bb7c6…8551d recorded; badging
+io.github.assadigit.younblock 1.6.6 versionCode 1, minSdk 26 /
+targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64; the dumped
+manifest carries exactly doc 07 §6's four permissions and the
+launcher-intent <queries>; javap shows the full binding set incl.
+failStart(String) and routedApps()); the dependency closure re-run
+(`go list -deps ./mobile` — the same audited set as M7); the
+platform-requirements recheck against developer.android.com primary
+sources; the GitHub release itself, verified through the API after
+creation (tag, prerelease flag, asset size and digest match).

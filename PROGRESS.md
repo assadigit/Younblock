@@ -2279,3 +2279,71 @@ Next: M8 — package, verify, hand off (doc 05 §M8). The allow-list
 question is now ANSWERED and implemented; the keystore question
 (doc 07 §8) is the one remaining product decision, and it is blocking
 for M8's signed release APK.
+
+## Android port — M8: package, verify, hand off (2026-10-17) — Phase 2 host-complete
+
+The keystore question — the last open product decision — was answered
+at the open and reshaped the milestone into **the debug-APK-only test
+circle (D84)**: "yes keep it debug version. we're not releasing yet.
+but release in github for me to download and debug." No signed
+variant exists; the debug APK is the distributed artifact, published
+as the GitHub prerelease **v1.6.6-android-debug.1** on the private
+repo for Ali's own device testing. Ruling 1 was confirmed as shipped
+("Allow-list starts empty; nothing is routed until apps are added.
+youtube is allow list." — D83 stands; the YouTube app is the canonical
+list entry, the YouTube domains the domain-level unblock target).
+
+M8 changed **no application code** (docs + release only), so the
+shipped artifact is the M8-a clean-build output, re-verified on disk
+before distribution rather than pointlessly rebuilt: sha256
+`ccf46a2e9ca53346e5454276e1c51a003eb897b976ce0ff6144d58c6bfd37b64`
+(35,567,561 B — the exact M8-a record); `apksigner verify
+--print-certs` v2-scheme OK with the debug certificate digest
+`c76bb7c6…8551d` recorded; badging `io.github.assadigit.younblock`
+1.6.6 (versionCode 1), minSdk 26 / targetSdk 36, native-code
+arm64-v8a/armeabi-v7a/x86_64; the dumped manifest carries exactly
+doc 07 §6's four permissions and the launcher-intent `<queries>`;
+javap shows the full binding set (failStart, routedApps and the rest).
+
+The M8 lanes, all with evidence: the baseline gate at the open (vet
+clean; **17/17 ×2 consecutive**; svelte-check 0/0; vite build clean;
+webui dist synced with zero diff); the dependency-closure re-run
+(`go list -deps ./mobile` — the same audited set as M7); the
+platform-requirements recheck against developer.android.com primary
+sources (VpnService/Builder per-app routing, BIND_VPN_SERVICE
+"only the system can bind", package-visibility `<queries>` on API
+30+, foreground-service types at API 34+ — connectedDevice declared
+and verified in the dumped manifest, POST_NOTIFICATIONS as an API 33+
+runtime permission); and the release lane — tag, prerelease flag, the
+APK uploaded as the release asset, verified through the GitHub API
+after creation (asset size and digest match the on-disk artifact).
+
+Three of doc 07 §9's M8 rows closed (dependency review, platform
+recheck, signing/version/checksums — the release-keystore half
+superseded by D84); the IPv4/IPv6 + TCP/UDP device row keeps its open
+status, now with its closure path: **Ali's own device testing through
+the debug release**. The honest ⛔, unchanged and re-verified
+(`ls /dev/kvm` → No such file or directory): install/launch smoke,
+the live consent dialog, notification behavior, screen-off/Doze, real
+DoH, QUIC fallback, protect() on real sockets, the .ir direct path on
+a real radio, rotation/font-scale/TalkBack, battery, reboot/onRevoke
+— all handed to Ali's device through the release's test circle
+(doc 10 §"Device test circle"), never claimed here. His observations
+are the next session's input.
+
+The D84 versionCode rule is carried for every successive debug build
+(bump it so updates install over the previous; same debug
+certificate). Docs finalized end-to-end: doc 05 §M8 (the evidence
+record + exit verdict), doc 06 (the M8 record incl. the release
+lane), doc 07 §8/§9, doc 09 (handoff fields → Phase 2 COMPLETE),
+doc 10 (the shipped test-circle edition + the device test circle),
+README (the Android sideload section), DECISIONS.md D84, CHANGELOG,
+and the session prompt refreshed to the post-M8 edition.
+
+**M0–M8 complete. Phase 2 of the Android port is host-complete: the
+port is packaged, verified, and handed to the owner's device.** Next:
+the device-test feedback loop — ingest Ali's observations from
+v1.6.6-android-debug.1, fix what they surface, cut
+v1.6.6-android-debug.2 (versionCode bumped) through the same release
+lane, and close checklist rows with measured evidence. The
+signed-release decision returns only when a public release is planned.

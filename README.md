@@ -16,6 +16,35 @@ Chrome, Firefox, Opera, Brave and the rest — picks it up with no extra setup (
 tested most with Chrome). It works with one big button, tests itself, and repairs itself
 when YouTube stops responding — and it always tells you what it changed.
 
+## Android test build (debug, not a public release)
+
+The Android port is done and packaged, and it works the same way: the same
+engine, the same secure-DNS and record-splitting behavior, but routing **only
+the apps you add to its list** (the list starts empty — nothing is routed until
+you add an app, e.g. the YouTube app). It is **not a VPN**: it uses Android's
+VPN slot as a local traffic-routing interface, hides no IP address and adds no
+encryption. Every website ending in **.ir is always left completely alone** —
+direct, untouched, exactly as if the app were not running.
+
+For now this is a **debug-signed test build, not a release** ("we're not
+releasing yet"): download `app-debug.apk` from the repo's
+[Releases page](https://github.com/assadigit/Younblock/releases) (the
+`v1.6.6-android-debug.1` prerelease — the repo is private, so sign in with your
+GitHub account), then sideload it:
+
+1. Allow installs from your browser app (Settings → Apps → special access →
+   install unknown apps).
+2. Open the downloaded APK; Android warns about unknown developers and that the
+   app is built for testing — both expected for a debug build.
+3. Install, open Younblock, add the YouTube app under "Apps to unblock", and
+   connect. Requires Android 8.0 or newer.
+
+The release's notes carry the full device test checklist (what to test and what
+to report back), and the engineering record lives in
+[docs/android-port](docs/android-port/README.md). Successive debug builds
+install over this one; when a public release happens, the signing plan is
+documented in [docs/android-port/07-security-privacy-and-distribution.md](docs/android-port/07-security-privacy-and-distribution.md).
+
 **What's new in version 1.6.5** (the "offline means offline" release):
 
 - **The offline pack finally keeps its promise.** The v0.7.4 pack said
