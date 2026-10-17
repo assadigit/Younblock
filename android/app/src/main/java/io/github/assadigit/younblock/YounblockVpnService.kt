@@ -47,10 +47,15 @@ import org.json.JSONObject
  *     `apps` settings list (schema v2, M6), read through the facade's
  *     [mobile.Engine.routedApps] at establish time: the same normalized
  *     list the WebView's Apps-to-unblock row edits and settings.json
- *     persists. D86: the list starts with the YouTube app (Ali's
- *     ruling after the debug.1 device observation; the v3 settings
- *     migration carries debug.1's born-empty files to it), and the
- *     user adds or removes from there. A change saved while the TUN
+ *     persists. D86 put the YouTube app on the list (Ali's ruling after
+ *     the debug.1 device observation; the v3 settings migration carried
+ *     debug.1's born-empty files to it); D87 — his second ruling —
+ *     extends the default to the Chrome, Firefox, Opera and Brave
+ *     browsers (the v4 migration carries debug.2's [youtube]-only files
+ *     to the five-app default). Entries whose apps are NOT installed
+ *     are skipped per-package below (NameNotFoundException is caught),
+ *     so the five-app default establishes fine on devices that only
+ *     have some of them. A change saved while the TUN
  *     is live applies on the NEXT connect — the list is baked into the
  *     VpnService builder at establish, and rebuilding an established
  *     TUN under live traffic is riskier than the delay (the UI copy
@@ -66,12 +71,12 @@ import org.json.JSONObject
  * Fail-closed invariant: a VpnService.Builder with ZERO allowed
  * applications routes EVERY app's traffic — the exact opposite of the
  * product scope. If the list is empty (the user removed every entry —
- * D86's default is the YouTube app, so empty is a CHOICE, filled by
- * the v3 migration for debug.1's born-empty files), cannot be read, or
- * none of its packages is installed, the service refuses to establish
- * through the M7 typed door (D81): the engine fails the connect run
- * with NO_TARGET_APPS, the page shows the honest reason, and this
- * service stops with the state reconciled.
+ * the D87 default is five apps, so empty is a CHOICE; the v3/v4
+ * migrations fill only the never-configured files of their eras),
+ * cannot be read, or none of its packages is installed, the service
+ * refuses to establish through the M7 typed door (D81): the engine
+ * fails the connect run with NO_TARGET_APPS, the page shows the honest
+ * reason, and this service stops with the state reconciled.
  *
  * fd ownership (the facade's single-owner rule): after
  * engine.startTun(fd, mtu) returns — success OR refusal — the Go side
@@ -155,10 +160,11 @@ class YounblockVpnService : VpnService() {
         val apps = readRoutedApps(engine)
         if (apps.isEmpty()) {
             // Fail closed toward refusal — an empty list would route
-            // EVERYTHING. D86: the fresh list carries the YouTube app
-            // (the v3 migration fills debug.1's born-empty files), so
-            // empty arriving HERE means the user removed every entry or
-            // the bridge read failed — either way the refusal is the
+            // EVERYTHING. D87: the fresh list carries the YouTube app
+            // and the four browsers (the v4 migration carries debug.2's
+            // [youtube]-only files to the five-app default), so empty
+            // arriving HERE means the user removed every entry or the
+            // bridge read failed — either way the refusal is the
             // typed NO_TARGET_APPS door (D81): the engine fails the
             // gate-held run and the page shows the honest "add an app"
             // reason, never a silent unwind.

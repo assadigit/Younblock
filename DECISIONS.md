@@ -1524,3 +1524,70 @@ certificate (c76bb7c6…8551d), badging minSdk 26/target 36/3 ABIs, the
 four-permission manifest, no testOnly; the D86 copy verified embedded
 in the AAR's native library. Released as v1.6.6-android-debug.2 through
 the same lane.
+
+**D87 — Ali's browsers ruling: the default list extended to Chrome,
+Firefox, Opera and Brave (2026-10-17, the device-test feedback loop's
+third session, M8-d).** Ali's message: "Add chrome to the default
+addlist as well, also firefox, opera, brave browser." This closes the
+open question D86 carried ("whether Chrome should join the default
+list — currently one tap away") with the owner's explicit answer, and
+extends it beyond Chrome to the other three mainstream browsers.
+
+- THE RULING, IMPLEMENTED: DefaultApps() = [com.google.android.youtube,
+  com.android.chrome, org.mozilla.firefox, com.opera.browser,
+  com.brave.browser] — the stable Play Store package names of the four
+  browsers' mainline builds (Beta/Nightly/GX/Mini variants are
+  deliberate non-choices: one entry per browser, the channel a normal
+  user has). A SAVED EMPTY LIST STILL MEANS EMPTY — the agency rule
+  D81/D86 kept verbatim.
+- MISSING APPS CANNOT BREAK ESTABLISH (audited before shipping): the
+  Kotlin establish loop already catches NameNotFoundException per
+  entry and skips it, refusing only when ZERO entries resolve — so the
+  five-app default is safe on a device with only some of the apps
+  installed (Firefox/Opera/Brave are rarely preinstalled; they simply
+  skip, and the chip row is how they get added later if installed).
+  This was THE risk of a multi-app default and it was already closed
+  by the M6 establish design; D87 records the audit.
+- THE v4 SCHEMA MIGRATION (settingsVersion 3→4), same one-time
+  mechanism as v3, with the era logic made precise: (a) a v1/v2 file
+  whose apps are absent or empty still carries the D83 born-empty
+  shipped default and fills the D87 default directly; (b) a v3 file
+  holding EXACTLY the D86 default [com.google.android.youtube] was
+  written by the debug.2 build itself (fresh default or the v2-empty
+  migration), never curated, and upgrades to the D87 default — the
+  exact requested outcome on the one device carrying debug.2; (c) a v3
+  empty list (user agency, D86's ruling) and every custom list —
+  including v1/v2 lists with entries, and a v2 file that happens to
+  equal [youtube] because its owner hand-typed the full package name
+  under debug.1's refusing entry path — survive verbatim. The
+  distinction is deliberate: under v3 the build itself wrote
+  [youtube]; under v2 only a human hand could.
+- CUSTOM LISTS KEEP THE CHIPS: the quick-add row now covers all five
+  default apps (+ YouTube / + Chrome / + Firefox / + Opera / + Brave),
+  so a curated list (e.g. a debug.2 device that tapped + Chrome during
+  row 4's test) regains any default app in one tap; the friendly-name
+  aliases extend to "firefox", "opera", "brave" (and "brave browser").
+  The engine's saved response stays the validation authority.
+- THE HONEST COPY, EVERYWHERE: menu intro ("the YouTube app and the
+  Chrome, Firefox, Opera and Brave browsers come already added"), the
+  empty state, the note, How-it-works line 1, the NO_TARGET_APPS
+  message, README, doc 07 §1, doc 10 — every claim updated to the
+  five-app truth in the same breath as the code (the D87 lane rule).
+
+Evidence: config tests (the five-app default + copy-ness + the
+normalize rules; the migration matrix: v1→v4, THE debug.1-empty-file
+case, THE debug.2-old-default case, v3-empty agency, v3-custom
+survival, v2-custom survival, the v2-hand-typed-[youtube] case,
+round-trip, JSON shape); mobile tests (the default through RoutedApps,
+the debug.1-file and debug.2-file migrations through a real engine,
+v3-custom survival, emptied-list refusal, restart survival); vet
+clean; 17/17 ×2; -race green on config/engine/mobile; svelte-check
+0/0; vite build + dist sync + the webui suite green on the new bundle;
+compile matrix 4/4 ABIs (18 non-main packages each; arm64 links the
+full tree); gomobile bind → younblock.aar 25,174,619 B (javap: the
+full binding set; the D87 WebView copy verified embedded in
+libgojni.so); clean assembleDebug → app-debug.apk 35,816,233 B, sha256
+81515f0d…d6a1, versionCode 3 (the D84 rule), the pinned D85
+certificate (c76bb7c6…8551d — installs over debug.1/debug.2 in place),
+badging minSdk 26/target 36/3 ABIs, the four-permission manifest, no
+testOnly. Released as v1.6.6-android-debug.3 through the same lane.

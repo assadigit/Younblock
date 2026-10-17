@@ -1,8 +1,8 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the D86 session (2026-10-17, the device-test
-feedback loop's second round) — **Phase 2 host-complete; the test
-circle is on its second build**. This file is
+**Status:** Updated at the D87 session (2026-10-17, the device-test
+feedback loop's third round) — **Phase 2 host-complete; the test
+circle is on its third build**. This file is
 the live handoff; keep the fields in §"Current handoff fields" accurate
 at every session boundary.
 
@@ -64,74 +64,79 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's SECOND session
-  (2026-10-17, D86, Task ID M8-c) — Ali's ruling ("mAKE the youtube
-  default added list") implemented, and his first FUNCTIONAL
-  observation ("the first version didnt work, whether in youtube app
-  or youtube in chrome") root-caused and fixed. Phase 2 (M0–M8)
-  remains host-complete beneath it; debug.1's install had completed
-  (download_count 2).
-- **The project's state now:** the observation was root-caused BEFORE
-  any fix by reading the whole routing chain (tunstack DNS/UDP policy,
-  the SOCKS5 door, routedHost, the Kotlin establish) — all sound; the
-  failure was the SHELL: debug.1's born-empty list (D83) plus an entry
-  path that demanded exact package names, so typing "youtube" was
-  refused, the list never grew, every connect took the NO_TARGET_APPS
-  refusal, and nothing ever routed. D86 implements the ruling at the
-  right layer: DefaultApps = [com.google.android.youtube]; a one-time
-  v3 settings migration carries debug.1's saved born-empty files to
-  the default (their empty was the shipped default, never a choice; a
-  v3 empty stays empty — user agency); the Apps-to-unblock row gains
-  one-tap quick-add chips (+ YouTube / + Chrome) and friendly-name
-  aliases ("youtube", "chrome"); the honest copy updated everywhere
-  (menu sheet, How-it-works, the NO_TARGET_APPS message, README, doc
-  07 §1, doc 10). CHROME IS NOT IN THE DEFAULT (the ruling names
-  YouTube only) — the + Chrome chip and test-circle row 4 teach the
-  one-tap add; adding Chrome to the default is an open product
-  question if Ali asks. The new build is **v1.6.6-android-debug.2**
-  (versionCode 2, the pinned D85 certificate — installs over debug.1
-  in place, settings survive). The engine/chain behavior is unchanged
-  and remains unclaimed device-side pending Ali's next round.
-- **Branch and commit:** `main`, the M8-c commit (see `git log -1` at
+- **Phase completed:** the device-test feedback loop's THIRD session
+  (2026-10-17, D87, Task ID M8-d) — Ali's second ruling ("Add chrome
+  to the default addlist as well, also firefox, opera, brave
+  browser") implemented, closing the open question D86 carried.
+  Phase 2 (M0–M8) remains host-complete beneath it; no new device
+  observations arrived in this round (the ruling was the whole
+  input).
+- **The project's state now:** the default allow-list is five apps —
+  the YouTube app plus the Chrome, Firefox, Opera and Brave browsers
+  (D87; the stable mainline package names). The one risk of a
+  multi-app default — devices lacking the apps — was audited BEFORE
+  shipping: the Kotlin establish loop skips NameNotFound entries per
+  package and refuses only when zero resolve, so missing browsers
+  cannot break the connect (recorded in D87). A one-time v4 settings
+  migration (settingsVersion 3→4) carries every era forward with the
+  agency rules intact: v1/v2 born-empty files fill the new default;
+  a v3 file still holding EXACTLY the D86 [youtube] default (the
+  debug.2 shipped state, never curated) upgrades to the five apps;
+  a v3 empty and every custom list survive verbatim. The chip row
+  covers all five defaults (+ YouTube / + Chrome / + Firefox / +
+  Opera / + Brave) and the friendly-name aliases extend to
+  firefox/opera/brave; the honest copy updated everywhere (menu
+  intro, empty state, note, How-it-works, the NO_TARGET_APPS
+  message, README, doc 07 §1, doc 10). The new build is
+  **v1.6.6-android-debug.3** (versionCode 3, the pinned D85
+  certificate — installs over debug.1/debug.2 in place, settings
+  survive through the migration). The engine/chain behavior is
+  unchanged and remains unclaimed device-side pending Ali's next
+  round.
+- **Branch and commit:** `main`, the M8-d commit (see `git log -1` at
   handoff time); worktree clean after the commit; the release tag
-  `v1.6.6-android-debug.2` (prerelease) points at it; debug.1's tag
-  still points at f61bfae (superseded, its release page keeps the D85
-  troubleshooting guide).
+  `v1.6.6-android-debug.3` (prerelease) points at it; debug.2's tag
+  points at 096e8c0 and debug.1's at f61bfae (both superseded, their
+  release pages keep the D85 troubleshooting guide).
 - **Files changed this phase:** internal/config (defaults.go,
-  settings.go — settingsVersion 3 + the migration; apps_test.go),
-  mobile (mobile.go comment; apps_test.go incl. the debug.1-file
-  migration test), frontend (MenuSheet.svelte — chips/aliases/copy;
-  backend.ts — the NO_TARGET_APPS message), android (build.gradle.kts
-  versionCode 2; YounblockVpnService.kt comments), README, doc 06
-  (M8-c record), doc 07 §1, doc 09 (this handoff), doc 10 (the
-  debug.2 edition + the DoH-list correction), DECISIONS.md (D86),
-  PROGRESS.md, CHANGELOG.md, SESSION_HANDOFF_PROMPT.md.
+  settings.go — settingsVersion 4 + the migration + the isD86Default
+  helper; apps_test.go — the D87 matrix), mobile (mobile.go comment;
+  apps_test.go incl. the debug.2-file migration test), frontend
+  (MenuSheet.svelte — the five-app labels/aliases/chips/copy;
+  backend.ts — the NO_TARGET_APPS message), android
+  (build.gradle.kts versionCode 3; YounblockVpnService.kt comments),
+  README, doc 06 (M8-d record), doc 07 §1, doc 09 (this handoff),
+  doc 10 (the debug.3 edition), DECISIONS.md (D87), PROGRESS.md,
+  CHANGELOG.md, SESSION_HANDOFF_PROMPT.md.
 - **Tests run and actual results:** vet clean; go test 17/17 ×2 (exit
   0 both passes); -race green on config/engine/mobile; svelte-check
-  0/0; vite build clean; webui dist synced + TestWebUILifecycle green
+  0/0; vite build clean; webui dist synced + the webui suite green
   on the new bundle; compile matrix 4/4 ABIs (18 non-main packages
-  each; arm64 links the full tree); gomobile bind (AAR 25,162,951 B,
-  javap bindings verified); clean assembleDebug (APK 35,716,265 B,
-  sha256 9cca38c9…811b, versionCode 2, pinned cert, badging +
-  manifest verified); the D86 copy verified embedded in the AAR; the
-  GitHub release verified through the API after creation.
-- **Current architecture decision / confidence:** D86 (the YouTube
-  default + the v3 migration + the usable entry path). Confidence:
-  high host-side — the root cause is closed at the exact layer that
-  produced it. Device-side: the routing chain is audited but its
-  on-device behavior (real DoH reachability, QUIC fallback, DPI
-  evasion on his radio) is still ⛔ pending his observations; the
-  diagnostics report (Menu → Diagnostics → copy) is the requested
-  evidence if anything still fails. Next decision ID: D87.
-- **Blocking questions:** none product-side. Open (non-blocking):
-  whether Chrome should join the default list (currently one tap
-  away). The signed-release decision returns only when a public
-  release is planned (doc 07 §8).
+  each; arm64 links the full tree); gomobile bind (AAR 25,174,619 B,
+  javap bindings verified; the D87 copy verified embedded in
+  libgojni.so); clean assembleDebug (APK 35,816,233 B, sha256
+  81515f0d…d6a1, versionCode 3, pinned cert, badging + manifest
+  verified); the GitHub release verified through the API after
+  creation (served bytes re-downloaded and hashed).
+- **Current architecture decision / confidence:** D87 (the five-app
+  default + the v4 migration + the widened chips/aliases). Confidence:
+  high host-side — the missing-app risk was audited and closed by the
+  M6 establish design before anything shipped. Device-side: the
+  routing chain is audited but its on-device behavior (real DoH
+  reachability, QUIC fallback, DPI evasion on his radio) is still ⛔
+  pending his observations; the diagnostics report (Menu →
+  Diagnostics → copy) is the requested evidence if anything still
+  fails. Next decision ID: D88.
+- **Blocking questions:** none product-side. The default-list
+  question D86 left open is CLOSED by the owner's ruling (D87). The
+  signed-release decision returns only when a public release is
+  planned (doc 07 §8).
 - **Exact next task:** continue the **device-test feedback loop**:
-  ingest Ali's results from v1.6.6-android-debug.2 — first the
-  YouTube app out of the box (row 2), then youtube.com in Chrome via
-  the + Chrome chip (row 4), the rest of doc 10's test circle, and the
-  diagnostics report for anything that fails. Fix what surfaces
-  (root-cause discipline; the D77–D86 honesty rules binding as ever),
-  bump `versionCode` and cut `v1.6.6-android-debug.3` through the
-  same release lane WHEN a code change warrants it.
+  ingest Ali's results from v1.6.6-android-debug.3 (Task ID M8-e) —
+  the YouTube app and the installed default browsers out of the box
+  (row 2), youtube.com in each installed browser (row 4), the rest
+  of doc 10's test circle, and the diagnostics report for anything
+  that fails. Fix what surfaces (root-cause discipline; the D77–D87
+  honesty rules binding as ever), bump `versionCode` and cut
+  `v1.6.6-android-debug.4` through the same release lane WHEN a code
+  change warrants it.

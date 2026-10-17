@@ -236,14 +236,24 @@ func DefaultDomains() []string {
 }
 
 // DefaultApps returns the built-in per-app allow-list: the YouTube app
-// (Ali's ruling, DECISIONS.md D86 — "mAKE the youtube default added list",
-// received after his first device observation that nothing worked with the
-// D83 empty default: the entry path expected an exact package name, so
-// typing "youtube" was refused and the list never grew). The list starts
-// with com.google.android.youtube and the user adds or removes from
-// there; SAVING an empty list still means empty (user agency — the M7
-// NO_TARGET_APPS refusal door, D81, owns what happens at connect, never a
-// restore-to-default). A fresh copy every call; never share the slice.
+// plus the four mainstream browsers (Ali's ruling, DECISIONS.md D87 —
+// "Add chrome to the default addlist as well, also firefox, opera,
+// brave browser", received in the same feedback round that D86 opened:
+// the first ruling put the YouTube app on the list, and this second
+// ruling extends it to the browsers, closing D86's open question). The
+// list starts with these five and the user adds or removes from there;
+// SAVING an empty list still means empty (user agency — the M7
+// NO_TARGET_APPS refusal door, D81, owns what happens at connect, never
+// a restore-to-default). Entries whose apps are not installed are
+// skipped at TUN establish (NameNotFoundException is caught per entry),
+// so the five-app default is safe on devices with only some of them.
+// A fresh copy every call; never share the slice.
 func DefaultApps() []string {
-	return []string{"com.google.android.youtube"}
+	return []string{
+		"com.google.android.youtube",
+		"com.android.chrome",
+		"org.mozilla.firefox",
+		"com.opera.browser",
+		"com.brave.browser",
+	}
 }

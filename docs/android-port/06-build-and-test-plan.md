@@ -400,3 +400,46 @@ youtube app or youtube in chrome"; debug.1's download_count had reached
   commit; the APK uploaded; verified via the API after creation. Doc
   10's stale DoH default list corrected to the code truth
   (RethinkDNS, Cloudflare, Google).
+
+M8-d record (2026-10-17 later that day; the sixth consecutive no-wipe
+session — repo at 096e8c0 at the open, toolchain verified, worklog
+carried; the device-test feedback loop's third round, Ali's second
+ruling D87 — "Add chrome to the default addlist as well, also firefox,
+opera, brave browser"):
+
+- The risk audited BEFORE the change: a multi-app default meets
+  devices that lack the apps — the Kotlin establish loop already
+  catches NameNotFoundException per entry and skips it (refusing only
+  when zero resolve), so the five-app default cannot break establish
+  on a device with only some installed. Recorded in D87.
+- The D87 implementation: DefaultApps = [com.google.android.youtube,
+  com.android.chrome, org.mozilla.firefox, com.opera.browser,
+  com.brave.browser]; settingsVersion 3→4 with the era-precise
+  migration (v1/v2 absent-or-empty → the new default; v3 EXACTLY the
+  D86 default → the new default — the debug.2 device case; v3 empty =
+  agency, kept; every custom list kept, including a v2 hand-typed
+  [youtube]); RoutedApps unchanged (fail-toward-empty guard stays);
+  frontend — the chip row widened to all five defaults, aliases
+  extended (firefox/opera/brave/brave browser), the honest copy
+  updates (intro, empty state, note, How-it-works line 1, the
+  NO_TARGET_APPS message); Kotlin comments updated to the D87
+  semantics, behavior unchanged; versionCode 2→3 (the D84 rule).
+- Lanes, all with evidence: gofmt-canonical on every touched Go file
+  (the Edit-tool tab-to-space corruption on the three legacy-tabbed
+  files caught and reverted with gofmt -w; settings_test.go still the
+  known legacy space-indented file, untouched); vet clean; go test
+  17/17 ×2 (exit 0 both); -race green on config/engine/mobile;
+  svelte-check 0/0; vite build clean + dist synced (the webui suite
+  green on the new bundle; com.brave.browser verified in the built
+  assets); compile matrix 4/4 ABIs — the exact historical form
+  (18 non-main packages each; arm64 links the full tree); gomobile
+  bind → younblock.aar 25,174,619 B (javap: the full binding set; the
+  D87 WebView copy verified embedded in libgojni.so); clean
+  assembleDebug → app-debug.apk 35,816,233 B, sha256
+  81515f0dd1b0f1ff2d3fb1a87769c8c6d4df3dc0225efeb975bd9f543257d6a1,
+  versionCode 3, the pinned D85 certificate (c76bb7c6…8551d — installs
+  over debug.1/debug.2 in place), badging minSdk 26 / target 36 /
+  3 ABIs, the four-permission manifest, no testOnly.
+- The release lane: v1.6.6-android-debug.3 (prerelease) on the M8-d
+  commit; the APK uploaded; verified via the API after creation (served
+  bytes re-downloaded and hashed).

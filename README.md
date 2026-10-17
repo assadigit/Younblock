@@ -20,8 +20,9 @@ when YouTube stops responding — and it always tells you what it changed.
 
 The Android port is done and packaged, and it works the same way: the same
 engine, the same secure-DNS and record-splitting behavior, but routing **only
-the apps on its list** — the YouTube app is added by default (D86), and you
-add or remove apps in the menu. It is **not a VPN**: it uses Android's
+the apps on its list** — the YouTube app and the Chrome, Firefox, Opera and
+Brave browsers are added by default (D87), and you add or remove apps in the
+menu. It is **not a VPN**: it uses Android's
 VPN slot as a local traffic-routing interface, hides no IP address and adds no
 encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
@@ -29,7 +30,7 @@ direct, untouched, exactly as if the app were not running.
 For now this is a **debug-signed test build, not a release** ("we're not
 releasing yet"): download `app-debug.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) (the
-`v1.6.6-android-debug.2` prerelease — the repo is private, so sign in with your
+`v1.6.6-android-debug.3` prerelease — the repo is private, so sign in with your
 GitHub account), then sideload it:
 
 1. Allow installs from your browser app (Settings → Apps → special access →
@@ -37,8 +38,9 @@ GitHub account), then sideload it:
 2. Open the downloaded APK; Android warns about unknown developers and that the
    app is built for testing — both expected for a debug build.
 3. Install (it updates over an earlier debug build in place — same
-   certificate), open Younblock, and connect: the YouTube app is already on
-   the list. Requires Android 8.0 or newer.
+   certificate), open Younblock, and connect: the YouTube app and the
+   installed default browsers are already on the list. Requires
+   Android 8.0 or newer.
 
 The release's notes carry the full device test checklist (what to test and what
 to report back), and the engineering record lives in

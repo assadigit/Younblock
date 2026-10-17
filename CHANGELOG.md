@@ -780,3 +780,37 @@ First Windows test build, published to GitHub Releases.
   reversal, the SOCKS5 door, per-app TUN establish) was audited
   end-to-end and found sound — the failure debug.1 showed on-device was
   the empty list plus the package-name-only entry path, not the engine.
+
+### Changed (Android port — the device-test feedback loop, session 3, D87 — v1.6.6-android-debug.3)
+
+- **The default allow-list is five apps (D87, Ali's ruling — "Add
+  chrome to the default addlist as well, also firefox, opera, brave
+  browser")**: the YouTube app plus the Chrome, Firefox, Opera and
+  Brave browsers (the stable mainline package names:
+  com.android.chrome, org.mozilla.firefox, com.opera.browser,
+  com.brave.browser). A fresh install routes every installed one of
+  them out of the box. Entries whose apps are not installed are
+  skipped at TUN establish — a missing browser can never break the
+  connect (audited and recorded before shipping; the establish loop
+  has caught NameNotFoundException per entry since M6). A saved empty
+  list still means empty, as before.
+- **One-time settings migration (schema v4)**: a v1/v2 born-empty
+  file fills the five-app default directly; a v3 file still holding
+  exactly the debug.2 default [com.google.android.youtube] — the
+  shipped state of that build, never curated — upgrades to the five
+  apps; a v3 empty list (user agency) and every custom list survive
+  verbatim (including a v2 file whose [youtube] entry was hand-typed
+  under debug.1's refusing entry path). Updating installs over
+  debug.1/debug.2 (versionCode 3, same pinned debug certificate) with
+  settings intact.
+- **The quick-add chips cover all five defaults** (+ YouTube /
+  + Chrome / + Firefox / + Opera / + Brave — rendered when not
+  already listed), and the friendly-name aliases extend to
+  "firefox", "opera", "brave" (and "brave browser"); other apps
+  still need their Android package name, and the engine's saved
+  response remains the validation authority.
+- The honest copy updated everywhere the default list is named
+  (menu intro, empty state, note, How-it-works, the NO_TARGET_APPS
+  message, README, doc 07 §1, doc 10 / the release notes) — and the
+  release guide's expected file size updated to this build's exact
+  artifact size.

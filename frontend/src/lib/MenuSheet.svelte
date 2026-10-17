@@ -63,10 +63,11 @@
 
   // Android differs only in the first line: nothing "sends its request
   // to Younblock" here — the listed apps' traffic is routed in through
-  // the VPN slot (the whole flow stays on-device). D86: the YouTube app
-  // is the default list entry; the user adds or removes from there.
+  // the VPN slot (the whole flow stays on-device). D86 put the YouTube
+  // app on the default list; D87 (Ali's second ruling) extended it to
+  // the Chrome, Firefox, Opera and Brave browsers.
   const HOW_IT_WORKS_ANDROID = [
-    "The apps on your list — the YouTube app is added by default — have their traffic routed through Younblock, on your device. Nothing else is routed.",
+    "The apps on your list — the YouTube app and the Chrome, Firefox, Opera and Brave browsers are added by default — have their traffic routed through Younblock, on your device. Nothing else is routed.",
     HOW_IT_WORKS[1],
     HOW_IT_WORKS[2],
     HOW_IT_WORKS[3],
@@ -79,7 +80,7 @@
   ];
 
   const HELP_ANDROID = [
-    "YouTube still doesn't load — turn Younblock off and on again, then restart the YouTube app or Chrome.",
+    "YouTube still doesn't load — turn Younblock off and on again, then restart the YouTube app or your browser.",
     "The key icon at the top of the screen — that is Android showing a VPN is active. It is Younblock routing only the apps on your list; tapping the icon opens Android's VPN settings, where you can revoke it any time.",
     "An app you added doesn't seem routed — changes to the list apply the next time you connect. Turn Younblock off and on, and check the app is actually installed.",
   ];
@@ -101,22 +102,34 @@
 
   // ---- the apps list (Android only) ------------------------------------
 
-  /** Friendly labels for the known packages; anything else shows its
-   *  package name — never a guess at what the app might be. */
+  /** Friendly labels for the known packages (the D87 default list, in
+   *  its order — the quick-add chips render in this order too);
+   *  anything else shows its package name — never a guess at what the
+   *  app might be. */
   const APP_LABELS: Record<string, string> = {
-    "com.android.chrome": "Chrome",
     "com.google.android.youtube": "YouTube",
+    "com.android.chrome": "Chrome",
+    "org.mozilla.firefox": "Firefox",
+    "com.opera.browser": "Opera",
+    "com.brave.browser": "Brave",
   };
 
-  /** Friendly-name aliases the add field accepts (D86): typing
-   *  "youtube" or "chrome" resolves to the package instead of being
-   *  refused as an invalid package shape — the debug.1 entry path
-   *  demanded exact package strings, which is how the product's own
-   *  namesake ended up un-addable and nothing ever routed (Ali's
-   *  first device observation). */
+  /** Friendly-name aliases the add field accepts (D86 opened the list;
+   *  D87 — "Add chrome to the default addlist as well, also firefox,
+   *  opera, brave browser" — extends both the default and the aliases):
+   *  typing "youtube", "chrome", "firefox", "opera" or "brave"
+   *  resolves to the package instead of being refused as an invalid
+   *  package shape — the debug.1 entry path demanded exact package
+   *  strings, which is how the product's own namesake ended up
+   *  un-addable and nothing ever routed (Ali's first device
+   *  observation). */
   const APP_ALIASES: Record<string, string> = {
     youtube: "com.google.android.youtube",
     chrome: "com.android.chrome",
+    firefox: "org.mozilla.firefox",
+    opera: "com.opera.browser",
+    brave: "com.brave.browser",
+    "brave browser": "com.brave.browser",
   };
 
   /** Resolve a user-typed entry: a known friendly name becomes its
@@ -133,9 +146,11 @@
 
   $: apps = settings?.apps ?? [];
 
-  /** The known apps not yet on the list — the quick-add chips (D86:
-   *  adding the product's own namesake must be one tap, not a
-   *  package-name spelling test). */
+  /** The known apps not yet on the list — the quick-add chips (D86
+   *  made adding the product's own namesake one tap instead of a
+   *  package-name spelling test; D87 widens the chip row to the whole
+   *  default list, so a curated list can regain any default app with
+   *  one tap too). */
   $: quickAdds = Object.keys(APP_LABELS).filter((p) => !apps.includes(p));
 
   // Load the settings once the sheet is first opened on a host that
@@ -314,12 +329,12 @@
     {#if perAppRouting}
       <section aria-labelledby="apps-heading">
         <h2 id="apps-heading">Apps to unblock</h2>
-        <p>Younblock routes only the apps on this list through the VPN slot — the YouTube app comes already added; add or remove apps to change what routes. Other apps are untouched, and websites ending in .ir are never routed: they always connect directly.</p>
+        <p>Younblock routes only the apps on this list through the VPN slot — the YouTube app and the Chrome, Firefox, Opera and Brave browsers come already added; add or remove apps to change what routes. Other apps are untouched, and websites ending in .ir are never routed: they always connect directly.</p>
         {#if settings === null}
           <p class="dim">Loading the list…</p>
         {:else}
           {#if apps.length === 0}
-            <p class="dim">No apps on the list — nothing is routed. YouTube was the default; add it back (or any app), then connect.</p>
+            <p class="dim">No apps on the list — nothing is routed. The default apps (YouTube, Chrome, Firefox, Opera, Brave) were all removed; add one back, then connect.</p>
           {/if}
           <ul class="apps" aria-label="Routed apps">
             {#each apps as pkg (pkg)}
@@ -361,7 +376,7 @@
             <input
               type="text"
               aria-label="Add an app — a friendly name or an Android package name"
-              placeholder="youtube, chrome, or com.example.app"
+              placeholder="youtube, chrome, brave, or com.example.app"
               autocomplete="off"
               spellcheck="false"
               bind:value={newApp}
@@ -369,7 +384,7 @@
             />
             <button type="submit" disabled={appsBusy || newApp.trim() === ""}>Add</button>
           </form>
-          <p class="note">Tap a button above to add an app, or type a name — “youtube” and “chrome” are recognized; other apps need their Android package name. Changes apply the next time you connect.</p>
+          <p class="note">Tap a button above to add an app, or type a name — “youtube”, “chrome”, “firefox”, “opera” and “brave” are recognized; other apps need their Android package name. Changes apply the next time you connect.</p>
           {#if appsError}<p class="inline-error" role="alert">{appsError}</p>{/if}
         {/if}
       </section>

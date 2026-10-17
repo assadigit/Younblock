@@ -430,7 +430,7 @@ class HttpBackend implements Backend {
       message:
         phase === "error"
           ? state.error?.code === "NO_TARGET_APPS"
-            ? "None of the apps on your list is installed — or the list is empty (YouTube was the default; it may have been removed). Add an app in the menu, then try again."
+            ? "None of the apps on your list is installed — or the list is empty (the default list — YouTube, Chrome, Firefox, Opera, Brave — may have been removed). Add an app in the menu, then try again."
             : "Could not connect. Try again."
           : null,
     };

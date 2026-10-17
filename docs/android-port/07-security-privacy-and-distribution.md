@@ -15,10 +15,12 @@ traffic-routing interface for the allow-listed apps only** (ADR-0003/
 against the audited code):
 
 - "Younblock uses Android's VPN feature only as a local tunnel for the
-  apps on its list — the YouTube app is added by default and you add or
-  remove apps in the menu. Nothing is sent to any Younblock server."
-  (D86: the YouTube default, updated from D83's empty default after
-  Ali's first device observation)
+  apps on its list — the YouTube app and the Chrome, Firefox, Opera and
+  Brave browsers are added by default and you add or remove apps in the
+  menu. Nothing is sent to any Younblock server."
+  (D87: the five-app default — D86 put the YouTube app on the list
+  after Ali's first device observation, and his second ruling extended
+  it to the four browsers)
 - "Android shows a key icon because Younblock occupies the VPN slot.
   It is not a VPN." (the old spec's honest line, kept verbatim)
 - "Your IP address is not hidden. Traffic to sites is protected only
@@ -29,7 +31,9 @@ against the audited code):
   fragmentation: they always connect directly, exactly as if Younblock
   were not running." (D83)
 - Scope statement: TCP traffic of the allow-listed apps is processed
-  (the YouTube app is the default entry — D86; the list is editable
+  (the YouTube app and the four mainstream browsers are the default
+  entries — D87; entries whose apps are not installed are skipped at
+  establish; the list is editable
   in-app); other apps, and non-TCP traffic
   except DNS, are untouched; every host under .ir is excluded from the
   app's machinery in every mode (D83); IPv6 is intentionally disabled

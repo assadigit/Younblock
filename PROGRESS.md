@@ -2469,3 +2469,64 @@ diagnostics report (Menu → Diagnostics → copy) is the requested
 evidence if anything still fails on his radio — especially real DoH
 reachability and the QUIC→TCP fallback, the two behaviors no host lane
 can prove.
+
+## Android port — the device-test feedback loop, session 3: the browsers join the default (D87, 2026-10-17)
+
+Ali's third message of the loop was a pure product ruling, no new
+device observation: "Add chrome to the default addlist as well, also
+firefox, opera, brave browser." It closes the open question D86
+carried (whether Chrome should join the default, then one tap away)
+and extends it to three more browsers.
+
+The one risk of a multi-app default was audited BEFORE the change:
+devices that lack the apps. The Kotlin establish loop has caught
+PackageManager.NameNotFoundException per entry since M6 — a missing
+package is skipped with a log line, and the refusal only fires when
+ZERO entries resolve — so Firefox/Opera/Brave being rarely
+preinstalled cannot break the connect; the five-app default is safe
+everywhere. That audit is recorded in D87.
+
+D87 implements the ruling:
+
+- DefaultApps = [com.google.android.youtube, com.android.chrome,
+  org.mozilla.firefox, com.opera.browser, com.brave.browser] — the
+  mainline Play Store package names; Beta/Nightly/GX/Mini variants
+  deliberately not chosen.
+- settingsVersion 3→4, the era-precise one-time migration: v1/v2
+  absent-or-empty → the five-app default (the D83 born-empty
+  remediation); a v3 file holding EXACTLY the D86 default upgrades
+  (the debug.2 build itself wrote that state — fresh default or the
+  v2-empty migration — never a curation; this is the exact
+  requested outcome on the one device carrying debug.2); a v3 empty
+  (agency, D86's ruling) and every custom list survive verbatim,
+  including a v2 [youtube] that was hand-typed under debug.1's
+  refusing entry path (under v2 only a human hand could write an
+  entry; under v3 the build did).
+- The chip row widened to all five defaults, the aliases extended
+  (firefox / opera / brave / "brave browser"), the honest copy
+  updated everywhere the default list is named (menu intro, empty
+  state, note, How-it-works line 1, the NO_TARGET_APPS message,
+  README, doc 07 §1, doc 10); versionCode 2→3 (the D84 rule).
+
+Lanes, all with evidence: gofmt-canonical on every touched Go file
+(an Edit-tool tab-to-space corruption on the three legacy-tabbed
+files was caught by the gofmt lane and reverted with gofmt -w);
+vet clean; go test 17/17 ×2 (exit 0 both); -race green on
+config/engine/mobile; svelte-check 0/0; vite build clean + dist
+synced (the webui suite green on the new bundle; com.brave.browser
+verified in the built assets); the compile matrix in its exact
+historical form (18 non-main packages per ABI ×4; arm64 links the
+full tree); gomobile bind → AAR 25,174,619 B (javap bindings; the
+D87 WebView copy verified embedded in libgojni.so); clean
+assembleDebug → APK 35,816,233 B, sha256 81515f0d…d6a1, versionCode
+3, the pinned certificate (c76bb7c6…8551d), badging minSdk 26 /
+target 36 / 3 ABIs, the four-permission manifest, no testOnly.
+Released as v1.6.6-android-debug.3 through the same lane (tag,
+upload, API verification with the served bytes re-downloaded and
+hashed).
+
+The device gates remain ⛔ and ride with doc 10's test circle (rows
+2 and 4 now cover the five-app default out of the box and
+youtube.com in each installed browser); the diagnostics report
+(Menu → Diagnostics → copy) is the requested evidence if anything
+still fails on his radio.

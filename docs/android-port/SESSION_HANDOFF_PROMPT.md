@@ -1,4 +1,4 @@
-# Prompt — Continue the Younblock Android port (device-test feedback loop, after debug.2)
+# Prompt — Continue the Younblock Android port (device-test feedback loop, after debug.3)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,36 +6,38 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-c / D86 session close)
+## Where the project stands (verified at the M8-d / D87 session close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
   the full binding set, the Kotlin VPN service (consent gate, honest
   routing report, the NO_TARGET_APPS refusal door, run generations),
   the mobile settings/UX, the audits, and the packaging.
-- **The current test-circle build is `v1.6.6-android-debug.2`** (D86,
-  versionCode 2, the pinned debug certificate — installs over debug.1
-  in place, settings survive): the YouTube app is the DEFAULT allow-list
-  entry (Ali's ruling "mAKE the youtube default added list"), a
-  one-time v3 settings migration carries debug.1's born-empty v2 files
-  to the default, and the entry path is usable (quick-add chips
-  + YouTube / + Chrome; the type-in field accepts "youtube"/"chrome").
-  Root cause of his "the first version didnt work, whether in youtube
-  app or youtube in chrome": the born-empty list (D83) plus a
-  package-name-only entry path — nothing was ever routed; the engine's
-  routing chain was audited end-to-end and found sound (D86 records
-  the audit).
-- **`v1.6.6-android-debug.1` is superseded** (kept as history; its
-  release page carries the D85 install-blocked troubleshooting guide,
-  which still applies to downloads from Iranian networks).
+- **The current test-circle build is `v1.6.6-android-debug.3`** (D87,
+  versionCode 3, the pinned debug certificate — installs over
+  debug.1/debug.2 in place, settings survive): the default allow-list
+  is FIVE apps — the YouTube app plus the Chrome, Firefox, Opera and
+  Brave browsers (Ali's ruling "Add chrome to the default addlist as
+  well, also firefox, opera, brave browser", closing D86's open
+  question). A one-time v4 settings migration carries every era
+  forward: v1/v2 born-empty files fill the five-app default; a v3
+  file still holding exactly the debug.2 default [youtube] upgrades
+  to it; a v3 empty (agency) and every custom list survive verbatim.
+  Entries whose apps are not installed are skipped at establish
+  (audited: a missing browser can never break the connect — D87
+  records the audit). The chip row covers all five defaults and the
+  aliases extend to firefox/opera/brave.
+- **`v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are
+  superseded** (kept as history; debug.1's release page carries the
+  D85 install-blocked troubleshooting guide, which still applies to
+  downloads from Iranian networks).
 - **The project's remaining input is Ali's device observations** from
-  debug.2: doc 10 §"Device test circle" is the checklist — the YouTube
-  app out of the box (row 2), youtube.com in Chrome via the + Chrome
-  chip (row 4 — Chrome is NOT in the default; the ruling names YouTube
-  only, and "Chrome in the default too?" is the carried open product
-  question), .ir direct, stop paths, battery, network switch, QUIC
-  fallback. Everything device-side is ⛔ in the sandbox (no /dev/kvm,
-  no device — never claimed, never faked) and waits on that feedback.
+  debug.3: doc 10 §"Device test circle" is the checklist — the YouTube
+  app and the installed default browsers out of the box (row 2),
+  youtube.com in each installed browser (row 4), .ir direct, stop
+  paths, battery, network switch, QUIC fallback. Everything
+  device-side is ⛔ in the sandbox (no /dev/kvm, no device — never
+  claimed, never faked) and waits on that feedback.
   **The diagnostics report (Menu → Diagnostics → copy) is the single
   most valuable evidence when anything fails** — it carries the
   engine's own redacted view (DoH provider state, self-test results,
@@ -52,16 +54,16 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
-   M8-c, … (this prompt describes the state after M8-c; the next is
-   M8-d).
+   M8-c, M8-d, … (this prompt describes the state after M8-d; the
+   next is M8-e).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
-   debug.2 edition + §"Device test circle" — Ali's checklist), doc 06
-   (the M8-c record), doc 08 + `DECISIONS.md` (D1–D86; **the next
-   decision number is D87**), and the tail of `PROGRESS.md`.
+   debug.3 edition + §"Device test circle" — Ali's checklist), doc 06
+   (the M8-c/M8-d records), doc 08 + `DECISIONS.md` (D1–D87; **the
+   next decision number is D88**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
-4. Check whether Ali's device-test feedback from debug.2 has arrived
+4. Check whether Ali's device-test feedback from debug.3 has arrived
    (session messages). If none has arrived yet, STOP after reporting
    state — do not invent work, do not "improve" shipped code without a
    reported reason.
@@ -74,7 +76,7 @@ working clone carries the credential in its `origin` remote URL).
 
 ## The task — the device-test feedback loop
 
-For each issue Ali reports from `v1.6.6-android-debug.2`:
+For each issue Ali reports from `v1.6.6-android-debug.3`:
 
 - Root-cause first (the project's standing discipline: failures are
   root-caused and fixed, never retried away, never hidden). The
@@ -84,7 +86,7 @@ For each issue Ali reports from `v1.6.6-android-debug.2`:
   whether the key icon was up (TUN established) and which surface
   (app vs browser, which browser).
 - Fix at the correct layer (engine/facade/Kotlin/WebView), keeping
-  the D77–D86 honesty rules binding: the UI may only claim what the
+  the D77–D87 honesty rules binding: the UI may only claim what the
   engine actually enforces; ⛔ gates are listed, never dropped. The
   D86 audit (DECISIONS.md) records the chain's verified shape —
   UDP:53 to ANY destination is answered by the virtual DNS; fake-IP
@@ -115,7 +117,7 @@ For each issue Ali reports from `v1.6.6-android-debug.2`:
 
 ## Environment (this sandbox resets without warning — verify, don't assume)
 
-Layout as verified at the M8-c close (fifth consecutive no-wipe
+Layout as verified at the M8-d close (sixth consecutive no-wipe
 session before it — but verify anyway):
 
 - Repo: `/home/z/my-project/Younblock`, `vendor/` committed (D68: use
@@ -130,11 +132,11 @@ session before it — but verify anyway):
   accepted). Exact PATH / JAVA_HOME / ANDROID_HOME setup: doc 06.
 - **The debug signing key is IN THE REPO** (D85):
   `android/app/debug.keystore`, wired as the debug signingConfig —
-  the same certificate that signed debug.1 AND debug.2. After a
-  sandbox wipe + re-clone, assembleDebug signs identically with NO
-  extra step.
-- No /dev/kvm (re-verified at M8/M8-b/M8-c). Disk is a ~9.9 GB box —
-  clean Go/Gradle build caches before big builds.
+  the same certificate that signed debug.1, debug.2 AND debug.3.
+  After a sandbox wipe + re-clone, assembleDebug signs identically
+  with NO extra step.
+- No /dev/kvm (re-verified at M8/M8-b/M8-c/M8-d). Disk is a ~9.9 GB
+  box — clean Go/Gradle build caches before big builds.
 - The sandbox kills background processes when a Bash command ends —
   run long builds as foreground chunks.
 - After a re-clone: `git config core.fileMode false` and
@@ -169,13 +171,13 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   (the full regression gate is part of every change set).
 - Do not assume Wails or desktop proxy semantics transfer to Android;
   the ADRs (doc 08) are the ground truth.
-- The honesty rules D77–D86 bind: the UI/release notes may only claim
+- The honesty rules D77–D87 bind: the UI/release notes may only claim
   what the engine actually enforces; privacy copy follows
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D87),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-d, M8-e, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D88),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-e, M8-f, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 
@@ -183,7 +185,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
-cleanliness; (3) baseline results; (4) whether Ali's debug.2 feedback
+cleanliness; (3) baseline results; (4) whether Ali's debug.3 feedback
 has arrived, and if so the exact first issue you will address. Then
 execute — or, if no feedback has arrived, stop after the state report
 and say so plainly.

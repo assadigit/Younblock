@@ -215,11 +215,13 @@ func (m *Engine) FailStart(code string) string {
 // connect (rebuilding an established TUN under live traffic is riskier
 // than the delay, and the UI copy says so — no silent re-route).
 //
-// D86: the list starts with the YouTube app (Ali's ruling after the
-// debug.1 device observation). The guard below still fails toward the
-// EMPTY list (the NO_TARGET_APPS refusal), never toward the default:
-// an engine state broken enough to lose its settings must refuse, not
-// silently route anything.
+// D86 put the YouTube app on the list (Ali's ruling after the debug.1
+// device observation); D87 extends the default to the Chrome, Firefox,
+// Opera and Brave browsers (his second ruling, same feedback round).
+// The guard below still fails toward the EMPTY list (the
+// NO_TARGET_APPS refusal), never toward the default: an engine state
+// broken enough to lose its settings must refuse, not silently route
+// anything.
 func (m *Engine) RoutedApps() string {
 	apps := m.eng.Settings().Apps
 	if apps == nil {
