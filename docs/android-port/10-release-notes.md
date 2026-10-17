@@ -1,19 +1,59 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the D90 session (2026-10-17, the device-test
-feedback loop's sixth round: the keystore helper was fixed after
-Ali's first field report — §1's debug.4 note records it — and the
-D89 release-flag change before it stands in §1 too). This document
-now holds two things: §1 the **shipped** debug test-circle release
-(`v1.6.6-android-debug.3`, a regular release in the private repo per
-D89 — the same text lives on the GitHub release itself — plus the
-`v1.6.6-android-debug.4` helper-fix maintenance release documented
-below it; `v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are
-superseded and kept as history, their flags switched to regular
-releases with debug.3's), and §2 the **public v1 DRAFT**, unpublished
-until the ⛔ device gates close or Ali explicitly accepts shipping
-with them recorded as known limitations. Every claim traces to
-implementation evidence (docs 01–09, DECISIONS.md D1–D90).
+**Status:** updated at the D91 session (2026-10-17, the device-test
+feedback loop's eighth round — the FIRST device feedback arrived and
+was answered: `v1.6.6-android-debug.5` shipped with the numbers-
+spacing fix and the video-start instrumentation, §1's debug.5 note
+records it; the D90 helper fix before it stands in §1 too). This
+document now holds two things: §1 the **shipped** debug test-circle
+releases (`v1.6.6-android-debug.5` is the CURRENT build — a regular
+release in the private repo per D89, the same text lives on the
+GitHub release itself; beneath it: debug.4 the helper-fix maintenance
+release, debug.3 the device-circle build whose APK ran on Ali's
+phone, and debug.2/debug.1 superseded and kept as history), and §2
+the **public v1 DRAFT**, unpublished until the ⛔ device gates close
+or Ali explicitly accepts shipping with them recorded as known
+limitations. Every claim traces to implementation evidence (docs
+01–09, DECISIONS.md D1–D91).
+
+## 1a. v1.6.6-android-debug.5 — the first device feedback answered (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 4, built at ad02980, APK
+34,831,081 B (SHA-256 5df2acc3…02b4), the pinned debug certificate —
+**installs directly over debug.3** in place; settings survive. It
+carries TWO changes from the first real device round:
+
+1. **The numbers-spacing fix (Ali's report: "the numbers in the app
+   are too near each other").** Root cause: the connect screen's
+   stage was fixed at 22.5 rem — right for a 360 px viewport at 1×
+   font scale, but on narrower screens or with Android's font-scale
+   setting it outgrew the screen and pushed the timer and the two
+   speed values against the edges (measured: 495 px of stage in a
+   320 px viewport at 1.4×). The stage now never exceeds the
+   viewport, the two speed numbers carry wider spacing that never
+   wraps, and the timer digits got more air. Verified at the worst
+   case AND the canonical case before shipping (D91).
+2. **The video-start instrumentation (Ali's report: feed refreshes
+   fast, but playing a video takes 30 s–1 min+ to show).** The
+   host-side suspects were each eliminated with evidence (D91 —
+   including a new test that PINS the QUIC refusal contract: non-DNS
+   UDP gets an immediate ICMP port-unreachable, so routed apps fall
+   back to TCP fast instead of blackholing). What remains is
+   device/network-side, so this build logs every tunnel's phases —
+   DNS time, dial time, first-byte time, transfer totals — into the
+   log ring the redacted diagnostics report carries.
+   **→ When a video is slow on your phone: Menu → Diagnostics →
+   Copy, and send it** (plus phone model, Android version, and
+   whether it's every video or just the first after connecting).
+   The next report names the phase that eats the time.
+
+Also answered in the release body, no code change: the **Play
+Protect popup** at install is expected for a sideloaded
+debug-signed APK (Android being cautious about unknown
+signatures — not a defect), and the **release keystore needs
+nothing now** (keep it private; it is NOT used for the test circle —
+signing a test build with it would break the installs-over-debug.3
+update chain; it waits for the signed public release).
 
 ## 1. v1.6.6-android-debug.3 — the device test circle (SHIPPED — a regular release in the private repo, D89)
 
@@ -183,6 +223,13 @@ view of what happened, redacted for privacy:
    the sheet's Apps-to-unblock row renders **with the five default
    apps already on the list** (YouTube, Chrome, Firefox, Opera,
    Brave — whichever are installed).
+   **Observed on Ali's device (debug.3, 2026-10-17): PASS with a
+   note** — "it worked on android"; the install completed; a Play
+   Protect popup appeared (the expected unknown-developer warning
+   for a sideloaded debug APK — D91 documents it; no action). The
+   font-scaling half arrived via the spacing complaint (the M6
+   gate's first live data — fixed in debug.5); rotation and
+   TalkBack remain unreported.
 2. **First connect (the default list)** — the YouTube app and the
    installed default browsers route out of the box: the consent
    explanation → the system VPN dialog → Allow; the key icon
@@ -190,9 +237,19 @@ view of what happened, redacted for privacy:
    degraded; a browser that is NOT installed is skipped without
    breaking anything. (If you emptied the list on purpose, the
    connect refuses with the honest NO_TARGET_APPS message instead.)
+   **Observed on Ali's device (debug.3, 2026-10-17): PASS** — "the
+   youtube app is routed through this system" and the feed
+   refreshes fast while connected.
 3. **The product's purpose** — YouTube actually loads in the
    YouTube app (browse + video playback) while connected; the
    self-test and recovery behave when YouTube stops responding.
+   **Observed on Ali's device (debug.3, 2026-10-17): PARTIAL** —
+   browse/feed fast; **video playback took 30 s–1 min+ to show**
+   ("feed quickly refreshed but actual video playing delayed").
+   The host-side suspects were eliminated with evidence and the
+   per-flow timing instrumentation shipped in debug.5 (D91); the
+   diagnostics report from a slow-video moment is the expected
+   next input.
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed
@@ -213,6 +270,12 @@ view of what happened, redacted for privacy:
 9. **QUIC fallback** — whether the YouTube app falls back from
    QUIC/UDP to TCP as expected (UDP beyond DNS is dropped by
    design; routed apps must fall back, never silently leak).
+   **Host half PINNED by test (D91)**: the stack answers non-DNS
+   UDP (443) with an immediate ICMP port-unreachable
+   (TestUDP443FastFailICMP) — the phone kernel turns that into an
+   instant refusal on the app's socket, the fast-fail path. The
+   on-device observation (does HIS YouTube app actually fall back
+   fast) rides with the video-start timing data.
 
 ## 2. The public v1 DRAFT (UNPUBLISHED)
 

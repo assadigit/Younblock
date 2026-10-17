@@ -2675,3 +2675,47 @@ Offered for his ruling, not decided: attaching the APK to every
 release page (relaxing D84). Zero app code; no release cut;
 versionCode stays 3; the APK bytes unchanged. The DEVICE results
 from debug.3 remain the open input (next Task ID M8-j).
+
+M8-j — the ninth feedback-loop exchange, the FIRST DEVICE feedback
+(2026-10-17, D91): Ali reported from the debug.3 circle: "it worked
+on android. Play store message popped up… I generated key ring, but
+I didn't attach to APK if needed… [video] took like 30 sec - 1 min or
+more to actually show that video… feed quickly refreshed but actual
+video playing delayed… The numbers in the app are too near each
+other, they need regular spacings." The round shipped
+v1.6.6-android-debug.5 / versionCode 4 (ad02980, APK 34,831,081 B,
+sha256 5df2acc3…02b4, the pinned debug certificate — installs over
+debug.3 in place): (1) the numbers-spacing fix — root cause: the pro
+screen's stage was fixed at 22.5 rem and outgrew the viewport at
+narrow widths/font scale (measured 495 px of stage in a 320 px
+viewport at 1.4×; the two speed values sat 24 px apart with 29 px
+screen margins); the stage is now capped to the viewport, the speeds
+row widened (gap 1.75 rem, icon 0.5 rem, nowrap) and the timer
+digits given air (0.66 em, tabular-nums); verified before/after
+through the rendered app at the worst and canonical cases. (2) The
+video-start instrumentation — every host-level suspect eliminated
+with evidence (the netstack DOES answer non-DNS UDP with ICMP 3/3
+port-unreachable — proven by a temporary probe, then pinned
+permanently by TestUDP443FastFailICMP; TCP rcvWnd 1 MiB; fragment
+pauses 1-10 ms; DoH cached/singleflight/keep-alive; conn caps 1024;
+the connect gate already runs a real proxied YouTube check before
+"active" — Ali's "make the connection time longer" suggestion is
+already the built behavior); every tunnel now logs dns/dial/
+first-byte/dur/bytes into the diagnostics ring (hostnames gated
+behind LogDomains; the first-record write counts on the flow meter
+— caught by the new flow-timing tests). Also: the webui dist
+clean-synced for the first time (the stale hashed assets purged
+from the go:embed), Play Protect documented as expected for
+sideloaded debug APKs, and the keystore ruled NOT for the test
+circle (signing a test build with it would break the pinned-cert
+update chain). The session survived the FIFTH sandbox wipe
+(mid-session; the toolchain reinstalled per doc 06 §1). Baseline
+after: vet clean; go test 17/17 ×2 (with the two new test files);
+svelte-check 0/0; vite clean. Release lane: debug.5 created regular
+at ad02980, Latest-marked, APK asset served byte-exact (one API
+wrinkle recorded: a SHORT target_commitish 422s — use the full
+SHA). Test-circle rows updated with the evidence: row 1 PASS with
+the Play Protect note, row 2 PASS, row 3 PARTIAL (the round's
+subject), row 9's host half pinned by test. Next Task ID M8-k
+(ingest the debug.5 device round — the diagnostics report with the
+timing lines is the expected input); next decision D92.

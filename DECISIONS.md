@@ -1757,3 +1757,69 @@ D88 — the script self-verifies on Ali's machine (the read-back
 round trip), and every failure path carries its own message. Zero
 Go/Svelte/app code touched; versionCode stays 3; ~/sdk still wiped
 (the reinstall caution stands for the next code-touching session).
+
+**D91 — the first device feedback: root-cause what the host can prove,
+instrument what only the device can measure (M8-j, 2026-10-17).**
+Ali's first DEVICE report from the debug.3 circle: the app works on
+Android, the YouTube app routes and the feed refreshes fast — but
+video playback takes 30 s–1 min+ to show; the on-screen numbers sit
+"too near each other"; a Play Protect popup appeared at install; and
+the release keystore was created (kept private, per D88/D90).
+Four rulings:
+
+1. **The spacing complaint is root-caused and FIXED**: the pro
+   screen's stage was fixed at 22.5 rem (designed for a 360 px
+   viewport at 1× font scale); on narrower screens or with Android's
+   font scale it outgrew the viewport and pushed the timer/speed
+   numbers against the edges (measured: stage 495 px in a 320 px
+   viewport at 1.4× — the two speed values sat nearer to each other,
+   24 px, than to the screen edges). The stage is now capped to the
+   viewport (min(22.5rem, 100vw)), the speeds row widened to 1.75 rem
+   with nowrap, the timer digits given more air (0.66 em boxes,
+   tabular-nums). This is the M6 font-scaling gate's first live
+   observation — the gate exists precisely for this class.
+
+2. **The video-start delay is INSTRUMENTED, not speculatively
+   "fixed"**: the host-level suspects were each eliminated with
+   evidence (the netstack DOES emit ICMP 3/3 port-unreachable for
+   non-DNS UDP — the QUIC fast-fail contract, now pinned by
+   TestUDP443FastFailICMP; the TCP receive window is 1 MiB; fragment
+   pauses are 1–10 ms; DoH is cached/singleflighted/keep-alive; the
+   conn cap is 1024; the connect gate already runs a real proxied
+   YouTube check before "active" — Ali's "make the connection time
+   longer" suggestion is already built, per M5). What remains is
+   device/network-side and cannot be measured from this host — so
+   every tunnel now logs its phases (tunnel up dns=…ms dial=…ms;
+   tunnel first-byte …ms; tunnel done dur=… up=… down=… — values in
+   the message, hostnames only behind LogHostnames, riding the log
+   ring into the redacted diagnostics report). The next field report
+   names the phase that eats the time.
+
+3. **Play Protect warning a sideloaded debug-signed APK is expected
+   behavior, not a defect** — documented in the debug.5 release
+   notes; nothing to change in the app.
+
+4. **The release keystore needs NOTHING now** — and must NOT be used
+   to sign the test circle: the debug builds deliberately share the
+   pinned debug certificate (D85) so each installs over the previous
+   in place; signing a test build with the release key would break
+   that chain. It waits for the signed public release (D88/D90).
+
+Evidence: the probe that became the test (a hand-built UDP/443
+datagram through the crossed-wire stack produced ICMP type 3/code 3,
+quote carrying the refused dport); the before/after geometry
+(stage 495→320 px at the 320 px/1.4× case, value gap 24→39 px, the
+canonical 360 px case unchanged at stage 360); the full baseline
+green after the changes (vet clean; go test 17/17 ×2; svelte-check
+0/0; vite clean; webui dist CLEAN-synced — the accumulated stale
+hashed assets purged from the embed for the first time); the build
+lane (gomobile bind → younblock.aar 24,914,100 B; assembleDebug →
+app-debug.apk 34,831,081 B, sha256 5df2acc3…02b4, versionCode 4,
+badging minSdk 26/target 36, 3 ABIs, apksigner cert c76bb7c6…8551d —
+the pinned D85 debug certificate); the release lane live through the
+API (v1.6.6-android-debug.5 created regular at ad02980, Latest-
+marked, the APK asset uploaded and its served bytes re-downloaded
+via the API asset endpoint and hashed byte-exact). The first honest
+API wrinkle of the round: a release created with a SHORT
+target_commitish is rejected 422 ("tag_name is not a valid tag") —
+use the full SHA.

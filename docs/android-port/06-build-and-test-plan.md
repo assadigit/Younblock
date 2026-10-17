@@ -646,3 +646,103 @@ the APK to debug.4 as well (every release page carrying the app)
 is Ali's call against D84's no-duplicate discipline — he has not
 ruled. Zero app code; no release cut; versionCode stays 3; the
 device-results ingestion moves to the next Task ID, M8-j.
+
+M8-j record (2026-10-17, later again; the EIGHTH feedback round — the
+first DEVICE feedback, D91): the session opened with the FIFTH
+sandbox wipe (~/sdk gone AGAIN, mid-session this time — between the
+M8-i-b docs commit and the code work; the repo and worklog intact,
+the untracked build state surviving; the toolchain reinstalled per
+§1's pins exactly as recorded, ~15 minutes). Ali's report: "it worked
+on android. Play store message popped up… I generated key ring, but I
+didn't attach to APK if needed… After connection, the youtube app is
+routed through this system. But actually when clicking to play a
+video, it took like 30 sec - 1 min or more to actually show that
+video… feed quickly refreshed but actual video playing delayed…
+The numbers in the app are too near each other, they need regular
+spacings." The round's work:
+
+- **The video-start delay, root-caused at host level to ELIMINATION:
+  a temporary probe (a hand-built QUIC-shaped UDP/443 datagram
+  injected through the crossed-wire stack) proved the netstack
+  answers non-DNS UDP with ICMP 3/3 port-unreachable** — the QUIC
+  fast-fail contract; the probe was then hardened into the permanent
+  TestUDP443FastFailICMP (asserts the ICMP type/code AND that the
+  quote carries the refused dport 443). Every other code-level
+  suspect was checked and ruled out with the code as evidence: the
+  TCP forwarder's receive window (rcvWnd 0 → gVisor's
+  DefaultReceiveBufferSize = 1 MiB, and the phone↔netstack RTT is
+  sub-ms so window/RTT is not the mobile bottleneck), the fragment
+  presets (Pause 1–10 ms), DoH (keep-alive + HTTP/2 transport,
+  singleflight, 120 s min TTL, 6 h serve-stale), the conn caps
+  (MaxConns 1024, MaxFlows 1024), the TUN (MTU 1500, v4 default
+  route + v6 blackhole route, virtual DNS 10.111.0.53), and the
+  connect gate (connectSequence runs the QuickCheck — listener, dns,
+  youtube — BEFORE PhaseOn; Ali's "extend the connection time"
+  suggestion is already the built behavior). What remains is
+  device/network-side — so the round INSTRUMENTED: every tunnel now
+  logs its phases into the log ring the redacted diagnostics report
+  carries (tunnel up dns=…ms dial=…ms; tunnel first-byte …ms — the
+  TLS/origin-response start; tunnel done dur=…ms up=… down=… — with
+  per-flow byte totals; hostnames only behind LogHostnames; the
+  first-record write now counts on the flow meter too — the flow
+  timing tests caught that gap). Pinned by TestFlowTimingLines /
+  TestFlowTimingHostnamesGated / TestFlowTimingNoLoggerNilSafe.
+- **The numbers spacing, root-caused and FIXED**: the pro screen's
+  .stage was width: var(--stage-w) = 22.5 rem fixed — 360 px at 1×,
+  but 495 px in a 320 px viewport at 1.4× font scale (measured live
+  through the vite preview + the browser): the stage outgrew the
+  screen and pushed the timer/speeds against the edges (the two
+  speed values sat 24 px apart with 29 px screen margins). Fix:
+  .stage width min(var(--stage-w), 100vw); the speeds row gap
+  1.1 rem → 1.75 rem + icon gap 0.5 rem + white-space nowrap; the
+  timer digit boxes 0.62 em → 0.66 em (colon 0.36 → 0.4) +
+  font-variant-numeric tabular-nums. Verified before/after through
+  the rendered app at the worst case (stage 495 → 320 px, value gap
+  24 → 39 px, all in view) and the canonical case (360 px,
+  unchanged), VLM-checked both.
+- **The embed hygiene discovery**: internal/webui/dist had
+  accumulated every build generation's stale hashed assets (the
+  build.sh cp is additive), and go:embed all:dist carries them all
+  into the AAR/APK. The dist is now CLEAN-synced (rm + placeholder
+  restored + cp) — file sets identical to frontend/dist; the AAR
+  shrank accordingly (25,162,951 → 24,914,100 B, partly this).
+- **Baseline after the changes, all green**: go vet ./... clean; go
+  build ./... clean; go test -count=1 ./... 17/17 packages ok run
+  TWICE consecutively; svelte-check 0 errors 0 warnings; vite build
+  clean; the webui dist clean-synced and the webui+mobile packages
+  re-run green after the sync.
+- **The build lane**: versionCode bumped 3 → 4 (the D84 rule);
+  gomobile bind (GOFLAGS=-mod=mod, 3 ABIs, androidapi 26) →
+  younblock.aar 24,914,100 B; clean assembleDebug → app-debug.apk
+  **34,831,081 B**, SHA-256
+  **5df2acc39d569336a4663e879cfdc59ea2fcb4a22b75cd69b18f56e038cd02b4**;
+  badging: io.github.assadigit/younblock 1.6.6 (versionCode 4),
+  minSdk 26, targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64;
+  apksigner verify --print-certs OK — the pinned debug certificate
+  c76bb7c6…8551d (installs over debug.3 in place, settings survive).
+- **The release lane**: v1.6.6-android-debug.5 created at ad02980 —
+  a REGULAR release (D89), Latest-marked (verified through
+  /releases/latest), carrying the new APK (release id 416019596;
+  asset id 651411314, 34,831,081 B); the served bytes re-downloaded
+  through the API asset endpoint (Accept: octet-stream — the plain
+  browser-URL fetch cannot see a private repo's asset unauthenticated)
+  and hashed byte-exact. One honest API wrinkle: creating a release
+  with a SHORT target_commitish 422s with a misleading
+  "tag_name is not a valid tag" — the full SHA works. The release
+  body carries the four answers Ali needs: the spacing fix, the
+  instrumentation ask (diagnostics copy when a video is slow), the
+  Play Protect explanation, and the keystore's do-nothing-now (plus
+  the warning NOT to sign test builds with it — that would break the
+  pinned-cert update chain).
+- Play Protect observed at install (expected for sideloaded
+  debug-signed APKs — documented, no code change). The DEVICE test
+  circle rows answered so far: row 1 pass-with-note (install +
+  first launch worked; the Play Protect popup is the note; rotation/
+  TalkBack still unreported), row 2 pass (the default list routes out
+  of the box — the feed refreshes through the tunnel), row 3 PARTIAL
+  (browse fast; video-start delayed — the round's subject), row 9's
+  host half pinned by test (the QUIC refusal contract). The
+  font-scaling observation arrived via the spacing complaint — the
+  M6 gate's first live data. Next Task ID M8-k: ingest the debug.5
+  device round (the diagnostics report with the timing lines is the
+  expected input). Next decision D92.

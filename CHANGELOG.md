@@ -872,3 +872,48 @@ First Windows test build, published to GitHub Releases.
   stands (signing secrets are generated where they are used). A
   one-line manual keytool alternative is documented in the release
   notes for machines without PowerShell.
+
+### Fixed (Android port — the first device feedback answered, D91; v1.6.6-android-debug.5, versionCode 4)
+
+- **The connect screen's numbers get their spacing back** (Ali's
+  device report: "the numbers in the app are too near each other, they
+  need regular spacings"). Root cause: the redesigned screen's stage
+  was a fixed 22.5 rem wide — correct for a 360 px viewport at the
+  default font scale, but on narrower screens or with Android's
+  font-size setting turned up it grew past the screen edge and pushed
+  the timer and the two speed values against it (measured: 495 px of
+  stage inside a 320 px viewport at 1.4× scale, the two speed values
+  sitting 24 px apart with 29 px to the screen edges). The stage now
+  never exceeds the viewport, the two speed values carry wider
+  spacing that can never wrap or jam, and the timer's digits get a
+  touch more air with tabular figures where the typeface offers
+  them. Verified against the rendered app at both the worst case
+  (320 px / 1.4×) and the designed case (360 px / 1×) before
+  shipping.
+
+### Added (Android port — per-flow tunnel timing in the diagnostics report, D91; same release)
+
+- **Every tunnel now records its own phases in the log** so a field
+  report can name WHERE time goes instead of guessing: `tunnel up
+  dns=…ms dial=…ms` when a flow is established, `tunnel first-byte
+  …ms` when the origin's first response byte arrives (the TLS
+  handshake and response start, through the fragment path), and
+  `tunnel done dur=…ms up=… down=…` with the flow's own byte totals
+  when it ends. These lines ride the in-memory log ring into the
+  redacted diagnostics report (Menu → Diagnostics → copy), with
+  hostnames appearing only when the log-domains privacy setting is
+  on — the same rule the failure-path logs already follow. This is
+  the instrument for the round's open question: Ali's device shows
+  the YouTube feed refreshing fast while video playback takes
+  30 s–1 min+ to first show; the host-side suspects were each
+  eliminated with evidence (including a new test pinning that
+  non-DNS UDP gets an immediate ICMP port-unreachable — the QUIC
+  fast-fail contract routed apps rely on), so the remaining suspects
+  are device/network-side and the next diagnostics copy from a
+  slow-video moment will name the phase.
+- Also in this release: the Play Protect popup observed at install
+  is documented as expected behavior for sideloaded debug-signed
+  APKs (no defect, no change), and the release keystore Ali created
+  is explicitly NOT used for the test circle — signing a test build
+  with it would break the installs-over-the-previous update chain;
+  it waits for the signed public release.

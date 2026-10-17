@@ -29,17 +29,19 @@ direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
 releasing yet"): download `app-debug.apk` from the repo's
-[Releases page](https://github.com/assadigit/Younblock/releases) (the
-`v1.6.6-android-debug.3` release — a regular release in this private
-repo (D89); the repo's Latest release, `v1.6.6-android-debug.4`, is a
-helper-script fix that carries no new APK — the app is still
-debug.3's. Sign in with your
-GitHub account), then sideload it:
+[Releases page](https://github.com/assadigit/Younblock/releases) — the
+`v1.6.6-android-debug.5` release (a regular release in this private
+repo, D89, and the repo's Latest; it installs over any earlier debug
+build in place, and its notes explain the current test circle).
+Sign in with your
+GitHub account, then sideload it:
 
 1. Allow installs from your browser app (Settings → Apps → special access →
    install unknown apps).
 2. Open the downloaded APK; Android warns about unknown developers and that the
-   app is built for testing — both expected for a debug build.
+   app is built for testing — both expected for a debug build (Play
+   Protect may show a scan warning too — also expected for a
+   sideloaded debug-signed APK).
 3. Install (it updates over an earlier debug build in place — same
    certificate), open Younblock, and connect: the YouTube app and the
    installed default browsers are already on the list. Requires
