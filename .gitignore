@@ -45,3 +45,11 @@ android/build/
 android/app/build/
 android/local.properties
 android/app/libs/
+
+# Release signing lane (D88 / doc 07 §8): the release keystore and its
+# password backups are generated locally by make-release-keystore.bat
+# and never committed. The debug test-circle keystore stays vendored
+# (D85 — android/app/debug.keystore, the well-known debug identity,
+# not a credential).
+younblock-release.keystore
+younblock-keystore-backup_*.md

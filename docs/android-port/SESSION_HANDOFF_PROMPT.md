@@ -6,7 +6,7 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-d / D87 session close)
+## Where the project stands (verified at the M8-e / D88 session close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
@@ -27,6 +27,21 @@ working clone carries the credential in its `origin` remote URL).
   (audited: a missing browser can never break the connect — D87
   records the audit). The chip row covers all five defaults and the
   aliases extend to firefox/opera/brave.
+- **M8-e / D88 (no app change, the APK is untouched): the local
+  release-keystore ceremony is now a shipped script** — Ali's ask
+  ("give me a bat file that auto creates it's password locally on my
+  system and backs up that password as an md file").
+  `make-release-keystore.bat` sits at the repo root AND is a second
+  asset on the debug.3 release (11,527 B, sha256
+  82e6dded…4090): one double-click on his Windows machine locates
+  keytool, generates a 32-char password with Windows' CSPRNG (never
+  through chat/agent/repo), creates the keystore with every keytool
+  prompt pre-filled (RSA 4096, PKCS12, 10950 days), verifies it by
+  reading it back, and writes younblock-keystore-backup_<date>.md
+  (password, alias, certificate serial number, SHA-256 fingerprint,
+  full keytool record). The .gitignore guards the generated files;
+  README documents the signed-lane steps. The security boundary is
+  the rule: signing secrets are generated where they are used.
 - **`v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are
   superseded** (kept as history; debug.1's release page carries the
   D85 install-blocked troubleshooting guide, which still applies to
@@ -54,12 +69,12 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
-   M8-c, M8-d, … (this prompt describes the state after M8-d; the
-   next is M8-e).
+   M8-c, M8-d, M8-e, … (this prompt describes the state after M8-e;
+   the next is M8-f).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.3 edition + §"Device test circle" — Ali's checklist), doc 06
-   (the M8-c/M8-d records), doc 08 + `DECISIONS.md` (D1–D87; **the
-   next decision number is D88**), and the tail of `PROGRESS.md`.
+   (the M8-c/M8-d/M8-e records), doc 08 + `DECISIONS.md` (D1–D88; **the
+   next decision number is D89**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
@@ -73,6 +88,11 @@ working clone carries the credential in its `origin` remote URL).
    `vite build`. D74 trap: a stale webui dist fails
    `TestWebUILifecycle` (in the mobile package) — sync
    `frontend/dist → internal/webui/dist` before judging.
+   **⚠ ~/sdk was wiped between M8-d and M8-e (recorded in doc 06's
+   M8-e entry): Go, the Temurin JDK and the Android SDK/NDK must be
+   reinstalled per doc 06 §1's pins BEFORE any Go/Svelte work. The
+   system JRE on the box has keytool but no javac — not sufficient
+   for builds.**
 
 ## The task — the device-test feedback loop
 
@@ -111,14 +131,16 @@ For each issue Ali reports from `v1.6.6-android-debug.3`:
   (sha256, apksigner, badging, manifest dump — doc 06's records);
   commit.
 - If Ali decides to release publicly: the signed-release decision
-  returns (doc 07 §8 — his local keystore or an EC key, never
-  committed; README backup steps), and doc 10 §2 (the public v1
-  DRAFT) is finalized against that artifact.
+  returns (doc 07 §8 / D88 — his local keystore, never committed;
+  `make-release-keystore.bat` is the documented one-double-click
+  ceremony), and doc 10 §2 (the public v1 DRAFT) is finalized against
+  that artifact.
 
 ## Environment (this sandbox resets without warning — verify, don't assume)
 
-Layout as verified at the M8-d close (sixth consecutive no-wipe
-session before it — but verify anyway):
+Layout as verified at the M8-e close (a PARTIAL wipe happened before
+that session: `~/sdk` was gone while the repo, worklog and Next.js
+scaffold survived — reinstall per doc 06 §1 before Go/Svelte work):
 
 - Repo: `/home/z/my-project/Younblock`, `vendor/` committed (D68: use
   `-mod=vendor`; the Android lane never invokes wails; desktop lanes
@@ -176,15 +198,16 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D88),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-e, M8-f, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D89),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-f, M8-g, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 
 ## Required first response
 
 Report, briefly and with evidence: (1) environment — intact or
-recovered, and how you know; (2) repo state — branch, HEAD,
+recovered, and how you know (note the ~/sdk state; doc 06's M8-e
+entry records it wiped); (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's debug.3 feedback
 has arrived, and if so the exact first issue you will address. Then
 execute — or, if no feedback has arrived, stop after the state report

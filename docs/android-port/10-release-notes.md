@@ -1,7 +1,8 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
 **Status:** updated at the D87 session (2026-10-17, the device-test
-feedback loop's third round). This document now holds two things: §1
+feedback loop's third round; the M8-e/D88 addition — the
+release-signing helper asset — is noted in §1). This document now holds two things: §1
 the **shipped** debug test-circle release (`v1.6.6-android-debug.3`, a
 prerelease on the private repo — the same text lives on the GitHub
 release itself; `v1.6.6-android-debug.2` and `v1.6.6-android-debug.1`
@@ -63,6 +64,22 @@ certificate as debug.1/debug.2 (SHA-256 digest `c76bb7c61ec623892eabc
 37ac90ac1bc0041d39490f2d48073676d6e2ed8551d`, at
 `android/app/debug.keystore` since D85), apksigner v2-scheme
 verified; the four-permission manifest, no testOnly.
+
+**Release-signing helper (added after the APK upload — M8-e / D88;
+the APK itself is unchanged).** This release carries a second asset,
+`make-release-keystore.bat` (11,527 B, SHA-256
+`82e6dded40a8eb415127c6d46b3cb4acb0633ab2cd13ac8b809a8ae8c7c74090`,
+pure ASCII, CRLF): the local one-double-click ceremony for the future
+signed lane. Run it in a private folder on Windows and it generates
+the keystore password **on your own machine** with Windows' crypto
+RNG, creates `younblock-release.keystore` with every keytool question
+pre-filled (RSA 4096, 30-year validity), verifies the result by
+reading it back, and writes a `younblock-keystore-backup_<date>.md`
+next to it — the password, the alias, the certificate serial number,
+the SHA-256 fingerprint and the full keytool record. Not needed for
+this debug build; it exists so the signed lane is ready the day you
+decide to publish (doc 07 §8 / D88). The keystore and that backup
+never go in the repo.
 
 **Superseded: v1.6.6-android-debug.2** (versionCode 2, SHA-256
 `9cca38c9…811b`) — the D86 build: it put the YouTube app on the

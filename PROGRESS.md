@@ -2530,3 +2530,45 @@ The device gates remain ⛔ and ride with doc 10's test circle (rows
 youtube.com in each installed browser); the diagnostics report
 (Menu → Diagnostics → copy) is the requested evidence if anything
 still fails on his radio.
+
+## M8-e — the release-keystore ceremony script (D88, 2026-10-17)
+
+No device observations arrived; Ali's ask reshaped the round: "Can
+you fix the serial number and etc issue as well? like giving me a
+bat file that auto creates it's password locally on my system and
+backs up that password as an md file. if you insist it must be done
+locally. at least you can create the script." The "serial number and
+etc" was keytool's interactive ceremony; the ruling keeps the
+security boundary (the signing-key password is generated where it is
+used, never through chat/agent/repo) and ships the automation:
+make-release-keystore.bat — locate keytool, generate a 32-char
+zero-bias password with Windows' CSPRNG, create the keystore with
+every prompt pre-filled (RSA 4096, PKCS12, 10950 days), verify it by
+reading it back, and write the .md backup (password, alias,
+certificate serial number, SHA-256 fingerprint, the full keytool
+record). Guardrails: refuses to overwrite an existing keystore,
+warns inside a git repo, offline; the .gitignore now guards both
+generated patterns.
+
+Lanes with evidence: the real keytool flow verified on the host
+(system JRE 21.0.12.1's keytool — genkeypair prompt-free exit 0,
+valid to Oct 2056; -list -v line shapes match the script's parsing;
+wrong storepass exits 1); the password alphabet proven exactly 64
+unique chars with the algorithm simulated; the shipped file pure
+ASCII, 253/253 CRLF, 11,527 B, sha256
+82e6dded40a8eb415127c6d46b3cb4acb0633ab2cd13ac8b809a8ae8c7c74090,
+byte-identical through repo, preview and release surfaces (the
+served asset re-downloaded and hashed). ⛔ stated plainly: the .bat's
+Windows execution cannot run on this Linux host — the script
+self-verifies on Ali's machine (the read-back round-trip) and every
+failure path carries its own message. Zero Go/Svelte/app code
+touched: the M8-d gates stand as the baseline of record for the
+unchanged clean tree (the ~/sdk toolchain wipe between sessions is
+recorded in doc 06's M8-e entry; the next code-touching session
+reinstalls per doc 06 §1 first). Delivery: committed at the repo
+root and pushed; attached to the EXISTING v1.6.6-android-debug.3
+release as a second asset (no new tag, no new APK — the D84 rule);
+README's signed-lane section written (closing the doc 07 §8 "README
+steps" hole); docs 06/07/09/10, DECISIONS.md D88, CHANGELOG and the
+session prompt all updated. The device gates and Ali's debug.3
+observations remain the project's open input (next Task ID M8-f).

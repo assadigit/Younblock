@@ -45,8 +45,21 @@ GitHub account), then sideload it:
 The release's notes carry the full device test checklist (what to test and what
 to report back), and the engineering record lives in
 [docs/android-port](docs/android-port/README.md). Successive debug builds
-install over this one; when a public release happens, the signing plan is
-documented in [docs/android-port/07-security-privacy-and-distribution.md](docs/android-port/07-security-privacy-and-distribution.md).
+install over this one.
+
+**When a public release happens**, the APK gets signed with your own release
+keystore — created and backed up locally, never committed. The repo ships a
+one-double-click helper for the whole ceremony: `make-release-keystore.bat`
+(also attached to the `v1.6.6-android-debug.3` release). Put it in a private
+folder — not inside the repo, not inside a synced/cloud folder — and
+double-click it: it generates the password on your machine with Windows' own
+crypto RNG, creates the keystore with every keytool question pre-filled (the
+certificate serial number and SHA-256 fingerprint are recorded into the
+backup automatically), and writes a `younblock-keystore-backup_<date>.md`
+next to it. Keep the keystore and that backup in **two different safe
+places** — losing either means the next signed release needs
+uninstall-before-update. The full plan:
+[docs/android-port/07-security-privacy-and-distribution.md](docs/android-port/07-security-privacy-and-distribution.md) §8.
 
 **What's new in version 1.6.5** (the "offline means offline" release):
 

@@ -64,79 +64,82 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's THIRD session
-  (2026-10-17, D87, Task ID M8-d) — Ali's second ruling ("Add chrome
-  to the default addlist as well, also firefox, opera, brave
-  browser") implemented, closing the open question D86 carried.
-  Phase 2 (M0–M8) remains host-complete beneath it; no new device
-  observations arrived in this round (the ruling was the whole
-  input).
-- **The project's state now:** the default allow-list is five apps —
-  the YouTube app plus the Chrome, Firefox, Opera and Brave browsers
-  (D87; the stable mainline package names). The one risk of a
-  multi-app default — devices lacking the apps — was audited BEFORE
-  shipping: the Kotlin establish loop skips NameNotFound entries per
-  package and refuses only when zero resolve, so missing browsers
-  cannot break the connect (recorded in D87). A one-time v4 settings
-  migration (settingsVersion 3→4) carries every era forward with the
-  agency rules intact: v1/v2 born-empty files fill the new default;
-  a v3 file still holding EXACTLY the D86 [youtube] default (the
-  debug.2 shipped state, never curated) upgrades to the five apps;
-  a v3 empty and every custom list survive verbatim. The chip row
-  covers all five defaults (+ YouTube / + Chrome / + Firefox / +
-  Opera / + Brave) and the friendly-name aliases extend to
-  firefox/opera/brave; the honest copy updated everywhere (menu
-  intro, empty state, note, How-it-works, the NO_TARGET_APPS
-  message, README, doc 07 §1, doc 10). The new build is
-  **v1.6.6-android-debug.3** (versionCode 3, the pinned D85
-  certificate — installs over debug.1/debug.2 in place, settings
-  survive through the migration). The engine/chain behavior is
-  unchanged and remains unclaimed device-side pending Ali's next
-  round.
-- **Branch and commit:** `main`, the M8-d commit (see `git log -1` at
+- **Phase completed:** the device-test feedback loop's FOURTH session
+  (2026-10-17, D88, Task ID M8-e) — Ali's script ruling: "Can you fix
+  the serial number and etc issue as well? like giving me a bat file
+  that auto creates it's password locally on my system and backs up
+  that password as an md file. if you insist it must be done locally.
+  at least you can create the script." The local release-keystore
+  ceremony is now a shipped script. Phase 2 (M0–M8) remains
+  host-complete beneath it; STILL no device observations from debug.3
+  have arrived.
+- **The project's state now:** the app is unchanged at the debug.3
+  state — the five-app default allow-list (the YouTube app plus the
+  Chrome, Firefox, Opera and Brave browsers, D87), the v4 migration,
+  the pinned D85 certificate, v1.6.6-android-debug.3/versionCode 3
+  as the test-circle build. New this round (D88):
+  `make-release-keystore.bat` (repo root + a second asset on the
+  debug.3 release; 11,527 B, sha256 82e6dded…4090, pure ASCII/CRLF,
+  offline) — the one-double-click local ceremony for the future
+  signed lane: locates keytool, generates the password on Ali's
+  machine with Windows' CSPRNG (an exact-64 alphabet, zero bias),
+  creates the keystore with every keytool prompt pre-filled (RSA
+  4096, PKCS12, 10950 days), verifies it by reading it back (a wrong
+  password = keytool exit 1, proven on the real tool), and writes
+  younblock-keystore-backup_<date>.md (password, alias, certificate
+  serial number, SHA-256 fingerprint, the full keytool record). The
+  .gitignore guards the generated files; the README documents the
+  signed-lane steps.
+- **Branch and commit:** `main`, the M8-e commit (see `git log -1` at
   handoff time); worktree clean after the commit; the release tag
-  `v1.6.6-android-debug.3` (prerelease) points at it; debug.2's tag
-  points at 096e8c0 and debug.1's at f61bfae (both superseded, their
-  release pages keep the D85 troubleshooting guide).
-- **Files changed this phase:** internal/config (defaults.go,
-  settings.go — settingsVersion 4 + the migration + the isD86Default
-  helper; apps_test.go — the D87 matrix), mobile (mobile.go comment;
-  apps_test.go incl. the debug.2-file migration test), frontend
-  (MenuSheet.svelte — the five-app labels/aliases/chips/copy;
-  backend.ts — the NO_TARGET_APPS message), android
-  (build.gradle.kts versionCode 3; YounblockVpnService.kt comments),
-  README, doc 06 (M8-d record), doc 07 §1, doc 09 (this handoff),
-  doc 10 (the debug.3 edition), DECISIONS.md (D87), PROGRESS.md,
-  CHANGELOG.md, SESSION_HANDOFF_PROMPT.md.
-- **Tests run and actual results:** vet clean; go test 17/17 ×2 (exit
-  0 both passes); -race green on config/engine/mobile; svelte-check
-  0/0; vite build clean; webui dist synced + the webui suite green
-  on the new bundle; compile matrix 4/4 ABIs (18 non-main packages
-  each; arm64 links the full tree); gomobile bind (AAR 25,174,619 B,
-  javap bindings verified; the D87 copy verified embedded in
-  libgojni.so); clean assembleDebug (APK 35,816,233 B, sha256
-  81515f0d…d6a1, versionCode 3, pinned cert, badging + manifest
-  verified); the GitHub release verified through the API after
-  creation (served bytes re-downloaded and hashed).
-- **Current architecture decision / confidence:** D87 (the five-app
-  default + the v4 migration + the widened chips/aliases). Confidence:
-  high host-side — the missing-app risk was audited and closed by the
-  M6 establish design before anything shipped. Device-side: the
-  routing chain is audited but its on-device behavior (real DoH
-  reachability, QUIC fallback, DPI evasion on his radio) is still ⛔
-  pending his observations; the diagnostics report (Menu →
-  Diagnostics → copy) is the requested evidence if anything still
-  fails. Next decision ID: D88.
-- **Blocking questions:** none product-side. The default-list
-  question D86 left open is CLOSED by the owner's ruling (D87). The
-  signed-release decision returns only when a public release is
-  planned (doc 07 §8).
+  `v1.6.6-android-debug.3` still points at the M8-d commit 2a8b678
+  (the APK is unchanged — D88 added an asset, not a build); debug.2's
+  tag points at 096e8c0 and debug.1's at f61bfae (both superseded,
+  their release pages keep the D85 troubleshooting guide).
+- **Files changed this phase:** make-release-keystore.bat (new, repo
+  root), .gitignore (the release-keystore/backup patterns), README
+  (the signed-lane section — closing the hole where doc 07 §8 pointed
+  at "README backup steps" that did not exist), doc 06 (M8-e record),
+  doc 07 §8 (D88), doc 09 (this handoff), doc 10 (the helper-asset
+  note), DECISIONS.md (D88), PROGRESS.md, CHANGELOG.md,
+  SESSION_HANDOFF_PROMPT.md. ZERO Go/Kotlin/Svelte/app code touched;
+  versionCode stays 3; the APK bytes are unchanged.
+- **Tests run and actual results:** no Go/Svelte lanes this session —
+  no app code changed, and the ~/sdk toolchain was found WIPED at the
+  session open (Go 1.27.2, the Temurin JDK, the Android SDK/NDK all
+  gone; the repo, worklog and Next.js scaffold survived). The
+  baseline of record for the unchanged clean tree 2a8b678 is M8-d's
+  (vet clean; go test 17/17 ×2; svelte-check 0/0; vite build clean,
+  dist synced). What WAS verified with evidence: the real keytool
+  flow on the host's system JRE 21.0.12.1 keytool (genkeypair
+  prompt-free, exit 0, valid to Oct 2056; the -list -v line shapes
+  match the script's findstr parsing; a wrong storepass exits 1);
+  the password alphabet exactly 64 unique characters with the
+  algorithm simulated end-to-end; the .bat pure ASCII, 253/253 CRLF,
+  byte-identical through repo/preview/release surfaces (the served
+  asset re-downloaded and hashed). ⛔ the Windows batch execution
+  itself (Linux host) — the script self-verifies on its first run on
+  Ali's machine.
+- **Current architecture decision / confidence:** D88 (the local
+  keystore ceremony script; the security boundary — signing secrets
+  are generated where they are used — kept and made concrete).
+  Confidence: high on the keytool flow (real-tool evidence); the
+  batch wrapper is audited but Windows-unverified by the host — its
+  own read-back verification and per-failure messages carry the proof
+  onto Ali's machine. Next decision ID: D89.
+- **Blocking questions:** none product-side. The signed-release
+  decision still returns only when a public release is planned — but
+  its ceremony is now automated and documented (D88). The standing
+  input remains Ali's device observations from debug.3.
 - **Exact next task:** continue the **device-test feedback loop**:
-  ingest Ali's results from v1.6.6-android-debug.3 (Task ID M8-e) —
+  ingest Ali's results from v1.6.6-android-debug.3 (Task ID M8-f) —
   the YouTube app and the installed default browsers out of the box
   (row 2), youtube.com in each installed browser (row 4), the rest
   of doc 10's test circle, and the diagnostics report for anything
-  that fails. Fix what surfaces (root-cause discipline; the D77–D87
+  that fails. Fix what surfaces (root-cause discipline; the D77–D88
   honesty rules binding as ever), bump `versionCode` and cut
   `v1.6.6-android-debug.4` through the same release lane WHEN a code
-  change warrants it.
+  change warrants it. CAUTION for the next session: ~/sdk is wiped —
+  reinstall the toolchain per doc 06 §1's pins (Go, the Temurin JDK,
+  the Android SDK/NDK) and re-establish the baseline BEFORE touching
+  any Go/Svelte code.

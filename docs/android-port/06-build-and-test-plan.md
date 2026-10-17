@@ -443,3 +443,60 @@ opera, brave browser"):
 - The release lane: v1.6.6-android-debug.3 (prerelease) on the M8-d
   commit; the APK uploaded; verified via the API after creation (served
   bytes re-downloaded and hashed).
+
+M8-e record (2026-10-17, later still; the device-test feedback loop's
+fourth round — no device observations arrived; Ali's ask instead:
+"Can you fix the serial number and etc issue as well? like giving me
+a bat file that auto creates it's password locally on my system and
+backs up that password as an md file. if you insist it must be done
+locally. at least you can create the script." → D88, the local
+release-keystore ceremony script):
+
+- The open found a PARTIAL sandbox wipe: `~/sdk` gone (Go 1.27.2, the
+  Temurin JDK, the Android SDK/NDK), while the repo (clean at 2a8b678,
+  the M8-d commit, in sync with origin), the worklog and the Next.js
+  scaffold survived. The system Java on the box is a JRE 21.0.12.1
+  whose `keytool` DOES run (no javac — useless for builds, sufficient
+  for this task).
+- NO Go/Svelte/app code changed this session (the deliverable is a
+  Windows batch script + docs + a release asset), so the desktop
+  baseline stands as M8-d recorded it at this exact clean tree (vet
+  clean; go test 17/17 ×2; svelte-check 0/0; vite build clean, dist
+  synced). Stated plainly rather than re-run: the toolchain to re-run
+  them is the thing that was wiped. The next session that touches
+  Go/Svelte code must reinstall the toolchain per §1's pins FIRST and
+  re-establish the baseline.
+- What WAS verified, with evidence, on this host: the real keytool
+  flow — `keytool -genkeypair` (RSA 4096, PKCS12, validity 10950 →
+  Oct 2056, `-dname` pre-filled → zero prompts, exit 0) and
+  `keytool -list -v` (exit 0; a WRONG storepass exits 1 — the script's
+  verification step rides on exactly that semantic) using the system
+  JRE's keytool 21.0.12.1 (the same version family as the pinned
+  Temurin JDK); the parsed line shapes confirmed against that real
+  output ("Serial number:", tab-indented "SHA256:", "Valid from:",
+  "Owner:"); the password alphabet proven to be exactly 64 unique
+  characters (zero modulo-bias mapping, ~192 bits for 32 chars) with
+  the algorithm simulated end-to-end; the shipped file checked pure
+  ASCII, 253/253 CRLF lines, 11,527 B, sha256
+  82e6dded40a8eb415127c6d46b3cb4acb0633ab2cd13ac8b809a8ae8c7c74090,
+  and byte-identical through the delivery surfaces (repo, preview
+  asset, release upload).
+- The ⛔ list, stated plainly: the build host is Linux — the .bat's
+  batch/PowerShell wrapper cannot be executed here (no Windows, no
+  pwsh). Mitigations: conservative batch constructs only (no delayed
+  expansion, an alphabet with no cmd-special characters, every
+  password/path handling quoted), and the script verifies its own
+  work on Ali's machine before declaring success (the read-back
+  round-trip + the explicit failure messages per exit code).
+- The delivery lane: committed at the repo root, pushed; attached as
+  a second asset to the EXISTING v1.6.6-android-debug.3 release via
+  the API (no new tag, no new APK — the D84 rule: identical APK bytes
+  are not re-released); the served asset re-downloaded and hashed to
+  the same sha256. The sandbox preview (the Next.js / route) serves
+  the same bytes with a copy/download page.
+- Docs: doc 07 §8 (D88), doc 10 §1 (the helper-asset note), README
+  (the signed-lane section — closing the hole where doc 07 §8 pointed
+  at "README backup steps" that did not exist), .gitignore (the
+  release-keystore + backup patterns), DECISIONS.md D88, PROGRESS.md,
+  CHANGELOG.md, doc 09 handoff fields, SESSION_HANDOFF_PROMPT.md
+  (post-D88 edition incl. the ~/sdk wipe state).

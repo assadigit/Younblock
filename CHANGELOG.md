@@ -814,3 +814,25 @@ First Windows test build, published to GitHub Releases.
   message, README, doc 07 §1, doc 10 / the release notes) — and the
   release guide's expected file size updated to this build's exact
   artifact size.
+
+### Added (Android port — the release-signing helper, D88; no app change, v1.6.6-android-debug.3's APK unchanged)
+
+- **`make-release-keystore.bat` — the local release-keystore ceremony
+  in one double-click** (Ali's ask; the security boundary kept: the
+  password is generated on his machine with Windows' own crypto RNG
+  and never transits chat, agent or repo): locates keytool, generates
+  a 32-character zero-bias password, creates the keystore with every
+  keytool prompt pre-filled (RSA 4096, PKCS12, 30-year validity — the
+  "serial number and etc" interactive ceremony eliminated), verifies
+  it by reading it back, and writes a
+  `younblock-keystore-backup_<date>.md` recording the password, the
+  alias, the certificate serial number, the SHA-256 fingerprint and
+  the full keytool record. Refuses to overwrite an existing keystore;
+  warns when run inside a git repo; fully offline; the .gitignore
+  guards the generated files. The keytool flow was verified against
+  the real JDK 21 keytool on the build host; the Windows batch
+  execution itself stays ⛔ there (no Windows) — the script
+  self-verifies on its first run. Attached to the
+  v1.6.6-android-debug.3 release as a second asset and committed at
+  the repo root; the README's Android section now documents the
+  signed-lane steps it automates.

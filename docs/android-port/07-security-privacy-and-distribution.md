@@ -167,14 +167,41 @@ against the final artifact.
   the distributed artifact, published via GitHub Releases on the
   private repo (prerelease tag `v1.6.6-android-debug.1`), downloadable
   with his own GitHub credentials. No signed release APK exists at
-  this stage; the alternatives (Ali generates his own local keystore
-  per the README steps below, or an EC key) stay documented for
-  whenever a public release happens.
-- When the signed lane returns: release APK signed with a local
-  keystore, never committed (`.gitignore`), README backup steps
-  (losing it = uninstall-before-update for everyone who installed
-  the signed build). Successive debug builds bump `versionCode` so
-  they update over each other (same debug certificate).
+  this stage; the local-keystore alternative stayed documented until
+  D88 turned it into a shipped script.
+- **D88 (2026-10-17, M8-e): the local keystore ceremony is a shipped
+  script.** Ali's ask: "Can you fix the serial number and etc issue
+  as well? like giving me a bat file that auto creates it's password
+  locally on my system and backs up that password as an md file. if
+  you insist it must be done locally. at least you can create the
+  script." The security boundary stands — a signing-key password is
+  generated where it is used and never transits the chat, the agent,
+  or the repo — and what ships is the automation:
+  `make-release-keystore.bat` (repo root + an asset on the debug.3
+  release; offline, pure ASCII, CRLF). One double-click on his
+  Windows machine: keytool is located (PATH / JAVA_HOME / Android
+  Studio JBR / common JDK dirs), a 32-character password is generated
+  with Windows' CSPRNG (an exactly-64-character alphabet, zero
+  modulo bias), the keystore is created with every keytool prompt
+  pre-filled (RSA 4096, PKCS12, 10950 days — the "serial number and
+  etc" interactive ceremony eliminated), the result is verified by
+  reading it back with the same password (a wrong password exits 1 —
+  proven against the real keytool), and a
+  `younblock-keystore-backup_<date>.md` records the password, the
+  alias, the certificate serial number, the SHA-256 fingerprint and
+  the full keytool record. The script refuses to overwrite an
+  existing keystore, warns when run inside a git repo, and the
+  `.gitignore` guards both generated patterns. Honest limit: the
+  build host is Linux — the batch file itself is ⛔ there; the
+  keytool flow, the parsed output shapes and the failure semantics
+  were verified against the real JDK 21 keytool on the host, and the
+  script self-verifies on its first run on Ali's machine.
+- When the signed lane returns: release APK signed with that local
+  keystore, never committed (`.gitignore`), created and backed up
+  with `make-release-keystore.bat` (README documents the steps;
+  losing it = uninstall-before-update for everyone who installed the
+  signed build). Successive debug builds bump `versionCode` so they
+  update over each other (same debug certificate).
 - Sideload only (ADR-0012): README documents the
   allow-installs-from-this-source step and the Play Protect warning
   (the debug build additionally shows Android's "built for testing"
