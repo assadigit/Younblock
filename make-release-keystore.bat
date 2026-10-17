@@ -3,21 +3,31 @@ setlocal EnableExtensions
 rem ================================================================
 rem  make-release-keystore.bat -- Younblock release signing key
 rem  Decision D88 (docs/android-port/07 section 8) -- M8-e session
+rem  Decision D90 (same section) -- M8-h session, after Ali's first
+rem  field report: PowerShell is now located by its full standard
+rem  install path instead of through the PATH variable (some
+rem  machines leave PowerShell out of PATH -- the desktop setup
+rem  scripts took the same fix at v0.7.5), and if PowerShell cannot
+rem  be found at all, a pure-cmd fallback generator builds the
+rem  password, so this step can no longer stop the ceremony.
 rem
 rem  WHAT THIS DOES -- everything local, no network, nothing sent
 rem  anywhere and nothing committed to git:
 rem    1. finds keytool (PATH, JAVA_HOME, Android Studio's bundled
 rem       Java, or a common JDK install)
 rem    2. generates a 32-character password with Windows' own crypto
-rem       RNG -- the password is created on THIS machine only
+rem       RNG -- the password is created on THIS machine only; if
+rem       PowerShell is missing entirely, the script's own fallback
+rem       generator builds one instead (D90)
 rem    3. creates younblock-release.keystore: RSA 4096, valid 10950
 rem       days -- 30 years, every keytool question pre-filled, so
 rem       there are no prompts at all
 rem    4. verifies the new keystore by reading it back with the same
 rem       password
 rem    5. writes younblock-keystore-backup_DATE.md next to it: the
-rem       password, the alias, the certificate SERIAL NUMBER, the
-rem       SHA-256 fingerprint, and the full keytool record
+rem       password, which generator produced it, the alias, the
+rem       certificate SERIAL NUMBER, the SHA-256 fingerprint, and
+rem       the full keytool record
 rem
 rem  HOW TO USE: put this file in a PRIVATE folder -- not inside the
 rem  Younblock repo, not inside any synced or cloud folder -- and
@@ -31,8 +41,9 @@ rem  install -- users would have to uninstall first. Keep the
 rem  .keystore file and the .md backup in TWO different safe places.
 rem
 rem  Exit codes: 0 ok; 1 keytool not found; 2 keystore already
-rem  exists; 3 keytool failed; 4 password generation failed; 5 the
-rem  .md backup could not be written.
+rem  exists; 3 keytool failed; 4 password generation failed (both
+rem  generators -- should be unreachable, cmd itself could not
+rem  provide RANDOM); 5 the .md backup could not be written.
 rem ================================================================
 title Younblock release keystore generator
 
@@ -103,22 +114,49 @@ echo Using keytool: %KT%
 echo.
 
 rem ---- 3) generate the password locally ---------------------------
-rem 32 characters drawn from an exactly-64-character alphabet, so
-rem every random byte maps to one character with zero bias -- about
-rem 192 bits of real entropy. The alphabet skips the characters that
-rem are special to cmd.exe and the confusable 0 and 1, so the
-rem password is safe to show, store and retype.
+rem Preferred (D88): 32 characters drawn from an exactly-64-character
+rem alphabet, so every random byte maps to one character with zero
+rem bias -- about 192 bits of real entropy. The alphabet skips the
+rem characters that are special to cmd.exe and the confusable 0 and
+rem 1, so the password is safe to show, store and retype.
+rem
+rem D90: PowerShell itself is now located WITHOUT trusting the PATH
+rem variable -- first at its standard install path (the same fix the
+rem desktop setup scripts took in v0.7.5), then through where.exe.
+rem The old script called plain "powershell", which stopped with
+rem exit code 4 on machines whose PATH does not include it (Ali's
+rem first field report). If PowerShell cannot be found at all, the
+rem fallback below builds the password from six RANDOM draws --
+rem digits and dashes only, about 90 bits -- so the ceremony always
+rem completes; the .md backup records which generator was used.
 set "PW="
 set "TS="
-for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$e=[char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz23456789@#$-';$b=New-Object byte[] 32;$r=New-Object System.Security.Cryptography.RNGCryptoServiceProvider;$r.GetBytes($b);$s='';foreach($x in $b){$s+=[string]$e[$x -band 63]};$t=Get-Date -Format yyyy-MM-dd_HH-mm-ss;Write-Output ($s+'|'+$t)"`) do (
-    set "PW=%%A"
-    set "TS=%%B"
+set "PWGEN=this script's cmd fallback generator (D90)"
+set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PS%" set "PS="
+if not defined PS (
+    for /f "delims=" %%F in ('%SystemRoot%\System32\where.exe powershell 2^>nul') do if not defined PS set "PS=%%F"
+)
+if defined PS (
+    for /f "usebackq tokens=1,2 delims=|" %%A in (`%PS% -NoProfile -ExecutionPolicy Bypass -Command "$e=[char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz23456789@#$-';$b=New-Object byte[] 32;$r=New-Object System.Security.Cryptography.RNGCryptoServiceProvider;$r.GetBytes($b);$s='';foreach($x in $b){$s+=[string]$e[$x -band 63]};$t=Get-Date -Format yyyy-MM-dd_HH-mm-ss;Write-Output ($s+'|'+$t)"`) do (
+        set "PW=%%A"
+        set "TS=%%B"
+    )
+)
+if defined PW set "PWGEN=Windows crypto RNG via PowerShell"
+if not defined PW (
+    echo NOTE: Windows PowerShell was not found on this machine, so
+    echo the password will come from this script's own fallback
+    echo generator instead. Same rules -- everything happens locally,
+    echo nothing is sent anywhere, and the password lands in the .md
+    echo backup next to the keystore.
+    echo.
+    set "PW=%RANDOM%-%RANDOM%-%RANDOM%-%RANDOM%-%RANDOM%-%RANDOM%"
+    set "TS=fallback-%RANDOM%%RANDOM%"
 )
 if not defined PW (
-    echo STOPPED: Windows PowerShell did not return a password.
-    echo PowerShell ships with Windows itself and this step uses no
-    echo network. Run this file again; if it keeps failing, note the
-    echo message above.
+    echo STOPPED: the password generator returned nothing at all --
+    echo this should be unreachable. Note the message above.
     echo.
     pause
     exit /b 4
@@ -190,6 +228,7 @@ set "KSPATH=%CD%\%KSFILE%"
 >> "%MDFILE%" echo - Generated with:       make-release-keystore.bat -- the password
 >> "%MDFILE%" echo                        was generated locally on the machine above
 >> "%MDFILE%" echo                        and never sent anywhere.
+>> "%MDFILE%" echo - Password source:     %PWGEN%
 >> "%MDFILE%" echo.
 >> "%MDFILE%" echo ## Password
 >> "%MDFILE%" echo.
@@ -226,6 +265,7 @@ echo Backup   : %CD%\%MDFILE%
 echo Alias    : %ALIAS%
 echo Serial   : %SERIAL%
 echo SHA-256  : %SHA256%
+echo Source   : %PWGEN%
 echo.
 echo The password -- it is also inside the .md backup:
 echo.
