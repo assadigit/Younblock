@@ -1,23 +1,33 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the D87 session (2026-10-17, the device-test
-feedback loop's third round; the M8-e/D88 addition — the
-release-signing helper asset — is noted in §1). This document now holds two things: §1
-the **shipped** debug test-circle release (`v1.6.6-android-debug.3`, a
-prerelease on the private repo — the same text lives on the GitHub
-release itself; `v1.6.6-android-debug.2` and `v1.6.6-android-debug.1`
-are superseded by it and kept as history below), and §2 the **public
-v1 DRAFT**, unpublished until the ⛔ device gates close or Ali
-explicitly accepts shipping with them recorded as known limitations.
-Every claim traces to implementation evidence (docs 01–09,
-DECISIONS.md D1–D87).
+**Status:** updated at the D89 session (2026-10-17, the device-test
+feedback loop's fifth round; the M8-e/D88 helper asset stands in
+§1, and D89's release-flag change — the android circle now ships as
+regular releases in the private repo — is recorded in §1 too). This
+document now holds two things: §1 the **shipped** debug test-circle
+release (`v1.6.6-android-debug.3`, a regular release in the private
+repo per D89 — the same text lives on the GitHub release itself;
+`v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are superseded
+by it and kept as history below, their flags switched to regular
+releases with debug.3's), and §2 the **public v1 DRAFT**, unpublished
+until the ⛔ device gates close or Ali explicitly accepts shipping
+with them recorded as known limitations. Every claim traces to
+implementation evidence (docs 01–09, DECISIONS.md D1–D89).
 
-## 1. v1.6.6-android-debug.3 — the device test circle (SHIPPED, prerelease)
+## 1. v1.6.6-android-debug.3 — the device test circle (SHIPPED — a regular release in the private repo, D89)
 
 A debug-signed build for **Ali's own device testing** — "we're not
 releasing yet" (D84): this is not a public release. Expect Android's
 "built for testing" and Play Protect warnings for unknown developers;
 both are expected and honest for this circle.
+
+**The release flag (D89, 2026-10-17).** This build and the two
+earlier debug builds are now published as regular releases, not
+prereleases — Ali's ruling: "Do not prerelease, just release, the
+repo is private." The repo is private, so the flag carried no public
+meaning and the releases remain visible to the repo's collaborators
+only. Nothing about the build changed: it is still the debug-signed
+device-test build this page describes.
 
 **The honest headline.** Younblock for Android helps YouTube load
 when the network gets in the way. It routes **only the apps on its
@@ -90,7 +100,9 @@ SHA-256 `ccf46a2e…7b64`) — the first test-circle build; shipped with
 the born-empty list (D83) whose entry-path gap is what debug.2 fixed.
 Its release page carries the install-blocked troubleshooting guide
 (D85), which still applies unchanged to downloads from Iranian
-networks.
+networks. Their release flags were switched to regular releases
+together with debug.3's (D89, 2026-10-17); their bodies stay exactly
+as published — history.
 
 **Install (private repo, doc 07 §8).** Download the APK from this
 release with your GitHub account, allow installs from your browser

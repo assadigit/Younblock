@@ -1670,3 +1670,41 @@ tree 2a8b678 stand as the baseline of record (the ~/sdk toolchain
 wipe between M8-d and this session is recorded in doc 06's M8-e
 entry; the script-only session needed none of it beyond keytool,
 which the system JRE provides).
+
+**D89 — Ali's release-flag ruling: the android circle ships as
+regular releases in the private repo (2026-10-17, the device-test
+feedback loop's fifth session, M8-g).** Ali's message: "Do not
+prelease , just release, the repo is private. Please finish all of
+your specs first." The prerelease flag on the android debug releases
+carried no public meaning — the repo is private, every release is
+collaborator-only — and it kept the repo's Latest pointer off the
+current test-circle build. THE CHANGE: all three android releases
+(v1.6.6-android-debug.1/.2/.3) were switched to regular releases
+through the GitHub API and verified after (tags f61bfae/096e8c0/
+2a8b678 unchanged; every asset and sha256 digest unchanged;
+/releases/latest → debug.3, set explicitly — a plain flag flip does
+not move the Latest marker by itself); the debug.3 body gained
+exactly one D89 note paragraph so the non-prerelease flag cannot be
+misread as a stability claim — the honest "debug-signed test build,
+not a public release" copy stands, and the APK bytes are untouched
+(D84's no-identical-re-release rule respected: a flag flip is
+metadata, not a new build). THE SPEC AUDIT Ali asked for ran before
+the flip: Phase 2 is host-complete end to end (doc 05: M0–M8 all ✅;
+every remaining ⛔ is an on-device gate that needs Ali's physical
+device), the docs were current through D88, and the M8-f verification
+round had re-verified every delivery surface — nothing host-side was
+left unfinished, and the docs were then brought current with this
+ruling across docs 06/07/09/10, README, PROGRESS, CHANGELOG and the
+session prompt. If the repo ever goes public, the flag question
+returns with real semantics (update channels, the public Latest
+badge); until then the debug circle stays honestly labeled inside a
+private repo.
+
+Evidence: the GitHub API state before (three android releases,
+prerelease=true each) and after (prerelease=false; /releases/latest
+→ v1.6.6-android-debug.3); the debug.3 body re-fetched — the D89
+note present exactly once, every other byte identical to the pre-edit
+body (8,579 → 9,017 chars); zero Go/Svelte/app code touched — the
+M8-d gates at the unchanged clean tree stand as the baseline of
+record (~/sdk still wiped; no lane can run without the reinstall,
+and none was needed for a metadata change).

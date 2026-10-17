@@ -836,3 +836,15 @@ First Windows test build, published to GitHub Releases.
   v1.6.6-android-debug.3 release as a second asset and committed at
   the repo root; the README's Android section now documents the
   signed-lane steps it automates.
+
+### Changed (Android port — the release-flag ruling, D89; no app change, the APK bytes untouched)
+
+- The three android debug releases (v1.6.6-android-debug.1/.2/.3)
+  are now regular GitHub releases, not prereleases (Ali's ruling: "Do
+  not prerelease, just release, the repo is private" — the flag
+  carried no public meaning in a private repo, and the Latest pointer
+  now lands on the current test-circle build, debug.3). Switched and
+  verified via the API; the debug.3 release notes gained one
+  clarifying paragraph so the flag cannot be misread as a stability
+  claim — it is still the debug-signed device-test build,
+  collaborator-visible only; nothing about the artifacts changed.

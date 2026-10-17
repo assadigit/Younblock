@@ -196,6 +196,18 @@ against the final artifact.
   keytool flow, the parsed output shapes and the failure semantics
   were verified against the real JDK 21 keytool on the host, and the
   script self-verifies on its first run on Ali's machine.
+- **D89 (2026-10-17, M8-g): the android circle ships as regular
+  releases in the private repo — no prerelease flag.** Ali's ruling:
+  "Do not prerelease, just release, the repo is private." The flag
+  carried no public meaning there (every release in a private repo is
+  collaborator-only), and it kept the repo's Latest pointer off the
+  current test-circle build. The three android releases were switched
+  via the API and verified (tags, assets, digests unchanged;
+  /releases/latest → debug.3, set explicitly); their honest
+  "debug-signed test build" copy lives in the release bodies, which
+  stay as published apart from debug.3's one-paragraph D89 note. The
+  prerelease flag's real semantics (public update channels, the
+  public Latest badge) return only if the repo ever goes public.
 - When the signed lane returns: release APK signed with that local
   keystore, never committed (`.gitignore`), created and backed up
   with `make-release-keystore.bat` (README documents the steps;

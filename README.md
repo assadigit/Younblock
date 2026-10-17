@@ -30,7 +30,8 @@ direct, untouched, exactly as if the app were not running.
 For now this is a **debug-signed test build, not a release** ("we're not
 releasing yet"): download `app-debug.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) (the
-`v1.6.6-android-debug.3` prerelease — the repo is private, so sign in with your
+`v1.6.6-android-debug.3` release — a regular release in this private
+repo (D89); sign in with your
 GitHub account), then sideload it:
 
 1. Allow installs from your browser app (Settings → Apps → special access →

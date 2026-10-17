@@ -500,3 +500,43 @@ release-keystore ceremony script):
   release-keystore + backup patterns), DECISIONS.md D88, PROGRESS.md,
   CHANGELOG.md, doc 09 handoff fields, SESSION_HANDOFF_PROMPT.md
   (post-D88 edition incl. the ~/sdk wipe state).
+
+M8-f record (2026-10-17, later; the delivery-verification round —
+zero repo changes): Ali's instruction was "Commit and deploy and push
+to their main branch, the last release is for yesterday." The audit
+found everything already landed, so the round produced evidence, not
+bytes: the worktree clean at cd53540 and `git ls-remote origin main`
+byte-identical to HEAD; the debug.3 release live through the API with
+both assets (APK sha256 81515f0d…d6a1; make-release-keystore.bat
+sha256 82e6dded…4090, the served asset re-downloaded and hashed
+byte-exact); the Next.js preview page browser-verified (render, the
+byte-exact download link, the copy-to-clipboard flow with its toast,
+zero console/page errors, the footer math at 390 and 1280, dev.log
+clean). The timeline question resolved: "yesterday's" release is the
+desktop v0.7.6 (Oct 16); the android circle is all Oct 17. No lanes
+ran — nothing changed in the tree.
+
+M8-g record (2026-10-17, later still; the fifth feedback round —
+D89, the release-flag ruling): Ali: "Do not prelease , just release,
+the repo is private. Please finish all of your specs first." The spec
+audit ran first: doc 05's Phase 2 is host-complete end to end (M0–M8
+all ✅; every remaining ⛔ is an on-device gate needing Ali's physical
+device — doc 09's standing blocker), the docs were current through
+D88, and the M8-f round had re-verified every delivery surface —
+nothing host-side was left unfinished. Then the release-lane change,
+with evidence: the three android releases switched to regular
+releases through the GitHub API (prerelease true→false on
+debug.1/.2/.3; tags, assets and sha256 digests verified unchanged
+before and after), debug.3 explicitly marked Latest
+(/releases/latest now returns it — a plain flag flip does not move
+the marker by itself), and its body gaining exactly one D89 note
+paragraph (the pre-edit body reconstructed byte-identical apart from
+that note — 8,579 → 9,017 chars). The honest framing recorded in the
+note: the repo is private, so the flag carried no public meaning; the
+build is still the debug-signed device-test build, and nothing about
+the artifacts changed (D84's no-identical-re-release rule respected —
+a flag flip is metadata, not a build). Docs updated: DECISIONS.md
+D89, docs 06/07/09/10, README, PROGRESS, CHANGELOG,
+SESSION_HANDOFF_PROMPT. No lanes ran — ZERO Go/Svelte/app code
+touched; versionCode stays 3; ~/sdk remains wiped (the reinstall
+caution stands for the next code-touching session).

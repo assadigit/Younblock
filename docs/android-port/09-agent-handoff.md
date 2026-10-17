@@ -1,8 +1,9 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the D87 session (2026-10-17, the device-test
-feedback loop's third round) — **Phase 2 host-complete; the test
-circle is on its third build**. This file is
+**Status:** Updated at the D89 session (2026-10-17, the device-test
+feedback loop's fifth round) — **Phase 2 host-complete; the test
+circle is on its third build, now published as regular releases in
+the private repo**. This file is
 the live handoff; keep the fields in §"Current handoff fields" accurate
 at every session boundary.
 
@@ -64,15 +65,14 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's FOURTH session
-  (2026-10-17, D88, Task ID M8-e) — Ali's script ruling: "Can you fix
-  the serial number and etc issue as well? like giving me a bat file
-  that auto creates it's password locally on my system and backs up
-  that password as an md file. if you insist it must be done locally.
-  at least you can create the script." The local release-keystore
-  ceremony is now a shipped script. Phase 2 (M0–M8) remains
-  host-complete beneath it; STILL no device observations from debug.3
-  have arrived.
+- **Phase completed:** the device-test feedback loop's FIFTH session
+  (2026-10-17, D89, Task ID M8-g) — Ali's release-flag ruling: "Do not
+  prelease , just release, the repo is private. Please finish all of
+  your specs first." Two rounds sit beneath it: M8-e/D88 (the local
+  keystore ceremony script) and the M8-f verification round (zero
+  repo changes — every delivery surface re-verified with evidence).
+  Phase 2 (M0–M8) remains host-complete beneath it all; STILL no
+  device observations from debug.3 have arrived.
 - **The project's state now:** the app is unchanged at the debug.3
   state — the five-app default allow-list (the YouTube app plus the
   Chrome, Firefox, Opera and Brave browsers, D87), the v4 migration,
@@ -89,57 +89,65 @@ at every session boundary.
   younblock-keystore-backup_<date>.md (password, alias, certificate
   serial number, SHA-256 fingerprint, the full keytool record). The
   .gitignore guards the generated files; the README documents the
-  signed-lane steps.
-- **Branch and commit:** `main`, the M8-e commit (see `git log -1` at
+  signed-lane steps. New this round (D89): the three android releases
+  (debug.1/.2/.3) are now REGULAR releases — prerelease off — in the
+  private repo, and debug.3 is the repo's Latest release; switched and
+  verified through the GitHub API (tags, assets and digests unchanged;
+  the debug.3 body gained exactly one honest D89 note so the flag
+  cannot be misread as a stability claim). The spec audit Ali asked
+  for ran first: M0–M8 all complete host-side, every remaining ⛔ is a
+  device gate that needs his physical device.
+- **Branch and commit:** `main`, the M8-g commit (see `git log -1` at
   handoff time); worktree clean after the commit; the release tag
   `v1.6.6-android-debug.3` still points at the M8-d commit 2a8b678
-  (the APK is unchanged — D88 added an asset, not a build); debug.2's
+  (the APK is unchanged — D88 added an asset, not a build, and D89
+  flipped release flags, not bytes); debug.2's
   tag points at 096e8c0 and debug.1's at f61bfae (both superseded,
   their release pages keep the D85 troubleshooting guide).
-- **Files changed this phase:** make-release-keystore.bat (new, repo
-  root), .gitignore (the release-keystore/backup patterns), README
-  (the signed-lane section — closing the hole where doc 07 §8 pointed
-  at "README backup steps" that did not exist), doc 06 (M8-e record),
-  doc 07 §8 (D88), doc 09 (this handoff), doc 10 (the helper-asset
-  note), DECISIONS.md (D88), PROGRESS.md, CHANGELOG.md,
-  SESSION_HANDOFF_PROMPT.md. ZERO Go/Kotlin/Svelte/app code touched;
-  versionCode stays 3; the APK bytes are unchanged.
+- **Files changed this phase:** docs only — doc 10 (the D89 edition:
+  the §1 status, the release-flag note, the superseded-builds flag
+  note), doc 09 (this handoff), doc 06 (the M8-f/M8-g records), doc 07
+  §8 (the D89 bullet), README (the Android download line),
+  DECISIONS.md (D89), PROGRESS.md, CHANGELOG.md,
+  SESSION_HANDOFF_PROMPT.md — plus the GitHub release metadata (three
+  flags, debug.3's Latest marker, its one-paragraph body note). ZERO
+  Go/Kotlin/Svelte/app code touched; versionCode stays 3; the APK
+  bytes are unchanged.
 - **Tests run and actual results:** no Go/Svelte lanes this session —
-  no app code changed, and the ~/sdk toolchain was found WIPED at the
-  session open (Go 1.27.2, the Temurin JDK, the Android SDK/NDK all
-  gone; the repo, worklog and Next.js scaffold survived). The
-  baseline of record for the unchanged clean tree 2a8b678 is M8-d's
-  (vet clean; go test 17/17 ×2; svelte-check 0/0; vite build clean,
-  dist synced). What WAS verified with evidence: the real keytool
-  flow on the host's system JRE 21.0.12.1 keytool (genkeypair
-  prompt-free, exit 0, valid to Oct 2056; the -list -v line shapes
-  match the script's findstr parsing; a wrong storepass exits 1);
-  the password alphabet exactly 64 unique characters with the
-  algorithm simulated end-to-end; the .bat pure ASCII, 253/253 CRLF,
-  byte-identical through repo/preview/release surfaces (the served
-  asset re-downloaded and hashed). ⛔ the Windows batch execution
-  itself (Linux host) — the script self-verifies on its first run on
-  Ali's machine.
-- **Current architecture decision / confidence:** D88 (the local
-  keystore ceremony script; the security boundary — signing secrets
-  are generated where they are used — kept and made concrete).
-  Confidence: high on the keytool flow (real-tool evidence); the
-  batch wrapper is audited but Windows-unverified by the host — its
-  own read-back verification and per-failure messages carry the proof
-  onto Ali's machine. Next decision ID: D89.
+  no app code changed, and ~/sdk remains wiped (the M8-e caution
+  stands: reinstall per doc 06 §1 pins BEFORE any Go/Svelte work).
+  The baseline of record for the unchanged clean tree 2a8b678 is
+  M8-d's (vet clean; go test 17/17 ×2; svelte-check 0/0; vite build
+  clean, dist synced). What WAS verified with evidence this round:
+  the GitHub API state before (three android releases,
+  prerelease=true each) and after (prerelease=false; tags
+  f61bfae/096e8c0/2a8b678 unchanged; every asset and sha256 digest
+  unchanged; /releases/latest → v1.6.6-android-debug.3); the debug.3
+  body re-fetched — the D89 note present exactly once, every other
+  byte identical to the pre-edit body (8,579 → 9,017 chars). The
+  M8-f round's evidence (commit/push/release/preview surfaces all
+  verified live, byte-exact) stands beneath it.
+- **Current architecture decision / confidence:** D89 (the android
+  circle ships as regular releases in the private repo; the prerelease
+  flag carried no public meaning there, and the honest debug-signed
+  test-build copy lives in the release bodies, not the flag — D88's
+  ceremony script stands beneath it for the future signed lane).
+  Confidence: high — the change is API metadata, verified before and
+  after. Next decision ID: D90.
 - **Blocking questions:** none product-side. The signed-release
-  decision still returns only when a public release is planned — but
-  its ceremony is now automated and documented (D88). The standing
+  decision still returns only when a public release is planned — its
+  ceremony is automated and documented (D88). The standing
   input remains Ali's device observations from debug.3.
 - **Exact next task:** continue the **device-test feedback loop**:
-  ingest Ali's results from v1.6.6-android-debug.3 (Task ID M8-f) —
+  ingest Ali's results from v1.6.6-android-debug.3 (Task ID M8-h) —
   the YouTube app and the installed default browsers out of the box
   (row 2), youtube.com in each installed browser (row 4), the rest
   of doc 10's test circle, and the diagnostics report for anything
-  that fails. Fix what surfaces (root-cause discipline; the D77–D88
+  that fails. Fix what surfaces (root-cause discipline; the D77–D89
   honesty rules binding as ever), bump `versionCode` and cut
-  `v1.6.6-android-debug.4` through the same release lane WHEN a code
-  change warrants it. CAUTION for the next session: ~/sdk is wiped —
+  `v1.6.6-android-debug.4` through the same release lane — as a
+  REGULAR release now (D89) — WHEN a code change warrants it.
+  CAUTION for the next session: ~/sdk is wiped —
   reinstall the toolchain per doc 06 §1's pins (Go, the Temurin JDK,
   the Android SDK/NDK) and re-establish the baseline BEFORE touching
   any Go/Svelte code.

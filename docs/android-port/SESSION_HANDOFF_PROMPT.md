@@ -6,7 +6,7 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-e / D88 session close)
+## Where the project stands (verified at the M8-g / D89 session close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
@@ -42,6 +42,17 @@ working clone carries the credential in its `origin` remote URL).
   full keytool record). The .gitignore guards the generated files;
   README documents the signed-lane steps. The security boundary is
   the rule: signing secrets are generated where they are used.
+- **M8-g / D89 (no app change, the APK is untouched): the android
+  circle ships as regular releases in the private repo.** Ali's
+  ruling: "Do not prerelease, just release, the repo is private." All
+  three android releases (debug.1/.2/.3) are now regular
+  (non-prerelease) releases, debug.3 is the repo's Latest release
+  (set explicitly via the API), and its body carries one honest D89
+  note — still the debug-signed device-test build,
+  collaborator-visible only, nothing about the artifacts changed. The
+  M8-f round between them verified every delivery surface with zero
+  repo changes. Future debug builds ship the same way — regular
+  releases, never flagged prerelease (D89).
 - **`v1.6.6-android-debug.2` and `v1.6.6-android-debug.1` are
   superseded** (kept as history; debug.1's release page carries the
   D85 install-blocked troubleshooting guide, which still applies to
@@ -69,12 +80,12 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
-   M8-c, M8-d, M8-e, … (this prompt describes the state after M8-e;
-   the next is M8-f).
+   M8-c, M8-d, M8-e, … (this prompt describes the state after M8-g;
+   the next is M8-h).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.3 edition + §"Device test circle" — Ali's checklist), doc 06
-   (the M8-c/M8-d/M8-e records), doc 08 + `DECISIONS.md` (D1–D88; **the
-   next decision number is D89**), and the tail of `PROGRESS.md`.
+   (the M8-c…M8-g records), doc 08 + `DECISIONS.md` (D1–D89; **the
+   next decision number is D90**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
@@ -118,7 +129,8 @@ For each issue Ali reports from `v1.6.6-android-debug.3`:
   stay open — never mark them complete.
 - **Bump `versionCode`** in `android/app/build.gradle.kts` (the D84
   rule: updates install over the previous debug build) and cut the
-  next debug prerelease through the release lane (tag the commit,
+  next debug release — a regular release in the private repo, never
+  flagged prerelease (D89) — through the release lane (tag the commit,
   upload the APK, verify via the API, record asset size + digest)
   WHEN a code change warrants it — do not re-release identical bytes.
   The pinned keystore (D85) guarantees the same certificate. Full lane
@@ -198,8 +210,8 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D89),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-f, M8-g, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D90),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-h, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 

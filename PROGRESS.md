@@ -2572,3 +2572,24 @@ README's signed-lane section written (closing the doc 07 §8 "README
 steps" hole); docs 06/07/09/10, DECISIONS.md D88, CHANGELOG and the
 session prompt all updated. The device gates and Ali's debug.3
 observations remain the project's open input (next Task ID M8-f).
+
+M8-g — the fifth feedback round (2026-10-17): D89, the release-flag
+ruling. Ali: "Do not prelease , just release, the repo is private.
+Please finish all of your specs first." The spec audit ran first:
+doc 05's Phase 2 host-complete end to end (M0–M8 all ✅; every
+remaining ⛔ an on-device gate needing his physical device), docs
+current through D88, the M8-f round having verified every delivery
+surface with zero repo changes — nothing host-side left unfinished.
+Then the flip, with evidence: the three android releases switched to
+regular (non-prerelease) releases through the GitHub API — flags,
+tags, assets and digests checked before and after; debug.3 explicitly
+marked the repo's Latest release (/releases/latest returns it — the
+plain flag flip does not move the marker by itself); its body gained
+exactly one honest D89 note (still the debug-signed device-test
+build; the repo is private so the releases stay collaborator-only;
+nothing about the artifacts changed), every other byte of the body
+identical to the pre-edit one. Docs: D89 recorded; docs 06/07/09/10,
+README, CHANGELOG and the session prompt updated. Zero app code; the
+APK bytes untouched (D84 respected — a flag flip is metadata, not a
+build); versionCode stays 3. Ali's device observations from debug.3
+remain the open input (next Task ID M8-h).
