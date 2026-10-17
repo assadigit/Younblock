@@ -1028,3 +1028,77 @@ unwinds a live stack. The engine stopping on its own does NOT
 auto-stop the stack: the service owns the TUN lifecycle per doc 04 §6
 and reacts to state events — a missed event surfaces as TUN_ACTIVE on
 the next connect, which is the honest failure mode.
+
+**D77 — the platform start gate: consent precedes routing, enforced in
+the engine's connect run, not in the UI.** The M4 reality had the page
+starting the engine directly through the webui (the same Svelte bundle
+as every edition, ADR-0005), with the VPN consent checked afterwards
+by MainActivity's state listener — so an engine that reached "on"
+before consent existed would have been a misleading "Connected", and a
+denial would have to stop an already-running engine. Doc 04 §6's
+designed ordering (consent → service → TUN → engine) is restored by an
+optional platform door instead of UI gymnastics: `engine.StartGater`
+(internal/engine/platform.go) is an interface only the Android adapter
+implements; the connect run asserts it, and when present waits at the
+door BEFORE the listener, holding the phase at "connecting". Three
+properties are load-bearing and test-proven: (1) the wait sits OUTSIDE
+the start budget — the run's context is split (run-lifetime cancel +
+post-gate timeout), because a consent dialog is not a network failure
+(the gate test holds past a 200 ms StartTimeout and still reaches
+"on"); (2) a cancellation (Stop, a second Start, Shutdown) releases
+the waiter QUIETLY — the canceller owns the phase transition, the
+abandoned goroutine never touches it; (3) desktop adapters do not
+implement the interface, so the type assertion fails and their Start
+path is unchanged, byte for byte — no new phase is invented (ADR-0006
+holds; "connecting" is the honest page state while the platform
+decides). The facade arms the gate closed at NewEngine; Kotlin opens
+it (`setVpnReady(true)`) only once consent is granted AND the TUN is
+established, and re-arms it closed on every unwind (onRevoke, service
+death, teardown) so the next connect re-runs the whole sequence. The
+adapter's zero-value gate is OPEN — the no-op form (cmd/core, host
+tests) must never hold a run.
+
+**D78 — VpnState: the honest routing report, and the reconciliation
+policy that reads it.** The engine's phase is an ENGINE truth ("the
+proxy path works"); the Android product's "Connected" claim is a
+ROUTING truth. `mobile/vpnstate.go` answers it in one call:
+{"phase", "tun", "routing", "door"} where routing requires the engine
+serving (on or degraded — degraded still routes, labeled by phase) AND
+a stack bound AND that stack's door being the LIVE server's door. The
+third condition is the one the lifecycle suite caught: an engine
+restart builds a new server, and a stack still holding the old door is
+stale — reporting routing there would have been a lie; the
+server-identity check makes the stale state observable (`tun:true,
+routing:false`) as D76's "missed event" surface, so the shell can
+reconcile (StopTun → fresh bind) instead of guessing. The shell policy
+built on the report: the notification text is DERIVED from vpnState
+("active" only when it reports routing; "degraded" when it routes
+degraded; "connecting" otherwise) — the same JSON the host tests
+verify, not a parallel Kotlin truth; MainActivity.onResume re-derives
+the world (connecting + no service → restart the service path;
+serving + no service → stop the engine, because without the service
+nothing routes); YounblockVpnService.onDestroy stops the engine
+whenever it is serving or connecting (a dead service must not leave a
+lying "Connected" or an invisible zombie — a pending consent result
+restarts the engine through the service's own onStartCommand);
+MainActivity cleans a gate-held connect when neither UI nor service
+survives. The consent UX is honest by construction (doc 04 §6):
+explain-once → prepare() → system dialog → grant opens the gate; a
+denial stops the held engine (it never reached "on") and shows the
+denial copy. Known boundary, recorded: the facade reports what it can
+KNOW — a stack bound to a live door whose underlying TUN wire died
+system-side still reports tun:true until the service unwinds it; that
+detection is the device checklist's job (M7's AND-028-class gates).
+
+**M5 session note (no new decision number — enforcing D76 and the
+product defaults):** building the failure-injection suite found two
+real M4-era defects, both fixed at the source: (1) the facade's DOOR
+refusal paths in mobile/tun.go returned without closing the fd,
+violating D76's own single-owner rule ("every refusal closes it");
+(2) the mobile test harness saved settings with AutoPort=false (the
+struct zero value) plus the fixed default port — harmless while the
+package ran alone, but under `go test ./...`'s concurrent package
+execution another package's engine can hold 4525 during the gate's
+delayed bind, and the honest PORT_BUSY failure exposed it; the harness
+now writes the product default (AutoPort=true, matching
+DefaultSettings). Root-caused and fixed, not retried away.

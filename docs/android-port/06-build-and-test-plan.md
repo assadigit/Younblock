@@ -87,6 +87,27 @@ verify --print-certs` OK (debug cert). The Kotlin compile validates
 the facade bindings (startTun/stopTun/getState) and the M4 shell
 (Bridge.kt, YounblockVpnService.kt, MainActivity connect flow).
 
+M5 record (2026-10-17, after yet another full sandbox wipe — the repo
+re-cloned at `98cac30` and the toolchain reinstalled per the §1 pins:
+Go 1.27.2, JDK 21.0.12.1+1 Temurin, cmdline-tools 12.0, platforms
+26+36, build-tools 36.1.0, NDK 28.2.13676358, gomobile/gobind
+`go install` at x/mobile v0.0.0-20261011034528-197770444867): `gomobile
+bind` → younblock.aar **24,893,759 B** (3 ABIs; `javap` on classes.jar
+shows the new M5 bindings `setVpnReady(boolean)` and `vpnState()`
+alongside startTun/stopTun/getState); clean `assembleDebug` →
+`app-debug.apk` **34,711,941 B**, SHA-256
+`c46026a7984d9fda69b45954436c630f625a74fecf451e6e50c2a3d2b6d5bf26`,
+badging minSdk 26/target 36, `YounblockVpnService` with
+`BIND_VPN_SERVICE` in the dumped manifest, `apksigner verify
+--print-certs` OK (debug cert). The Kotlin compile validates the M5
+lifecycle shell (consent flow, single-flight, reconciliation, the
+vpnState-derived notification). Baseline after: vet clean; `go test
+-count=1 ./...` 17/17 packages ok (run twice consecutively — the
+concurrent-package PORT_BUSY interaction that once failed the
+lifecycle test was root-caused to the test harness's AutoPort=false
+and fixed at the source, mobile/tun_test.go); svelte-check 0/0; vite
+build clean; compile matrix 4/4 ABIs.
+
 ## 3. Test layers
 
 ### Unit tests (Go, host-runnable — pattern matches the existing tree)

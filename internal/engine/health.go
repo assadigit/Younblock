@@ -168,14 +168,32 @@ func (e *Engine) cancelCurrentRun() {
 
 // connectSequence is the full Start sequence (file 01, section 10):
 // starting -> checking -> (heal sweep) -> on | degraded, capped at the
-// total timeout.
+// total timeout. The M5 platform start gate (D77, optional) sits BEFORE
+// the listener: the run holds in "connecting" while the platform is not
+// ready, outside the start budget — a consent dialog is not a network
+// failure — and a cancellation exits quietly (the canceller owns the
+// phase).
 func (e *Engine) connectSequence() {
-	ctx, cancel := context.WithTimeout(context.Background(), e.startTimeout())
-	defer cancel()
+	// runCtx is the run's lifetime: cancelled by Stop / a second Start /
+	// Shutdown via setRunCancel. The start budget is derived from it only
+	// AFTER the gate, so waiting at the gate never burns the timeout.
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
 	e.mu.Lock()
 	e.runAborted = false
 	e.mu.Unlock()
-	e.setRunCancel(cancel)
+	e.setRunCancel(runCancel)
+
+	if g, ok := e.platform.(StartGater); ok {
+		if err := g.WaitStartReady(runCtx); err != nil {
+			e.logger.Info("connect run released at the platform gate",
+				"reason", errKind(err))
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(runCtx, e.startTimeout())
+	defer cancel()
 
 	if err := e.startListener(); err != nil {
 		e.failStart(err)

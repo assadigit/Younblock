@@ -264,6 +264,12 @@ func TestFacadeStartStopCycle(t *testing.T) {
 	if got := m.Start(); got != `{"error":null}` {
 		t.Fatalf("Start = %s", got)
 	}
+	// The production facade arms the start gate closed (D77, M5): the
+	// Kotlin service opens it once consent is granted and the TUN is
+	// established. This test has no service — it opens the door directly,
+	// because the Start/Stop CYCLE is under test here; the consent gating
+	// itself has its own lifecycle suite.
+	m.SetVpnReady(true)
 	// With no fakes injected this host run hits the real self-test; the
 	// phase must still settle into an honest terminal state (on, degraded
 	// or error — never a lie), and the sink must have seen state events.

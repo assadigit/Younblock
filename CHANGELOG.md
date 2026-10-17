@@ -12,6 +12,41 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (Android port, M5 — not yet a released build)
+
+- **The connection lifecycle is host-verified**: the engine's connect
+  run now waits at an optional platform start gate (D77) before its
+  listener — on Android, the VPN consent plus the established TUN —
+  so an unpermitted engine holds at "connecting" (outside the start
+  budget) and can never report "on" while nothing routes. The Kotlin
+  consent flow completes the M4 wiring: first-run explanation →
+  system dialog → grant starts the foreground service and opens the
+  gate; denial stops the held engine and shows honest copy. Consent
+  and service starts are single-flight; MainActivity re-derives the
+  state on resume; a dying service stops the engine (no lying
+  "Connected", no zombie connect); onRevoke is a full disconnect with
+  re-consent on the next connect.
+- **The honest routing report**: `VpnState()` (D78) answers the
+  product's "Connected" question in one call — routing requires the
+  engine serving AND a TUN stack bound AND that stack's door being
+  the live server's door (a stack left on a dead door is reported
+  stale for reconciliation, never as routing). The VPN notification's
+  text is derived from this same report: active only when actually
+  routing, degraded when degraded, connecting otherwise.
+- The M5 debug APK (34,711,941 B, SHA-256 c46026a7…bf26) with the
+  lifecycle shell is recorded in docs/android-port/05–06; on-device
+  observation gates remain blocked by the sandbox (no /dev/kvm, no
+  device) and are carried, never claimed.
+
+### Fixed (Android port, M5)
+
+- The facade's SOCKS5-door refusal paths closed the TUN fd leak they
+  documented but did not perform (D76's single-owner rule now holds
+  on every StartTun return).
+- The mobile test harness now writes the product's default port
+  behavior (AutoPort=true) instead of the accidental fixed-port
+  setting that only held up in single-package runs.
+
 ### Added (Android port, M4 — not yet a released build)
 
 - **The routing path exists and is host-verified**: a gVisor-netstack

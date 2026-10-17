@@ -202,18 +202,120 @@ M4 is marked ✅ host-complete on the M3 precedent (build + bridge +
 desktop verified, on-device half recorded), with the on-device gates
 folded into the M5 device checklist.**
 
-### M5 — Core connection lifecycle and health reporting
+### M5 — Core connection lifecycle and health reporting — ✅ host-complete 2026-10-17 (on-device gates ⛔: the standing emulator/device blocker)
 
-- ⬜ Consent flow (explain → prepare → system dialog → handle denial),
-  foreground service + notification + `onRevoke`, state reconciliation
-  on resume, no duplicate starts (engine guards + service-side
-  single-flight).
-- ⬜ Tests: partial-start failure injection at every step; repeated
-  connect/disconnect; service death; network switching; screen-off
-  persistence.
+The lifecycle core is done and host-verified against the REAL engine
+and stack; the on-device halves (the live consent dialog, notification
+channel behavior on a real shell, screen-off/Doze persistence,
+reboot/revocation on-device) remain ⛔ — this sandbox still has no
+/dev/kvm and no device (re-verified this session: `ls /dev/kvm` → No
+such file or directory). Host side of every gate:
 
-Exit criteria: no route/service leak or misleading Connected state in
-the test scenarios.
+1. ✅ **The consent gate (D77 — the engine's connect run cannot reach
+   "on" before the product may route)**: the M4 reality had the page
+   starting the engine directly through the webui, so consent arrived
+   AFTER Start — an engine that turns "on" with no TUN would have been
+   a misleading "Connected". The fix is the optional platform door
+   `engine.StartGater` (internal/engine, an interface the Android
+   adapter implements; desktop adapters do not, and their Start path
+   is unchanged, byte for byte): the connect run waits at the door
+   BEFORE the listener, holding the phase at "connecting", outside the
+   start budget (a permission dialog is not a network failure —
+   `internal/engine/gate_test.go` proves the hold outlives a 200 ms
+   StartTimeout and still reaches "on"; Stop and a second Start cancel
+   the held run cleanly, and the abandoned goroutine never touches the
+   phase — the canceller owns the transition). The facade arms the
+   gate closed at construction (`mobile.NewEngine`); Kotlin opens it
+   (`setVpnReady(true)`) once consent is granted AND the TUN is
+   established, and re-arms it closed on every unwind.
+2. ✅ **The honest routing report (D78 — VpnState)**: `mobile/vpnstate.go`
+   answers the product's "Connected" question in one call —
+   `{"phase":…,"tun":…,"routing":…,"door":…}` — where routing requires
+   the engine serving AND a stack bound AND that stack's door being
+   the LIVE server's door (an engine restart builds a new server; a
+   stack still holding the old door is stale and must not report
+   routing — the lifecycle suite caught exactly that case and the
+   derivation now carries the server-identity check). The stale signal
+   (`tun:true, routing:false`) is D76's "missed event" surface made
+   observable for the shell's reconciliation.
+3. ✅ **The lifecycle suite** (`mobile/lifecycle_test.go`, against the
+   real engine + real tunstack, the M4 harness split for gate-driven
+   starts): consent hold → grant → "on"; denial modeled as
+   Stop-during-hold → clean "off"; three full connect/disconnect
+   cycles with the report honest at every step (bound → routing; user
+   stop → stale stack REPORTED; unwind → quiet); partial-start failure
+   injection at the engine step (a pinned busy port → typed
+   PORT_BUSY error, routing never claimed); the stale-stack refusal
+   (TUN_ACTIVE after a missed event) with reconciliation (StopTun →
+   fresh bind → routing again); service death (Shutdown with routing
+   live → all-false, never a zombie "Connected"). Adapter-level gate
+   semantics have their own suite (`internal/platform/android/
+   gate_test.go`: zero-value open, hold/open/re-arm, cancellation,
+   all-waiters release).
+4. ✅ **The Kotlin lifecycle shell** (compile-verified into the M5 APK,
+   device behavior ⛔): the consent flow — first-run explanation
+   dialog (once, SharedPreferences) → `VpnService.prepare()` → system
+   dialog → grant: service starts, establishes the TUN, opens the
+   gate; denial: the held engine stops (never reached "on") plus the
+   honest denial copy; consent is single-flight (process-wide flag,
+   rotation-safe) and the service start is single-flight through its
+   running flag. The notification text is derived from the facade's
+   vpnState report — "active" only when it actually reports routing,
+   "degraded" when it routes degraded, "connecting" otherwise (the
+   same JSON the host tests verify). Reconciliation: MainActivity
+   re-derives the state on resume (connecting + no service → restart
+   the service path; serving + no service → stop the engine — nothing
+   routes); YounblockVpnService.onDestroy stops the engine whenever
+   it is serving or connecting (service death never leaves a lying
+   "Connected" or an invisible zombie) and re-arms the gate; the
+   service restarts the engine itself on its next onStartCommand when
+   a connect intent survives (e.g. a consent result after rotation).
+   onRevoke = engine stop + TUN unwind + gate re-arm + stop (re-consent
+   on the next connect — revoked permissions make prepare() ask again).
+5. ✅ **Build + desktop baseline**: gomobile bind → younblock.aar
+   24,893,759 B (3 ABIs; the M5 bindings setVpnReady/vpnState verified
+   in classes.jar via javap); clean `assembleDebug` → app-debug.apk
+   34,711,941 B, SHA-256
+   c46026a7984d9fda69b45954436c630f625a74fecf451e6e50c2a3d2b6d5bf26,
+   badging io.github.assadigit/younblock 1.6.6 (versionCode 1),
+   minSdk 26/target 36, YounblockVpnService + BIND_VPN_SERVICE in the
+   dumped manifest, apksigner verify OK (debug cert). Toolchain
+   reinstalled this session after another full sandbox wipe (repo
+   re-clone at 98cac30, Go/JDK/SDK/NDK per doc 06 pins; the worklog
+   records the recovery). Desktop baseline: vet clean; `go test
+   -count=1 ./...` **17/17 packages ok** (engine +8.9 s, mobile 33.7 s
+   — the lifecycle suite; run twice consecutively, no flakes);
+   svelte-check 0/0; vite build clean; Android library compile matrix
+   4/4 ABIs with `-mod=vendor`.
+6. ✅ **Two real bugs found and fixed while building the suite** (the
+   M5 "failure injection at every step" working as intended): (a) the
+   M4 facade's DOOR refusal paths returned without closing the fd,
+   violating D76's documented single-owner rule ("every refusal closes
+   it") — both DOOR paths in `mobile/tun.go` now close the fd; (b) the
+   M4 test harness saved settings with AutoPort=false (zero value) +
+   the fixed default port 4525 — harmless while mobile tests ran
+   alone, but under concurrent package execution (go test ./...) the
+   engine package can hold 4525 during the M5 gate's delayed bind and
+   the honest PORT_BUSY failure surfaced it; the harness now writes
+   the product default (AutoPort=true), matching DefaultSettings.
+7. ⛔ **On-device gates** (M5's exit criterion — the lifecycle observed
+   live): the consent dialog sequence (explain → prepare → grant/deny)
+   with real rotation/background/resume; notification channel behavior
+   across connecting/active/degraded; screen-off persistence (Doze);
+   network switching on a real radio; stop from the system VPN
+   settings (onRevoke); reboot (nothing self-starts, AND-028); the M4
+   checklist folded here (real DoH through the stack, QUIC fallback on
+   the real YouTube app, protect() on real sockets). Blocked by the
+   environment, carried in doc 09 as the standing blocker — not
+   claimed, not dropped.
+
+Exit criteria verdict: **no route/service leak or misleading
+"Connected" state in the host-runnable scenarios — every one ends with
+the report quiet (off/false/false) or honestly degraded, the gate keeps
+an unpermitted engine at "connecting", and every unwind path re-arms.
+The emulator/device observation half ⛔ (no /dev/kvm, no device). M5 is
+marked ✅ host-complete on the M3/M4 precedent (build + bridge +
+desktop verified, on-device half recorded, never faked).**
 
 ### M6 — Settings and mobile UX
 
@@ -238,9 +340,9 @@ Exit criteria: P0 + approved P1 features meet doc 02.
 
 ## Dependency order / critical path (unchanged)
 
-M3 → M4 → M5 → M6 → M7 → M8; M0–M4 complete (M4 host-complete;
-its on-device gates ride with M5's device checklist — doc 09's
-standing blocker).
+M3 → M4 → M5 → M6 → M7 → M8; M0–M5 complete (M4 and M5
+host-complete; their on-device gates ride with the shared device
+checklist — doc 09's standing blocker).
 
 ## Change-control rules (unchanged)
 

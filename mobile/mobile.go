@@ -81,13 +81,27 @@ type Engine struct {
 //
 // It returns an error only when the engine cannot initialize (settings
 // unreadable/logs unwritable under configDir).
+//
+// M5 (D77): the returned engine's start gate is ARMED CLOSED — no VPN
+// consent, no connect. The shell opens it with SetVpnReady(true) once
+// the consent is granted and the TUN interface is established, and
+// closes it again on every unwind (onRevoke, service death). Until
+// then a started engine honestly holds at "connecting": it never
+// reports "on" while nothing can route.
 func NewEngine(configDir string, protector SocketProtector, sink EventSink) (*Engine, error) {
-	return newEngineForTest(configDir, protector, sink, nil)
+	m, err := newEngineForTest(configDir, protector, sink, nil)
+	if err != nil {
+		return nil, err
+	}
+	m.plat.SetStartReady(false)
+	return m, nil
 }
 
 // newEngineForTest is NewEngine's test seam: same construction path, with
 // the engine Options open for the host tests to inject fakes (health
 // overrides, resolver TLS pools). Unexported, so gomobile never binds it.
+// The start gate is left OPEN (host tests drive it explicitly through
+// m.plat / SetVpnReady); NewEngine is the only path that arms it closed.
 func newEngineForTest(configDir string, protector SocketProtector, sink EventSink, mutate func(*engine.Options)) (*Engine, error) {
 	var protect android.ProtectFunc
 	if protector != nil {
@@ -156,6 +170,15 @@ func (m *Engine) GetDiagnosticReport() string { return m.eng.GetDiagnosticReport
 // GetAppInfo returns app metadata JSON (version, platform, capabilities,
 // config/log paths).
 func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
+
+// SetVpnReady is the M5 lifecycle door (D77): true once the VPN consent
+// is granted AND the TUN interface is established — the engine's connect
+// run may then leave the gate and serve; false the moment either is lost
+// (onRevoke, service death, teardown), re-arming the gate for the next
+// connect. While the gate is closed a started engine holds at
+// "connecting" — never "on" without routing, never a misleading
+// "Connected".
+func (m *Engine) SetVpnReady(ready bool) { m.plat.SetStartReady(ready) }
 
 // StartWebUI starts the in-process loopback control server (ADR-0005) on
 // the given port (0 = a free port) and returns the URL the WebView loads.

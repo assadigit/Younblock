@@ -36,10 +36,12 @@ import (
 )
 
 // tunState is one live stack plus the server whose door it uses (the
-// identity makes StopTun's door-close safe across engine restarts).
+// identity makes StopTun's door-close safe across engine restarts), and
+// the door address for VpnState's diagnostics field (M5).
 type tunState struct {
 	stack  *tunstack.Stack
 	server *proxy.Server
+	door   string
 }
 
 // tunResult is the StartTun/StopTun reply shape (the jsonapi style:
@@ -98,11 +100,13 @@ func (m *Engine) StartTun(fd int32, mtu int32) string {
 	}
 	if srv.Socks5Port() == 0 {
 		if err := srv.StartSocks5("127.0.0.1", 0); err != nil {
+			closeFd(int(fd))
 			return tunError("DOOR")
 		}
 	}
 	door := srv.Socks5Addr()
 	if door == "" {
+		closeFd(int(fd))
 		return tunError("DOOR")
 	}
 
@@ -117,7 +121,7 @@ func (m *Engine) StartTun(fd int32, mtu int32) string {
 	if err != nil {
 		return tunError("STACK")
 	}
-	m.tun = &tunState{stack: st, server: srv}
+	m.tun = &tunState{stack: st, server: srv, door: door}
 
 	// nil Error marshals as "error":null (the jsonapi shape).
 	return marshalTunResult(tunResult{Door: door})

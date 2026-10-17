@@ -1978,3 +1978,93 @@ regression green at the end: vet clean; go test -count=1 ./...
 17/17 packages ok (tunstack 4.7 s, mobile 9.8 s); svelte-check 0/0;
 vite build clean; Android library compile matrix 4/4 ABIs with
 -mod=vendor.
+
+## M5 — the connection lifecycle (2026-10-17, host-complete)
+
+The session opened after a **full sandbox wipe** — repo, ~/sdk
+toolchain and the shared worklog all gone (the third such reset; only
+the sandbox's own Node/npm and a javac-less JRE survived). Recovery
+from the records: re-clone from the remote at `98cac30` (token from
+the session prompt), toolchain reinstalled per doc 06's pins (Go
+1.27.2 → ~/sdk/go, Temurin JDK 21.0.12.1+1 from the Adoptium GitHub
+release, cmdline-tools 12.0 — the 12266719 zip turned out to be
+revision 16.0, the 11076708 zip is the pinned 12.0 — platform-tools,
+platforms 26+36, build-tools 36.1.0, NDK 28.2.13676358, licenses
+accepted, gomobile/gobind `go install` at x/mobile
+v0.0.0-20261011034528-197770444867), worklog recreated from the prompt
+plus repo records, npm ci + dist sync (D74) and the desktop baseline
+re-verified GREEN before any M5 code (vet clean; 17/17 packages;
+svelte-check 0/0; vite clean).
+
+The milestone: consent before routing, honest reporting, and
+reconciliation. The design problem the M4 shell left open: the page
+starts the engine directly through the webui, so consent happened
+AFTER Start — an engine "on" without a TUN (or a denied consent) would
+have been a misleading "Connected", exactly what M5's exit criterion
+forbids. The fix is architectural, not cosmetic (D77): an optional
+`engine.StartGater` door that only the Android adapter implements; the
+connect run waits at the door BEFORE the listener, holding
+"connecting", with the wait OUTSIDE the start budget (the run context
+is split: run-lifetime cancel + post-gate timeout — a permission
+dialog is not a network failure). Cancellations release the waiter
+quietly; the canceller owns the phase. Desktops do not implement the
+interface — their Start path is unchanged, byte for byte, proven by
+the full gate. The facade arms the gate closed at `NewEngine`; Kotlin
+opens it (`setVpnReady(true)`) only when consent is granted AND the
+TUN is established, re-arming closed on every unwind.
+
+D78 is the honest report: `VpnState()` answers the product's
+"Connected" question — routing requires the engine serving AND a stack
+bound AND that stack's door being the LIVE server's door. The third
+condition is the one the lifecycle suite CAUGHT as a bug in my first
+derivation (a stack bound to a dead server's door reported routing
+after an engine restart — now the stale case is observable:
+tun:true, routing:false, the shell's reconciliation signal). The
+notification text in Kotlin is derived from the same JSON the host
+tests verify — one truth, not two. The shell policy: explain-once →
+prepare() → dialog; denial stops the held engine plus honest copy;
+consent and service start are single-flight (rotation-safe);
+MainActivity.onResume re-derives the world; the service's onDestroy
+stops the engine whenever it serves or connects (a dead service leaves
+neither a lying "Connected" nor an invisible zombie); onRevoke =
+disconnect + re-arm.
+
+The host evidence (`mobile/lifecycle_test.go` against the REAL engine
+and stack — the M4 harness split for gate-driven starts): consent hold
+→ grant → on; denial → clean off; three connect/disconnect cycles
+with the report honest at every step; PORT_BUSY injection (typed
+error, routing never claimed); the stale-stack TUN_ACTIVE refusal with
+reconciliation; Shutdown-with-routing → all-false. Engine-level gate
+tests (hold outlives the budget, quiet cancellation, second-Start
+semantics) and adapter-level gate tests (zero-value open, re-arm,
+all-waiters, ctx release). Two real M4-era bugs found and fixed while
+building it: the facade's DOOR refusal paths leaked the fd (violating
+D76's own single-owner rule), and the harness's AutoPort=false + fixed
+4525 only held up while the package ran alone — under `go test ./...`
+concurrent package execution the gate's delayed bind hit the engine
+package's 4525 and the honest PORT_BUSY exposed it (root-caused with
+a log-ring dump + a listen probe + an instrumented ladder — not
+retried away; the harness now writes the product default).
+
+Build lane, re-verified from the recovered toolchain: `gomobile bind`
+→ younblock.aar 24,893,759 B (3 ABIs; javap on classes.jar shows
+`setVpnReady(boolean)` and `vpnState()` alongside the M4 bindings);
+clean `assembleDebug` → app-debug.apk 34,711,941 B, SHA-256
+c46026a7984d9fda69b45954436c630f625a74fecf451e6e50c2a3d2b6d5bf26,
+badging minSdk 26/target 36, YounblockVpnService + BIND_VPN_SERVICE
+in the dumped manifest, apksigner verify OK (debug cert). One build
+hygiene note recorded: an incremental assembleDebug after an AAR swap
+produced a 46 MB APK (stale merge artifacts) — the clean build is the
+honest 34,711,941 B recorded above.
+
+The honest ⛔, unchanged and re-verified (`ls /dev/kvm` → No such file
+or directory): no emulator, no device — the live consent dialog, the
+notification channel behavior, screen-off/Doze persistence, real-radio
+network switching, onRevoke from system settings, reboot (AND-028),
+plus the folded M4 checklist (real DoH through the stack, QUIC
+fallback on the real YouTube app, protect() on real sockets) could not
+run; they ride with the shared device checklist, never claimed.
+Desktop regression green at the end: vet clean; `go test -count=1
+./...` 17/17 packages ok, run twice consecutively with no flakes;
+svelte-check 0/0; vite build clean; compile matrix 4/4 ABIs with
+-mod=vendor.

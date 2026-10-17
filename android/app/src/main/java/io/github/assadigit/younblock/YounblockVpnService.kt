@@ -17,11 +17,29 @@ import org.json.JSONObject
 
 /**
  * The Android network service (docs/android-port 04 §2/§6, ADR-0009/
- * 0010/0011; roadmap M4). Foreground, `connectedDevice` type: builds
+ * 0010/0011; roadmaps M4 + M5). Foreground, `connectedDevice` type: builds
  * the TUN with the per-app allow-list, hands the fd to the engine
  * facade once the engine is serving ([mobile.Engine.startTun]), and
  * unwinds honestly on every path to "off" — user stop, engine error,
  * [onRevoke] (equal to disconnect plus re-consent on next connect).
+ *
+ * M5 adds the lifecycle contract (doc 05 §M5, DECISIONS.md D77/D78):
+ *
+ *   - The start gate: the engine's connect run is HELD at "connecting"
+ *     (platform start gate) until this service establishes the TUN and
+ *     calls [mobile.Engine.setVpnReady] with true. No consent, no TUN,
+ *     no "on" — the page can never show a Connected that does not
+ *     route. Every unwind path re-arms the gate closed.
+ *   - Notification honesty: the status text is derived from the
+ *     facade's [mobile.Engine.vpnState] report — "active" only when it
+ *     actually reports routing, "degraded" when it routes degraded,
+ *     "connecting" otherwise. The same JSON the M5 host tests verify.
+ *   - Service-death reconciliation (doc 04 §5): [onDestroy] stops the
+ *     engine whenever it is serving or connecting — without the service
+ *     nothing routes, and a stale "Connected" must not survive it. The
+ *     MainActivity re-derives the whole state on resume; the service
+ *     restarts the engine itself on its next onStartCommand when the
+ *     connect intent survives (e.g. a consent result after rotation).
  *
  * TUN shape (ADR-0009/0010):
  *   - IPv4 default route into the TUN for the ALLOWED apps only
@@ -38,8 +56,8 @@ import org.json.JSONObject
  * Fail-closed invariant: a VpnService.Builder with ZERO allowed
  * applications routes EVERY app's traffic — the exact opposite of the
  * product scope. If none of the allow-list packages is installed the
- * service refuses to establish and stops (M6 turns this into the
- * engine's NO_TARGET_APPS error surface).
+ * service refuses to establish, stops the engine, and stops (M6 turns
+ * this into the engine's NO_TARGET_APPS error surface).
  *
  * fd ownership (the facade's single-owner rule): after
  * engine.startTun(fd, mtu) returns — success OR refusal — the Go side
@@ -76,7 +94,9 @@ class YounblockVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // The service exists to carry traffic; if it was somehow started
         // without the engine, start it (idempotent-or-rejecting on the Go
-        // side — the engine's phase guards decide, not this shell).
+        // side — the engine's phase guards decide, not this shell). The
+        // connect run then holds at the start gate (D77) until
+        // establishTun below opens it.
         val engine = EngineHolder.ensure(this)
         startForegroundHonest()
 
@@ -89,8 +109,8 @@ class YounblockVpnService : VpnService() {
             establishTun()
         }
         return START_NOT_STICKY // a sticky restart would route traffic
-        // without a user decision behind it — M4 stays honest; M5 owns
-        // the reconciliation policy.
+        // without a user decision behind it; M5's reconciliation is
+        // pull-based (MainActivity.onResume re-derives the state).
     }
 
     /** Builds the TUN (per-app allow-list, virtual DNS, v4+v6 routes). */
@@ -142,8 +162,13 @@ class YounblockVpnService : VpnService() {
         tunPfd = pfd
         Log.i(TAG, "TUN established (mtu $MTU, $allowed app(s) routed)")
 
-        // The engine may already be serving (the user connected first);
-        // bind now. Otherwise the state listener binds on "on".
+        // M5 (D77): consent is granted AND the TUN exists — open the
+        // engine's start gate. A connect run held at "connecting" now
+        // proceeds; an already-serving engine just keeps serving.
+        EngineHolder.ensure(this).setVpnReady(true)
+
+        // The engine may already be serving (a restart cycle); bind now.
+        // Otherwise the state listener binds when "on" arrives.
         val phase = JSONObject(EngineHolder.ensure(this).getState())
             .optString("phase", "off")
         if (phase == "on" || phase == "degraded") {
@@ -164,10 +189,15 @@ class YounblockVpnService : VpnService() {
         if (parsed.isNull("error")) {
             tunBound = true
             Log.i(TAG, "stack bound to door ${parsed.optString("door")}")
-            startForegroundHonest(activeText = true)
+            startForegroundHonest()
         } else {
             tunBound = false
             Log.e(TAG, "startTun refused: ${parsed.optString("error")}")
+            // D76's loud refusal made visible: unwind whatever stack the
+            // facade still holds (idempotent) so the next connect cannot
+            // inherit it, then fail closed — the engine must not keep a
+            // non-routing "on".
+            engine.stopTun()
             stopSelfHonest()
         }
     }
@@ -175,7 +205,12 @@ class YounblockVpnService : VpnService() {
     /** Engine phase transitions (marshaled to the main thread). */
     private fun onEnginePhase(phase: String) {
         when (phase) {
-            "on", "degraded" -> bindTun()
+            "on", "degraded" -> {
+                bindTun()
+                // The notification follows the honest combined state at
+                // every transition (degraded on; recovered back).
+                startForegroundHonest()
+            }
             "off", "error" -> {
                 // doc 04 §8: every path to off/error ends with the TUN
                 // down and no routes leaked; the UI state comes from the
@@ -216,18 +251,33 @@ class YounblockVpnService : VpnService() {
         EngineEvents.removeListener(stateListener)
         VpnProtector.detach(this)
         unbindTun()
+        // M5 service-death reconciliation (doc 04 §5, D78): without this
+        // service nothing routes. A serving engine would be a lying
+        // "Connected"; a gate-held "connecting" would be an invisible
+        // zombie (MainActivity.onDestroy stops it when no service runs,
+        // and the connect intent — e.g. a pending consent result —
+        // restarts it through this service's own engine.start()).
+        EngineHolder.engine?.let { eng ->
+            val phase = JSONObject(eng.getState()).optString("phase", "off")
+            if (phase != "off" && phase != "error" && phase != "stopping") {
+                Log.i(TAG, "engine stop (service death, phase $phase): ${eng.stop()}")
+            }
+            eng.setVpnReady(false)
+        }
         running = false
         super.onDestroy()
     }
 
     // ------------------------------------------------------------ plumbing
 
-    private fun startForegroundHonest(activeText: Boolean = false) {
-        val text = if (activeText) {
-            getString(R.string.vpn_notification_active)
-        } else {
-            getString(R.string.vpn_notification_connecting)
-        }
+    /**
+     * The honest foreground notification (M5): the text comes from the
+     * facade's vpnState report — the same JSON the host tests verify.
+     * "Active" only when it reports routing; "degraded" when it routes
+     * degraded; "connecting" while the gate/start sequence is pending.
+     */
+    private fun startForegroundHonest() {
+        val text = notificationText()
         val notification = buildNotification(text)
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(
@@ -236,6 +286,22 @@ class YounblockVpnService : VpnService() {
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    /** Derives the status text from the facade's honest report. */
+    private fun notificationText(): String {
+        val vpn = EngineHolder.engine?.let { runCatching { JSONObject(it.vpnState()) }.getOrNull() }
+            ?: return getString(R.string.vpn_notification_connecting)
+        val routing = vpn.optBoolean("routing", false)
+        val phase = vpn.optString("phase", "off")
+        return when {
+            routing && phase == "degraded" ->
+                getString(R.string.vpn_notification_degraded)
+            routing ->
+                getString(R.string.vpn_notification_active)
+            else ->
+                getString(R.string.vpn_notification_connecting)
         }
     }
 
@@ -265,7 +331,21 @@ class YounblockVpnService : VpnService() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    /**
+     * The one honest stop: foreground out, service out, and the engine
+     * stopped whenever it was doing anything — without this service
+     * nothing routes, so no state may claim otherwise (D78). The gate
+     * is re-armed closed either way: the next connect re-runs the
+     * whole consent → TUN sequence before anything can serve.
+     */
     private fun stopSelfHonest() {
+        EngineHolder.engine?.let { eng ->
+            val phase = JSONObject(eng.getState()).optString("phase", "off")
+            if (phase != "off" && phase != "error" && phase != "stopping") {
+                Log.i(TAG, "engine stop (service unwinding, phase $phase): ${eng.stop()}")
+            }
+            eng.setVpnReady(false)
+        }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

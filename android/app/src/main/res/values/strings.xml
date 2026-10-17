@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Younblock</string>
-    <!-- The VPN notification (roadmap M4): honest, low-importance, no
+    <!-- The VPN notification (roadmap M4/M5): honest, low-importance, no
          marketing claims. "Connecting" covers the whole start sequence
-         until the stack is bound; "Active" is the carrying state. -->
+         until the stack is bound; "Active" is the carrying state and is
+         shown ONLY when the facade's vpnState report says routing;
+         "Degraded" routes but says so (D78). -->
     <string name="vpn_notification_channel">VPN status</string>
     <string name="vpn_notification_connecting">Connecting…</string>
     <string name="vpn_notification_active">On — routing the selected apps</string>
+    <string name="vpn_notification_degraded">On — connection degraded, recovering</string>
+    <!-- The consent flow (roadmap M5, doc 04 §6): the first-run
+         explanation precedes the system dialog; the denial copy states
+         plainly that nothing is routed. No overstatement (ADR-0007). -->
+    <string name="consent_explanation_title">Allow the VPN connection?</string>
+    <string name="consent_explanation_text">Younblock needs Android\'s VPN permission to route the traffic of the selected apps (Chrome and YouTube) through its filter.\n\nOther apps are not affected. Nothing is routed until you allow it, and you can revoke the permission at any time in system settings.</string>
+    <string name="consent_continue">Continue</string>
+    <string name="consent_not_now">Not now</string>
+    <string name="consent_denied_title">VPN permission needed</string>
+    <string name="consent_denied_text">Younblock is not connected. Without the VPN permission, the selected apps\' traffic cannot be routed — nothing is being filtered right now.</string>
+    <string name="consent_retry">Try again</string>
+    <string name="consent_ok">OK</string>
 </resources>

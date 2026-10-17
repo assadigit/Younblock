@@ -5,6 +5,7 @@
 package engine
 
 import (
+        "context"
         "syscall"
 
         "github.com/assadigit/Younblock/internal/config"
@@ -64,6 +65,28 @@ type Platform interface {
         ConfigDir() string
         // RestoreProxy restores saved proxy state (crash recovery path).
         RestoreProxy() error
+}
+
+// StartGater is an optional Platform extension (roadmap M5, DECISIONS.md
+// D77): a platform whose product semantics require an external
+// permission or readiness before traffic may route implements it, and
+// the engine's connect run then waits for the door to open BEFORE the
+// listener and the checks, holding the phase at "connecting" — outside
+// the start budget, because a permission dialog is not a network
+// failure. The engine invents no new phase for this (ADR-0006): the
+// page honestly reads "connecting" while the platform decides, and the
+// shell's notification carries the precise reason (consent pending).
+//
+// Only the Android adapter implements it (the VPN consent plus the
+// established TUN). Desktop platforms do not: the type assertion in the
+// connect run fails and their Start path is unchanged, byte for byte.
+type StartGater interface {
+        // WaitStartReady blocks until the platform permits the connect
+        // run to proceed, or until ctx is done. On ctx.Done the run
+        // exits quietly — the canceller (Stop, a second Start, Shutdown)
+        // already owns the phase transition, and this goroutine must
+        // never overwrite it.
+        WaitStartReady(ctx context.Context) error
 }
 
 // ControlFunc matches netx.ControlFunc (kept here so the interface above

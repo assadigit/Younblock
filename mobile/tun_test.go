@@ -125,12 +125,11 @@ func udpPayloadOf(t *testing.T, pkt []byte) []byte {
 
 // ---- engine harness (same fakes as the M3 protect test) ----
 
-// startServingEngine builds a facade engine over the local fakes and
-// drives it to the serving phase ("on"). Returns the facade, the
-// counting protector and a plain TCP echo port reachable through the
-// engine's resolver (the fake DoH answers every A question 127.0.0.1,
-// so CONNECT <name>:echoPort lands on the echo origin).
-func startServingEngine(t *testing.T) (*Engine, *countingProtector) {
+// newServingHarness builds the facade engine over the local fakes WITHOUT
+// starting it (the M5 lifecycle suite drives the start gate explicitly;
+// the M4 tests start it through startServingEngine). Returns the facade
+// and the counting protector; the echo port is left in the test env.
+func newServingHarness(t *testing.T) (*Engine, *countingProtector) {
 	t.Helper()
 	dir := t.TempDir()
 	cert, pool := newLeafCert(t)
@@ -168,6 +167,14 @@ func startServingEngine(t *testing.T) (*Engine, *countingProtector) {
 	settings := config.Settings{
 		Version: 1,
 		Mode:    config.ModeYouTube,
+		// AutoPort=true is the product default (DefaultSettings); the M4
+		// harness accidentally omitted it, leaving the engine on a FIXED
+		// 4525 — fine while mobile tests ran alone, but under concurrent
+		// package execution (go test ./...) another package's engine can
+		// hold 4525 during the M5 gate's delayed bind, and the honest
+		// PORT_BUSY failure was the result (found this session, fixed at
+		// the source: the harness now matches the shipped default).
+		AutoPort: true,
 		Advanced: config.Advanced{
 			DoHServers: []config.DoHServer{{
 				Name:      "FakeDoH",
@@ -201,13 +208,23 @@ func startServingEngine(t *testing.T) (*Engine, *countingProtector) {
 	}
 	t.Cleanup(m.Shutdown)
 
+	// Stash the echo port where the test's door dial can find it.
+	t.Setenv("YB_TEST_ECHO_PORT", strconv.Itoa(echoLn.Addr().(*net.TCPAddr).Port))
+	return m, protector
+}
+
+// startServingEngine builds a facade engine over the local fakes and
+// drives it to the serving phase ("on"). Returns the facade, the
+// counting protector and a plain TCP echo port reachable through the
+// engine's resolver (the fake DoH answers every A question 127.0.0.1,
+// so CONNECT <name>:echoPort lands on the echo origin).
+func startServingEngine(t *testing.T) (*Engine, *countingProtector) {
+	t.Helper()
+	m, protector := newServingHarness(t)
 	if got := m.Start(); got != `{"error":null}` {
 		t.Fatalf("Start = %s", got)
 	}
 	waitForPhase(t, m, engine.PhaseOn, 40*time.Second)
-
-	// Stash the echo port where the test's door dial can find it.
-	t.Setenv("YB_TEST_ECHO_PORT", strconv.Itoa(echoLn.Addr().(*net.TCPAddr).Port))
 	return m, protector
 }
 

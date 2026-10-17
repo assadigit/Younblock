@@ -26,6 +26,7 @@
 package android
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"syscall"
@@ -68,6 +69,13 @@ type Platform struct {
 	// dialer each hold a copy).
 	dialMu sync.Mutex
 	dial   netx.ControlFunc
+
+	// startGate is the M5 consent/readiness door (engine.StartGater,
+	// D77). The zero value is OPEN: the adapter's no-op form (cmd/core,
+	// host tests) must never hold a connect run. The mobile facade arms
+	// it closed at construction; Kotlin opens it (VPN consent granted +
+	// TUN established) and closes it again on every unwind.
+	startGate startGate
 }
 
 // New returns an Android platform adapter.
@@ -140,3 +148,57 @@ func (p *Platform) ConfigDir() string { return p.opts.ConfigDir }
 
 // RestoreProxy is a no-op: nothing was ever changed.
 func (p *Platform) RestoreProxy() error { return nil }
+
+// SetStartReady arms or opens the engine's start gate (D77). ready=true
+// is idempotent; ready=false re-arms a closed gate (the next connect run
+// waits again). The facade's SetVpnReady forwards here; New's zero form
+// stays open until someone arms it.
+func (p *Platform) SetStartReady(ready bool) { p.startGate.set(ready) }
+
+// WaitStartReady implements engine.StartGater: it blocks while the gate
+// is armed closed, returning nil once open or ctx.Err() when the run is
+// cancelled (the canceller owns the phase transition; see D77).
+func (p *Platform) WaitStartReady(ctx context.Context) error {
+	return p.startGate.wait(ctx)
+}
+
+// startGate is a close-to-open, re-armable one-shot gate. The zero value
+// is open (nil channel): nothing may hold the adapter's no-op form.
+type startGate struct {
+	mu sync.Mutex
+	ch chan struct{} // nil = open; non-nil = closed until it is closed
+}
+
+// set opens (ready) or re-arms (not ready) the gate; closing the channel
+// wakes every waiter at once.
+func (g *startGate) set(ready bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if ready {
+		if g.ch != nil {
+			close(g.ch)
+			g.ch = nil
+		}
+		return
+	}
+	if g.ch == nil {
+		g.ch = make(chan struct{})
+	}
+}
+
+// wait returns nil when the gate is (or becomes) open, or ctx.Err() when
+// the run is cancelled first.
+func (g *startGate) wait(ctx context.Context) error {
+	g.mu.Lock()
+	ch := g.ch
+	g.mu.Unlock()
+	if ch == nil {
+		return nil
+	}
+	select {
+	case <-ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
