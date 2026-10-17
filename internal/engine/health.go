@@ -143,23 +143,19 @@ func (e *Engine) netPollInterval() time.Duration {
 	return 5 * time.Second
 }
 
-// setRunCancel registers the current start run's cancel function.
-func (e *Engine) setRunCancel(cancel context.CancelFunc) {
-	e.mu.Lock()
-	old := e.runCancel
-	e.runCancel = cancel
-	e.mu.Unlock()
-	if old != nil {
-		old()
-	}
-}
-
 // cancelCurrentRun aborts a connecting start (Stop or button cancel).
+// M7 (D82): bumping runGen makes a connect goroutine that was spawned
+// but not yet scheduled STALE — it exits quietly at its first
+// instruction instead of registering a fresh context nothing can cancel
+// (the spawn-race window the late-refusal test exposed: such a zombie
+// run could resurrect a phase after its own Stop — the exact thing
+// D77's quiet-cancellation rule exists to prevent).
 func (e *Engine) cancelCurrentRun() {
 	e.mu.Lock()
 	cancel := e.runCancel
 	e.runCancel = nil
 	e.runAborted = true
+	e.runGen++
 	e.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -173,21 +169,48 @@ func (e *Engine) cancelCurrentRun() {
 // ready, outside the start budget — a consent dialog is not a network
 // failure — and a cancellation exits quietly (the canceller owns the
 // phase).
-func (e *Engine) connectSequence() {
+func (e *Engine) connectSequence(gen uint64) {
 	// runCtx is the run's lifetime: cancelled by Stop / a second Start /
-	// Shutdown via setRunCancel. The start budget is derived from it only
-	// AFTER the gate, so waiting at the gate never burns the timeout.
+	// Shutdown through the runCancel registration below. The start budget
+	// is derived from it only AFTER the gate, so waiting at the gate never
+	// burns the timeout.
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
+	// D82: the stale-check and the registration are one critical section.
+	// A goroutine whose generation was superseded (its Stop/second-Start/
+	// Shutdown landed between spawn and first instruction) exits quietly
+	// HERE — it never resets runAborted, never registers a context, never
+	// touches the phase. A fresh run registers atomically, so every future
+	// cancel reaches it through runCancel.
 	e.mu.Lock()
+	if gen != e.runGen {
+		e.mu.Unlock()
+		return
+	}
 	e.runAborted = false
+	old := e.runCancel
+	e.runCancel = runCancel
 	e.mu.Unlock()
-	e.setRunCancel(runCancel)
+	if old != nil {
+		old()
+	}
 
 	if g, ok := e.platform.(StartGater); ok {
 		if err := g.WaitStartReady(runCtx); err != nil {
-			e.logger.Info("connect run released at the platform gate",
-				"reason", errKind(err))
+			if runCtx.Err() != nil {
+				// Cancelled (Stop / a second Start / Shutdown): the
+				// canceller owns the phase transition — quiet exit (D77).
+				e.logger.Info("connect run released at the platform gate",
+					"reason", errKind(err))
+				return
+			}
+			// A platform refusal (D81): the connect cannot honestly
+			// proceed (e.g. none of the allow-list's apps is installed).
+			// The ordinary failure path owns the rest — phase "error"
+			// with the typed code, the state emitted, the notice path
+			// unchanged. failStart's stopListener is a no-op here (the
+			// gate sits before the listener).
+			e.failStart(err)
 			return
 		}
 	}

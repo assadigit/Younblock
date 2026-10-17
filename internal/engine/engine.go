@@ -143,6 +143,7 @@ type Engine struct {
 	checker        Checker
 	runCancel      context.CancelFunc
 	runAborted     bool
+	runGen         uint64 // M7 (D82): identifies the live connect run; every cancel bumps it
 	watchdogCancel context.CancelFunc
 	wdFails        int
 	netMonCancel   context.CancelFunc
@@ -346,10 +347,12 @@ func (e *Engine) Start() error {
 		return errors.New("busy")
 	}
 	e.setPhaseLocked(PhaseConnecting, "starting")
+	e.runGen++
+	gen := e.runGen
 	e.mu.Unlock()
 	e.emitState()
 
-	go e.connectSequence()
+	go e.connectSequence(gen)
 	return nil
 }
 
@@ -676,6 +679,17 @@ func (e *Engine) ConfigDir() string { return e.platform.ConfigDir() }
 
 // mapErrorCode converts lower-level errors to UI error codes.
 func mapErrorCode(err error) string {
+	var refusal *PlatformRefusalError
+	if errors.As(err, &refusal) {
+		// The facade whitelists the vocabulary at the bridge; mapping here
+		// re-checks it so an unknown code can never invent a UI error.
+		switch refusal.Code {
+		case "NO_TARGET_APPS":
+			return refusal.Code
+		default:
+			return "UNKNOWN"
+		}
+	}
 	switch {
 	case errors.Is(err, proxy.ErrPortBusy):
 		return "PORT_BUSY"

@@ -240,6 +240,10 @@ interface EngineState {
   detail: string;
   since: string;
   latencyMs?: number | null;
+  /** The typed start-failure code while the phase is "error"
+   *  (internal/engine StateError). The screen maps the one code this
+   *  product can honestly explain; everything else stays generic. */
+  error?: { code?: string } | null;
 }
 
 /** The fields of "stats" events that the screen needs (bytes per second). */
@@ -423,7 +427,12 @@ class HttpBackend implements Backend {
           : phase === "connected" && typeof state.latencyMs === "number" && state.latencyMs > 0
             ? state.latencyMs
             : null,
-      message: phase === "error" ? "Could not connect. Try again." : null,
+      message:
+        phase === "error"
+          ? state.error?.code === "NO_TARGET_APPS"
+            ? "None of the apps on your list is installed. Install one, or edit the list in the menu."
+            : "Could not connect. Try again."
+          : null,
     };
     this.schedulePoll();
     this.emit();

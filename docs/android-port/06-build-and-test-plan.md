@@ -139,6 +139,31 @@ tree at CGO_ENABLED=0). Disk note: 4.5 GB free at the SDK/NDK restore,
 ~2.9 GB free after the clean APK — caches cleaned before the big
 builds per the §1 hygiene rule.
 
+M7 record (2026-10-17; the session opened with the environment INTACT
+— no wipe this time — repo at 57adf1a, toolchain per the §1 pins
+verified with commands, baseline re-run green before any M7 code):
+the -race hardening lane added and green on the seven key packages
+(engine 10.4 s, android 2.1 s, mobile 38.4 s, tunstack 2.3 s,
+proxy 11.4 s, webui 1.1 s, config 1.0 s; `go test -race -count=1`,
+gcc present); `gomobile bind` (GOFLAGS=-mod=mod, 3 ABIs, androidapi
+26) → younblock.aar **25,072,133 B** (`javap` shows the M7 binding
+`failStart(String)` alongside routedApps/setVpnReady/vpnState); clean
+`assembleDebug` → `app-debug.apk` **35,298,149 B**, SHA-256
+`f27b7eef014f61eff35405f4406bfe9c33d4e34a918f9949eaad417d561c6491`,
+badging: package io.github.assadigit/younblock 1.6.6 (versionCode 1),
+minSdk 26, targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64;
+permission review against the dumped manifest: exactly doc 07 §6's
+inventory (INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_CONNECTED_
+DEVICE, POST_NOTIFICATIONS, BIND_VPN_SERVICE service attribute,
+<queries> chrome+youtube; ACCESS_NETWORK_STATE absent); apksigner
+verify OK (debug cert). One engine regression caught and fixed at the
+source while building D81: the immediate double-Start test failed
+because D82's honest cancel exposed the spawn-race zombie the old test
+codified (see DECISIONS.md D82); the full suite green twice after.
+Exit baseline: vet clean; `go test -count=1 ./...` 17/17 packages ok
+twice; svelte-check 0/0; vite clean; matrix 4/4 ABIs -mod=vendor
+(18 non-main packages per ABI; arm64 links the full tree).
+
 ## 3. Test layers
 
 ### Unit tests (Go, host-runnable — pattern matches the existing tree)

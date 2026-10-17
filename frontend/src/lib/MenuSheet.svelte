@@ -43,10 +43,12 @@
   // second replaces the desktop "not a VPN" line with the honest
   // VPN-slot statement (ADR-0007 + doc 07 §1: no overstated VPN/privacy
   // language — the app occupies Android's VPN slot, says so, and says
-  // what that does NOT mean).
+  // what that does NOT mean); the third is the open-source attribution
+  // doc 07 §7 requires for the Android lane's permissive dependencies.
   const ABOUT_ANDROID = [
     "Younblock helps YouTube load when the network gets in the way. It runs only on your device, with no account and no analytics.",
     "It uses Android's VPN slot — that is the key icon you'll see while it runs — as a local traffic router for the apps you choose. It is still not a VPN: it does not hide your IP address and adds no encryption. YouTube's own HTTPS still protects the content.",
+    "Open-source components: the gVisor network stack (Apache-2.0) and gomobile (BSD-3).",
   ];
 
   const HOW_IT_WORKS = [

@@ -104,20 +104,20 @@ meaning are the engine's, unchanged.
 | AND-007 | ADR-0009 | `internal/doh` (existing) | resolver tests PASS (2026-10-16) | — |
 | AND-008 | doc 04 §7 | `internal/fragment` (existing) | plan/conn tests PASS (2026-10-16) | — |
 | AND-009 | doc 01 §3.3 | `internal/engine/health.go` | engine tests PASS (heal cooldown, 35 s cap) | — |
-| AND-010 | doc 04 §9 | `internal/config` + `apps` field (M6) | settings tests PASS (existing schema) | M6 |
+| AND-010 | doc 04 §9 | `internal/config` + `apps` field (M6) | schema v2 + Normalize + v1→v2 migration tests PASS (apps_test.go, 2026-10-17 M6) | M6 |
 | AND-011 | doc 01 §3.5 | existing engine+UI | resolver+UI behavior verified | — |
 | AND-012 | ADR-0003 | allow-list (M4) | device matrix pending | M4/M7 |
 | AND-013 | doc 01 §3.7 | existing mode logic | proxy behavior tests PASS | disclosure note |
 | AND-014 | doc 01 §3.8 | existing | latency tests PASS | honest label note |
-| AND-015 | doc 04 §4 | existing codes + `NO_TARGET_APPS` | engine error tests PASS; new code M3 | — |
+| AND-015 | doc 04 §4 | existing codes + `NO_TARGET_APPS` | engine error tests PASS; NO_TARGET_APPS implemented M7 (D81: gate refusal → error phase; engine + adapter + facade suites) | — |
 | AND-016 | doc 01 §3.14 | `GetAppInfo` (existing, 1.6.6) | backend-driven verified | — |
-| AND-017 | doc 07 §5 | UI copy (M6) | content review pending | M6 |
+| AND-017 | doc 07 §5 | UI copy (M6) | wired M6 (D80: the sheet's Privacy section); copy review vs §1 re-run M7 (doc 07 §9) | — |
 | AND-018 | doc 07 §6 | VpnService FGS (M5) | device test pending | M5 |
 | AND-019 | doc 01 §3.3 | `startNetMon` (existing) | engine tests PASS; device re-check | M7 |
 | AND-020 | ADR-0010 | route set + AAAA policy (M4) | dual-stack test pending | disclosure note |
 | AND-021 | ADR-0009 | stack policy (M4) | protocol test pending | disclosure note |
 | AND-022 | ADR-0011 | netx Control hook (existing seam) | M3 call-counting test | — |
-| AND-023 | doc 01 §6 | existing Svelte bundle | responsive verified (Phase 20); WebView re-check M6 | — |
+| AND-023 | doc 01 §6 | existing Svelte bundle | responsive verified (Phase 20); host-half a11y checks PASS M6 (D80); WebView live re-check ⛔ device checklist | — |
 | AND-024 | doc 01 §7 | — | baseline green 2026-10-16 (go 13/13, svelte 0/0, vite OK) | per-milestone |
 | AND-025 | doc 06 | `build-android.*` (M8) | not run | M8 |
 | AND-026 | doc 04 §2.1 | existing bundle | `?ui=classic` loads (web edition, verified) | — |

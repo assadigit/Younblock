@@ -425,11 +425,94 @@ desktop baseline never regressed (17/17 twice at the exit gate). The
 live-WebView observation half ⛔ (the shared device checklist). M6 is
 marked ✅ host-complete on the M3/M4/M5 precedent.**
 
-### M7 — Regression, hardening, release preparation
+### M7 — Regression, hardening, release preparation — ✅ host-complete 2026-10-17 (on-device gates ⛔: the standing emulator/device blocker)
 
-- ⬜ Full test matrix; desktop regressions; dependency/license audit;
-  permission review; battery/behavior measurement on a real device;
-  reboot/revocation checks (AND-028).
+The hardening is done and host-verified; the device-dependent halves
+(battery/behavior measurement, reboot/revocation AND-028, the live
+WebView/consent/notification observations) remain ⛔ — no /dev/kvm, no
+device (re-verified this session: `ls /dev/kvm` → No such file or
+directory). Host side of every gate:
+
+1. ✅ **The NO_TARGET_APPS typed-error door (D81 — the decision M6
+   deferred)**: the start gate (D77) now also refuses. The Android
+   adapter's `RefuseStart(code)` hands a typed `engine.PlatformRefusalError`
+   to the waiting connect run — or latches it when the run has not
+   reached the gate yet (the start race) — and the engine's connect run
+   routes a refusal through its ORDINARY failure path: phase "error"
+   with the typed code (mapErrorCode whitelists NO_TARGET_APPS), the
+   state emitted, the page showing "Can't Connect" plus the specific
+   reason (the HttpBackend maps the code to "None of the apps on your
+   list is installed…"). The phase machine stays the single truth
+   (ADR-0006): no parallel Kotlin error UI, no silent unwind. The
+   facade `FailStart(code)` whitelists the vocabulary (BAD_CODE
+   otherwise) and reports NOT_HELD when the gate is open (an open gate
+   holds no run; the shell's honest-stop owns a serving engine).
+   Kotlin's establishTun calls it on the zero-installed-targets path.
+   Evidence: 3 engine gate tests (refusal→error with the code,
+   refusal-then-recovery, cancellation-beats-refusal), 6 adapter gate
+   tests (delivery, THE re-arm race regression, latch-for-late-run,
+   latch cleared by re-arm/open, open-gate-not-held), 4 facade tests
+   (held-run refused with the typed code in the state JSON,
+   recovery-on-next-connect, NOT_HELD, BAD_CODE).
+2. ✅ **A real M5-era concurrency hole found and fixed (D82 — run
+   generations)**: building the refusal tests exposed that a connect
+   goroutine delayed past its own Stop/second-Start registered a FRESH
+   uncancellable context at entry (and reset runAborted) — a zombie run
+   that could resurrect a phase after its cancellation, the exact thing
+   D77's quiet-cancellation exists to prevent. `TestEngineStartIsIdempotent`
+   had been passing THROUGH the bug (its immediate double-Start passed
+   only because the zombie completed to "on" after the documented
+   cancel); the test now waits for on (its true intent — idempotency
+   while ON), and D82 makes the cancel honest: every cancel bumps a run
+   generation; a stale goroutine exits at its first instruction without
+   registering anything. The desktop Start/Stop behavior is unchanged
+   in practice — the registered-run cancel path (the overwhelmingly
+   common case) always behaved this way; D82 closed the microscopic
+   unscheduled-goroutine inconsistency.
+3. ✅ **The -race hardening lane (new, all green)**: `go test -race` on
+   the seven key packages — engine 10.4 s, android adapter 2.1 s,
+   mobile 38.4 s, tunstack 2.3 s, proxy 11.4 s, webui 1.1 s, config
+   1.0 s — zero data races, including through the D81/D82 gate and
+   generation machinery and the M5 lifecycle suite.
+4. ✅ **Dependency/license audit re-run (doc 07 §7)**: the AAR's actual
+   dependency closure (`go list -deps ./mobile`) is gVisor's netstack
+   pkg subset (Apache-2.0, LICENSE vendored), golang.org/x/{net,sync,
+   sys,time,exp} (BSD-3), x/mobile (BSD-3, LICENSE vendored), and
+   github.com/google/btree (Apache-2.0) — all permissive; the About
+   attribution line added (D80's sheet: "gVisor network stack
+   (Apache-2.0) and gomobile (BSD-3)").
+5. ✅ **Permission review (doc 07 §6 vs the built APK)**: the dumped
+   manifest carries EXACTLY the inventory — INTERNET,
+   FOREGROUND_SERVICE, FOREGROUND_SERVICE_CONNECTED_DEVICE,
+   POST_NOTIFICATIONS, the BIND_VPN_SERVICE service attribute, and
+   `<queries>` for com.android.chrome + com.google.android.youtube.
+   ACCESS_NETWORK_STATE is absent (the D74 discipline holds). No
+   permission the code does not use.
+6. ✅ **Release notes drafted**: docs/android-port/10-release-notes.md —
+   the honest headline, what it does/does not, the doc 02 §4 limitation
+   obligations (IPv4 DNS posture, UDP drop + QUIC gate, per-app scope,
+   apply-on-next-connect, AND-028), install/sideload, the ⛔ open-gates
+   section, open-source attribution. M8 finalizes against the artifact.
+   Doc 02 §7's traceability rows updated for the M6/M7 evidence
+   (AND-010/015/017/023).
+7. ✅ **The build lanes, re-verified end-to-end after all M7 changes**:
+   `go vet ./...` clean; `go test -count=1 ./...` **17/17 packages ok,
+   run twice consecutively**; svelte-check 0/0; vite build clean; the
+   webui dist synced; compile matrix **4/4 ABIs** with `-mod=vendor`
+   (arm64 links the full tree); `gomobile bind` → younblock.aar
+   **25,072,133 B** (`javap` shows `failStart(String)` bound alongside
+   routedApps/setVpnReady/vpnState); clean `assembleDebug` →
+   **app-debug.apk 35,298,149 B**, SHA-256
+   `f27b7eef014f61eff35405f4406bfe9c33d4e34a918f9949eaad417d561c6491`,
+   badging minSdk 26/target 36/3 native ABIs, manifest verified above,
+   apksigner OK (debug cert).
+
+Exit criteria verdict: **every host-runnable hardening gate green with
+evidence; two real defects found and fixed at the source (the M5
+spawn-race zombie D82 closed, and the test that codified it); the
+battery/reboot/revocation and live-observation halves ⛔ with the shared
+device checklist. M7 is marked ✅ host-complete on the M3–M6
+precedent.**
 
 ### M8 — Package, verify, hand off
 
@@ -439,7 +522,7 @@ marked ✅ host-complete on the M3/M4/M5 precedent.**
 
 ## Dependency order / critical path (unchanged)
 
-M3 → M4 → M5 → M6 → M7 → M8; M0–M6 complete (M4, M5 and M6
+M3 → M4 → M5 → M6 → M7 → M8; M0–M7 complete (M4–M7
 host-complete; their on-device gates ride with the shared device
 checklist — doc 09's standing blocker).
 

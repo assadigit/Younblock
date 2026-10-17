@@ -181,6 +181,32 @@ func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
 // "Connected".
 func (m *Engine) SetVpnReady(ready bool) { m.plat.SetStartReady(ready) }
 
+// FailStart is the M7 platform-refusal door (D81): the shell discovered
+// the connect cannot honestly proceed — today, PackageManager found none
+// of the allow-list's apps installed (code "NO_TARGET_APPS") — and the
+// gate-held connect run must fail through the engine's ordinary path:
+// phase "error" with the typed code, the state emitted, the page showing
+// "Can't Connect" with the honest reason, instead of a silent unwind or
+// a parallel Kotlin error UI. The phase machine stays the single truth
+// (ADR-0006).
+//
+// Returns {"error":null} when the refusal was delivered (or latched for
+// a run that has not reached the gate yet), {"error":"NOT_HELD"} when
+// the gate is open (an open gate holds no run to refuse — the shell's
+// honest-stop path owns a serving engine; log it), or {"error":"BAD_CODE"}
+// for any code outside the whitelisted vocabulary.
+func (m *Engine) FailStart(code string) string {
+	switch code {
+	case "NO_TARGET_APPS":
+	default:
+		return `{"error":"BAD_CODE"}`
+	}
+	if !m.plat.RefuseStart(code) {
+		return `{"error":"NOT_HELD"}`
+	}
+	return `{"error":null}`
+}
+
 // RoutedApps is the M6 settings surface for the Kotlin service: the
 // per-app allow-list (schema v2) the VpnService bakes into its Builder
 // at TUN establish, as {"apps":["com.android.chrome",...]} — the same

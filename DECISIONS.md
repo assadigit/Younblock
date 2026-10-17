@@ -1196,3 +1196,82 @@ amd64 with CGO_ENABLED=0 fails ONLY at the three main-package links
 records), so the honest matrix form is `go build` over the 18 non-main
 packages per ABI (4/4 green; arm64 links the full tree even without
 cgo).
+
+**D81 — the platform refusal door: shell→engine typed errors through
+the start gate (NO_TARGET_APPS), the phase machine stays the single
+truth.** M6 deferred this question (a "D78-class design decision");
+M7 settles it. The shell discovers platform-level impossibilities the
+engine cannot know — PackageManager found none of the allow-list's
+packages installed — and the honest surface is the ENGINE's error
+phase with a typed code, not a parallel Kotlin error UI and not a
+silent unwind to "off" (which is what M6 shipped: fail-closed but
+unexplained). Mechanism, built on D77's door: `engine.PlatformRefusalError{Code}`
+is handed to a gate-held connect run and routed through the ORDINARY
+failure path — failStart sets phase "error" with the code, the state
+is emitted, the page shows "Can't Connect" plus the mapped reason
+("None of the apps on your list is installed. Install one, or edit
+the list in the menu."). Three load-bearing properties, all tested:
+(1) DELIVERY IS ATOMIC — the waiting run registers its own buffered
+channel and `refuse()` hands the error straight to it, so the shell's
+immediate re-arm (`stopSelfHonest` → `setVpnReady(false)`, the exact
+Kotlin sequence) can never claw back a delivered refusal: a
+woken-but-unscheduled waiter still sees it. A refusal nobody has
+consumed yet LATCHES for a run that has not reached the gate (the
+spawn race), and both open and re-arm clear the latch — an open gate
+refuses nothing (NOT_HELD: the shell's honest-stop owns a serving
+engine), and a re-arm is a clean slate the shell re-discovers on.
+(2) THE VOCABULARY IS WHITELISTED TWICE — the facade accepts only
+NO_TARGET_APPS today (BAD_CODE otherwise) and mapErrorCode re-checks
+it, so no arbitrary error string can cross the bridge and invent a UI
+code. (3) CANCELLATION STILL WINS — the connect run checks its ctx
+before honoring a refusal, so Stop/second-Start/Shutdown keep D77's
+quiet-exit ownership even when a refusal races them. Desktop is
+unaffected: no desktop platform implements StartGater, so the refusal
+branch is unreachable there (byte-identical Start path, verified by
+the full regression gate). The unreadable-allow-list path (a bridge
+bug, not a user state) deliberately does NOT use the door — it stays
+log + honest-stop, because claiming NO_TARGET_APPS there would be a
+lie about a state the PackageManager never reported.
+
+**D82 — run generations: a cancelled Start can never be resurrected by
+its own goroutine.** Building D81's tests exposed a real M5-era hole
+in the quiet-cancellation guarantee: `connectSequence` created its
+run-lifetime context and registered it at ENTRY — so a connect
+goroutine that was spawned but not yet scheduled when its own
+Stop/second-Start landed would register a FRESH context nothing could
+cancel (and reset `runAborted`), then proceed as a zombie: holding at
+the gate, or completing to "on" AFTER the canceller had already set
+"off" — the exact phase-resurrection D77 exists to prevent. The proof
+it was real, not theoretical: `TestEngineStartIsIdempotent` had been
+passing THROUGH the bug for the whole project — its immediate
+Start→Start expects "on", the second Start is the documented cancel
+(file 01 §10.5), and the only reason the test ever saw "on" was the
+unregistered zombie completing after its cancellation. The fix: every
+cancel bumps a run generation (`runGen`), Start captures the
+generation under the same lock that sets "connecting", and the
+goroutine's stale-check and context registration are ONE critical
+section — a superseded run exits at its first instruction without
+registering anything or touching any phase; a fresh run registers
+atomically so every future cancel reaches it through its context.
+Desktop behavior is unchanged in practice: the registered-run cancel
+path (the overwhelmingly common case — the window is the time between
+`go` and the goroutine's first lock) always behaved this way; D82
+made the microscopic unscheduled case match it. The test was fixed to
+its true intent (wait for "on", then Start again — idempotency while
+ON), and the gate suite carries the cancel-semantics coverage.
+Evidence: the refusal/cancellation suites in
+internal/engine/gate_test.go, the -race lane green through the new
+machinery, and the full 17/17 gate twice.
+
+**M7 session note (the first no-wipe session, and one honest
+regression iteration):** the sandbox survived a session boundary for
+the first time in the port's record — the repo at 57adf1a, the
+~/sdk toolchain and the worklog all intact, verified with commands
+before work began. The -race lane was added as a standing hardening
+gate (gcc present; seven key packages, zero races). One regression
+was caught by the gate rather than hidden: D82's honest cancel broke
+TestEngineStartIsIdempotent, the failure was root-caused to the test
+codifying the zombie (not to the fix), the test was rewritten to its
+documented intent, and the suite went green twice — the M5-era
+"root-caused and fixed, not retried away" discipline, applied to our
+own new code.

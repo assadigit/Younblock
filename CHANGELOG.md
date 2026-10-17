@@ -620,3 +620,34 @@ First Windows test build, published to GitHub Releases.
 [v0.2.1]: https://github.com/assadigit/Younblock/releases/tag/v0.2.1
 [v0.2.0]: https://github.com/assadigit/Younblock/releases/tag/v0.2.0
 [v0.1.0]: https://github.com/assadigit/Younblock/releases/tag/v0.1.0
+
+### Added (Android port, M7 — not yet a released build)
+
+- **The NO_TARGET_APPS typed error (D81)**: when none of the
+  allow-list's apps is installed, the connect attempt now fails
+  honestly instead of silently returning to "Not Connected" — the
+  engine lands in its error phase with the typed code and the page
+  shows the reason ("None of the apps on your list is installed.
+  Install one, or edit the list in the menu."). The refusal travels
+  the existing start gate with atomic delivery (the shell's re-arm
+  can never claw it back) and a whitelisted code vocabulary.
+- **Run generations (D82)** — a hardening fix found by the new tests:
+  a connect goroutine that lost the race with its own Stop could
+  previously register a fresh uncancellable context and resurrect a
+  phase after the cancellation. Every cancel now supersedes spawned
+  runs; one existing test had been passing through exactly this bug
+  and was corrected to its documented intent.
+- **The -race lane**: `go test -race` runs clean on the seven key
+  packages (engine, android adapter, mobile, tunstack, proxy, webui,
+  config).
+- **Audit + attribution**: the AAR's dependency closure verified
+  (gVisor netstack Apache-2.0, gomobile BSD-3, golang.org/x BSD-3,
+  google/btree Apache-2.0 — all permissive, licenses vendored); the
+  About sheet credits the open-source components. The built APK's
+  permission set verified to be exactly the documented inventory.
+- The v1 release-notes draft (docs/android-port/10-release-notes.md)
+  with the truthful-claims review and the open device gates listed.
+- The M7 debug APK (35,298,149 B, SHA-256 f27b7eef…491) is recorded in
+  docs/android-port/05–06; battery/behavior, reboot/revocation and all
+  live-observation gates remain ⛔ (no /dev/kvm, no device) and are
+  carried, never claimed.

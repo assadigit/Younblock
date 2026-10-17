@@ -156,21 +156,46 @@ func (p *Platform) RestoreProxy() error { return nil }
 func (p *Platform) SetStartReady(ready bool) { p.startGate.set(ready) }
 
 // WaitStartReady implements engine.StartGater: it blocks while the gate
-// is armed closed, returning nil once open or ctx.Err() when the run is
-// cancelled (the canceller owns the phase transition; see D77).
+// is armed closed, returning nil once open, ctx.Err() when the run is
+// cancelled (the canceller owns the phase transition; see D77), or the
+// platform's refusal when RefuseStart fired (D81).
 func (p *Platform) WaitStartReady(ctx context.Context) error {
 	return p.startGate.wait(ctx)
 }
 
-// startGate is a close-to-open, re-armable one-shot gate. The zero value
-// is open (nil channel): nothing may hold the adapter's no-op form.
+// RefuseStart hands the start gate a typed refusal (D81): the waiting
+// connect run — or the next one to arrive, when the run has not reached
+// the gate yet — fails through the engine's ordinary start-failure path
+// (phase "error" with the code) instead of holding at "connecting".
+// It reports false when the gate is OPEN: an open gate holds no run to
+// refuse, and the shell's honest-stop path owns a serving engine.
+// The code is the engine's UI error vocabulary (NO_TARGET_APPS today);
+// the mobile facade whitelists it at the bridge.
+func (p *Platform) RefuseStart(code string) bool {
+	return p.startGate.refuse(&engine.PlatformRefusalError{Code: code})
+}
+
+// startGate is a close-to-open, re-armable one-shot gate with a refusal
+// (M5 D77 + M7 D81). The zero value is open (nil channel): nothing may
+// hold the adapter's no-op form.
+//
+// Refusal delivery is ATOMIC by construction: a waiting run registers
+// its own buffered delivery channel, and refuse() hands the error
+// straight to it — a later re-arm (set(false)) clears only the LATCH
+// (a refusal nobody has consumed yet), never a delivery already made,
+// so a woken-but-unscheduled waiter can never miss its refusal and
+// proceed as if permitted (that would undo D77's whole guarantee).
 type startGate struct {
-	mu sync.Mutex
-	ch chan struct{} // nil = open; non-nil = closed until it is closed
+	mu      sync.Mutex
+	ch      chan struct{} // nil = open; non-nil = armed closed until it is closed
+	refusal error         // latched refusal for a run that has not arrived yet
+	deliver chan error    // the registered waiter's delivery channel
 }
 
 // set opens (ready) or re-arms (not ready) the gate; closing the channel
-// wakes every waiter at once.
+// wakes every waiter at once. Both directions clear a latched (unconsumed)
+// refusal: an open gate refuses nothing, and a re-arm is a clean slate —
+// the shell re-discovers the platform state on the next attempt.
 func (g *startGate) set(ready bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -179,25 +204,66 @@ func (g *startGate) set(ready bool) {
 			close(g.ch)
 			g.ch = nil
 		}
+		g.refusal = nil
 		return
 	}
 	if g.ch == nil {
 		g.ch = make(chan struct{})
 	}
+	g.refusal = nil
 }
 
-// wait returns nil when the gate is (or becomes) open, or ctx.Err() when
-// the run is cancelled first.
+// refuse delivers a typed refusal. With a registered waiter the handoff
+// is direct and final (see the type comment); without one the refusal
+// latches for the next wait(). An open gate refuses nothing (false).
+func (g *startGate) refuse(err error) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.ch == nil {
+		return false
+	}
+	if g.deliver != nil {
+		g.deliver <- err // buffered(1): never blocks
+		return true
+	}
+	g.refusal = err
+	return true
+}
+
+// wait returns nil when the gate is (or becomes) open, ctx.Err() when
+// the run is cancelled first, or the platform's refusal.
 func (g *startGate) wait(ctx context.Context) error {
 	g.mu.Lock()
+	if g.refusal != nil {
+		// A latched refusal (refuse() raced ahead of this run's
+		// arrival at the gate): consume it — one delivery.
+		r := g.refusal
+		g.refusal = nil
+		g.mu.Unlock()
+		return r
+	}
 	ch := g.ch
+	var d chan error
+	if ch != nil {
+		d = make(chan error, 1)
+		g.deliver = d
+	}
 	g.mu.Unlock()
 	if ch == nil {
 		return nil
 	}
+	defer func() {
+		g.mu.Lock()
+		if g.deliver == d {
+			g.deliver = nil
+		}
+		g.mu.Unlock()
+	}()
 	select {
 	case <-ch:
-		return nil
+		return nil // the open signal
+	case err := <-d:
+		return err // the refusal, delivered to this run
 	case <-ctx.Done():
 		return ctx.Err()
 	}

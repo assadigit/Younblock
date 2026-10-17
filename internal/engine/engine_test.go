@@ -212,10 +212,17 @@ func TestEngineStartIsIdempotent(t *testing.T) {
 	if err := eng.Start(); err != nil {
 		t.Fatal(err)
 	}
+	st := waitForPhase(t, eng, engine.PhaseOn)
+	// M7 (D82): the second Start must arrive while ON for the
+	// idempotency claim — a second Start while CONNECTING is the
+	// documented cancel (file 01 §10.5). The old form of this test
+	// (Start immediately followed by Start) passed only through the
+	// spawn-race zombie: the cancelled-but-unregistered run completed
+	// to "on" anyway. D82 makes the cancel honest and deterministic;
+	// the gate suite covers that path.
 	if err := eng.Start(); err != nil {
 		t.Fatal(err)
 	}
-	st := waitForPhase(t, eng, engine.PhaseOn)
 	// Both starts refer to the same single listener.
 	if st.Port != eng.GetState().Port {
 		t.Errorf("port changed between starts")

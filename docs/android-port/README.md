@@ -29,6 +29,7 @@ The provided project description says Younblock is a Windows/Linux Go applicatio
 7. [`07-security-privacy-and-distribution.md`](07-security-privacy-and-distribution.md) — handle trust, permissions, and publication.
 8. [`08-architecture-decisions.md`](08-architecture-decisions.md) — record decisions and changes.
 9. [`09-agent-handoff.md`](09-agent-handoff.md) — session handoff and first actions.
+10. [`10-release-notes.md`](10-release-notes.md) — the v1 release-notes draft (M7; M8 finalizes against the artifact).
 
 ## Non-negotiable project rules
 

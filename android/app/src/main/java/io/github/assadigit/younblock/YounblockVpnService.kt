@@ -168,6 +168,19 @@ class YounblockVpnService : VpnService() {
         if (allowed == 0) {
             // Fail closed: zero allowed apps would route EVERYTHING.
             Log.e(TAG, "no allow-list target installed; refusing to route")
+            // D81: refuse the gate-held connect run with the typed code —
+            // the engine lands in phase "error" (NO_TARGET_APPS) and the
+            // page shows "Can't Connect" with the honest reason, not a
+            // silent return to "Not Connected". stopSelfHonest's phase
+            // check then skips the engine stop (the run already failed)
+            // and still re-arms the gate + tears the service down.
+            val res = engine.failStart("NO_TARGET_APPS")
+            if (!res.contains("\"error\":null")) {
+                // NOT_HELD (the engine was not held at the gate — e.g. a
+                // restart cycle) or BAD_CODE: the honest-stop path below
+                // owns the engine either way; this is only visible.
+                Log.w(TAG, "failStart: $res")
+            }
             stopSelfHonest()
             return
         }

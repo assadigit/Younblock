@@ -120,19 +120,25 @@ hardening: local assets only (WebViewAssetLoader or loopback webui
 per ADR-0005 — either way no remote pages), navigation blocked,
 file/content access disabled, no remote debugging in release.
 
-## 7. Dependencies and licenses (audited 2026-10-16)
+## 7. Dependencies and licenses (audited 2026-10-16; re-run 2026-10-17 at M7)
 
 | Dependency | Version pin | License | Status |
 |---|---|---|---|
-| `golang.org/x/mobile` (gomobile) | latest stable at M3, pinned then | BSD-3-Clause | maintained (pushed 2026-10-11) |
-| `xjasonlyu/tun2socks` (engine pkg) | latest stable at M4, pinned then | MIT | maintained (pushed 2026-10-11) |
-| alternative: `google/gvisor` netstack | pinned subset | Apache-2.0 | very active |
-| fallback: `heiher/hev-socks5-tunnel` | — | MIT | active (C/NDK; only if forced) |
+| `golang.org/x/mobile` (gomobile) | v0.0.0-20261011034528-197770444867 | BSD-3-Clause | maintained (pushed 2026-10-11) |
+| `gvisor.dev/gvisor` netstack subset | v0.0.0-20260701204157-69c2d17aea96 | Apache-2.0 (LICENSE vendored) | very active |
+| `golang.org/x/{net,sync,sys,time,exp}` | go.mod pins | BSD-3-Clause | maintained |
+| `github.com/google/btree` | v1.1.2 (gVisor transitive) | Apache-2.0 | stable |
+| `xjasonlyu/tun2socks` (engine pkg — NOT shipped; D75) | — | MIT | rejected at M4, out of the closure |
+| fallback: `heiher/hev-socks5-tunnel` | — | MIT | not used (C/NDK) |
 | existing tree deps (wails excluded from Android) | go.mod pins | permissive | vendored |
 
-Re-run the audit at M8; record transitive natives (gVisor pulls its
-own module set) and note obligations (all permissive → attribution
-notices in About suffice).
+M7 audit evidence: the AAR's actual dependency closure (`go list
+-deps ./mobile`, the honest set — not the whole 224-module go.mod
+graph) is the gVisor `pkg/` netstack subset, golang.org/x/{net,sync,
+sys,time,exp}, x/mobile, and google/btree. All permissive; the
+attribution line lives in the app's About sheet ("gVisor network stack
+(Apache-2.0) and gomobile (BSD-3)"). Re-run the closure check at M8
+against the final artifact.
 
 ## 8. Distribution and signing
 
@@ -149,13 +155,19 @@ notices in About suffice).
 
 ## 9. Release-blocking checklist
 
-- [ ] Permission rationale and service state understandable (M5/M6 test)
-- [ ] No overstated VPN/privacy/coverage language (copy review vs §1)
-- [ ] DNS and traffic scope documented accurately (§5 verified vs code)
-- [ ] Startup and stop paths tested for leakage/cleanup (M4/M5)
-- [ ] IPv4/IPv6 and TCP/UDP claims match test results (M4 matrix)
-- [ ] Sensitive logs/configuration minimized and redacted (inherited + spot-check)
-- [ ] Dependency/license review re-run at M8
-- [ ] Android platform requirements rechecked against primary sources at M3/M8
-- [ ] APK signing, version, checksums verified (M8)
-- [ ] Known limitations disclosed in-app and in release notes (M6/M8)
+- [x] Permission rationale and service state understandable (M5/M6 test) — closed at M7: the consent copy + honest notification shipped in M5/M6; the permission inventory verified against the built APK's manifest (doc 05 M7 item 5)
+- [x] No overstated VPN/privacy/coverage language (copy review vs §1) — closed at M7: the D80 sheet copy (About/Privacy/How-it-works/Help) re-reviewed against §1/§5 and doc 10's headline; the VPN-slot statement carries the not-a-VPN qualifier everywhere it appears
+- [x] DNS and traffic scope documented accurately (§5 verified vs code) — closed at M7: §5's claims re-checked against the implementation (no analytics code exists; no Younblock-run endpoint; DoH providers user-configurable; logs local) and rendered as the in-app Privacy section (M6)
+- [x] Startup and stop paths tested for leakage/cleanup (M4/M5) — closed at M5/M7: the lifecycle suite (M5) + the -race lane and D82 generation fix (M7)
+- [ ] IPv4/IPv6 and TCP/UDP claims match test results (M4 matrix) — host-level policy tests green; the device matrix rows stay open (doc 06 §4)
+- [x] Sensitive logs/configuration minimized and redacted (inherited + spot-check) — closed at M7: the diagnostic report redaction tests inherit green; the report is the only diagnostics surface and ships hostnames-off by default (R21)
+- [ ] Dependency/license review re-run at M8 — M7 re-run recorded in §7; M8 re-checks against the final artifact
+- [ ] Android platform requirements rechecked against primary sources at M3/M8 — M3 done; M8 pending
+- [ ] APK signing, version, checksums verified (M8) — debug-cert verification recorded per milestone; the release keystore is M8's
+
+The remaining open items are the device-gate rows and the M8
+finalization; the ⛔ blocker (no /dev/kvm, no device) carries them.
+The known-limitations disclosure obligation is discharged host-side
+(M6's in-app copy + doc 10's limitations section); the device-matrix
+rows that would let the remaining claims carry measured results are
+the M8/device gate.

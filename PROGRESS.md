@@ -2148,3 +2148,74 @@ twice consecutively; svelte-check 0/0; vite build clean; matrix 4/4
 ABIs with -mod=vendor.
 
 Next: M7 — regression, hardening, release preparation (doc 05 §M7).
+
+## M7 — regression, hardening, release preparation (2026-10-17, host-complete)
+
+The first session in the port's record to open with the environment
+INTACT — no wipe: the repo at 57adf1a (clean, synced), the ~/sdk
+toolchain, and the shared worklog all survived the boundary, verified
+with commands; the desktop baseline re-run green before any M7 code
+(vet clean, 17/17 twice, svelte-check 0/0, vite clean).
+
+The milestone (doc 05 §M7, D81/D82):
+
+- **The NO_TARGET_APPS door (D81)** — the question M6 deferred,
+  settled: the start gate now refuses as well as opens. The Android
+  adapter's RefuseStart hands a typed engine.PlatformRefusalError to
+  the gate-held connect run (or latches it for a not-yet-arrived run),
+  and the engine routes it through its ordinary failure path — phase
+  "error" with the typed code, the page showing "Can't Connect" plus
+  the specific reason. The phase machine stays the single truth
+  (ADR-0006). Delivery is atomic: the shell's immediate re-arm can
+  never claw back a delivered refusal (the race has its own regression
+  test), the latch clears on open/re-arm, an open gate reports
+  NOT_HELD, and the facade whitelists the vocabulary twice. Suites:
+  3 engine gate tests, 6 adapter gate tests, 4 facade tests.
+- **The spawn-race zombie closed (D82)** — building the refusal tests
+  exposed a real M5-era hole: a connect goroutine delayed past its own
+  Stop registered a fresh uncancellable context at entry and could
+  resurrect a phase after its cancellation. TestEngineStartIsIdempotent
+  had been passing THROUGH the bug (its immediate double-Start saw "on"
+  only because the zombie completed after the documented cancel). Fix:
+  run generations — every cancel supersedes spawned runs; the
+  stale-check and registration are one critical section. The test was
+  rewritten to its true intent (idempotency while ON). Desktop
+  behavior unchanged in practice.
+- **The -race lane (new)**: gcc is present; `go test -race` green on
+  the seven key packages (engine 10.4 s, android 2.1 s, mobile 38.4 s,
+  tunstack 2.3 s, proxy 11.4 s, webui 1.1 s, config 1.0 s) — zero
+  data races through the new gate/generation machinery and the M5
+  lifecycle suite.
+- **The audit + permission review**: the AAR's real dependency closure
+  (go list -deps ./mobile) is the gVisor netstack subset, golang.org/
+  x/{net,sync,sys,time,exp}, x/mobile, google/btree — all permissive,
+  LICENSEs vendored; the About attribution line added. The built APK's
+  dumped manifest is EXACTLY doc 07 §6's inventory (four permissions +
+  the BIND_VPN_SERVICE service attribute + the two query packages;
+  ACCESS_NETWORK_STATE absent).
+- **Release prep**: doc 10 (the v1 release-notes draft — the honest
+  headline, does/does-not, the doc 02 §4 limitation obligations, the
+  ⛔ open-gates section, sideload install, attribution); doc 02 §7's
+  traceability rows updated for the M6/M7 evidence; doc 07 §9's
+  checklist closed for the five host-testable items.
+
+Build lane, re-verified end-to-end: `gomobile bind` → younblock.aar
+25,072,133 B (3 ABIs; javap shows failStart(String) bound); clean
+`assembleDebug` → app-debug.apk 35,298,149 B, SHA-256
+f27b7eef014f61eff35405f4406bfe9c33d4e34a918f9949eaad417d561c6491,
+badging minSdk 26/target 36, manifest verified above, apksigner OK
+(debug cert). One honest regression iteration: D82's honest cancel
+broke the idempotency test — root-caused (the test codified the
+zombie), fixed at the test, green twice after.
+
+The honest ⛔, unchanged (`ls /dev/kvm` → No such file or directory):
+battery/behavior measurement, reboot/revocation (AND-028), and every
+live-observation gate (consent dialog, notification channel,
+screen-off/Doze, real DoH, QUIC fallback, protect(), rotation/font-
+scale/TalkBack) ride with the shared device checklist — documented in
+doc 10's open-gates section, never claimed. Desktop regression green
+at the exit gate: vet clean; 17/17 packages twice; svelte-check 0/0;
+vite clean; matrix 4/4 ABIs.
+
+Next: M8 — package, verify, hand off (doc 05 §M8; the keystore
+question for Ali becomes blocking for the signed release APK).
