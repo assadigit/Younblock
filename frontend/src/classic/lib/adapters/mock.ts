@@ -312,6 +312,7 @@ function defaultSettings(): Settings {
     autoPort: true,
     startWithWindows: false,
     connectOnLaunch: false,
+    keepInTrayOnClose: false,
     openBrowserOnConnect: false,
     firstRunDone: true,
     closeNoticeShown: false,

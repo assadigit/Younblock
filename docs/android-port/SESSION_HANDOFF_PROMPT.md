@@ -1,4 +1,4 @@
-# Prompt — Continue the Younblock Android port (device-test feedback loop, after the debug.6 cross-platform UI unification)
+# Prompt — Continue the Younblock Android port (device-test feedback loop, after the M8-l desktop close ruling)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,13 +6,37 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-k / D92 round close)
+## Where the project stands (verified at the M8-l / D93 round close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-18): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
   the full binding set, the Kotlin VPN service (consent gate, honest
   routing report, the NO_TARGET_APPS refusal door, run generations),
   the mobile settings/UX, the audits, and the packaging.
+- **M8-l / D93 (no Android change, 2026-10-18): the desktop close
+  ruling, applied between device rounds.** Ali's instruction —
+  "By default, when exe file is closed and app is shut down, the app
+  must not remain on the taskbar; only keep being in taskbar if user
+  selected this option on the settings" — inverted the Windows close
+  contract that had shipped since the first build: closing the window
+  is now a REAL shutdown (the app leaves the taskbar; the shutdown
+  path restores the Windows proxy first — the path Linux has always
+  run), and tray-keeping is the explicit `keepInTrayOnClose` opt-in
+  (settings.json, default false, no migration owed). The opt-in
+  surfaces on BOTH screens behind capabilities.tray (the pro
+  MenuSheet's new SETTINGS section; the classic Settings row) — so
+  Android, the Linux web edition and previews never render it; the
+  first-run copy, the setting's hint and both Help decks state the
+  contract. Pinned by close_test.go against a real engine,
+  compile-checked GOOS=windows, and exercised end-to-end on a real
+  --web engine (a disclosed scratch build reporting tray:true,
+  reverted before commit) with the clean-build negative check.
+  **No Android release: debug.6 stays Latest; Ali rebuilds the
+  Windows exe from this tree (build.bat / build.sh) and walks
+  README's updated manual-check steps 4–5.** Still open beneath it:
+  the video-start delay (Ali's diagnostics copy from a slow-video
+  moment names the phase) and the cross-device UI verdict — exactly
+  what debug.6 asks him to check.
 - **The current test-circle build is `v1.6.6-android-debug.6`**
   (versionCode 5, built at 078e3a5, the pinned debug certificate —
   installs over debug.5 in place, settings survive) — **the
@@ -140,14 +164,15 @@ working clone carries the credential in its `origin` remote URL).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
    M8-c, M8-d, M8-e, … (this prompt describes the state after the
-   M8-k round; the next real task is M8-l — ingesting the debug.6
+   M8-l round; the next real task is M8-m — ingesting the debug.6
    device round: the cross-device UI verdict and the data-usage
-   check first, the still-open slow-video diagnostics report after).
+   check first, the still-open slow-video diagnostics report after,
+   plus Ali's D93 desktop check on his rebuilt exe).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.6 edition + §"Device test circle" — the checklist with the
-   rows Ali has already answered), doc 06 (the M8-c…M8-k records),
-   doc 08 + `DECISIONS.md` (D1–D92; **the next decision number is
-   D93**), and the tail of `PROGRESS.md`.
+   rows Ali has already answered), doc 06 (the M8-c…M8-l records),
+   doc 08 + `DECISIONS.md` (D1–D93; **the next decision number is
+   D94**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
@@ -174,8 +199,9 @@ working clone carries the credential in its `origin` remote URL).
 
 ## The task — the device-test feedback loop
 
-For each issue Ali reports from `v1.6.6-android-debug.3` (device
-side) or the fixed helper on `v1.6.6-android-debug.4` (PC side):
+For each issue Ali reports from `v1.6.6-android-debug.6` (device
+side) or his rebuilt desktop exe (the D93 close ruling — README's
+manual-check steps 4–5):
 
 - Root-cause first (the project's standing discipline: failures are
   root-caused and fixed, never retried away, never hidden). The
@@ -278,8 +304,8 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D93),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-l, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D94),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-m, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
   Note the two API wrinkles now on record: creating a release with
@@ -293,7 +319,7 @@ Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know (note the ~/sdk state; doc 06's M8-i
 record records the latest restore); (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
-from debug.3 has arrived (helper/PC-side reports do not count), and
+from debug.6 has arrived (helper/PC-side reports do not count), and
 if so the exact first issue you will address. Then execute — or, if
 no feedback has arrived, stop after the state report and say so
 plainly.

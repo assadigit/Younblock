@@ -12,6 +12,22 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (the desktop close ruling, M8-l / D93 — unreleased desktop builds)
+
+- **Closing the app's window now stops it completely, by default.**
+  The app shuts down, leaves the taskbar, and puts the Windows
+  proxy setting back first — exactly like choosing Quit. (Before,
+  closing the window always hid the app into the tray and it kept
+  running in the background.) Nothing remains anywhere unless you
+  ask for it.
+- **New setting — "Keep running in the tray when closed"**
+  (the menu's new Settings section, and Settings in the classic
+  edition): turn it on to get the old behavior back — closing the
+  window keeps Younblock running as an icon near the clock, with
+  the tray menu's Quit stopping it fully. The row appears only on
+  Windows, where a tray exists; the first-run welcome and the Help
+  copy now state the new default honestly.
+
 ### Added (the cross-platform UI unification, M8-k / D92 — in the debug.6 test build)
 
 - **Data usage, on every platform (round-3):** while connected the

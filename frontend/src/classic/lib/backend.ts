@@ -55,6 +55,9 @@ export interface Settings {
   autoPort: boolean;
   startWithWindows: boolean;
   connectOnLaunch: boolean;
+  /** D93: hiding in the tray on close is opt-in (default false = closing
+   *  the window is a real shutdown). */
+  keepInTrayOnClose: boolean;
   openBrowserOnConnect: boolean;
   firstRunDone: boolean;
   closeNoticeShown: boolean;

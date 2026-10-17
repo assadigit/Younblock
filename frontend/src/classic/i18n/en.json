@@ -56,7 +56,7 @@
   },
   "firstRun": {
     "title": "Welcome",
-    "text": "Younblock helps YouTube load in your browser. Turn it on when you need it. Closing this window keeps it running in the tray.",
+    "text": "Younblock helps YouTube load in your browser. Turn it on when you need it. Closing the window stops Younblock.",
     "textNoTray": "Younblock helps YouTube load in your browser. Turn it on when you need it. Keep the Younblock program running while you use it — closing this page does not stop it.",
     "autostart": "Open Younblock when Windows starts"
   },
@@ -67,6 +67,8 @@
     "title": "Settings",
     "startWithWindows": "Open Younblock when Windows starts",
     "connectOnLaunch": "Turn on automatically when the app opens",
+    "keepInTray": "Keep running in the tray when closed",
+    "keepInTrayHint": "Off by default: closing the window stops Younblock completely. On: closing it keeps the app running in the tray near the clock — right-click the tray icon and choose Quit to stop it.",
     "routeAll": "Apply to every website, not just YouTube",
     "routeAllHint": "Every site's connection gets the unblock treatment. Off means only YouTube sites do. Either way your other browsing simply passes through the app. Websites ending in .ir are always left untouched — they never go through the app.",
     "openBrowserOnConnect": "Open a separate Chrome when it turns on",
@@ -126,7 +128,7 @@
       "q1": "YouTube still doesn't load.",
       "a1": "Run the connection test. If a step fails, tap Fix connection. Then fully close your browser and open it again.",
       "q2": "Where did the window go?",
-      "a2": "Younblock keeps running in the tray, near the clock. Click its icon to open the window. Choose Quit to stop it completely.",
+      "a2": "Only if you turned on “Keep running in the tray when closed” in Settings: Younblock keeps running near the clock. Click its icon to open the window; choose Quit to stop it completely. Otherwise, closing the window stops Younblock.",
       "q3": "Does it work in other browsers or apps?",
       "a3": "It sets the Windows proxy, so every mainstream browser works — Edge, Chrome, Firefox, Opera, Brave and the rest. It is tested most with Chrome. Apps that ignore Windows' proxy setting won't use it.",
       "q4": "My internet stopped after the app closed.",

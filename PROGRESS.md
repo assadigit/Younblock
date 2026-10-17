@@ -2761,3 +2761,46 @@ target_commitish 422s until the commit is PUSHED — create releases
 only after the push). Next Task ID M8-l (ingest the debug.6 device
 round: the cross-device UI verdict + the data-usage check + the
 still-open slow-video diagnostics); next decision D93.
+
+M8-l (2026-10-18, decision D93): the desktop close ruling, between
+device rounds. Ali's instruction — "By default, when exe file is
+closed and app is shut down, the app must not remain on the taskbar;
+only keep being in taskbar if user selected this option on the
+settings" — inverted the Windows close contract that had shipped
+since the first build: closeHidesToTray answered a hard-coded true
+on Windows, so every close hid into the tray and the app lived on.
+Now the close button is a REAL shutdown by default (the shutdown
+path stops the browser session, quits the tray, disconnects through
+the bridge and runs eng.Shutdown — Stop restores the Windows proxy
+first, the path Linux has run for years), and tray-keeping is the
+explicit `keepInTrayOnClose` opt-in in settings.json (default
+false; settingsVersion stays 4 — a pre-D93 file never recorded the
+old behavior as a choice, so no migration is owed). closeHidesToTray
+takes the setting on Windows and always answers false without a
+tray; beforeClose composes them; --minimized and autostart are
+untouched (launch choices, not close semantics). The opt-in surfaces
+where a tray exists, on BOTH screens behind capabilities.tray (the
+pro sheet's new SETTINGS section — the settings load now runs for
+perAppRouting OR tray — and the classic Settings row beside
+connect-on-launch); the first-run tray variant now promises "Closing
+the window stops Younblock.", both Help decks reword the "window
+disappeared" entry around the opt-in, and the dormant one-time close
+notice stays unwired as it has always been (Go never emitted the
+event; the setting's hint + Help carry the disclosure). Verified:
+close_test.go pins the contract against a real engine (parse table,
+no-tray answer, quit on defaults, quit on opt-in-without-tray, quit
+always allowed mid-Quit) + the config round-trip test; gofmt
+normalized on exactly the touched files (the frozen 14 untouched);
+vet clean; go test 18/18 ×2, -race on the touched two; svelte-check
+0/0; vite build + webui dist CLEAN-synced; GOOS=windows compiles
+the whole shell; the UI exercised end-to-end on a REAL cmd/core
+--web engine through a DISCLOSED scratch build reporting tray:true
+(reverted before commit) — both screens' toggles persisted through
+/api/settings into the real settings.json and back (VLM-checked),
+and the clean rebuild hid both sections (the capability gate's
+negative check). README's close/uninstall/manual-check copy updated.
+No Android change: debug.6 stays Latest; Ali rebuilds the Windows
+exe and walks README manual-check steps 4–5. Next Task ID M8-m
+(ingest the debug.6 device round: the cross-device UI verdict, the
+data-usage check, the still-open slow-video diagnostics, the D93
+desktop check); next decision D94.

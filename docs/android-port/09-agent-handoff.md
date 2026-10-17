@@ -1,10 +1,11 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the M8-k round (2026-10-18, the device-test
-feedback loop's tenth exchange — Ali's cross-platform UI unification:
-the uploaded instruction rounds applied to the ONE shared screen, plus
-the round-3 data-usage feature tracked in the engine; debug.6 shipped)
-— **Phase 2 host-complete; the test circle is on its FIFTH build,
+**Status:** Updated at the M8-l round (2026-10-18, the device-test
+feedback loop's eleventh exchange — a DESKTOP-side ruling between
+device rounds: D93, the close button is a real shutdown by default
+and tray-keeping is the "Keep running in the tray when closed" opt-in;
+no Android code changed, debug.6 stays Latest) — **Phase 2
+host-complete; the test circle is on its FIFTH build,
 published as regular releases in the private repo, and the keystore
 helper survives PowerShell-less PATH machines (D90)**. This file is
 the live handoff; keep the fields in §"Current handoff fields" accurate
@@ -169,14 +170,17 @@ at every session boundary.
   ~/sdk wiped again, reinstall per doc 06 §1 (mind the URL
   wrinkle) — but VERIFY first; do not reinstall over a working
   toolchain.
-- **Current architecture decision / confidence:** D92 (one UI across
-  every device: the instruction rounds applied to the SHARED screen,
-  and the usage history tracked once, in the engine, so every
-  transport agrees by construction). Confidence: high — every claim
-  carries its evidence (the traceable spec lines, the multi-size
-  browser verification, the real-binary byte path, the byte-exact
-  release lane). Beneath it: D91, D90, D89, D88. Next decision ID:
-  D93.
+- **Current architecture decision / confidence:** D93 (the close
+  button is a real shutdown by default; "Keep running in the tray
+  when closed" is the explicit opt-in — one settings field honored
+  only where a tray exists, surfaced on both screens behind
+  capabilities.tray, no schema migration owed). Confidence: high —
+  pinned by close_test.go against a real engine, compile-checked for
+  GOOS=windows, exercised end-to-end on a real --web engine (the
+  disclosed scratch tray:true lane) with the clean-build negative
+  check. Beneath it: D92 (one UI across every device — the shared
+  screen + engine-tracked usage), D91, D90, D89, D88. Next decision
+  ID: D94.
 - **Blocking questions:** none product-side. The signed-release
   decision still returns only when a public release is planned —
   its ceremony is automated and documented (D88/D90) and its
@@ -185,9 +189,12 @@ at every session boundary.
   match his Windows/Linux builds? the Data usage numbers sane?),
   the still-open **diagnostics report from a slow-video moment**
   (the debug.5 timing lines name the phase), and the rest of the
-  test circle (rows 4–8, rotation/TalkBack).
+  test circle (rows 4–8, rotation/TalkBack). D93 added one desktop
+  input: Ali rebuilds the Windows exe and walks README's updated
+  manual-check steps 4–5 (close = full stop by default; the opt-in
+  keeps the tray).
 - **Exact next task:** continue the **device-test feedback loop**:
-  ingest Ali's results from v1.6.6-android-debug.6 (Task ID M8-l) —
+  ingest Ali's results from v1.6.6-android-debug.6 (Task ID M8-m) —
   first the UI-consistency verdict across his devices (phone vs
   the Windows/Linux builds he rebuilt from this tree), the
   data-usage round (connect, browse, watch "X used" climb,

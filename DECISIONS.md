@@ -1909,3 +1909,74 @@ rulings:
    upBytes 1,933, then a stop, a recorded 80-second session in
    usage.json, and todayBytes = allTimeBytes = 982,236 in the
    summary.
+
+**D93 — the close button is a real shutdown by default; keeping the
+app in the tray is an explicit opt-in (Ali's ruling, 2026-10-18).**
+"By default, when the exe is closed and the app is shut down, the app
+must not remain on the taskbar — only keep being in the taskbar if the
+user selected this option in the settings." Three rulings:
+
+1. **The default inverts: closing the window QUITS.** Since the first
+   Windows build, `closeHidesToTray()` answered a hard-coded `true` on
+   Windows — every close hid into the tray, and the app lived on in
+   the taskbar/notification area with the proxy engine still running.
+   That is now the OPT-IN. `closeHidesToTray(keepInTray)` answers
+   exactly the user's setting on Windows (tray_windows.go) and always
+   false everywhere else (tray_other.go — no tray exists there, so
+   even an opted-in user cannot hide into nothing); `beforeClose`
+   composes the two and allows the real close otherwise, and the
+   shutdown path it hands control to is the one Linux already ran for
+   years: stop the browser session, quit the tray, disconnect through
+   the bridge, `eng.Shutdown()` — Stop restores the Windows proxy
+   first, so a default close can never strand the user's internet.
+   The `--minimized` launch flag and the start-with-Windows autostart
+   are untouched: they are explicit launch choices, not the close
+   button's semantics.
+
+2. **One field, every edition, no migration owed.** The setting is
+   `keepInTrayOnClose` in settings.json (default false — the behavior
+   Ali demanded). Every file written before D93 lacks the field and
+   loads as exactly that default: the field never recorded a choice
+   (the old behavior was unconditional), so settingsVersion stays 4 —
+   the D86/D87 migrations existed because a file COULD carry a
+   user-made list; this change carries no user state to preserve.
+   The opt-in surfaces where its platform can honor it: the pro
+   screen's menu sheet gains a SETTINGS section (the sheet the
+   default edition ships everywhere — gated on the host's
+   capabilities.tray, so Android, the Linux web edition and previews
+   never render it), and the classic screen's Settings view gains
+   the row beside connect-on-launch (gated the same way, hasTray).
+   The copy teaches the contract before anyone flips anything: the
+   first-run tray variant now promises "Closing the window stops
+   Younblock.", the setting's own hint states what Off and On each
+   do, and both Help decks' "window disappeared" entries explain the
+   opt-in instead of assuming tray-keeping. The one-time close
+   notice (file 02 §199) stays unwired as it has always been: Go
+   never emitted "close-requested", the pro screen has no listener
+   for it, and the setting's hint + Help copy already carry the
+   disclosure — wiring a dormant event into two screens for an
+   opt-in-only path would risk a window that can never close-to-tray
+   on the default screen.
+
+3. **Desktop-only round: no Android release, the Windows exe is
+   rebuilt by Ali.** Nothing in the Android app changes — it has no
+   window close and no tray, the row is capability-gated off, and the
+   settings field round-trips untouched through the shared screen
+   (the same contract `apps` already has on desktops). debug.6
+   (versionCode 5) stays the repo's Latest release; Ali rebuilds the
+   desktop exes from this tree with build.bat / build.sh. Verified
+   here the honest way: the full baseline (vet clean, go test 18/18
+   packages twice, race on the touched two, svelte-check 0/0, vite
+   build + webui dist CLEAN-synced); `GOOS=windows go build` of the
+   whole shell compiles the Windows branch; the contract is pinned
+   by tests (close_test.go: the parse table, the no-tray platform
+   answer, a real engine's beforeClose quitting on defaults AND on
+   opt-in-without-tray, quitting always allowed mid-Quit; config:
+   default false, pre-D93 file loads false, opt-in round-trips); and
+   the UI was exercised end-to-end on a REAL `cmd/core --web` engine
+   using a disclosed scratch build whose Linux platform reported
+   tray:true (reverted before commit): both screens' toggles saved
+   `keepInTrayOnClose` through /api/settings into the real
+   settings.json and back, VLM-checked screenshots of both, and the
+   CLEAN rebuild showed the sections hidden (the negative check for
+   the capability gate).

@@ -209,3 +209,48 @@ func TestSaveAtomicNoTempLeftBehindOnFailure(t *testing.T) {
                 t.Errorf("temp file left behind: %v", err)
         }
 }
+
+func TestKeepInTrayOnCloseOptInOnly(t *testing.T) {
+        // D93: hiding in the tray on close is OPT-IN. The default is
+        // false — the close button is a real shutdown — and a file from
+        // before D93 (the field absent) must load as exactly that
+        // default, because its owner never chose tray-keeping.
+        if s := DefaultSettings(); s.KeepInTrayOnClose {
+                t.Fatal("keepInTrayOnClose must default to false (D93)")
+        }
+        dir := t.TempDir()
+        pre := `{"version":4,"mode":"youtube","method":"auto","port":4525,"autoPort":true,` +
+                `"startWithWindows":false,"connectOnLaunch":false,"openBrowserOnConnect":false,` +
+                `"firstRunDone":true,"closeNoticeShown":false,` +
+                `"apps":["com.google.android.youtube"],"advanced":{}}`
+        if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(pre), 0o600); err != nil {
+                t.Fatalf("write pre-D93 file: %v", err)
+        }
+        loaded, _, err := Load(dir)
+        if err != nil {
+                t.Fatalf("Load: %v", err)
+        }
+        if loaded.KeepInTrayOnClose {
+                t.Fatal("a pre-D93 file must load keepInTrayOnClose as false")
+        }
+        // Opting in survives the save/load round-trip.
+        loaded.KeepInTrayOnClose = true
+        if err := Save(dir, loaded); err != nil {
+                t.Fatalf("Save: %v", err)
+        }
+        again, _, err := Load(dir)
+        if err != nil {
+                t.Fatalf("Load after Save: %v", err)
+        }
+        if !again.KeepInTrayOnClose {
+                t.Fatal("keepInTrayOnClose=true did not survive the round-trip")
+        }
+        // And the persisted document carries the field under its API name.
+        data, err := os.ReadFile(filepath.Join(dir, "settings.json"))
+        if err != nil {
+                t.Fatalf("ReadFile: %v", err)
+        }
+        if !strings.Contains(string(data), `"keepInTrayOnClose": true`) {
+                t.Fatalf("settings.json lacks the keepInTrayOnClose field: %s", data)
+        }
+}

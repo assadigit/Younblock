@@ -78,7 +78,7 @@ func main() {
 		DisableResize:     false, // round-2 fix #5: resizable, floored at 320×560
 		WindowStartState:  options.Normal,
 		StartHidden:       *minimized,
-		HideWindowOnClose: false,                                            // OnBeforeClose hides to the tray instead
+		HideWindowOnClose: false,                                            // D93: OnBeforeClose decides — a real quit by default, tray-hide only if opted in
 		BackgroundColour:  &options.RGBA{R: 0x3c, G: 0x3b, B: 0x4b, A: 255}, // not-connected surface top: no white flash
 		AssetServer: &assetserver.Options{
 			Assets: assets,

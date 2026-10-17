@@ -395,10 +395,12 @@ Double-click `dist\younblock.exe` (or make a shortcut to it).
   YouTube should load in your browser — no other setup.
 - Press it again to turn it off. Windows' proxy setting goes back to exactly what it
   was before.
-- Closing the window does not stop the app: it keeps running as an icon near the
-  clock (the tray). Click that icon to bring the window back. Right-click it for
-  Turn on / Turn off and **Quit**. Only Quit stops it fully — Quit always restores
-  Windows' settings first.
+- Closing the window **stops the app**: it shuts down completely, leaves the
+  taskbar, and puts Windows' proxy setting back first (exactly like **Quit**).
+  If you would rather keep it running as an icon near the clock (the tray),
+  turn on **"Keep running in the tray when closed"** in Settings — then the
+  tray icon brings the window back on a click, its right-click menu has Turn
+  on / Turn off and **Quit**, and only Quit stops it fully.
 - If YouTube stops responding while it is on, the app notices, tries to repair
   itself, and tells you what it did. If it cannot fix itself, the button area turns
   amber and shows a **Fix connection** button.
@@ -563,8 +565,10 @@ diagnostic report will show which part to switch.
 
 ## How to uninstall
 
-1. Open Younblock, make sure it is turned **off**, and use **Quit** from the tray
-   menu (this puts Windows' proxy setting back).
+1. Open Younblock, make sure it is turned **off**, and quit it — closing the
+   window is enough now (or **Quit** from the tray menu if you turned on
+   "Keep running in the tray when closed"); either path puts Windows' proxy
+   setting back.
 2. Delete the folder with `younblock.exe` in it.
 3. Delete the settings folder: press Windows+R, type `%APPDATA%\Younblock`, press
    Enter, and delete that folder.
@@ -591,9 +595,15 @@ Do these once, on your own PC:
 3. Press the button again to turn it off, then check Windows' proxy setting is
    back: Settings > Network & internet > Proxy should look like it did before
    ("Use a proxy server" off, or whatever you had before).
-4. Turn it on, close the Younblock window, and confirm the tray icon stays near the
-   clock and YouTube still loads in your browser.
-5. Use **Quit** from the tray menu and confirm the proxy setting is restored again.
+4. Turn it on, close the Younblock window, and confirm the app **stopped
+   completely**: the tray icon is gone and Windows' proxy setting is back
+   (Settings > Network & internet > Proxy) — closing is a real shutdown by
+   default now.
+5. Turn on **"Keep running in the tray when closed"** in Settings, turn the app
+   on, close the window, and confirm the tray icon stays near the clock and
+   YouTube still loads. Then use **Quit** from the tray menu and confirm the
+   proxy setting is restored again. Turn the setting back off if you prefer
+   the close-and-stop behavior.
 6. Turn it on, then kill the app from Task Manager. Your internet must still work
    (the browser falls back to direct). Start the app again: it cleans the leftover
    setting by itself.

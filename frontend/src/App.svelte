@@ -52,6 +52,10 @@
   // the desktop sections.
   let platform = ''
   let perAppRouting = false
+  // D93: the tray capability gates the sheet's close setting (Windows
+  // desktop). False everywhere else — and in a preview, where the host
+  // is absent, the section simply never renders.
+  let tray = false
   let stopListening: () => void = () => {}
   let clock: number | undefined
   // An error raised by this window itself (for example Go refused the call). It survives the
@@ -72,6 +76,7 @@
         appVersion = info?.version ?? ''
         platform = info?.platform ?? ''
         perAppRouting = info?.capabilities?.perAppRouting ?? false
+        tray = info?.capabilities?.tray ?? false
       })
       .catch(() => {})
     stopListening = backend.subscribe((s) => (snap = s))
@@ -213,6 +218,7 @@
       version={appVersion}
       {platform}
       {perAppRouting}
+      {tray}
       {backend}
       on:close={() => (menuOpen = false)}
     />

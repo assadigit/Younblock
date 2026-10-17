@@ -14,6 +14,9 @@
     settings: Settings;
     startWithWindowsSupported: boolean;
     browserSessionSupported?: boolean;
+    /** D93: the keep-in-tray row renders only where a tray exists (the
+     *  Windows desktop) — every other host has nothing to keep running. */
+    traySupported?: boolean;
     onSave: (settings: Settings) => void;
     onBack: () => void;
     onToast: (text: string) => void;
@@ -22,6 +25,7 @@
     settings,
     startWithWindowsSupported,
     browserSessionSupported = true,
+    traySupported = false,
     onSave,
     onBack,
     onToast,
@@ -154,6 +158,27 @@
         <span class="track" aria-hidden="true"><span class="thumb"></span></span>
       </label>
     </div>
+
+    {#if traySupported}
+      <div class="row">
+        <div class="row-text">
+          <p class="row-title">{copy.settings.keepInTray}</p>
+          <p class="row-hint">{copy.settings.keepInTrayHint}</p>
+        </div>
+        <label class="switch">
+          <!-- D93: off is the shipped default — the close button is a real
+               shutdown; only an explicit opt-in keeps the app in the tray. -->
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label={copy.settings.keepInTray}
+            checked={local.keepInTrayOnClose}
+            onchange={(e) => save({ keepInTrayOnClose: e.currentTarget.checked })}
+          />
+          <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+        </label>
+      </div>
+    {/if}
 
     <div class="row">
       <div class="row-text">

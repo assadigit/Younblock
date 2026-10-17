@@ -198,7 +198,7 @@
   {#if view === "connect" && settings && !settings.firstRunDone}
     <FirstRun startWithWindowsSupported={startWithOS} hasTray={hasTray} onGetStarted={getStarted} />
   {:else if view === "settings" && settings}
-    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} browserSessionSupported={browserSession} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
+    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} browserSessionSupported={browserSession} traySupported={hasTray} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
   {:else if view === "help"}
     <Help {steps} {testing} hasTray={hasTray} onBack={() => (view = "connect")} onRunTest={runTest} onFixConnection={fixConnection} onCopyReport={copyReport} onOpenLogs={openLogs} onRestore={restoreSettings} />
   {:else if view === "about"}

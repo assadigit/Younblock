@@ -829,3 +829,66 @@ Next Task ID M8-l: ingest the debug.6 device round (the UI
 consistency check across Ali's devices + the still-expected
 diagnostics report for the video-start delay). Next decision
 D93.
+
+M8-l record (2026-10-18; the ELEVENTH feedback-loop exchange — a
+desktop-side ruling between device rounds, Task ID M8-l, decision
+D93; no Android code changed). Ali's instruction: "By default, when
+exe file is closed and app is shut down, the app must not remain on
+the taskbar — only keep being in taskbar if user selected this
+option on the settings."
+
+- Go: internal/config gains `keepInTrayOnClose` (default false,
+  settingsVersion stays 4 — a pre-D93 file never recorded the old
+  unconditional tray-keeping as a choice, so no migration is owed);
+  tray_windows.go's closeHidesToTray now takes the setting (the
+  Windows answer), tray_other.go always answers false (no tray,
+  even opted-in); app.go's beforeClose composes them — allow the
+  real close by default, hide only on the opt-in; the shutdown
+  path it hands control to (browser session → tray → bridge
+  disconnect → eng.Shutdown, Stop restoring the proxy first) is
+  the one the Linux edition already ran for years. --minimized
+  and the autostart launch flag are untouched (launch choices,
+  not close semantics).
+- Frontend, both screens behind capabilities.tray (Android, the
+  Linux web edition and previews never render it): the pro
+  MenuSheet gains a SETTINGS section with the toggle + teaching
+  hint (the sheet's settings load now runs for perAppRouting OR
+  tray); the classic Settings view gains the row beside
+  connect-on-launch; the classic first-run tray variant now
+  promises "Closing the window stops Younblock."; both Help decks
+  reword the "window disappeared" entry around the opt-in. The
+  one-time close notice stays unwired exactly as it always was
+  (Go never emitted the event; the hint + Help carry the
+  disclosure — D93 ruling 2).
+- Tests: close_test.go (root package, real engine on the stub
+  platform) — the keepInTrayOnClose parse table, the no-tray
+  platform answer, beforeClose quitting on defaults AND on
+  opt-in-without-tray, quitting always allowed mid-Quit; config —
+  default false, a pre-D93 file loads false, the opt-in
+  round-trips through Save/Load and lands in settings.json under
+  its API name.
+- Verification: gofmt drift on touched files normalized (the
+  14-file frozen set untouched); go vet clean; go test 18/18 ×2,
+  -race on the root package and internal/config; svelte-check
+  0/0; vite build + webui dist CLEAN-synced; `GOOS=windows go
+  build` compiles the whole Windows shell (the tray_windows
+  branch); and the UI exercised end-to-end on a REAL `cmd/core
+  --web` engine through a DISCLOSED scratch build whose Linux
+  platform reported tray:true (one line, reverted before commit):
+  both screens' toggles saved keepInTrayOnClose through
+  /api/settings into the real settings.json and back
+  (VLM-checked screenshots of both), and the CLEAN rebuild showed
+  both sections hidden — the negative check for the capability
+  gate. README's close/uninstall/manual-check copy updated to the
+  new contract.
+- No Android release: nothing changes on the phone (no window
+  close, no tray, the row is gated off, the field round-trips
+  untouched — the `apps` contract on desktops). debug.6
+  (versionCode 5) stays the repo's Latest; Ali rebuilds the
+  Windows exe from this tree (build.bat / build.sh) and walks
+  README manual-check steps 4–5.
+
+Next Task ID M8-m: ingest the debug.6 device round (the UI
+consistency check across Ali's devices + the still-expected
+diagnostics report for the video-start delay + the D93 desktop
+check). Next decision D94.

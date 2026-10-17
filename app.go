@@ -94,16 +94,34 @@ func (a *App) shutdown(ctx context.Context) {
 	a.eng.Shutdown()
 }
 
-// beforeClose hides to the tray instead of quitting (Windows, where the
-// tray icon lives). On platforms without our tray (the native Linux
-// edition), closing the window is the quit — the shutdown path below
-// still stops the engine and restores the proxy.
+// keepInTrayOnClose reads the D93 close setting from a settings JSON
+// document: closing the window hides into the tray only when the user
+// turned that on. Anything unreadable answers false — an unknown settings
+// state falls back to the honest default (a real quit), never a taskbar
+// icon the user cannot explain.
+func keepInTrayOnClose(settingsJSON string) bool {
+	var s struct {
+		KeepInTrayOnClose bool `json:"keepInTrayOnClose"`
+	}
+	if err := jsonUnmarshalStrict(settingsJSON, &s); err != nil {
+		return false
+	}
+	return s.KeepInTrayOnClose
+}
+
+// beforeClose: the close button is a REAL SHUTDOWN by default (D93) —
+// the window closes, the app leaves the taskbar, and the shutdown path
+// above stops the engine and restores the proxy first. Only when the
+// user turned "Keep running in the tray when closed" on (and this
+// platform has a tray to hide into — Windows) does the close hide the
+// window instead; the setting's own hint and the Help copy say where the
+// app went, so nothing changes silently.
 func (a *App) beforeClose(ctx context.Context) bool {
-	if a.quitting || !closeHidesToTray() {
+	if a.quitting || !closeHidesToTray(keepInTrayOnClose(a.eng.GetSettingsJSON())) {
 		return false // real quit (or no tray to hide into): allow the close
 	}
 	a.hideWindow()
-	return true // prevent: hide to tray instead
+	return true // prevent: hide to the tray instead
 }
 
 // showWindow brings the window up (tray click, second instance).

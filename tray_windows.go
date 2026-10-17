@@ -60,9 +60,11 @@ func (a *App) stopTray() {
 	systray.Quit()
 }
 
-// closeHidesToTray: the tray icon exists here, so closing the window
-// hides into it instead of quitting.
-func closeHidesToTray() bool { return true }
+// closeHidesToTray: the tray icon exists here, so closing the window CAN
+// hide into it — but only when the user opted in (D93). The shipped
+// default is a real shutdown: the close button must never leave the app
+// running on the taskbar unless its owner asked for it in Settings.
+func closeHidesToTray(keepInTray bool) bool { return keepInTray }
 
 func onTrayReady() {
 	t := theTray

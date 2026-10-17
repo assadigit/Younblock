@@ -1,22 +1,32 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the D92 session (2026-10-18, the device-test
-feedback loop's ninth code round — Ali's cross-platform UI
-unification: the uploaded instruction rounds applied to the ONE
-shared screen, plus the round-3 data-usage feature; `v1.6.6-
-android-debug.6` shipped as the CURRENT build). This document now
-holds two things: §1 the **shipped** debug test-circle releases
-(`v1.6.6-android-debug.6` is the CURRENT build — a regular release
-in the private repo per D89, the same text lives on the GitHub
-release itself; beneath it: debug.5 the first-device-feedback build,
-debug.4 the helper-fix maintenance release, debug.3 the device-
-circle build whose APK ran on Ali's phone, and debug.2/debug.1
-superseded and kept as history), and §2 the **public v1 DRAFT**,
-unpublished until the ⛔ device gates close or Ali explicitly accepts
-shipping with them recorded as known limitations. Every claim traces
-to implementation evidence (docs 01–09, DECISIONS.md D1–D92).
+**Status:** updated at the D93 session (2026-10-18, the device-test
+feedback loop's tenth code round — a DESKTOP-side ruling between
+device rounds: the close button is a real shutdown by default and
+tray-keeping is the "Keep running in the tray when closed" opt-in
+(D93); NO Android change, so `v1.6.6-android-debug.6` remains the
+CURRENT build — Ali's next rebuilt desktop exes carry the ruling,
+and a future debug.7 will embed it whenever an app change next
+warrants a release). This document now holds two things: §1 the
+**shipped** debug test-circle releases (`v1.6.6-android-debug.6` is
+the CURRENT build — a regular release in the private repo per D89,
+the same text lives on the GitHub release itself; beneath it:
+debug.5 the first-device-feedback build, debug.4 the helper-fix
+maintenance release, debug.3 the device-circle build whose APK ran
+on Ali's phone, and debug.2/debug.1 superseded and kept as history),
+and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
+close or Ali explicitly accepts shipping with them recorded as known
+limitations. Every claim traces to implementation evidence (docs
+01–09, DECISIONS.md D1–D93).
 
 ## 1a. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, the CURRENT build)
+
+> Note added at D93 (2026-10-18): the shared tree has since gained the
+> desktop close ruling (closing the window is a real shutdown by
+> default; tray-keeping is the opt-in setting) — nothing an Android
+> build renders differently (no window close, no tray, the row is
+> capability-gated off), so debug.6 stays the current APK; the ruling
+> rides the next debug build whenever an app change next warrants one.
 
 **What this build is:** versionCode 5, built at 078e3a5, APK
 34,951,881 B (SHA-256 bc4b239e…d1fe8), the pinned debug certificate

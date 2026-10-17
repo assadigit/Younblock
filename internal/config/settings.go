@@ -54,6 +54,15 @@ type Settings struct {
 	AutoPort         bool   `json:"autoPort"`
 	StartWithWindows bool   `json:"startWithWindows"`
 	ConnectOnLaunch  bool   `json:"connectOnLaunch"`
+	// KeepInTrayOnClose (D93): closing the window hides into the
+	// system tray instead of quitting — OPT-IN since D93. The shipped
+	// default is false: the close button is a real shutdown, so the
+	// app leaves the taskbar unless its owner turned this on in
+	// Settings. Every file written before D93 lacks the field, which
+	// loads as exactly that default — the behavior the user demanded,
+	// not a choice the file ever recorded, so no schema-version
+	// migration is owed (settingsVersion stays 4).
+	KeepInTrayOnClose bool `json:"keepInTrayOnClose"`
 	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
 	// profile, proxy flags) when the engine turns on. Default off.
 	OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`

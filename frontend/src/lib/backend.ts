@@ -56,6 +56,9 @@ export interface Settings {
   openBrowserOnConnect: boolean;
   firstRunDone: boolean;
   closeNoticeShown: boolean;
+  /** D93: hiding in the tray on close is opt-in (default false = a real
+   *  shutdown). Read by the sheet's close-setting row on tray hosts. */
+  keepInTrayOnClose?: boolean;
   /** The Android per-app allow-list (schema v2, M6). */
   apps?: string[];
   advanced?: {

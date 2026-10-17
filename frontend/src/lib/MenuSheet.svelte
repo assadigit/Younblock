@@ -27,6 +27,10 @@
   export let platform = "";
   /** True only when the host reports the per-app routing capability. */
   export let perAppRouting = false;
+  /** True only when the host reports the tray capability (the Windows
+   *  desktop) — D93 gates the close setting's row on it: a platform with
+   *  no tray has nothing to keep running, so the row never shows there. */
+  export let tray = false;
   /** The backend for settings/report reads and saves (null in preview). */
   export let backend: Backend | null = null;
 
@@ -85,7 +89,7 @@
 
   const HELP = [
     "YouTube still doesn't load — turn Younblock off and on again, then fully close your browser and reopen it.",
-    "The window disappeared — Younblock keeps running in the tray, near the clock. Click its icon to reopen it; choose Quit to stop it completely.",
+    "The window disappeared — you turned on “Keep running in the tray when closed”, so Younblock is still running near the clock. Click its icon to reopen it; choose Quit to stop it completely.",
     "My internet stopped after the app closed — the setting restores itself the next time the app starts.",
   ];
 
@@ -108,6 +112,13 @@
     "Websites ending in .ir are never routed or unblocked — they connect directly. Their name lookups still use your secure-DNS services: on Android the app has no other resolver.",
     "Logs stay on this device and you can clear them from Android's app settings.",
   ];
+  // The D93 close setting (tray platforms only): off is the shipped
+  // default — the close button is a real shutdown — so the copy says
+  // exactly what each position does before the user flips anything.
+  const KEEP_IN_TRAY_TITLE = "Keep running in the tray when closed";
+  const KEEP_IN_TRAY_HINT =
+    "Off by default: closing the window stops Younblock completely. On: closing it keeps the app running in the tray near the clock — right-click the tray icon and choose Quit to stop it.";
+
   // =====================================================================
 
   // ---- the apps list (Android only) ------------------------------------
@@ -164,10 +175,11 @@
   $: quickAdds = Object.keys(APP_LABELS).filter((p) => !apps.includes(p));
 
   // Load the settings once the sheet is first opened on a host that
-  // actually has them (per-app routing capability). Re-reading on every
-  // open keeps the list fresh if the classic screen saved meanwhile.
+  // actually has them (per-app routing or the tray capability — the two
+  // surfaces that read settings.json). Re-reading on every open keeps
+  // the state fresh if the classic screen saved meanwhile.
   let loadedForOpen = false;
-  $: if (open && perAppRouting && backend && !loadedForOpen) {
+  $: if (open && (perAppRouting || tray) && backend && !loadedForOpen) {
     loadedForOpen = true;
     void refreshSettings();
   }
@@ -225,6 +237,28 @@
   async function quickAdd(pkg: string): Promise<void> {
     if (appsBusy || apps.includes(pkg)) return;
     await saveApps([...apps, pkg], pkg);
+  }
+
+  // ---- the close setting (D93, tray platforms only) --------------------
+
+  let trayBusy = false;
+  let trayError = "";
+
+  /** Full-document save, the apps row's path: every other field
+   *  round-trips untouched. On failure the checkbox snaps back to the
+   *  last saved state — the row never shows a state the engine did not
+   *  accept. */
+  async function saveKeepInTray(next: boolean): Promise<void> {
+    if (!backend || !settings || trayBusy) return;
+    trayBusy = true;
+    trayError = "";
+    try {
+      settings = await backend.saveSettings({ ...settings, keepInTrayOnClose: next });
+    } catch (e) {
+      trayError = e instanceof Error ? `Could not save: ${e.message}` : "Could not save. Try again.";
+    } finally {
+      trayBusy = false;
+    }
   }
 
   // ---- diagnostics (Android only) --------------------------------------
@@ -504,6 +538,37 @@
         {/if}
       {/if}
     </section>
+
+    <!-- D93: the close setting, on hosts that have a tray (the Windows
+         desktop). Every other platform has nothing to keep running, so
+         the section never renders there — one sheet, honest per host. -->
+    {#if tray}
+      <section aria-labelledby="settings-heading">
+        <h2 id="settings-heading">Settings</h2>
+        {#if settings === null}
+          <p class="dim">Loading…</p>
+        {:else}
+          <div class="setting-row">
+            <div class="setting-text">
+              <span class="setting-title">{KEEP_IN_TRAY_TITLE}</span>
+              <span class="setting-hint">{KEEP_IN_TRAY_HINT}</span>
+            </div>
+            <label class="toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label={KEEP_IN_TRAY_TITLE}
+                checked={settings.keepInTrayOnClose ?? false}
+                disabled={trayBusy}
+                on:change={(e) => saveKeepInTray(e.currentTarget.checked)}
+              />
+              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          {#if trayError}<p class="inline-error" role="alert">{trayError}</p>{/if}
+        {/if}
+      </section>
+    {/if}
 
     <section>
       <h2>About</h2>
@@ -870,6 +935,85 @@
   .inline-error {
     margin-top: 0.5rem;
     color: var(--red-400);
+  }
+
+  /* ---- the D93 close setting ---- */
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+  }
+  .setting-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .setting-title {
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    color: var(--text-secondary);
+  }
+  .setting-hint {
+    font-size: 0.75rem;
+    font-weight: var(--fw-medium);
+    line-height: 1.45;
+    color: var(--text-tertiary);
+  }
+
+  /* The switch: the sheet's own drawing (the classic screen's toggle,
+    weight-matched to the 44px controls around it). The hidden input
+    covers the whole track, so the touch target is the switch itself. */
+  .toggle {
+    position: relative;
+    display: inline-grid;
+    flex: none;
+  }
+  .toggle input {
+    position: absolute;
+    inset: 0;
+    width: 2.75rem;
+    height: 1.625rem;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  .toggle-track {
+    width: 2.75rem;
+    height: 1.625rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    display: grid;
+    align-items: center;
+    padding: 0.1875rem;
+    transition: background 200ms ease;
+  }
+  .toggle:hover .toggle-track {
+    background: rgba(255, 255, 255, 0.28);
+  }
+  .toggle-thumb {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: #f4f1ee;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: transform 200ms var(--ease-out);
+  }
+  .toggle input:checked + .toggle-track {
+    background: var(--red-500);
+  }
+  .toggle input:checked + .toggle-track .toggle-thumb {
+    transform: translateX(1.125rem);
+  }
+  .toggle input:focus-visible + .toggle-track {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .toggle input:disabled + .toggle-track {
+    opacity: 0.45;
   }
 
   /* ---- the round-3 Data usage section ---- */
