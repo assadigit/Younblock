@@ -1,22 +1,73 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the D91 session (2026-10-17, the device-test
-feedback loop's eighth round — the FIRST device feedback arrived and
-was answered: `v1.6.6-android-debug.5` shipped with the numbers-
-spacing fix and the video-start instrumentation, §1's debug.5 note
-records it; the D90 helper fix before it stands in §1 too). This
-document now holds two things: §1 the **shipped** debug test-circle
-releases (`v1.6.6-android-debug.5` is the CURRENT build — a regular
-release in the private repo per D89, the same text lives on the
-GitHub release itself; beneath it: debug.4 the helper-fix maintenance
-release, debug.3 the device-circle build whose APK ran on Ali's
-phone, and debug.2/debug.1 superseded and kept as history), and §2
-the **public v1 DRAFT**, unpublished until the ⛔ device gates close
-or Ali explicitly accepts shipping with them recorded as known
-limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D91).
+**Status:** updated at the D92 session (2026-10-18, the device-test
+feedback loop's ninth code round — Ali's cross-platform UI
+unification: the uploaded instruction rounds applied to the ONE
+shared screen, plus the round-3 data-usage feature; `v1.6.6-
+android-debug.6` shipped as the CURRENT build). This document now
+holds two things: §1 the **shipped** debug test-circle releases
+(`v1.6.6-android-debug.6` is the CURRENT build — a regular release
+in the private repo per D89, the same text lives on the GitHub
+release itself; beneath it: debug.5 the first-device-feedback build,
+debug.4 the helper-fix maintenance release, debug.3 the device-
+circle build whose APK ran on Ali's phone, and debug.2/debug.1
+superseded and kept as history), and §2 the **public v1 DRAFT**,
+unpublished until the ⛔ device gates close or Ali explicitly accepts
+shipping with them recorded as known limitations. Every claim traces
+to implementation evidence (docs 01–09, DECISIONS.md D1–D92).
 
-## 1a. v1.6.6-android-debug.5 — the first device feedback answered (SHIPPED — a regular release, the CURRENT build)
+## 1a. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 5, built at 078e3a5, APK
+34,951,881 B (SHA-256 bc4b239e…d1fe8), the pinned debug certificate
+— **installs directly over debug.5** in place; settings survive
+(but not usage history — it starts fresh with this build's new
+file). It carries ONE theme: **Ali's uploaded instruction rounds
+(mobile.zip) applied to the one shared screen, so the phone, the
+Windows desktops, the Linux editions and the web edition render the
+same UI by construction** (D92):
+
+1. **The round-2 audit fixes, everywhere:** real Lucide icons
+   through one file (the power mark, the “…” menu button now at
+   the top-right at 44 px, the pill's chevrons, the usage arrows,
+   the sheet's X); the menu sheet has a proper header — title
+   left, neutral 44 px close right — with the body scrolling
+   underneath; the countdown digits sit in 0.80 em boxes so they
+   can never touch; the connected ring family stops clear above
+   the hint, which is bigger and brighter; the ping line gets a
+   word (Good / OK / Slow); the About section carries “Created by
+   ChitaCodes”; the honest Other-websites section exists; and the
+   desktop window became 360×640, resizable, floored at 320×560.
+2. **The round-3 data-usage feature, new on every platform:**
+   while connected the screen shows **“X used”** with the ↓/↑
+   split under the timer, counting up live; after a disconnect,
+   **“Last session: size · length”** sits under Not Connected; the
+   menu's new **Data usage** section shows Today / This month /
+   All time, the last sessions, and a confirmed Clear history
+   (Delete vs Keep — only Delete clears). The history is one
+   local file — times and byte totals only, no website names,
+   never sent anywhere — capped at 500 sessions, autosaved every
+   15 s, and recovered after a crash or power loss. The live
+   Mb/s row is off by default now (the total is what matters).
+
+**Verified before shipping** (the reference code folder was not in
+the upload, so the acceptance items ran the honest way): the full
+test baseline green — 18 packages, twice, race detector on the
+touched ones; the screen rendered and exercised at 320×560,
+356×625 and 360×760 across every state with no overlap and no
+scrollbars; the byte path proven on a real engine (a 949 KB
+YouTube page through the tunnel = a recorded 980,303-byte session
+in the history file after the stop).
+
+**→ What to check on your devices, Ali:** install debug.6 on the
+phone AND rebuild the desktops from this tree (build.bat / build.sh)
+— the UIs should now match yours exactly; watch the data counter
+climb while browsing, look at the Last-session line and the menu's
+Data usage after a disconnect, and try Clear history (both
+buttons). The video-start diagnostics ask from debug.5 still
+stands when a video is slow.
+
+## 1a. v1.6.6-android-debug.5 — the first device feedback answered (SHIPPED — a regular release, superseded by debug.6)
 
 **What this build is:** versionCode 4, built at ad02980, APK
 34,831,081 B (SHA-256 5df2acc3…02b4), the pinned debug certificate —
@@ -216,6 +267,17 @@ report (Menu → Diagnostics → copy) and your device model + Android
 version. **If anything "doesn't work", the diagnostics report is the
 single most valuable thing to send** — it carries the engine's own
 view of what happened, redacted for privacy:
+
+**The debug.6 round (D92) adds two checks of its own, above the
+rows below: (a) the cross-device UI match — install debug.6 on the
+phone AND rebuild the Windows/Linux desktops from the same tree;
+the screens should now be identical to Ali's instruction-following
+builds (menu top-right "…", the sheet's header close, Lucide
+icons, the usage lines); and (b) the data-usage feature — watch
+"X used" climb while browsing, the Last-session line after a
+disconnect, the menu's Today / This month / All time, and Clear
+history with both buttons (Keep must keep, Delete must empty and
+remove the Last-session line).**
 
 1. **Install + first launch** — the sideload path works (the D85
    troubleshooting guide covers blocked installs); the app opens on

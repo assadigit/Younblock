@@ -12,6 +12,49 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (the cross-platform UI unification, M8-k / D92 — in the debug.6 test build)
+
+- **Data usage, on every platform (round-3):** while connected the
+  screen shows the session's data — "2.10 GB used" with the ↓/↑
+  split under the timer, counting up live; after a disconnect,
+  "Last session: size · length" sits under Not Connected; and the
+  menu's new **Data usage** section shows Today / This month /
+  All time, the last sessions, and a confirmed Clear history
+  (Delete vs Keep — only Delete clears). The history is one local
+  file (`usage.json` beside the settings — times and byte totals
+  only, never a website name, never sent anywhere), capped at 500
+  sessions, autosaved every 15 s and recovered after a crash or
+  power loss. Counted once, in the engine, from the relay counters
+  the tunnels have always fed — so the desktop, the Android app
+  and the web edition cannot disagree.
+- **The "Other websites" honesty section** in the menu: some other
+  blocked websites open too, but that is still being tested — no
+  site is named as working until it passes the two-day test plan.
+- **A ping verdict:** "Ping 35 ms · Good" (Good ≤ 120 ms,
+  OK ≤ 400 ms, Slow above) — a bare number means nothing to people.
+- **"Created by ChitaCodes"** rides the About version line.
+
+### Changed (the round-2 audit fixes — one UI across devices, D92)
+
+- **Real Lucide icons everywhere** (the power mark, the "…" menu
+  button, the pill's chevrons, the usage arrows, the sheet's close)
+  through one file, `src/lib/icons.ts`; the drawn four-dot glyph is
+  gone.
+- **The menu button sits top-right at 44 px**; the menu sheet has a
+  proper header — title left, neutral 44 px X right — with the body
+  scrolling underneath, replacing the red circle that floated half
+  outside the sheet.
+- **The countdown digits sit in 0.80 em boxes** — wider than the
+  font's widest digit, so they can never touch.
+- **The connected ring family stops clear above the hint**, which
+  itself grew to 12 px at 82 % white — the dots no longer run
+  through the text.
+- **The live Mb/s row is off by default** (the session total is
+  what matters; `SHOW_SPEEDS` in App.svelte brings it back), and
+  speeds the engine cannot measure are hidden (-1), never faked
+  as "0 Kb/s".
+- **The desktop window is 360×640, resizable, floored at 320×560.**
+
 ### Added (Android port, M6 — not yet a released build)
 
 - **The per-app allow-list is a setting (schema v2, D79)**:

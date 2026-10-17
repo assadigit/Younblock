@@ -746,3 +746,86 @@ spacings." The round's work:
   M6 gate's first live data. Next Task ID M8-k: ingest the debug.5
   device round (the diagnostics report with the timing lines is the
   expected input). Next decision D92.
+
+M8-k record (2026-10-18; the TENTH feedback-loop exchange — Ali's
+cross-platform UI unification round, Task ID M8-k, decision D92).
+Ali uploaded mobile.zip to the repo root carrying the UI instruction
+documents his Windows/Linux builds already follow (roast-report.md
++ fix-instructions.md = round-2; feature-spec.md +
+agent-instructions.md + usage-screens.png = round-3;
+site-test-plan.md) and reported the mobile UI is not consistent
+with the desktops. Applied to the ONE shared screen (D92's ruling:
+the pro screen every edition embeds — Wails desktops through
+frontend/dist, the Linux web edition and the Android WebView
+through internal/webui — is the compliance point, so all devices
+are consistent by construction):
+
+- Round-2 fixes: lucide-svelte@1.0.1 installed and every icon now
+  comes through src/lib/icons.ts (Power, Ellipsis, ChevronsUp/
+  Down, ArrowDown/Up, X — only the logo and the faint play mark
+  stay drawn); the menu button is Lucide "…" top-RIGHT at 44 px
+  (--menu-btn 2.75 rem); the sheet has a fixed in-header close
+  (title left, neutral 44 px X right) with the body scrolling
+  underneath; timer digit boxes 0.80 em (widest digit 0.76 em);
+  the connected ring family capped (arcs 4.0–6.0 rem around the
+  resting thumb) so no dot reaches the hint, which moved to
+  37.25 rem and grew to 12 px / 82 % white; ping carries a verdict
+  (Good ≤ 120 ms, OK ≤ 400 ms, Slow); unmeasured speeds stay
+  hidden (-1, never a fake 0); "Created by ChitaCodes" rides the
+  About version line; the honest Other-websites section exists
+  (VERIFIED_SITES empty until a site passes the two-day plan);
+  the Wails window is 360×640, resizable, floored at 320×560.
+- Round-3 data usage, tracked ONCE in the engine (both UI
+  transports sit on it): internal/usage (the store:
+  <ConfigDir>/usage.json, records of times + byte totals only,
+  500 cap, 15 s autosave, crash recovery at Open); the engine
+  tracks the session (goOn starts it at the relay-counter
+  baseline — on↔degraded flaps keep the original start; anything
+  leaving on/degraded ends it; a cancelled or failed connect
+  never creates one); State gains downBytes/upBytes/lastSession
+  (explicit null after a clear); GetUsage/ClearUsageJSON on the
+  engine, mirrored by app.go's bindings and the webui's
+  /api/usage + /api/usage/clear; the Wails bridge folds the
+  engine's Usage() into every snapshot (UsageSource; -1/-1 for an
+  engine that cannot count) and RefreshUsage covers the
+  clear-while-disconnected case; the screen shows "X used" + the
+  ↓/↑ split under the timer (SHOW_SPEEDS=false by default) and
+  "Last session: size · length" under Not Connected; the menu
+  gains the Data usage section (Today/This month/All time cards,
+  the last 10 sessions, the provider disclaimer, a confirmed
+  Clear with Delete-vs-Keep).
+- The reference code folder (younblock-ui/round-3/) was NOT in
+  the upload — implementation follows the documents; every rule
+  is traceable to a spec line (D92 ruling 3).
+- Host verification in place of the missing Python harness:
+  svelte-check 0/0, vite build clean; agent-browser over vite
+  preview at 320×560, 356×625 and 360×760 across Not Connected
+  (with Last session), Connected (usage ticking + Ping verdict),
+  the menu (cards, rows, the confirm flow — Keep keeps, Delete
+  empties and drops the Last-session line) and Error — no
+  overlap, no scrollbars at any size; and the byte path proven
+  on the REAL binary (the webui edition): a 949,386-byte
+  YouTube page pulled through the engine's own tunnel recorded
+  as session downBytes 980,303 / upBytes 1,933; after the stop,
+  the 80-second record sat in usage.json and the summary read
+  todayBytes = allTimeBytes = 982,236.
+- Full baseline: go vet clean; go test 18/18 packages ×2 (the
+  new internal/usage among them; -race on the touched packages);
+  webui dist CLEAN-synced (identical to frontend/dist).
+- Build lane: gomobile bind → younblock.aar 25,003,698 B;
+  assembleDebug → app-debug.apk 34,951,881 B (SHA-256
+  bc4b239e…d1fe8), versionCode 5, badging minSdk 26/target 36,
+  3 ABIs, apksigner cert c76bb7c6…8551d (the pinned D85 debug
+  certificate — installs over debug.5 in place).
+- Release lane: v1.6.6-android-debug.6 created regular at the
+  code commit 078e3a5 (release id 416096215, asset id
+  651728792), Latest-marked, the APK re-downloaded through the
+  API asset endpoint and hashed byte-exact. Second API wrinkle
+  for the record: the full-SHA target_commitish 422s exactly
+  like the short one UNTIL the commit is pushed — create
+  releases only after the push.
+
+Next Task ID M8-l: ingest the debug.6 device round (the UI
+consistency check across Ali's devices + the still-expected
+diagnostics report for the video-start delay). Next decision
+D93.

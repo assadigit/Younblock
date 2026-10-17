@@ -30,9 +30,11 @@ direct, untouched, exactly as if the app were not running.
 For now this is a **debug-signed test build, not a release** ("we're not
 releasing yet"): download `app-debug.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.5` release (a regular release in this private
+`v1.6.6-android-debug.6` release (a regular release in this private
 repo, D89, and the repo's Latest; it installs over any earlier debug
-build in place, and its notes explain the current test circle).
+build in place, and its notes explain the current test circle — this
+build is the cross-platform UI unification: the same screen design,
+icons and Data-usage feature on Windows, Linux and Android).
 Sign in with your
 GitHub account, then sideload it:
 

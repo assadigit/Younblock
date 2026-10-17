@@ -1,4 +1,4 @@
-# Prompt — Continue the Younblock Android port (device-test feedback loop, after debug.3 + the debug.4 helper fix)
+# Prompt — Continue the Younblock Android port (device-test feedback loop, after the debug.6 cross-platform UI unification)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,41 +6,44 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-j / D91 round close)
+## Where the project stands (verified at the M8-k / D92 round close)
 
-- **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
+- **Phase 2 is host-complete. M0–M8 are all done** (2026-10-18): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
   the full binding set, the Kotlin VPN service (consent gate, honest
   routing report, the NO_TARGET_APPS refusal door, run generations),
   the mobile settings/UX, the audits, and the packaging.
-- **The current test-circle build is `v1.6.6-android-debug.5`**
-  (versionCode 4, built at ad02980, the pinned debug certificate —
-  installs over debug.3 in place, settings survive) — **the first
-  device feedback answered (D91)**: Ali reported the app WORKS on
-  Android (install, first launch, routing out of the box, the feed
-  fast through the tunnel — circle rows 1 and 2 PASS), and the build
-  carries the two answers: the **numbers-spacing fix** (the pro
-  screen's stage was fixed at 22.5 rem and outgrew the viewport at
-  narrow widths/font scale — measured 495 px in a 320 px viewport at
-  1.4×; now capped to the viewport, wider speeds spacing, timer
-  tabular-nums) and the **per-flow tunnel timing instrumentation**
-  (every tunnel logs dns/dial/first-byte/dur/bytes into the log ring
-  the redacted diagnostics report carries; hostnames only behind the
-  log-domains privacy setting). The video-start delay itself (feed
-  fast, video 30 s–1 min+ to show) is OPEN — every host-level
-  suspect was eliminated with evidence (the ICMP fast-fail contract
-  for non-DNS UDP is now pinned by TestUDP443FastFailICMP; the TCP
-  window is 1 MiB; fragment pauses 1–10 ms; DoH cached/singleflighted;
-  conn caps 1024; the connect gate already self-tests before
-  "active") — the remaining suspects are device/network-side and
-  Ali's next diagnostics copy from a slow-video moment names the
-  phase. Also documented: Play Protect's popup at install is expected
-  for sideloaded debug-signed APKs; the release keystore Ali created
-  is NOT for the test circle (it would break the pinned-cert update
-  chain) and waits for the signed public release. The five-app
-  default allow-list (the YouTube app + Chrome, Firefox, Opera,
-  Brave — D87), the v4 settings migration and the missing-app
-  skip-audit all stand unchanged beneath the new build.
+- **The current test-circle build is `v1.6.6-android-debug.6`**
+  (versionCode 5, built at 078e3a5, the pinned debug certificate —
+  installs over debug.5 in place, settings survive) — **the
+  cross-platform UI unification (D92)**: Ali uploaded mobile.zip
+  carrying the UI instruction documents his Windows/Linux builds
+  follow (round-2's roast + fixes, round-3's data-usage spec), and
+  reported the mobile UI inconsistent with the desktops; the rounds
+  are now applied to the ONE shared screen every edition embeds —
+  Lucide icons through `src/lib/icons.ts`, the "…" menu button
+  top-right at 44 px, the sheet's in-header neutral close, 0.80 em
+  timer digit boxes, the ring family capped clear of a bigger
+  brighter hint, ping verdicts (Good/OK/Slow), honest -1 speeds,
+  the ChitaCodes credit, the Other-websites section, the 360×640
+  window floored at 320×560 — plus the **round-3 data usage**:
+  "X used" + the ↓/↑ split under the timer, the Last-session line,
+  the menu's Data usage section (Today/This month/All time, the
+  last sessions, a confirmed Clear), one local usage.json (times
+  and byte totals only, 500 cap, 15 s crash autosave), counted
+  ONCE in the engine so the Wails bridge and the webui's
+  /api/usage agree by construction. The byte path was proven on a
+  real binary (a 949 KB page through the tunnel = a recorded
+  980,303-byte session). Still open beneath it: the video-start
+  delay (feed fast, video 30 s–1 min+ — every host-level suspect
+  eliminated with evidence in D91; Ali's diagnostics copy from a
+  slow-video moment names the phase) and the cross-device UI
+  verdict itself, which is exactly what debug.6 asks him to check.
+  Play Protect's popup at install stays expected; the release
+  keystore stays NOT-for-the-test-circle (D88/D90). The five-app
+  default allow-list (D87), the v4 settings migration, the
+  viewport-capped stage and the per-flow timing from debug.5 all
+  stand unchanged beneath the new build.
 - **M8-e / D88 (no app change, the APK is untouched): the local
   release-keystore ceremony is now a shipped script** — Ali's ask
   ("give me a bat file that auto creates it's password locally on my
@@ -137,23 +140,26 @@ working clone carries the credential in its `origin` remote URL).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
    M8-c, M8-d, M8-e, … (this prompt describes the state after the
-   M8-j round; the next real task is M8-k — ingesting the debug.5
-   device round, the diagnostics report with the timing lines first).
+   M8-k round; the next real task is M8-l — ingesting the debug.6
+   device round: the cross-device UI verdict and the data-usage
+   check first, the still-open slow-video diagnostics report after).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
-   debug.5 edition + §"Device test circle" — the checklist with the
-   rows Ali has already answered), doc 06 (the M8-c…M8-j records),
-   doc 08 + `DECISIONS.md` (D1–D91; **the next decision number is
-   D92**), and the tail of `PROGRESS.md`.
+   debug.6 edition + §"Device test circle" — the checklist with the
+   rows Ali has already answered), doc 06 (the M8-c…M8-k records),
+   doc 08 + `DECISIONS.md` (D1–D92; **the next decision number is
+   D93**), and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3`. Preserve any uncommitted
    work; never reset it just to get a clean diff.
-4. Check whether Ali's device-test feedback from debug.5 has arrived
-   (session messages). The expected first input is the diagnostics
-   report copied from a slow-video moment — it now carries the
-   per-flow timing lines (tunnel up dns/dial, tunnel first-byte,
-   tunnel done dur/up/down) that name the phase eating the 30–60 s.
+4. Check whether Ali's device-test feedback from debug.6 has arrived
+   (session messages). The expected first inputs: the cross-device UI
+   match verdict (phone vs his rebuilt Windows/Linux builds), the
+   data-usage round (counter climbing, Last-session line, menu totals,
+   Clear with both buttons), and — still open — the diagnostics
+   report copied from a slow-video moment (it carries the per-flow
+   timing lines from debug.5 that name the phase eating the 30–60 s).
 5. Make the desktop baseline GREEN before writing any code:
-   `go vet ./...`; `go test -count=1 ./...` (expect **17/17 packages
+   `go vet ./...`; `go test -count=1 ./...` (expect **18/18 packages
    ok**, run twice consecutively); webui `svelte-check` (0/0) and
    `vite build`. D74 trap: a stale webui dist fails
    `TestWebUILifecycle` (in the mobile package) — sync
@@ -272,12 +278,14 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   implementation evidence; ⛔ gates are listed, never dropped.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D92),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-k, … per
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D93),
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-l, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
-  Note the API wrinkle from M8-j: creating a release with a SHORT
-  target_commitish 422s — pass the full SHA.
+  Note the two API wrinkles now on record: creating a release with
+  a SHORT target_commitish 422s — pass the full SHA — and the full
+  SHA itself 422s until the commit is PUSHED (push before cutting
+  the release).
 
 ## Required first response
 

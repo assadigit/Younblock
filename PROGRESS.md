@@ -2719,3 +2719,45 @@ the Play Protect note, row 2 PASS, row 3 PARTIAL (the round's
 subject), row 9's host half pinned by test. Next Task ID M8-k
 (ingest the debug.5 device round — the diagnostics report with the
 timing lines is the expected input); next decision D92.
+
+M8-k — the tenth feedback-loop exchange, the cross-platform UI
+unification (2026-10-18, D92). Ali uploaded mobile.zip to the repo
+carrying the UI instruction documents his Windows/Linux builds
+follow (round-2's roast-report + fix-instructions; round-3's
+feature-spec + agent-instructions + usage-screens.png;
+site-test-plan) and asked for one consistent UI across devices.
+The compliance point is the ONE shared screen every edition embeds
+(D92): the pro screen now carries the round-2 fixes (Lucide icons
+through src/lib/icons.ts with lucide-svelte@1.0.1; the "…" menu
+button top-right at 44 px; the sheet's fixed header with a neutral
+44 px close; 0.80 em timer digit boxes; the connected ring family
+capped clear of the 12 px / 82 % hint at 37.25 rem; ping verdicts
+Good/OK/Slow; honest -1 speeds; the ChitaCodes credit; the
+Other-websites section with VERIFIED_SITES; the Wails window
+360×640 floored at 320×560) and the round-3 data usage, tracked
+ONCE in the engine so the Wails bridge and the webui's /api/usage
+agree by construction (internal/usage: usage.json with times and
+byte totals only, 500 cap, 15 s crash autosave, recovery at open;
+the engine's session = its "on" run at the relay-counter baseline;
+State gains downBytes/upBytes/lastSession with an explicit null
+after a clear; GetUsage/ClearUsage on every transport; the screen
+shows "X used" + the ↓/↑ split and the Last-session line; the
+menu's Data usage section with a confirmed Clear). The reference
+code folder was not in the upload — implementation follows the
+documents, every rule traceable (D92 ruling 3). Verified the
+honest way: svelte-check 0/0, vite clean; the rendered app at
+320×560, 356×625, 360×760 across every state (no overlap, no
+scrollbars; Keep keeps, Delete empties and drops the line); the
+REAL binary's byte path — a 949,386-byte YouTube page through the
+tunnel = session downBytes 980,303 / upBytes 1,933, the 80-second
+record on disk after the stop, todayBytes = allTimeBytes =
+982,236. Baseline after: vet clean; go test 18/18 ×2 (the new
+internal/usage package among them); the webui dist CLEAN-synced.
+Build lane: AAR 25,003,698 B; app-debug.apk 34,951,881 B (bc4b239e
+…d1fe8), versionCode 5, the pinned D85 certificate. Release lane:
+debug.6 created regular at 078e3a5, Latest-marked, APK served
+byte-exact (second API wrinkle recorded: the full-SHA
+target_commitish 422s until the commit is PUSHED — create releases
+only after the push). Next Task ID M8-l (ingest the debug.6 device
+round: the cross-device UI verdict + the data-usage check + the
+still-open slow-video diagnostics); next decision D93.
