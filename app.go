@@ -234,6 +234,19 @@ func (a *App) RestoreWindowsProxy() string { return a.eng.RestoreWindowsProxyJSO
 // GetDiagnosticReport returns the redacted diagnostic report.
 func (a *App) GetDiagnosticReport() string { return a.eng.GetDiagnosticReportJSON() }
 
+// GetUsage returns the round-3 Data-usage summary (the menu's top
+// section). Mirrors engine/jsonapi.go exactly, like every method here.
+func (a *App) GetUsage() string { return a.eng.GetUsageJSON() }
+
+// ClearUsage empties the usage history and the Last-session line.
+func (a *App) ClearUsage() string {
+	out := a.eng.ClearUsageJSON()
+	// The engine's state event already told the webui edition; the bridge
+	// snapshot needs the same nudge so the Wails screen's line drops too.
+	a.bridge.RefreshUsage()
+	return out
+}
+
 // OpenLogsFolder opens the logs folder in the desktop file manager
 // (Explorer on Windows, xdg-open everywhere else).
 func (a *App) OpenLogsFolder() string {

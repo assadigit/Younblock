@@ -35,22 +35,30 @@ var windowIcon []byte
 // pro default lives here; the classic build overrides it through the
 // linker (see the package comment). Kept a string because -X can only
 // set strings.
-var windowSize = "360x628"
+var windowSize = "360x640"
 
 // designW/designH are the parsed values every sizing decision reads.
 var designW, designH = parseWindowSize()
+
+// window minimums (round-2 fix #5): the redesigned screen scales by width
+// and stacks vertically, so any client area from 320×560 up renders fully
+// — the window is resizable down to those floors.
+const (
+	windowMinW = 320
+	windowMinH = 560
+)
 
 // parseWindowSize reads windowSize once, falling back to the pro size on
 // anything malformed (a bad -X flag should degrade, never crash).
 func parseWindowSize() (int, int) {
 	parts := strings.SplitN(windowSize, "x", 2)
 	if len(parts) != 2 {
-		return 360, 628
+		return 360, 640
 	}
 	w, errW := strconv.Atoi(strings.TrimSpace(parts[0]))
 	h, errH := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if errW != nil || errH != nil || w < 200 || h < 200 {
-		return 360, 628
+		return 360, 640
 	}
 	return w, h
 }
@@ -65,7 +73,9 @@ func main() {
 		Title:             "Younblock",
 		Width:             designW,
 		Height:            designH,
-		DisableResize:     true,
+		MinWidth:          windowMinW,
+		MinHeight:         windowMinH,
+		DisableResize:     false, // round-2 fix #5: resizable, floored at 320×560
 		WindowStartState:  options.Normal,
 		StartHidden:       *minimized,
 		HideWindowOnClose: false,                                            // OnBeforeClose hides to the tray instead

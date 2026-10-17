@@ -173,6 +173,15 @@ func (s *Server) handler() http.Handler {
 	s.get(m, "/api/report", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, s.eng.GetDiagnosticReportJSON())
 	})
+	// Round-3: the Data-usage document for the menu's top section —
+	// the same payload the Wails binding calls GetUsage for. The
+	// Android WebView and the Linux web edition both read it here.
+	s.get(m, "/api/usage", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, s.eng.GetUsageJSON())
+	})
+	s.post(m, "/api/usage/clear", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, s.eng.ClearUsageJSON())
+	})
 	s.get(m, "/api/logs", s.handleLogs)
 	s.post(m, "/api/quit", func(w http.ResponseWriter, r *http.Request) {
 		// QuitJSON stops the engine first and only then invokes the

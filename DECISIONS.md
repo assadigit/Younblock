@@ -1823,3 +1823,89 @@ via the API asset endpoint and hashed byte-exact). The first honest
 API wrinkle of the round: a release created with a SHORT
 target_commitish is rejected 422 ("tag_name is not a valid tag") —
 use the full SHA.
+
+**D92 — one UI across every device: Ali's uploaded instruction
+rounds (mobile.zip) are applied to THE SHARED SCREEN, and the usage
+history is tracked once, in the engine.** Ali uploaded mobile.zip to
+the repo carrying the UI instruction documents his Windows/Linux
+builds already follow — a round-2 audit (roast-report.md: shrunken
+UI, touching digits, hint printed over ring dots, floating red
+close, drawn icons) with fix-instructions.md, and the round-3
+feature spec (feature-spec.md + agent-instructions.md: per-session
+data usage with a local-only history) plus usage-screens.png, and
+reported the mobile UI is NOT consistent with the desktops. Three
+rulings:
+
+1. **The compliance point is the shared screen, not a mobile
+   fork.** The pro screen (frontend/src/App.svelte + lib/) is the
+   one UI every edition ships — Wails desktops embed
+   frontend/dist, the Linux web edition and the Android WebView
+   embed the same bundle through internal/webui — so applying the
+   rounds THERE is what makes all devices consistent by
+   construction. Round-2 applied: Lucide icons through one file
+   (lucide-svelte@1.0.1, src/lib/icons.ts; Power, Ellipsis,
+   ChevronsUp/Down, ArrowUp/Down, X — the logo and faint play mark
+   stay drawn by design); the menu button is Lucide "…" at the top
+   RIGHT (Jakob's law) at 44 px (Fitts); the sheet's close is a
+   neutral 44 px X inside a fixed header (title left) while the
+   body scrolls underneath; timer digit boxes 0.80 em (the face's
+   widest digit is 0.76 em — digits never touch); the connected
+   ring family capped (outer arc 6.0 rem around the resting thumb)
+   so no dot reaches the hint, which moved to 37.25 rem and grew to
+   12 px at 82 % white; ping gets a word (Good ≤ 120 ms, OK ≤
+   400 ms, else Slow — thresholds in App.svelte's config block);
+   speeds the engine did not measure are hidden (-1), never faked
+   as 0; "Created by ChitaCodes" rides the About version line and
+   an honest "Other websites" section exists (VERIFIED_SITES empty
+   until a site passes site-test-plan.md's two-day rule); the Wails
+   window is 360×640, resizable, floored at 320×560. Round-3
+   applied: SHOW_SPEEDS=false by default (the total is what
+   matters) with the session usage lines under the timer
+   ("2.10 GB used" + the ↓/↑ split, 3-significant-digit decimal
+   units), "Last session: size · length" under Not Connected, and
+   the menu's Data usage section (Today / This month / All time
+   cards, the last 10 sessions, the provider-may-count-more
+   disclaimer, and a confirmed Clear history: Delete (red) vs
+   Keep).
+
+2. **The ENGINE is the one usage tracker — one file, every
+   platform.** Both UI transports sit on the engine (the Wails
+   bridge and the webui JSON API that serves the Android WebView
+   and the Linux edition), so a session tracked anywhere else
+   would be a second tracker disagreeing with the first. A session
+   is the engine's "on" run (on↔degraded flaps keep the ORIGINAL
+   start; a cancelled or failed connect never creates one); its
+   bytes are the deltas of the relay counters the tunnels have
+   always fed (AddBytesDown/Up in tunnel.go — the first fragmented
+   record included; DoH's own direct sockets are engine overhead,
+   honestly uncovered by the disclaimer, not browser data). The
+   record (startMs/endMs/downBytes/upBytes — times and byte
+   totals only, never a website name) lands in
+   <ConfigDir>/usage.json (%APPDATA%\Younblock on Windows, the
+   app's private storage on Android), capped at 500, autosaved
+   every 15 s for crash recovery and recovered on the next engine
+   open. GetUsage/ClearUsage ride every transport: the Wails
+   binding (app.go), /api/usage + /api/usage/clear (webui), and
+   the state carries downBytes/upBytes/lastSession with an
+   EXPLICIT null after a clear (the screen's Last-session line
+   depends on present-null vs absent). Store writes happen under
+   the engine mutex — deliberate, so an in-flight autosave can
+   never land after the final record and resurrect a running row.
+
+3. **The reference code folder (younblock-ui/round-3/) was not in
+   the upload — the implementation follows the documents.** The
+   zip carries the specs and the screenshot, not the tested
+   reference; every rule above is traceable to a line in
+   fix-instructions.md, feature-spec.md, agent-instructions.md or
+   usage-screens.png, and the acceptance items that need the
+   missing Python harness were verified the honest way instead:
+   agent-browser over vite preview at 320×560, 356×625 and
+   360×760 across Not Connected (with Last session), Connected
+   (usage ticking, ping verdict), the menu (cards, rows, confirm,
+   Keep/Delete, clear dropping the Last-session line) and Error —
+   no overlap, no scrollbars; and the byte path was proven on the
+   REAL binary: a 949,386-byte YouTube page pulled through the
+   engine's own tunnel recorded as session downBytes 980,303 /
+   upBytes 1,933, then a stop, a recorded 80-second session in
+   usage.json, and todayBytes = allTimeBytes = 982,236 in the
+   summary.

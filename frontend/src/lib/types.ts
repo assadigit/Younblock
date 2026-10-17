@@ -9,16 +9,45 @@ export type Phase =
   | "disconnecting"
   | "error";
 
+/** One finished usage session. Must match internal/usage's SessionRecord
+ *  (round-3 data contract: names must match exactly). */
+export interface SessionRecord {
+  /** Unix ms when the session began (the moment the engine reached on). */
+  startMs: number;
+  /** Unix ms when the session ended (disconnect or quit). */
+  endMs: number;
+  /** Bytes received from websites during the session. */
+  downBytes: number;
+  /** Bytes sent to websites during the session. */
+  upBytes: number;
+}
+
+/** The menu's Data-usage summary (Go's GetUsage). */
+export interface UsageSummary {
+  /** Newest first, at most 10 entries. */
+  sessions: SessionRecord[];
+  /** How many sessions the history keeps (up to 500). */
+  sessionCount: number;
+  todayBytes: number;
+  monthBytes: number;
+  allTimeBytes: number;
+}
+
 /** The state snapshot the screen renders. Must match ui_bridge.go's Snapshot. */
 export interface Snapshot {
   phase: Phase;
   /** Unix time in milliseconds when the connection became active; null when not connected. */
   connectedAtMs: number | null;
-  /** Speeds in bits per second. */
+  /** Speeds in bits per second; -1 when the engine cannot measure them. */
   downBps: number;
   upBps: number;
   /** Round-trip in milliseconds; null when unknown. */
   pingMs: number | null;
   /** Optional short line shown instead of the ping. */
   message?: string | null;
+  /** Bytes used by THIS session (round-3); -1 when the engine cannot count. */
+  downBytes: number;
+  upBytes: number;
+  /** The last finished session; null when there has never been one. */
+  lastSession?: SessionRecord | null;
 }

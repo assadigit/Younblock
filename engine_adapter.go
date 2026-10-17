@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/assadigit/Younblock/internal/engine"
+	"github.com/assadigit/Younblock/internal/usage"
 )
 
 // younblockEngine implements the Bridge's Engine interface over the real engine.
@@ -72,4 +73,11 @@ func (y *younblockEngine) Stats() (downBps, upBps float64, pingMs int) {
 		ping = int(*st.LatencyMs)
 	}
 	return sample.RateDown * 8, sample.RateUp * 8, ping
+}
+
+// Usage implements the bridge's UsageSource (round-3): the live (or
+// just-ended) session's relayed bytes and the last finished session —
+// the same numbers the webui edition serves at /api/state.
+func (y *younblockEngine) Usage() (downBytes, upBytes int64, lastSession *usage.SessionRecord) {
+	return y.eng.Usage()
 }

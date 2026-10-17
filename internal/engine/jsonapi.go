@@ -191,6 +191,32 @@ func (e *Engine) GetDiagnosticReportJSON() string {
 	return marshalJSON(map[string]string{"report": e.GetDiagnosticReport()})
 }
 
+// GetUsageJSON returns the round-3 Data-usage summary the menu renders.
+// A store that could not be opened answers a typed error — the sheet then
+// shows its honest "Could not read the usage history" line and the rest
+// of the menu keeps working.
+func (e *Engine) GetUsageJSON() string {
+	if e.usage == nil {
+		return errResult("USAGE_UNAVAILABLE")
+	}
+	return marshalJSON(e.usage.Summary(e.opts.Now()))
+}
+
+// ClearUsageJSON empties the history and the Last-session line: the next
+// state event carries an explicit lastSession:null, which is exactly how
+// the screen knows to drop the line (the frontend maps an absent field to
+// "keep", a present null to "gone").
+func (e *Engine) ClearUsageJSON() string {
+	if e.usage != nil {
+		e.usage.Clear()
+	}
+	e.mu.Lock()
+	e.lastSess = nil
+	e.mu.Unlock()
+	e.emitState()
+	return errResult("")
+}
+
 // GetDiagnosticReport builds the report text. It contains only: app version,
 // platform, settings summary (no custom lists), self-test status summary,
 // counters, measured sleep and the last 100 log lines.

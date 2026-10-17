@@ -20,12 +20,15 @@
     font-weight: var(--fw-bold);
     color: var(--text-primary);
     line-height: 1.15;
-    /* M8-j: tabular figures when the face has them; the fixed boxes
-       below already guarantee steady spacing when it does not. */
+    /* tabular figures when the face has them; the fixed boxes below
+       already guarantee steady spacing when it does not. */
     font-variant-numeric: tabular-nums;
   }
+  /* Round-2 fix #2: the box must clear the font's widest digit ("0" at
+     0.76em in this face), or the countdown digits crowd each other; 0.80em
+     gives every digit equal, un-touching width. */
   .digit {
-    width: 0.66em;
+    width: 0.8em;
     text-align: center;
   }
   .colon {

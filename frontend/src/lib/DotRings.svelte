@@ -21,13 +21,18 @@
   type Ring = { r: number; dot: number; opacity: number };
 
   // Radii measured from the reference render, rescaled with the smaller
-  // control in the v1.6.3 proportion pass (outer arc −17%).
+  // control in the v1.6.3 proportion pass (outer arc −17%). Round-2 fix #3
+  // caps the family further: the outer arcs used to reach ~2.2rem past the
+  // pill's bottom — straight through the hint line. The five arcs now stop
+  // ~1.7rem below the pill and clear the hint (which moved to 37.25rem)
+  // by a visible gap, matching the fixed reference geometry ("rings stop
+  // above the hint").
   const ON_ARCS: Ring[] = [
-    { r: 4.375, dot: 0.15, opacity: 0.95 }, // 70px
-    { r: 5.25, dot: 0.14, opacity: 0.85 }, // 84px
-    { r: 6.125, dot: 0.13, opacity: 0.72 }, // 98px
-    { r: 7.0, dot: 0.12, opacity: 0.55 }, // 112px
-    { r: 7.875, dot: 0.11, opacity: 0.4 }, // 126px
+    { r: 4.0, dot: 0.15, opacity: 0.95 },
+    { r: 4.5, dot: 0.14, opacity: 0.85 },
+    { r: 5.0, dot: 0.13, opacity: 0.72 },
+    { r: 5.5, dot: 0.12, opacity: 0.55 },
+    { r: 6.0, dot: 0.11, opacity: 0.4 },
   ];
   const OFF_RING: Ring[] = [{ r: 6.625, dot: 0.14, opacity: 0.85 }]; // 106px
 

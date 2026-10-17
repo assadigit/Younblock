@@ -14,6 +14,9 @@
   // preview build with no host shows no Android-only sections at all.
   import { createEventDispatcher } from "svelte";
   import type { Backend, Settings } from "./backend";
+  import { formatBytes, formatDateTime, formatDurationWords } from "./format";
+  import { X } from "./icons";
+  import type { UsageSummary } from "./types";
 
   export let open = false;
   /** Host app version from the backend (backend.getAppInfo); empty hides
@@ -32,8 +35,15 @@
   const android = platform === "android";
 
   // =====================================================================
-  // CONFIG — edit the three texts here
+  // CONFIG — edit the texts here
   // =====================================================================
+  /** Round-2 fix #8: the credit line, shown with the version in About. */
+  const CREDIT = "Created by ChitaCodes";
+  /** Websites confirmed to open through Younblock (site-test-plan.md): a
+   *  site lands here only after it was really blocked without Younblock and
+   *  really opened with it, on two different days or networks. Until then
+   *  the honest line below is all the menu claims. */
+  const VERIFIED_SITES: string[] = [];
   const ABOUT = [
     "Younblock helps YouTube load in your browser when the network gets in the way. It runs only on your PC, with no account and no analytics.",
     "It is not a VPN: it does not hide your IP address and adds no encryption — YouTube's own HTTPS still protects the content.",
@@ -251,6 +261,50 @@
     }
   }
 
+  // ---- data usage (round-3, every platform) ------------------------------
+
+  // The menu's top section: totals for Today / This month / All time, the
+  // last sessions, and a confirmed Clear. The host owns the history (one
+  // JSON file, times and byte totals only); the sheet asks for a fresh
+  // summary EVERY time it opens — the round-3 screen rule, so another
+  // window's session or a previous sheet visit can never show stale rows.
+  let usage: UsageSummary | null = null;
+  let usageError = false;
+  let usageBusy = false;
+  let confirmClear = false;
+
+  $: if (open && backend) void loadUsage();
+
+  async function loadUsage(): Promise<void> {
+    if (!backend) return;
+    usageBusy = true;
+    usageError = false;
+    confirmClear = false;
+    try {
+      usage = await backend.getUsage();
+      if (usage === null) usageError = true;
+    } catch {
+      usage = null;
+      usageError = true;
+    } finally {
+      usageBusy = false;
+    }
+  }
+
+  /** Delete (red, after the confirmation) vs Keep — only Delete clears. */
+  async function clearHistory(): Promise<void> {
+    if (!backend || usageBusy) return;
+    usageBusy = true;
+    try {
+      await backend.clearUsage();
+      await loadUsage();
+    } catch {
+      usageError = true;
+    } finally {
+      usageBusy = false;
+    }
+  }
+
   // ---- modal focus handling (unchanged from the desktop sheet) ---------
 
   let closeBtn: HTMLElement | undefined;
@@ -314,16 +368,20 @@
   bind:this={sheetEl}
   role="dialog"
   aria-modal="true"
-  aria-label="About Younblock"
+  aria-label="Younblock menu"
   aria-hidden={!open}
 >
   <span class="grabber" aria-hidden="true"></span>
 
-  <button type="button" class="close" bind:this={closeBtn} on:click={close} aria-label="Close">
-    <svg viewBox="0 0 14 14" aria-hidden="true">
-      <path d="M2 2l10 10M12 2L2 12" />
-    </svg>
-  </button>
+  <!-- Round-2 fix #5: the sheet's header lives INSIDE the sheet — title
+       left, neutral 44px X right — instead of the old red circle that
+       floated half outside; the body scrolls underneath it. -->
+  <header class="sheet-head">
+    <span class="sheet-title">Younblock</span>
+    <button type="button" class="close" bind:this={closeBtn} on:click={close} aria-label="Close">
+      <X class="close-icon" />
+    </button>
+  </header>
 
   <div class="content">
     {#if perAppRouting}
@@ -390,12 +448,69 @@
       </section>
     {/if}
 
+    <!-- Round-3: the Data usage section sits directly under the apps row on
+         Android and at the very top on the desktops — one markup, both
+         platforms, the same numbers the main screen counts live. -->
+    <section aria-labelledby="usage-heading">
+      <h2 id="usage-heading">Data usage</h2>
+      {#if usageError}
+        <p class="dim">Could not read the usage history.</p>
+      {:else if usage === null}
+        <p class="dim">Loading…</p>
+      {:else}
+        <div class="usage-cards" role="group" aria-label="Data usage totals">
+          <div class="ucard">
+            <span class="unum">{formatBytes(usage.todayBytes)}</span>
+            <span class="ucap">Today</span>
+          </div>
+          <div class="ucard">
+            <span class="unum">{formatBytes(usage.monthBytes)}</span>
+            <span class="ucap">This month</span>
+          </div>
+          <div class="ucard">
+            <span class="unum">{formatBytes(usage.allTimeBytes)}</span>
+            <span class="ucap">All time</span>
+          </div>
+        </div>
+        {#if usage.sessions.length === 0}
+          <p class="dim">No sessions yet. Every session you run will be listed here.</p>
+        {:else}
+          <ul class="sessions" aria-label="Recent sessions">
+            {#each usage.sessions as s (s.startMs)}
+              <li>
+                <span class="when">{formatDateTime(s.endMs)}</span>
+                <span class="howlong">{formatDurationWords(s.endMs - s.startMs)}</span>
+                <span class="size">{formatBytes(s.downBytes + s.upBytes)}</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <p class="note">Counts the data that passes through Younblock, saved only on {android ? "this device" : "this PC"}. Your internet provider may count a little more.</p>
+        {#if confirmClear}
+          <div class="confirm" role="group" aria-label="Delete the whole history?">
+            <span>Delete the whole history?</span>
+            <button type="button" class="action danger" disabled={usageBusy} on:click={clearHistory}>Delete</button>
+            <button type="button" class="action" disabled={usageBusy} on:click={() => (confirmClear = false)}>Keep</button>
+          </div>
+        {:else}
+          <button
+            type="button"
+            class="action"
+            disabled={usageBusy || usage.sessionCount === 0}
+            on:click={() => (confirmClear = true)}
+          >
+            Clear history
+          </button>
+        {/if}
+      {/if}
+    </section>
+
     <section>
       <h2>About</h2>
       {#each android ? ABOUT_ANDROID : ABOUT as line}
         <p>{line}</p>
       {/each}
-      {#if version}<p class="version">Younblock {version}</p>{/if}
+      <p class="version">{version ? `Younblock ${version} · ` : ""}{CREDIT}</p>
     </section>
 
     <section>
@@ -413,6 +528,17 @@
         {/each}
       </section>
     {/if}
+
+    <!-- Round-2 fix #8: the honest "other websites" line — until a site
+         passes the two-day test plan it is not named as working. -->
+    <section aria-labelledby="other-heading">
+      <h2 id="other-heading">Other websites</h2>
+      {#if VERIFIED_SITES.length > 0}
+        <p>Confirmed so far: {VERIFIED_SITES.join(", ")}.</p>
+      {:else}
+        <p>Some other blocked websites open too, but that is still being tested.</p>
+      {/if}
+    </section>
 
     <section>
       <h2>Help</h2>
@@ -485,41 +611,63 @@
     flex: none;
     width: 2.5rem;
     height: 0.25rem;
-    margin: 0 auto 1rem;
+    margin: 0 auto 0.75rem;
     border-radius: 0.25rem;
     background: rgba(255, 255, 255, 0.18);
   }
 
+  /* Round-2 fix #5: the header is part of the sheet — title left, neutral
+     44px X right — and it stays put while the body scrolls underneath. */
+  .sheet-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.25rem 0 0.875rem;
+    border-bottom: 1px solid var(--sheet-border);
+  }
+  .sheet-title {
+    font-size: 0.9375rem;
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+  }
+
   .close {
-    position: absolute;
-    top: 1.1rem;
-    right: 1.1rem;
-    width: 2.25rem;
-    height: 2.25rem;
+    flex: none;
+    width: var(--menu-btn);
+    height: var(--menu-btn);
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: var(--red-500);
-    box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.35);
-    transition: transform var(--dur-fast) ease;
+    border: 1px solid var(--chip-border);
+    background: var(--chip-bg);
+    color: var(--text-secondary);
+    transition:
+      background 150ms ease,
+      transform 150ms ease;
   }
   .close:hover {
-    transform: scale(1.06);
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--text-primary);
+  }
+  .close:active {
+    transform: scale(0.94);
   }
   .close:focus-visible {
     outline: 0.125rem solid #fff;
     outline-offset: 0.125rem;
   }
-  .close svg {
-    width: 0.875rem;
-    height: 0.875rem;
-    fill: none;
-    stroke: #fff;
-    stroke-width: 2;
-    stroke-linecap: round;
+  .close :global(svg) {
+    width: 1.25rem;
+    height: 1.25rem;
+    stroke-width: 2.2;
   }
 
   .content {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 0.375rem;
     scrollbar-width: thin;
@@ -722,6 +870,90 @@
   .inline-error {
     margin-top: 0.5rem;
     color: var(--red-400);
+  }
+
+  /* ---- the round-3 Data usage section ---- */
+
+  .usage-cards {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.1rem;
+  }
+  .ucard {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.55rem 0.25rem 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sheet-border);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .unum {
+    font-size: 0.875rem;
+    font-weight: var(--fw-semibold);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .ucap {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+
+  .sessions {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+  }
+  .sessions li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    font-size: 0.75rem;
+    font-weight: var(--fw-medium);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .when {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .howlong {
+    flex: none;
+    color: var(--text-tertiary);
+  }
+  .size {
+    flex: none;
+    font-weight: var(--fw-semibold);
+  }
+
+  .confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .confirm span {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+  .confirm .action {
+    min-width: 4.5rem;
+  }
+  .danger {
+    color: var(--red-400);
+    border-color: rgba(224, 107, 107, 0.4);
+  }
+  .danger:hover:not(:disabled) {
+    background: rgba(224, 107, 107, 0.12);
   }
 
   /* ---- the diagnostics view ---- */

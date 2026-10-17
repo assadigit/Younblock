@@ -4,6 +4,7 @@
   // threshold is halfway. Labels: START / CANCEL / STOP / WAIT.
   import { createEventDispatcher, onMount } from "svelte";
   import type { Phase } from "./types";
+  import { Power, ChevronsDown, ChevronsUp } from "./icons";
 
   export let phase: Phase = "disconnected";
 
@@ -135,20 +136,22 @@
         break;
     }
   }
+  // Lucide components take a plain class string (Svelte class: directives
+  // belong to elements), so the two chevrons compute theirs here: visible
+  // when the control is at rest, armed once a drag crosses halfway.
+  $: chevClass = (dir: "down" | "up"): string => {
+    const show = !busy && (dir === "down" ? !on : on);
+    const lit = show && armed;
+    return `chev ${dir}${show ? " visible" : ""}${lit ? " armed" : ""}`;
+  };
 </script>
 
 <div class="track" aria-hidden="true">
-  <!-- double chevron in the empty half: points where a swipe would go, and
-       breathes gently toward it; lights up and pauses once the drag is
-       armed (past halfway) -->
-  <svg class="chev down" class:visible={!busy && !on} class:armed={armed && !on} viewBox="0 0 16 16">
-    <path d="M2 3.5L8 9l6-5.5" />
-    <path d="M2 8.5L8 14l6-5.5" />
-  </svg>
-  <svg class="chev up" class:visible={!busy && on} class:armed={armed && on} viewBox="0 0 16 16">
-    <path d="M2 12.5L8 7l6 5.5" />
-    <path d="M2 7.5L8 2l6 5.5" />
-  </svg>
+  <!-- double chevron in the empty half (Lucide): points where a swipe would
+       go, and breathes gently toward it; lights up and pauses once the drag
+       is armed (past halfway) -->
+  <ChevronsDown class={chevClass("down")} />
+  <ChevronsUp class={chevClass("up")} />
 </div>
 
 <button
@@ -180,10 +183,7 @@
     <span class="well" aria-hidden="true"><span class="spinner"></span></span>
   {:else}
     <span class="well" aria-hidden="true">
-      <svg class="power" viewBox="0 0 24 24">
-        <path d="M12 3v8" />
-        <circle cx="12" cy="14.5" r="5.6" />
-      </svg>
+      <Power class="power" />
     </span>
   {/if}
 </button>
@@ -204,7 +204,9 @@
       0 0.5rem 1rem rgba(0, 0, 0, 0.2);
   }
 
-  .chev {
+  /* the Lucide chevron svgs render inside child components — reach them
+     with :global so the scoped styles still apply */
+  .track :global(.chev) {
     position: absolute;
     left: 50%;
     width: 1.25rem;
@@ -222,24 +224,24 @@
       filter var(--dur-fast) ease;
     pointer-events: none;
   }
-  .chev.down {
+  .track :global(.chev.down) {
     top: 9.25rem;
   }
-  .chev.up {
+  .track :global(.chev.up) {
     top: 2rem;
   }
-  .chev.visible {
+  .track :global(.chev.visible) {
     opacity: 1;
     animation: nudge var(--dur-pulse) ease-in-out infinite;
   }
-  .chev.down.visible {
+  .track :global(.chev.down.visible) {
     animation-name: nudge-down;
   }
-  .chev.up.visible {
+  .track :global(.chev.up.visible) {
     animation-name: nudge-up;
   }
   /* armed: past halfway — the nudge pauses and the chevron lights up */
-  .chev.armed {
+  .track :global(.chev.armed) {
     animation-play-state: paused;
     stroke: #fff;
     filter: drop-shadow(0 0 0.375rem rgba(255, 255, 255, 0.5));
@@ -328,7 +330,9 @@
     text-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.3);
   }
 
-  .power {
+  /* the Lucide power icon (child component) — :global so the scoped
+     styles reach it */
+  .well :global(svg) {
     width: 1.375rem;
     height: 1.375rem;
     fill: none;

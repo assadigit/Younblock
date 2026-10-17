@@ -32,6 +32,9 @@
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.78);
   --text-tertiary: rgba(255, 255, 255, 0.62);
+  /* Round-2 fix #3: the hint sits on the busiest part of the background —
+     82% keeps it clearly readable without competing with the status word. */
+  --text-hint: rgba(255, 255, 255, 0.82);
 
   /* ---- Small chrome ---- */
   --chip-bg: rgba(255, 255, 255, 0.08);
@@ -41,13 +44,13 @@
   --sheet-border: rgba(255, 255, 255, 0.07);
 
   /* ---- Type scale (design.md: timer 40/700, status 28/700, label 14/500,
-         stats 12/500, hint 11/500) ---- */
+         stats 12/500, hint 12/500 — round-2 bumped the hint from 11px) ---- */
   --font: "Sora Variable", "Sora", system-ui, sans-serif;
   --fs-timer: 2.5rem;
   --fs-status: 1.75rem;
   --fs-label: 0.875rem;
   --fs-stats: 0.75rem;
-  --fs-hint: 0.6875rem;
+  --fs-hint: 0.75rem;
   --fw-medium: 500;
   --fw-semibold: 600;
   --fw-bold: 700;
@@ -55,7 +58,9 @@
   /* ---- Stage: the 360×628 canvas, 1rem = 16px, scales with the window ---- */
   --stage-w: 22.5rem;
   --stage-h: 39.25rem;
-  --menu-btn: 2.5rem;
+  /* Round-2 fix #7 (Fitts): the menu button and the sheet's X are the two
+     controls people reach for — 44px minimum touch targets. */
+  --menu-btn: 2.75rem;
 
   /* ---- The pill (v1.6.3 proportion pass: track 96×200, thumb 82×110,
          travel 78 — the 228-tall original measured in design-report.md,

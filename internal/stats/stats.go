@@ -69,6 +69,13 @@ type Snapshot struct {
 	UptimeSec   int64   `json:"uptimeSec"`
 }
 
+// Totals returns the cumulative relayed byte counters since engine start
+// (round-3): the session math reads them without disturbing the rate
+// sampling that Sample owns.
+func (c *Counters) Totals() (down, up int64) {
+	return c.bytesDown.Load(), c.bytesUp.Load()
+}
+
 // Sample recomputes the transfer rates and returns the snapshot.
 // The engine calls it once per second while the proxy is on.
 func (c *Counters) Sample() Snapshot {

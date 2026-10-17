@@ -15,6 +15,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/assadigit/Younblock/internal/usage"
 )
 
 // Phase is the connection state. The text values must match src/lib/types.ts exactly.
@@ -40,6 +42,15 @@ type Snapshot struct {
 	PingMs int `json:"pingMs"`
 	// Message is an optional short line shown instead of the ping, for example "Could not connect. Try again."
 	Message string `json:"message,omitempty"`
+	// DownBytes and UpBytes are this session's relayed byte totals
+	// (round-3); -1 means the engine cannot count, and the screen
+	// then hides its usage lines instead of inventing numbers.
+	DownBytes int64 `json:"downBytes"`
+	UpBytes   int64 `json:"upBytes"`
+	// LastSession is the most recently finished session; nil when
+	// there has never been one. No omitempty: the explicit null is
+	// how a cleared history clears the screen's Last-session line.
+	LastSession *usage.SessionRecord `json:"lastSession"`
 }
 
 // Engine is the thin wrapper around your existing proxy code.
@@ -53,6 +64,23 @@ type Engine interface {
 	Start(ctx context.Context) error
 	Stop() error
 	Stats() (downBps, upBps float64, pingMs int)
+}
+
+// UsageSource is the optional Engine capability behind the round-3 usage
+// lines: the live session's relayed bytes (or the last finished
+// session's, once it ended) and the last finished record. An engine
+// without it gets -1/-1 and no lastSession — the screen hides what it
+// does not know instead of showing a made-up zero.
+type UsageSource interface {
+	Usage() (downBytes, upBytes int64, lastSession *usage.SessionRecord)
+}
+
+// usageFrom reads the usage triple off an engine that can count.
+func usageFrom(engine Engine) (down, up int64, last *usage.SessionRecord) {
+	if src, ok := engine.(UsageSource); ok {
+		return src.Usage()
+	}
+	return -1, -1, nil
 }
 
 // Bridge owns the connection state. Create it once with NewBridge.
@@ -71,12 +99,16 @@ func NewBridge(engine Engine, emit func(Snapshot)) *Bridge {
 	if emit == nil {
 		emit = func(Snapshot) {}
 	}
-	return &Bridge{
+	b := &Bridge{
 		engine: engine,
 		emit:   emit,
 		now:    time.Now,
-		snap:   Snapshot{Phase: PhaseDisconnected, PingMs: -1},
+		snap:   Snapshot{Phase: PhaseDisconnected, PingMs: -1, DownBytes: -1, UpBytes: -1},
 	}
+	// Round-3: the first snapshot already carries the last finished
+	// session (a restarted app shows its "Last session:" line at once).
+	b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(engine)
+	return b
 }
 
 // GetSnapshot returns the current state. The screen calls this when it opens.
@@ -98,7 +130,7 @@ func (b *Bridge) Connect() error {
 	b.cancel = cancel
 	b.attempt++
 	id := b.attempt
-	b.snap = Snapshot{Phase: PhaseConnecting, PingMs: -1}
+	b.snap = Snapshot{Phase: PhaseConnecting, PingMs: -1, DownBytes: -1, UpBytes: -1}
 	s := b.snap
 	b.mu.Unlock()
 
@@ -121,7 +153,7 @@ func (b *Bridge) runStart(ctx context.Context, id uint64) {
 	}
 	b.cancel = nil
 	if err != nil {
-		b.snap = Snapshot{Phase: PhaseError, PingMs: -1, Message: "Could not connect. Try again."}
+		b.snap = Snapshot{Phase: PhaseError, PingMs: -1, DownBytes: -1, UpBytes: -1, Message: "Could not connect. Try again."}
 	} else {
 		down, up, ping := b.engine.Stats()
 		b.snap = Snapshot{
@@ -131,6 +163,10 @@ func (b *Bridge) runStart(ctx context.Context, id uint64) {
 			UpBps:         up,
 			PingMs:        ping,
 		}
+		// Round-3: the session just began — carry its counters (and
+		// the last finished session, for the line under "Not
+		// Connected" after the next disconnect).
+		b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(b.engine)
 	}
 	s := b.snap
 	b.mu.Unlock()
@@ -146,7 +182,8 @@ func (b *Bridge) Disconnect() error {
 		b.mu.Unlock()
 		return nil
 	case PhaseError:
-		b.snap = Snapshot{Phase: PhaseDisconnected, PingMs: -1}
+		b.snap = Snapshot{Phase: PhaseDisconnected, PingMs: -1, DownBytes: -1, UpBytes: -1}
+		b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(b.engine)
 		s := b.snap
 		b.mu.Unlock()
 		b.emit(s)
@@ -166,11 +203,26 @@ func (b *Bridge) Disconnect() error {
 	err := b.engine.Stop()
 
 	b.mu.Lock()
-	b.snap = Snapshot{Phase: PhaseDisconnected, PingMs: -1}
+	b.snap = Snapshot{Phase: PhaseDisconnected, PingMs: -1, DownBytes: -1, UpBytes: -1}
+	// Round-3: the engine just closed the session — the snapshot
+	// carries the record so the screen can show "Last session: …".
+	b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(b.engine)
 	s = b.snap
 	b.mu.Unlock()
 	b.emit(s)
 	return err
+}
+
+// RefreshUsage re-reads the engine's usage triple into the snapshot and
+// emits it — used after the history is cleared so the screen's
+// Last-session line disappears at once (the engine's own state event
+// already says the same thing on the webui path).
+func (b *Bridge) RefreshUsage() {
+	b.mu.Lock()
+	b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(b.engine)
+	s := b.snap
+	b.mu.Unlock()
+	b.emit(s)
 }
 
 // RunStats refreshes speed and ping once per second while connected.
@@ -206,6 +258,9 @@ func (b *Bridge) refreshStats() {
 		return
 	}
 	b.snap.DownBps, b.snap.UpBps, b.snap.PingMs = down, up, ping
+	// Round-3: the usage counters tick on the same once-a-second
+	// cadence as the speeds.
+	b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(b.engine)
 	s := b.snap
 	b.mu.Unlock()
 	b.emit(s)

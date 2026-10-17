@@ -20,6 +20,7 @@ import (
 	"github.com/assadigit/Younblock/internal/netx"
 	"github.com/assadigit/Younblock/internal/proxy"
 	"github.com/assadigit/Younblock/internal/stats"
+	"github.com/assadigit/Younblock/internal/usage"
 )
 
 // Phase is the engine's coarse state (file 01, section 10).
@@ -69,6 +70,14 @@ type State struct {
 	Fail      *StateFail  `json:"fail,omitempty"`
 	Notice    *Notice     `json:"notice,omitempty"`
 	Error     *StateError `json:"error,omitempty"`
+	// Round-3 usage: the live session's relayed byte totals (or, once it
+	// ended, the last session's — so the row does not blink to zero while
+	// "stopping" settles). A host that cannot count would send -1; ours
+	// always counts. No omitempty on lastSession: an explicit null is how
+	// a cleared history makes the screen's Last-session line disappear.
+	DownBytes   int64                `json:"downBytes"`
+	UpBytes     int64                `json:"upBytes"`
+	LastSession *usage.SessionRecord `json:"lastSession"`
 }
 
 // EventSink receives events for the UI (one JSON contract, file 01 §3 rule 4).
@@ -140,6 +149,16 @@ type Engine struct {
 	server      *proxy.Server
 	statsCtx    context.CancelFunc
 
+	// round-3 usage session tracking (usage.go): one session per "on"
+	// run, deltas of the relay counters, persisted to the usage store.
+	usage        *usage.Store // nil when the history file could not be opened
+	sessLive     bool
+	sessStart    time.Time
+	sessBaseDown int64
+	sessBaseUp   int64
+	lastSess     *usage.SessionRecord
+	autosaveTk   int // stats-loop seconds since the last crash-recovery save
+
 	checker        Checker
 	runCancel      context.CancelFunc
 	runAborted     bool
@@ -204,6 +223,18 @@ func New(opts Options) (*Engine, error) {
 		rng:      fragment.NewDefaultRNG(),
 		phase:    PhaseOff,
 		since:    opts.Now(),
+	}
+	// The round-3 usage history lives beside settings.json; a failed
+	// open only disables the history (usageOpen logs it).
+	e.usageOpen()
+	// Seed the last finished session so a restarted app shows its
+	// "Last session:" line immediately (the webui path reads it from
+	// the state; the Wails bridge folds it into its first snapshot).
+	if e.usage != nil {
+		if last, ok := e.usage.Last(); ok {
+			rec := last
+			e.lastSess = &rec
+		}
 	}
 	if notice != "" {
 		logger.Warn(notice)
@@ -482,12 +513,15 @@ func (e *Engine) Toggle() error {
 	}
 }
 
-// startStatsLoop emits stats once per second while on.
+// startStatsLoop emits stats once per second while on, and every
+// usageAutosaveEvery seconds snapshots the live usage session into the
+// store for crash recovery (round-3).
 func (e *Engine) startStatsLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	e.mu.Lock()
 	old := e.statsCtx
 	e.statsCtx = cancel
+	e.autosaveTk = 0
 	e.mu.Unlock()
 	if old != nil {
 		old()
@@ -507,6 +541,16 @@ func (e *Engine) startStatsLoop() {
 					continue
 				}
 				e.emit("stats", marshalJSON(e.stats.Sample()))
+				e.mu.Lock()
+				e.autosaveTk++
+				due := time.Duration(e.autosaveTk)*time.Second >= usageAutosaveEvery
+				if due {
+					e.autosaveTk = 0
+				}
+				e.mu.Unlock()
+				if due {
+					e.autosaveUsage()
+				}
 			}
 		}
 	}()
@@ -539,11 +583,18 @@ func (e *Engine) prewarm() {
 
 // setPhaseLocked updates phase bookkeeping; caller holds e.mu.
 func (e *Engine) setPhaseLocked(p Phase, detail string) {
+	wasOn := e.phase == PhaseOn || e.phase == PhaseDegraded
 	e.phase = p
 	e.detail = detail
 	e.since = e.opts.Now()
 	if p != PhaseConnecting {
 		e.detail = detail
+	}
+	// Round-3: anything that leaves on/degraded — a user Stop, a quit,
+	// an engine error — closes the usage session (a cancelled or
+	// failed CONNECT never opened one).
+	if wasOn && p != PhaseOn && p != PhaseDegraded {
+		e.endUsageSessionLocked()
 	}
 }
 
@@ -631,6 +682,28 @@ func (e *Engine) GetState() State {
 	}
 	if e.errCode != "" && (e.phase == PhaseError || e.phase == PhaseDegraded) {
 		st.Error = &StateError{Code: e.errCode}
+	}
+	// Round-3 usage fields (usage.go owns the rules): the live
+	// session's deltas while connected, the last finished session's
+	// totals afterwards, and the record itself for the screen's
+	// Last-session line.
+	if e.sessLive {
+		down, up := e.stats.Totals()
+		st.DownBytes = down - e.sessBaseDown
+		st.UpBytes = up - e.sessBaseUp
+		if st.DownBytes < 0 {
+			st.DownBytes = 0
+		}
+		if st.UpBytes < 0 {
+			st.UpBytes = 0
+		}
+	} else if e.lastSess != nil {
+		st.DownBytes = e.lastSess.DownBytes
+		st.UpBytes = e.lastSess.UpBytes
+	}
+	if e.lastSess != nil {
+		rec := *e.lastSess
+		st.LastSession = &rec
 	}
 	return st
 }

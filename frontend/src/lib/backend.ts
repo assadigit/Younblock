@@ -18,12 +18,15 @@ const BINDINGS = {
   getSettings: "GetSettings",
   saveSettings: "SaveSettings",
   getDiagnosticReport: "GetDiagnosticReport",
+  getUsage: "GetUsage",
+  clearUsage: "ClearUsage",
 } as const;
 /** Wails event carrying a fresh Snapshot. */
 const STATUS_EVENT = "younblock:status";
 // =====================================================================
 
-import type { Snapshot } from "./types";
+import type { Snapshot, UsageSummary, SessionRecord } from "./types";
+import { summarizeUsage } from "./format";
 
 /** App metadata from the host (internal/config on the Go side). The
  *  platform and capabilities fields gate the Android-only surfaces (the
@@ -77,6 +80,11 @@ export interface Backend {
   saveSettings(s: Settings): Promise<Settings>;
   /** The redacted diagnostic report text, or null without a host. */
   getDiagnosticReport(): Promise<string | null>;
+  /** The Data-usage summary for the menu (round-3); null when the host
+   *  cannot serve it — the sheet then shows its honest error line. */
+  getUsage(): Promise<UsageSummary | null>;
+  /** Empties the usage history; rejects with a typed error on failure. */
+  clearUsage(): Promise<void>;
 }
 
 /** Create the backend for this environment (Wails, then HTTP, then preview). */
@@ -91,13 +99,29 @@ export function createBackend(): Backend {
 // The Go side sends 0 / -1 for "none"; the screen wants null.
 
 function normalize(raw: any): Snapshot {
+  const downBps = Number(raw?.downBps ?? 0);
+  const upBps = Number(raw?.upBps ?? 0);
+  const last = raw?.lastSession;
   const s: Snapshot = {
     phase: raw?.phase ?? "disconnected",
     connectedAtMs: raw?.connectedAtMs ? Number(raw.connectedAtMs) : null,
-    downBps: Number(raw?.downBps ?? 0) || 0,
-    upBps: Number(raw?.upBps ?? 0) || 0,
+    // -1 is the honest "the engine cannot measure this" (round-2 fix #7);
+    // the screen hides what it does not know instead of faking a zero.
+    downBps: downBps < 0 ? -1 : downBps || 0,
+    upBps: upBps < 0 ? -1 : upBps || 0,
     pingMs: raw?.pingMs === null || raw?.pingMs === undefined || Number(raw.pingMs) < 0 ? null : Number(raw.pingMs),
     message: raw?.message ?? null,
+    downBytes: Number(raw?.downBytes ?? -1) < 0 ? -1 : Number(raw.downBytes) || 0,
+    upBytes: Number(raw?.upBytes ?? -1) < 0 ? -1 : Number(raw.upBytes) || 0,
+    lastSession:
+      last && typeof last.startMs === "number" && typeof last.endMs === "number"
+        ? {
+            startMs: Number(last.startMs),
+            endMs: Number(last.endMs),
+            downBytes: Number(last.downBytes) || 0,
+            upBytes: Number(last.upBytes) || 0,
+          }
+        : null,
   };
   return s;
 }
@@ -221,6 +245,26 @@ class WailsBackend implements Backend {
       return null;
     }
   }
+
+  // GetUsage / ClearUsage (round-3): same JSON shapes the webui serves at
+  // /api/usage (app.go mirrors engine/jsonapi.go).
+  async getUsage(): Promise<UsageSummary | null> {
+    try {
+      const fn = this.bindings[BINDINGS.getUsage];
+      if (typeof fn !== "function") return null;
+      const raw = JSON.parse(String(await fn())) as UsageSummary & { error?: string | null };
+      if (raw && typeof raw.allTimeBytes === "number" && !raw.error) return raw;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async clearUsage(): Promise<void> {
+    const fn = this.bindings[BINDINGS.clearUsage];
+    const reply = JSON.parse(String(await fn())) as { error?: string | null };
+    if (reply.error) throw new Error(reply.error);
+  }
 }
 
 // ---- the Linux single-file edition (HTTP + Server-Sent Events) -----------
@@ -240,6 +284,16 @@ interface EngineState {
   detail: string;
   since: string;
   latencyMs?: number | null;
+  /** Bytes used by the live (or just-ended) session (round-3); absent on
+   *  hosts that cannot count — mapped to -1, which hides the usage lines. */
+  downBytes?: number;
+  upBytes?: number;
+  lastSession?: {
+    startMs: number;
+    endMs: number;
+    downBytes: number;
+    upBytes: number;
+  } | null;
   /** The typed start-failure code while the phase is "error"
    *  (internal/engine StateError). The screen maps the one code this
    *  product can honestly explain; everything else stays generic. */
@@ -288,7 +342,16 @@ async function postCommand(path: string): Promise<void> {
 
 class HttpBackend implements Backend {
   private listeners = new Set<(s: Snapshot) => void>();
-  private snap: Snapshot = { phase: "disconnected", connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null };
+  private snap: Snapshot = {
+    phase: "disconnected",
+    connectedAtMs: null,
+    downBps: 0,
+    upBps: 0,
+    pingMs: null,
+    downBytes: -1,
+    upBytes: -1,
+    lastSession: null,
+  };
   private readonly events: EventSource;
   private poll: number | undefined;
 
@@ -393,6 +456,33 @@ class HttpBackend implements Backend {
     }
   }
 
+  // /api/usage (GET) and /api/usage/clear (POST) carry the round-3 Data
+  // usage document; the Android WebView reaches the very same server
+  // through its loopback URL (ADR-0005).
+  async getUsage(): Promise<UsageSummary | null> {
+    try {
+      const res = await fetch("/api/usage", { cache: "no-store" });
+      if (!res.ok) return null;
+      const raw = (await res.json()) as UsageSummary & { error?: string | null };
+      if (raw && typeof raw.allTimeBytes === "number" && !raw.error) return raw;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async clearUsage(): Promise<void> {
+    let res: Response;
+    try {
+      res = await fetch("/api/usage/clear", { method: "POST", cache: "no-store" });
+    } catch {
+      throw new Error("network");
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = (await res.json()) as { error?: string | null };
+    if (body.error) throw new Error(String(body.error));
+  }
+
   /** Fold one fresh engine state into the snapshot, the bridge's mapping. */
   private applyState(state: EngineState): void {
     const prev = this.snap;
@@ -409,6 +499,16 @@ class HttpBackend implements Backend {
     // Speeds only mean something while connected (or turning off); every
     // other state starts clean, exactly like a fresh Snapshot in the bridge.
     const keepStats = phase === "connected" || phase === "disconnecting";
+    // Usage: -1 (unknown) survives; a counting host always sends numbers
+    // and the engine keeps the just-ended session's totals visible through
+    // "stopping" so the row does not blink to zero on disconnect.
+    const downBytes = typeof state.downBytes === "number" ? state.downBytes : prev.downBytes;
+    const upBytes = typeof state.upBytes === "number" ? state.upBytes : prev.upBytes;
+    // lastSession: a present null ("never any session", or history just
+    // cleared) must WIN over the previous value — that is how the
+    // Last-session line disappears after a Clear. Only an absent field
+    // (older host) keeps what the screen had.
+    const lastSession = "lastSession" in state ? state.lastSession ?? null : prev.lastSession;
     this.snap = {
       phase,
       // "since" is when this engine phase began; keep the first one across
@@ -427,6 +527,9 @@ class HttpBackend implements Backend {
           : phase === "connected" && typeof state.latencyMs === "number" && state.latencyMs > 0
             ? state.latencyMs
             : null,
+      downBytes,
+      upBytes,
+      lastSession,
       message:
         phase === "error"
           ? state.error?.code === "NO_TARGET_APPS"
@@ -521,6 +624,12 @@ function autoBackend(): Backend {
     async getDiagnosticReport(): Promise<string | null> {
       return (await whenReady()).getDiagnosticReport();
     },
+    async getUsage(): Promise<UsageSummary | null> {
+      return (await whenReady()).getUsage();
+    },
+    async clearUsage(): Promise<void> {
+      return (await whenReady()).clearUsage();
+    },
   };
 }
 
@@ -537,10 +646,27 @@ function previewBackend(): Backend {
     downBps: 0,
     upBps: 0,
     pingMs: null,
+    downBytes: -1,
+    upBytes: -1,
+    lastSession: null,
   };
   const listeners = new Set<(s: Snapshot) => void>();
   let seq = 0;
   let statsTimer: number | undefined;
+
+  // Preview usage history (round-3 development only): three past sessions
+  // so the menu's Data-usage section has something honest-shaped to show,
+  // a live counter while "connected", and a real record pushed on every
+  // disconnect. Clear history works too — the sheet reloads and empties.
+  const now = Date.now();
+  let usageSessions: SessionRecord[] = [
+    { startMs: now - 61 * 60 * 1000, endMs: now - 60 * 1000, downBytes: 2_660_000_000, upBytes: 60_000_000 },
+    { startMs: now - 26 * 60 * 1000, endMs: now - 4 * 60 * 1000, downBytes: 430_000_000, upBytes: 15_000_000 },
+    { startMs: now - 3 * 24 * 60 * 60 * 1000, endMs: now - 3 * 24 * 60 * 60 * 1000 + 48 * 60 * 1000, downBytes: 1_220_000_000, upBytes: 34_000_000 },
+  ];
+  snap.lastSession = usageSessions[0] ?? null;
+  let liveDown = 0;
+  let liveUp = 0;
 
   function emit(): void {
     for (const cb of listeners) cb(snap);
@@ -551,11 +677,15 @@ function previewBackend(): Backend {
     statsTimer = window.setInterval(() => {
       if (snap.phase !== "connected") return;
       const drift = (n: number) => Math.max(0, n * (0.75 + Math.random() * 0.5));
+      liveDown += drift(2.4e6);
+      liveUp += drift(0.12e6);
       snap = {
         ...snap,
         downBps: drift(136.6e6),
         upBps: drift(0.33e6),
         pingMs: 38 + Math.floor(Math.random() * 12),
+        downBytes: Math.round(liveDown),
+        upBytes: Math.round(liveUp),
       };
       emit();
     }, 1000);
@@ -586,6 +716,16 @@ function previewBackend(): Backend {
     async getDiagnosticReport(): Promise<string | null> {
       return null;
     },
+    // The preview usage history stands in for the host's usage.json so the
+    // whole round-3 surface is exercisable without an engine.
+    async getUsage(): Promise<UsageSummary | null> {
+      return summarizeUsage(usageSessions);
+    },
+    async clearUsage(): Promise<void> {
+      usageSessions = [];
+      snap = { ...snap, lastSession: null };
+      emit();
+    },
     async connect(): Promise<void> {
       if (snap.phase !== "disconnected" && snap.phase !== "error") return;
       const id = ++seq;
@@ -602,7 +742,12 @@ function previewBackend(): Backend {
           downBps: 0,
           upBps: 0,
           pingMs: null,
+          downBytes: 0,
+          upBytes: 0,
+          lastSession: snap.lastSession,
         };
+        liveDown = 0;
+        liveUp = 0;
         runStats();
       }
       emit();
@@ -615,12 +760,37 @@ function previewBackend(): Backend {
         return;
       }
       const id = ++seq;
+      const startedAt = snap.connectedAtMs;
+      const endedWith = { down: liveDown, up: liveUp };
       snap = { ...snap, phase: "disconnecting" };
       emit();
       await new Promise((r) => window.setTimeout(r, 450));
       if (id !== seq) return;
       window.clearInterval(statsTimer);
-      snap = { phase: "disconnected", connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null };
+      // A session that really ran becomes history (a cancelled or failed
+      // connection never did — the round-3 rule).
+      let last = snap.lastSession ?? null;
+      if (startedAt && (endedWith.down > 0 || endedWith.up > 0)) {
+        last = {
+          startMs: startedAt,
+          endMs: Date.now(),
+          downBytes: Math.round(endedWith.down),
+          upBytes: Math.round(endedWith.up),
+        };
+        usageSessions = [last, ...usageSessions];
+      }
+      liveDown = 0;
+      liveUp = 0;
+      snap = {
+        phase: "disconnected",
+        connectedAtMs: null,
+        downBps: 0,
+        upBps: 0,
+        pingMs: null,
+        downBytes: -1,
+        upBytes: -1,
+        lastSession: last,
+      };
       emit();
     },
   };

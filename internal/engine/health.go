@@ -337,6 +337,9 @@ func (e *Engine) goOn() {
 	e.errCode = ""
 	e.clearFailLocked() // it works again; forget the recorded failure
 	e.setPhaseLocked(PhaseOn, "")
+	// Round-3: the engine reaching "on" is what begins a usage session
+	// (a heal's degraded→on flap keeps the original start).
+	e.startUsageSessionLocked()
 	e.mu.Unlock()
 	e.emitState()
 	e.startStatsLoop()

@@ -6,7 +6,8 @@
   import PowerPill from './lib/PowerPill.svelte'
   import Timer from './lib/Timer.svelte'
   import { createBackend } from './lib/backend'
-  import { formatBitrate, formatDuration } from './lib/format'
+  import { formatBitrate, formatBytes, formatDuration, formatDurationWords } from './lib/format'
+  import { ArrowDown, ArrowUp, Ellipsis } from './lib/icons'
   import type { Phase, Snapshot } from './lib/types'
 
   // =====================================================================
@@ -26,11 +27,18 @@
   }
   const HINT_OFF = 'Click or swipe down to connect'
   const HINT_ON = 'Click or swipe up to disconnect'
+  /** Round-3: the live Mb/s row is off by default — the session total is
+   *  what matters (flip this to bring the two speeds back under the timer). */
+  const SHOW_SPEEDS = false
+  /** Round-2 fix #8: a bare ping number means nothing to people, so every
+   *  ping gets a word. The thresholds live here, in the one config block. */
+  const PING_GOOD_MS = 120
+  const PING_OK_MS = 400
   // =====================================================================
 
   const backend = createBackend()
 
-  let snap: Snapshot = { phase: 'disconnected', connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null }
+  let snap: Snapshot = { phase: 'disconnected', connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null, downBytes: -1, upBytes: -1, lastSession: null }
   let now = Date.now()
   let menuOpen = false
   // The host's version (backend.getAppInfo) for the About sheet — the one
@@ -101,10 +109,27 @@
   $: busy = phase === 'connecting' || phase === 'disconnecting'
   $: showTimer = phase === 'connected' || phase === 'disconnecting'
   $: elapsed = snap.connectedAtMs ? Math.max(0, now - snap.connectedAtMs) : 0
-  $: detail =
-    localError !== ''
-      ? localError
-      : snap.message ?? (phase === 'connected' && snap.pingMs !== null ? `Ping ${snap.pingMs} ms` : '')
+  // Round-3: usage lines show only while a session is live (or settling)
+  // and only when the engine honestly counted — a -1 hides them.
+  $: showUsage =
+    (phase === 'connected' || phase === 'disconnecting') &&
+    snap.downBytes >= 0 &&
+    snap.upBytes >= 0
+  // Round-2 fix #7: speeds the engine did not measure are hidden, never
+  // faked as 0 Kb/s.
+  $: showSpeeds = SHOW_SPEEDS && snap.downBps >= 0 && snap.upBps >= 0
+  $: pingWord =
+    snap.pingMs !== null && snap.pingMs <= PING_GOOD_MS
+      ? 'Good'
+      : snap.pingMs !== null && snap.pingMs <= PING_OK_MS
+        ? 'OK'
+        : 'Slow'
+  $: pingText = phase === 'connected' && snap.pingMs !== null ? `Ping ${snap.pingMs} ms · ${pingWord}` : ''
+  $: lastSessionText =
+    phase === 'disconnected' && snap.lastSession
+      ? `Last session: ${formatBytes(snap.lastSession.downBytes + snap.lastSession.upBytes)} · ${formatDurationWords(snap.lastSession.endMs - snap.lastSession.startMs)}`
+      : ''
+  $: detail = localError !== '' ? localError : snap.message ?? (pingText || lastSessionText)
   $: hint = busy ? '' : tone === 'on' ? HINT_ON : HINT_OFF
 </script>
 
@@ -124,14 +149,9 @@
     </svg>
 
     <header>
-      <button type="button" class="menu" aria-label="Open menu" on:click={() => (menuOpen = true)}>
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <circle cx="12" cy="6" r="2.1" />
-          <circle cx="6" cy="12" r="2.1" />
-          <circle cx="18" cy="12" r="2.1" />
-          <circle cx="12" cy="18" r="2.1" />
-        </svg>
-      </button>
+      <!-- Round-2 fix #7 (Jakob's law): the brand sits top-left, the menu
+           button top-right, and the glyph is Lucide's Ellipsis (…) — a
+           44px target (Fitts) instead of the old four-dot mark. -->
       <div class="brand">
         {#if LOGO_URL}
           <img src={LOGO_URL} alt="" />
@@ -144,14 +164,31 @@
         <span>{APP_NAME}</span>
       </div>
       <span class="spacer"></span>
+      <button type="button" class="menu" aria-label="Open menu" on:click={() => (menuOpen = true)}>
+        <Ellipsis class="menu-icon" />
+      </button>
     </header>
 
     <div class="timer-block" class:visible={showTimer}>
       <Timer value={formatDuration(elapsed)} />
-      <div class="speeds">
-        <span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5" /></svg>{formatBitrate(snap.downBps)}</span>
-        <span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 7.5L6 4l3.5 3.5" /></svg>{formatBitrate(snap.upBps)}</span>
-      </div>
+      {#if SHOW_SPEEDS}
+        {#if showSpeeds}
+          <div class="speeds">
+            <span><ArrowDown class="arr" />{formatBitrate(snap.downBps)}</span>
+            <span><ArrowUp class="arr" />{formatBitrate(snap.upBps)}</span>
+          </div>
+        {/if}
+      {:else if showUsage}
+        <!-- Round-3: the session's data — the total counts up live, the split
+             shows both directions (Lucide arrows, never hand-drawn). -->
+        <div class="usage">
+          <div class="used">{formatBytes(snap.downBytes + snap.upBytes)} used</div>
+          <div class="split">
+            <span><ArrowDown class="arr" />{formatBytes(snap.downBytes)}</span>
+            <span><ArrowUp class="arr" />{formatBytes(snap.upBytes)}</span>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <div class="status" aria-live="polite">
@@ -302,10 +339,11 @@
     outline: 0.125rem solid #fff;
     outline-offset: 0.2rem;
   }
-  .menu svg {
+  .menu :global(svg) {
     width: 1.25rem;
     height: 1.25rem;
-    fill: #fff;
+    color: #fff;
+    stroke-width: 2.4;
   }
   .brand {
     display: flex;
@@ -364,14 +402,44 @@
     gap: 0.5rem;
     white-space: nowrap;
   }
-  .speeds svg {
+
+  /* ---- round-3: the session's data under the timer ---- */
+  .usage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 0.5rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .used {
+    font-size: 1rem;
+    font-weight: var(--fw-semibold);
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .split {
+    display: flex;
+    justify-content: center;
+    gap: 1.75rem;
+    margin-top: 0.2rem;
+    font-size: var(--fs-stats);
+    font-weight: var(--fw-medium);
+    color: var(--text-secondary);
+  }
+  .split span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  /* the Lucide arrows inside the speeds/usage rows (child components —
+     reach them with :global) */
+  .speeds :global(svg),
+  .usage :global(svg) {
     width: 0.75rem;
     height: 0.75rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-width: 2;
   }
 
   .status {
@@ -430,13 +498,16 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 36rem;
+    /* Round-2 fix #3: the hint moved below the ring family's capped reach
+       (outer arc bottom ≈ 36.7rem + dot) with a visible gap, and grew from
+       11px/62% to 12px/82% so it reads clearly on the busiest background. */
+    top: 37.25rem;
     text-align: center;
     font-size: var(--fs-hint);
     font-weight: var(--fw-medium);
     letter-spacing: 0.02em;
     word-spacing: 0.14em;
-    color: var(--text-tertiary);
+    color: var(--text-hint);
     opacity: 0;
     transition: opacity 300ms ease;
   }
