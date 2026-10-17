@@ -2619,3 +2619,30 @@ asset (body 9,017 → 9,650 chars, prefix byte-identical). Zero app
 code; versionCode stays 3; ~/sdk still wiped (reinstall before
 Go/Svelte work stands). The device-test observations from debug.3
 remain the open input (next Task ID M8-i).
+
+M8-i-a — the seventh feedback-loop session, the recovery round
+(2026-10-17): NO device feedback arrived (checked the session
+messages and the GitHub API — zero issues on the repo), so per the
+standing rule no code was touched and no release cut. What the
+round did: the fourth sandbox wipe was found (~/sdk absent; the
+repo itself intact at f8b2edc, clean and in sync, untracked build
+state surviving) and repaired — the toolchain reinstalled per doc
+06 §1's pins (Go 1.27.2, Temurin JDK 21.0.12.1+1 with javac,
+cmdline-tools 12.0 — via the versioned 11076708 URL, because the
+12.0 alias now 404s; a discovery recorded in doc 06 — platform-
+tools 37.0.1, platforms 26+36, build-tools 36.1.0, NDK
+28.2.13676358, gomobile/gobind at the pinned x/mobile version;
+~/sdk/env.sh + android/local.properties rewritten). The full
+baseline re-verified GREEN on the unchanged tree BEFORE anything
+else: vet clean; go test 17/17 ×2 (engine 9.6 s, proxy 16.2 s,
+mobile 36.8 s); svelte-check 0/0; vite build clean + webui dist
+re-synced (the worktree stayed clean through the rebuild); the
+compile matrix 4/4 ABIs in the honest form (arm64 full tree; 18
+non-main × arm/386/amd64); ./gradlew projects BUILD SUCCESSFUL.
+The release lane re-verified live: debug.4 regular + Latest, the
+older android releases regular, zero issues. /dev/kvm still
+absent. Zero app code; versionCode stays 3; the APK bytes
+unchanged. The device-test observations from debug.3 and the
+fixed helper's first DONE output remain the open input (next Task
+ID M8-i-b) — the environment is READY for the immediate
+fix-→-bump-→-debug.5 cycle when they land.

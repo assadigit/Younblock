@@ -1,10 +1,13 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the D90 session (2026-10-17, the device-test
-feedback loop's sixth round) — **Phase 2 host-complete; the test
-circle is on its third build, published as regular releases in the
-private repo, and the keystore helper now survives PowerShell-less
-PATH machines (D90, shipped as debug.4)**. This file is
+**Status:** Updated at the M8-i-a recovery round (2026-10-17, the
+device-test feedback loop's seventh session — a readiness round:
+no device feedback arrived, so NO code was touched; the wiped
+toolchain was restored and the baseline re-verified green) —
+**Phase 2 host-complete; the test circle is on its third build,
+published as regular releases in the private repo, and the keystore
+helper survives PowerShell-less PATH machines (D90, shipped as
+debug.4)**. This file is
 the live handoff; keep the fields in §"Current handoff fields" accurate
 at every session boundary.
 
@@ -66,16 +69,21 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's SIXTH session
-  (2026-10-17, D90, Task ID M8-h) — Ali's first field report from
-  the helper arrived: the keystore ceremony stopped at password
-  generation ("'powershell' is not recognized") because his PATH
-  does not include PowerShell; fixed and shipped as
-  v1.6.6-android-debug.4. Beneath it: M8-g/D89 (regular releases in
-  the private repo), M8-e/D88 (the ceremony script), the M8-f
-  verification round. Phase 2 (M0–M8) remains host-complete; the
-  DEVICE observations from debug.3 have still not arrived — the
-  helper report was a PC-side observation.
+- **Phase completed:** the device-test feedback loop's SEVENTH
+  session (2026-10-17, Task ID M8-i-a — the recovery/readiness
+  round): no device feedback arrived (checked the session messages
+  AND the GitHub API — zero issues), so per the standing rule no
+  code was touched and no release cut; instead the fourth sandbox
+  wipe was repaired — ~/sdk restored per doc 06 §1 pins (with one
+  operational discovery recorded there: the cmdline-tools `12.0`
+  alias URL now 404s; the versioned `11076708` URL is the same
+  cmdline-tools 12.0) and the full baseline re-verified GREEN on
+  the unchanged tree f8b2edc. Beneath it: M8-h/D90 (the
+  PowerShell-less-PATH helper fix, debug.4), M8-g/D89 (regular
+  releases in the private repo), M8-e/D88 (the ceremony script),
+  the M8-f verification round. Phase 2 (M0–M8) remains
+  host-complete; the DEVICE observations from debug.3 have STILL
+  not arrived — the M8-h helper report was PC-side.
 - **The project's state now:** the app is unchanged at the debug.3
   state — the five-app default allow-list (the YouTube app plus the
   Chrome, Firefox, Opera and Brave browsers, D87), the v4 migration,
@@ -98,7 +106,7 @@ at every session boundary.
   facts beneath it stand: the three android releases are regular
   releases in the private repo; the spec audit (M0–M8 host-complete,
   every remaining ⛔ a device gate) is on record.
-- **Branch and commit:** `main`, the M8-h docs commit (see `git log
+- **Branch and commit:** `main`, the M8-i-a docs commit (see `git log
   -1` at handoff time); worktree clean after the commit; the release
   tag `v1.6.6-android-debug.4` points at the M8-h fix commit cb28507
   (the .bat change — helper-only, no app build);
@@ -107,33 +115,38 @@ at every session boundary.
   replaced the helper); debug.2's
   tag points at 096e8c0 and debug.1's at f61bfae (both superseded,
   their release pages keep the D85 troubleshooting guide).
-- **Files changed this phase:** `make-release-keystore.bat` (the D90
-  fix, 57 insertions / 17 deletions) plus docs — doc 10 (the D90
-  edition: the status header and §1's debug.4 note), doc 09 (this
-  handoff), doc 06 (the M8-h record), doc 07 §8 (the D90 bullet),
-  README (the Android download line + the helper paragraph),
-  DECISIONS.md (D90), PROGRESS.md, CHANGELOG.md,
-  SESSION_HANDOFF_PROMPT.md — plus the GitHub release lane (the
-  debug.4 release + asset, the Latest marker, debug.3's
-  one-paragraph pointer note). ZERO Go/Kotlin/Svelte/app code
-  touched; versionCode stays 3; the APK bytes are unchanged.
-- **Tests run and actual results:** no Go/Svelte lanes this session —
-  no app code changed, and ~/sdk remains wiped (the standing caution:
-  reinstall per doc 06 §1 pins BEFORE any Go/Svelte work). The
-  baseline of record for the unchanged clean tree 2a8b678 is M8-d's
-  (vet clean; go test 17/17 ×2; svelte-check 0/0; vite build clean,
-  dist synced). What WAS verified with evidence this round: the new
-  .bat on disk (13,683 B, sha256 ee35e456…9558, pure ASCII, CRLF;
-  structural desk-check clean — even quote counts per line, block
-  parentheses balanced to zero, the D88 PS one-liner unchanged apart
-  from the exe resolution; the full-path pattern itself has shipped
-  to real machines in setup-offline.bat since v0.7.5); the release
-  lane live through the GitHub API (debug.4 created regular at
-  cb28507, Latest-marked; the asset uploaded, its served bytes
-  re-downloaded and hashed byte-exact; debug.3's body 9,017 → 9,650
-  chars, prefix byte-identical, the pointer note exactly once). The
-  Windows execution itself remains ⛔ on this Linux host — the script
-  self-verifies on Ali's machine (the read-back round trip).
+- **Files changed this phase:** documentation only — doc 06 (the
+  M8-i-a recovery record + the cmdline-tools URL wrinkle), doc 09
+  (this handoff), PROGRESS.md, SESSION_HANDOFF_PROMPT.md — plus the
+  git-ignored environment wiring (~/sdk/env.sh,
+  android/local.properties). ZERO Go/Kotlin/Svelte/app code
+  touched; versionCode stays 3; the APK bytes are unchanged; no
+  release was cut.
+- **Tests run and actual results:** the full restored baseline, run
+  BEFORE anything else on the unchanged clean tree f8b2edc:
+  `go vet ./...` clean; `go test -count=1 ./...` **17/17 packages ok
+  twice consecutively** (engine 9.6 s, proxy 16.2 s, mobile 36.8 s);
+  svelte-check 0 errors 0 warnings; vite build clean with the webui
+  dist re-synced (worktree stayed clean through the rebuild —
+  byte-identical dist); Android library compile matrix 4/4 ABIs in
+  the honest §A form (arm64 full tree at CGO_ENABLED=0; the 18
+  non-main packages × arm/386/amd64); `./gradlew projects` BUILD
+  SUCCESSFUL through the committed wrapper (JDK/SDK detection
+  re-proven). The release lane re-verified live through the GitHub
+  API (debug.4 regular + Latest; debug.3/.2/.1 regular; zero
+  issues). The standing ⛔ re-confirmed: `ls /dev/kvm` → No such
+  file or directory — no emulator, no device; and the Windows
+  execution of the .bat remains unrunnable on this Linux host (the
+  script self-verifies on Ali's machine).
+- **The environment is RESTORED and READY** (2026-10-17, M8-i-a):
+  ~/sdk carries Go 1.27.2, the Temurin JDK 21.0.12.1+1 (javac), the
+  Android SDK (cmdline-tools 12.0, platform-tools 37.0.1,
+  platforms 26+36, build-tools 36.1.0, NDK 28.2.13676358), and
+  gomobile/gobind at the pinned x/mobile version (~/go/bin).
+  Source `~/sdk/env.sh` before any build. If a future session finds
+  ~/sdk wiped again, reinstall per doc 06 §1 (mind the URL
+  wrinkle) — but VERIFY first; do not reinstall over a working
+  toolchain.
 - **Current architecture decision / confidence:** D90 (the keystore
   ceremony survives PowerShell-less PATH machines — full-path
   resolution + pure-cmd fallback; the online-generator question ruled
@@ -150,7 +163,7 @@ at every session boundary.
   report was PC-side).
 - **Exact next task:** continue the **device-test feedback loop**:
   ingest Ali's DEVICE results from v1.6.6-android-debug.3 (Task ID
-  M8-i) — the YouTube app and the installed default browsers out of
+  M8-i-b) — the YouTube app and the installed default browsers out of
   the box (row 2), youtube.com in each installed browser (row 4), the
   rest of doc 10's test circle, and the diagnostics report for
   anything that fails. The first run of the FIXED helper
@@ -159,8 +172,8 @@ at every session boundary.
   ceremony loop. Fix what surfaces (root-cause discipline; the
   D77–D90 honesty rules binding as ever), bump `versionCode` and cut
   `v1.6.6-android-debug.5` through the same release lane — a REGULAR
-  release (D89) — WHEN an app code change warrants it.
-  CAUTION for the next session: ~/sdk is wiped —
-  reinstall the toolchain per doc 06 §1's pins (Go, the Temurin JDK,
-  the Android SDK/NDK) and re-establish the baseline BEFORE touching
-  any Go/Svelte code.
+  release (D89) — WHEN an app code change warrants it. The
+  environment is READY for that cycle now (M8-i-a restored it);
+  verify with `. ~/sdk/env.sh && go version` before building, and
+  only reinstall if ~/sdk is actually wiped again (doc 06 §1 + the
+  cmdline-tools URL wrinkle recorded there).

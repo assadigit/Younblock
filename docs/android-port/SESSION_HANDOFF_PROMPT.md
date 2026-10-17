@@ -6,7 +6,7 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the M8-h / D90 session close)
+## Where the project stands (verified at the M8-i-a recovery-round close)
 
 - **Phase 2 is host-complete. M0–M8 are all done** (2026-10-17): the
   Go engine ported and hardened behind ADRs, the gomobile facade with
@@ -85,6 +85,17 @@ working clone carries the credential in its `origin` remote URL).
   most valuable evidence when anything fails** — it carries the
   engine's own redacted view (DoH provider state, self-test results,
   recent log ring).
+- **M8-i-a (no app change, 2026-10-17): the recovery/readiness round.**
+  No device feedback arrived (session + GitHub issues both empty),
+  so no code was touched and no release cut — the fourth sandbox
+  wipe was instead repaired: ~/sdk restored per doc 06 §1's pins and
+  the FULL baseline re-verified green on the unchanged tree f8b2edc
+  (vet clean; go test 17/17 ×2; svelte-check 0/0; vite clean + dist
+  re-synced; matrix 4/4 ABIs; `./gradlew projects` BUILD SUCCESSFUL).
+  Operational discovery recorded in doc 06's M8-i record: the
+  cmdline-tools `12.0` alias URL now 404s — the versioned
+  `11076708` URL is the same cmdline-tools 12.0. The environment is
+  READY for the immediate fix-→-bump-→-debug.5 cycle.
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
@@ -97,11 +108,12 @@ working clone carries the credential in its `origin` remote URL).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-b,
-   M8-c, M8-d, M8-e, … (this prompt describes the state after M8-h;
-   the next is M8-i).
+   M8-c, M8-d, M8-e, … (this prompt describes the state after the
+   M8-i-a recovery round; the next real task is M8-i-b — the
+   device-results ingestion).
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.3 + debug.4 editions + §"Device test circle" — Ali's
-   checklist), doc 06 (the M8-c…M8-h records), doc 08 +
+   checklist), doc 06 (the M8-c…M8-i records), doc 08 +
    `DECISIONS.md` (D1–D90; **the next decision number is D91**), and
    the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
@@ -118,11 +130,13 @@ working clone carries the credential in its `origin` remote URL).
    `vite build`. D74 trap: a stale webui dist fails
    `TestWebUILifecycle` (in the mobile package) — sync
    `frontend/dist → internal/webui/dist` before judging.
-   **⚠ ~/sdk was wiped between M8-d and M8-e (recorded in doc 06's
-   M8-e entry): Go, the Temurin JDK and the Android SDK/NDK must be
-   reinstalled per doc 06 §1's pins BEFORE any Go/Svelte work. The
-   system JRE on the box has keytool but no javac — not sufficient
-   for builds.**
+   **~/sdk was wiped again before M8-i and RESTORED at the M8-i-a
+   recovery (2026-10-17, doc 06's M8-i record): VERIFY first (`. ~/sdk/env.sh
+   && go version && javac -version`) and only reinstall if actually
+   wiped — the system JRE on the box has keytool but no javac, so a
+   missing ~/sdk/jdk means builds fail. When reinstalling, mind the
+   URL wrinkle: the cmdline-tools `12.0` alias 404s; use the
+   versioned `commandlinetools-linux-11076708_latest.zip`.**
 
 ## The task — the device-test feedback loop
 
@@ -231,15 +245,15 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
   handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D91),
-  `CHANGELOG.md`; append the worklog entry (Task ID M8-i, … per
+  `CHANGELOG.md`; append the worklog entry (Task ID M8-i-b, … per
   feedback round); commit and push; cut the debug release with the
   bumped versionCode when code changed, and record the artifact.
 
 ## Required first response
 
 Report, briefly and with evidence: (1) environment — intact or
-recovered, and how you know (note the ~/sdk state; doc 06's M8-e
-entry records it wiped); (2) repo state — branch, HEAD,
+recovered, and how you know (note the ~/sdk state; doc 06's M8-i
+record records the latest restore); (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
 from debug.3 has arrived (helper/PC-side reports do not count), and
 if so the exact first issue you will address. Then execute — or, if

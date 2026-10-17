@@ -564,3 +564,51 @@ byte-identical); docs synced in the follow-up commit (this record
 among them). The Windows execution itself remains ⛔ on this host
 (as at D88); the script self-verifies on Ali's machine. Next Task
 ID M8-i; next decision D91.
+
+M8-i record, part a (2026-10-17, later again; the recovery round —
+the M8-i session's opening, recorded as M8-i-a; NO device feedback
+arrived: checked the session messages and the GitHub API — zero
+issues on the repo, so the ingestion itself stays open as M8-i-b):
+the environment was found wiped AGAIN (~/sdk absent — the fourth
+wipe; the repo itself INTACT at f8b2edc, clean and in sync, with
+the untracked build state surviving: frontend/node_modules,
+frontend/dist, internal/webui/dist, android/app/libs, and the Go
+module cache). The toolchain was reinstalled per §1's pins with
+one operational discovery: **the cmdline-tools alias URL
+`commandlinetools-linux-12.0_latest.zip` now 404s at dl.google.com
+— use the versioned URL
+`commandlinetools-linux-11076708_latest.zip` (153,607,504 B),
+which is the same cmdline-tools 12.0** (`sdkmanager --version` →
+12.0 verified after install). Restored and verified: Go 1.27.2
+(~/sdk/go), JDK 21.0.12.1+1 Temurin (javac 21.0.12.1 — the
+Adoptium API's current 21 GA, same build as M5/M6), platform-tools
+37.0.1 (adb OK), platforms 26+36, build-tools 36.1.0, NDK
+28.2.13676358, gomobile + gobind via `go install` at x/mobile
+v0.0.0-20261011034528-197770444867 (they land in ~/go/bin, on PATH
+via env.sh; `gomobile help bind` works); ~/sdk/env.sh and the
+git-ignored android/local.properties (sdk.dir) rewritten. The
+desktop baseline was re-verified GREEN before anything else, on
+the unchanged tree: `go vet ./...` clean; `go test -count=1
+./...` **17/17 packages ok, run twice consecutively** (engine
+9.6 s, proxy 16.2 s, mobile 36.8 s on the second pass — matching
+the recorded baseline); svelte-check 0 errors 0 warnings; vite
+build clean (✓ 1.05 s) with `frontend/dist → internal/webui/dist`
+re-synced — and the worktree stayed CLEAN through the rebuild
+(content-hashed output byte-identical to the committed dist).
+Android library compile matrix 4/4 ABIs, the honest §A form:
+arm64 links the full tree at CGO_ENABLED=0 (exit 0); the 18
+non-main packages (the tree minus the root wails main and
+cmd/core + cmd/pacgen) build clean × arm/386/amd64 (exit 0 each).
+Gradle wiring re-proven through the committed wrapper:
+`./gradlew projects` → BUILD SUCCESSFUL (Gradle 9.8.1 dist
+re-downloaded; JDK/SDK detection + local.properties verified).
+The standing runtime blocker re-confirmed: `ls /dev/kvm` → No
+such file or directory — no emulator, no device, as ever. Release
+lane re-verified live through the GitHub API: v1.6.6-android-debug.4
+regular (draft=false, prerelease=false) and the repo's Latest;
+debug.3/.2/.1 regular; zero open issues. ZERO app code touched;
+no release cut (nothing changed — D84 discipline); versionCode
+stays 3; the APK bytes are unchanged. Disk: 4.3 GB free after the
+restore. Next: M8-i-b, the device-results ingestion (and the
+fixed helper's first DONE output) — the environment is READY for
+an immediate fix-→-bump-→-debug.5 cycle when that data lands.
