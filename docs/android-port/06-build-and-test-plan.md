@@ -319,3 +319,38 @@ developer.android.com primary sources this session. Disk at the exit:
 was re-verified: install/launch smoke and the traffic-path halves are
 handed to Ali's device through the release's test circle (doc 10
 §"Device test circle") — never claimed here.
+
+D85 record (2026-10-17; the fourth consecutive no-wipe session — repo
+at f61bfae, toolchain verified, baseline intact; the device-test
+feedback loop's first session, triggered by Ali's observation "Android
+didn't let me install it"):
+
+- **The served-artifact exoneration** (before any fix, per the
+  honesty rules): the release asset downloaded through the API →
+  sha256 `ccf46a2e…7b64`, byte-identical to the on-disk record;
+  apksigner v2 OK, the recorded debug cert; badging minSdk 26 /
+  target 36 / versionCode 1 / the four permissions; the binary
+  manifest dump → `debuggable=true` (normal for debug, does not
+  block sideload) and NO `testOnly`; the zip central directory
+  intact (20 entries, testzip clean). The asset's download_count
+  was 0 — an interrupted download from the Iranian network is the
+  probable cause; the troubleshooting path (size check first, PC +
+  USB fallback) was PATCHed onto the live release body (HTTP 200).
+- **The D85 keystore pin:** `android/app/debug.keystore` is now
+  vendored (the exact key that signed debug.1 — keytool digest
+  C76BB7C6…D8551D matches the APK cert) and wired as the debug
+  signingConfig in `android/app/build.gradle.kts` (store password
+  "android", alias androiddebugkey — the well-known debug identity;
+  release keystores stay out of the repo per D84/doc 07 §8). The
+  lane: clean `assembleDebug` → BUILD SUCCESSFUL (37/37 tasks) →
+  apksigner on the rebuild → the SAME certificate digest
+  `c76bb7c6…8551d` → and the rebuild is **byte-identical** to the
+  published release (sha256 match — deterministic packaging). Every
+  future assembleDebug now signs with the committed key, so the D84
+  update promise survives sandbox wipes (the machine-local
+  ~/.android/debug.keystore regenerates per wipe — three wipes in
+  this project's record).
+- No debug.2 cut: the artifact is unchanged and byte-reproducible;
+  the next release rides on the next code-changing observation.
+  Exit gates: vet clean; go test 17/17 ×2; svelte-check 0/0; vite
+  build clean; webui dist zero-diff (the D74 trap checked).

@@ -721,3 +721,30 @@ First Windows test build, published to GitHub Releases.
   Protect + built-for-testing warnings, all expected for this circle).
   **Every future debug build bumps versionCode** so it installs over
   the previous one (same debug certificate) — the D84 rule.
+
+### Added (Android port — the device-test feedback loop, session 1, D85)
+
+- **Ali's first device observation ingested**: "Android didn't let me
+  install it" from v1.6.6-android-debug.1. Diagnosed before any fix:
+  the served release bytes re-downloaded and verified byte-identical
+  to the record (sha256, apksigner v2, badging, manifest — no
+  `testOnly`, `debuggable` is normal for debug; zip intact), and the
+  asset's download_count was 0 — pointing at an interrupted download
+  from the Iranian network (release assets are served from
+  release-assets.githubusercontent.com) rather than an APK defect.
+- **The install-blocked troubleshooting path is now on the live
+  release body** (PATCHed via the API) and doc 10 §1: check the file
+  size first (≈ 35,567,561 B; a few-KB file is an error page), retry
+  on Wi-Fi or download on a PC + USB; then the install-unknown-apps
+  gate; then Play Protect's "install anyway"; then the parse-error and
+  storage branches.
+- **The debug certificate is pinned in the repo (D85)**:
+  `android/app/debug.keystore` — the exact key that signed
+  v1.6.6-android-debug.1 — is vendored and wired as the debug
+  signingConfig, so successive debug builds keep installing over the
+  previous one even after sandbox wipes regenerate the machine-local
+  ~/.android/debug.keystore. Verified: clean assembleDebug signs with
+  the same certificate digest (c76bb7c6…8551d) and is byte-identical
+  to the published release. No debug.2 yet — the artifact itself is
+  unchanged; the next release rides on the next code-changing
+  observation.

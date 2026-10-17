@@ -1,8 +1,9 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at M8 close (2026-10-17) — **Phase 2
-host-complete**. This file is the live handoff; keep the fields in
-§"Current handoff fields" accurate at every session boundary.
+**Status:** Updated at the first device-observation session (2026-10-17,
+D85) — **Phase 2 host-complete; the test circle is live**. This file is
+the live handoff; keep the fields in §"Current handoff fields" accurate
+at every session boundary.
 
 ## If starting Phase 2 (implementation) — CURRENT
 
@@ -62,70 +63,75 @@ host-complete**. This file is the live handoff; keep the fields in
 
 ## Current handoff fields
 
-- **Phase completed:** Phase 2 milestone **M8** — package, verify,
-  hand off — host-complete 2026-10-17 (DECISIONS.md D84; evidence in
-  doc 05 §M8 and doc 06's M8 record). **M0–M8 are all complete
-  host-side; the port is packaged and distributed.** The keystore
-  ruling arrived at the open and reshaped M8: the debug-APK-only test
-  circle — no signed variant exists; the debug APK
-  (`app-debug.apk`, 35,567,561 B, SHA-256 ccf46a2e…7b64 — the M8-a
-  clean-build output, re-verified on disk: apksigner v2 OK with the
-  debug cert digest recorded, badging 1.6.6/vc1/minSdk 26/target 36/
-  3 ABIs, the four-permission manifest, javap bindings) is published
-  as the GitHub prerelease **`v1.6.6-android-debug.1`** for Ali's own
-  device testing. No application code changed at M8 (docs + release
-  only); the baseline gate (vet clean, 17/17 ×2, svelte-check 0/0,
-  vite clean, dist synced) ran at the open and stands.
-- **The project's state now:** every host-runnable lane is green and
-  evidenced; every device-side gate is ⛔ in the sandbox (no /dev/kvm,
-  no device — re-verified) and **handed to Ali's device** through the
-  release's test circle (doc 10 §"Device test circle"): install +
-  launch smoke, the live consent dialog, notification channel
-  behavior, screen-off/Doze, real DoH, the YouTube app's QUIC→TCP
-  fallback, protect() on real sockets, the .ir direct path on a real
-  radio, rotation/font-scale/TalkBack, battery, reboot/onRevoke, and
-  the IPv4/IPv6 + TCP/UDP measured rows. His observations are the
-  next session's input and become the recorded evidence that closes
-  the checklist.
-- **Branch and commit:** `main`, the M8 commit (see `git log -1` at
-  handoff time); worktree clean after the commit; the release tag
-  `v1.6.6-android-debug.1` (prerelease) points at it.
-- **Files changed this phase:** no application code — doc 05 §M8 +
-  critical-path, doc 06's M8 record, doc 07 §8/§9 (D84 + three M8
-  rows closed), doc 09 (this handoff), doc 10 (the debug test-circle
-  edition + the device test circle), README (the Android sideload
-  section), DECISIONS.md (D84), PROGRESS.md, CHANGELOG.md,
-  SESSION_HANDOFF_PROMPT.md (the post-M8 edition).
-- **Tests run and actual results:** `go vet ./...` clean; `go test
-  -count=1 ./...` **17/17 packages ok, run twice consecutively**;
-  svelte-check 0/0; vite build clean; webui dist synced (zero diff);
-  artifact lanes re-run on the shipped APK (sha256, apksigner
-  --print-certs, aapt2 badging, manifest dump, javap — outputs
-  recorded in doc 06's M8 record); dependency closure re-run (same
-  audited set as M7); platform requirements re-verified against
-  developer.android.com primary sources. The GitHub release verified
-  through the API after creation (tag, prerelease flag, asset size +
-  digest match).
-- **Current architecture decision / confidence:** D84 (the
-  debug-APK-only test circle — the debug APK distributed via GitHub
-  Releases on the private repo; successive debug builds bump
-  versionCode; the signed-release alternatives stay documented for
-  the future public release). Confidence: high on the entire host
-  chain; every device claim remains explicitly unclaimed pending
-  Ali's observations. Next decision ID: D85.
+- **Phase completed:** the device-test feedback loop's FIRST session
+  (2026-10-17, D85) — Ali's first observation ingested ("Android
+  didn't let me install it"), diagnosed with evidence, and the fixes
+  shipped. Phase 2 (M0–M8) remains host-complete beneath it.
+- **The project's state now:** the observation was diagnosed BEFORE
+  any fix: the published artifact was exonerated end-to-end (the
+  bytes GitHub serves were re-downloaded this session and hash to the
+  recorded sha256 ccf46a2e…7b64; apksigner v2 OK with the recorded
+  debug cert c76bb7c6…8551d; badging minSdk 26/target 36/vc 1; the
+  binary manifest has debuggable=true but NO testOnly; the zip is
+  intact — 20 entries, testzip clean), and the release asset's
+  download_count was **0** — the probable cause is an interrupted
+  download on Ali's phone (GitHub release assets are served from
+  release-assets.githubusercontent.com, frequently unreliable from
+  Iranian networks), with the two expected gates
+  (install-unknown-apps; Play Protect) or a sub-8.0 device as the
+  remaining branches. Three things shipped: (1) the ordered
+  troubleshooting path is now ON THE LIVE RELEASE BODY (PATCHed via
+  the API, HTTP 200 — the help sits where the retry happens) and in
+  doc 10 §1; (2) **D85 — the pinned debug keystore**: the exact key
+  that signed debug.1 is vendored at `android/app/debug.keystore` and
+  wired as the debug signingConfig, making the "successive debug
+  builds install over this one (same certificate)" promise
+  wipe-proof (verified: clean assembleDebug → same cert digest, and
+  the rebuild is byte-identical, sha256 match); (3) no debug.2 was cut
+  — nothing about the artifact changed, so a re-release would churn
+  tags without fixing a device/network-side cause. Awaiting from Ali:
+  the retry result (the file size he gets + the exact on-screen
+  wording if it still fails) and the rest of the test-circle rows
+  (doc 10 §"Device test circle").
+- **Branch and commit:** `main`, the D85 session commit (see
+  `git log -1` at handoff time); worktree clean after the commit; the
+  release tag `v1.6.6-android-debug.1` (prerelease) still points at
+  the M8 commit f61bfae — the release body was amended in place, the
+  asset unchanged.
+- **Files changed this phase:** `android/app/build.gradle.kts` (the
+  pinned debug signingConfig), `android/app/debug.keystore` (NEW —
+  the vendored test-circle key), DECISIONS.md (D85), doc 09 (this
+  handoff), doc 10 (the troubleshooting section + the D85 pin note),
+  doc 06 (the D85 build-lane record), PROGRESS.md, CHANGELOG.md,
+  SESSION_HANDOFF_PROMPT.md. No Go, Kotlin or frontend code changed.
+- **Tests run and actual results:** the artifact lanes on the SERVED
+  release bytes (download → sha256 match; apksigner verify +
+  --print-certs; aapt2 badging + manifest dump) — all green; the
+  keystore pinning lane (clean assembleDebug 37/37 tasks, BUILD
+  SUCCESSFUL; apksigner on the rebuild → the same certificate digest;
+  byte-identical sha256 vs the release); the exit gates (vet clean,
+  go test 17/17 ×2, svelte-check 0/0, vite build clean, webui dist
+  zero-diff) — see the session worklog for the evidence.
+- **Current architecture decision / confidence:** D85 (the pinned
+  debug keystore + the first observation's diagnosis). Confidence:
+  high — the artifact chain is verified end-to-end and the update
+  promise is now wipe-proof. Every device claim remains explicitly
+  unclaimed pending Ali's observations. Next decision ID: D86.
 - **Blocking questions:** none product-side. The keystore question is
-  ANSWERED (D84 — debug-only for now; revisit only when a public
-  release is planned). The allow-list question is ANSWERED and
-  implemented (D83, confirmed by Ali at M8). Standing environment
-  blocker: no /dev/kvm, no device — now mitigated by Ali's own
-  device testing through the debug release.
-- **Exact next task:** the **device-test feedback loop** (no fixed
-  milestone number): ingest Ali's observations from
-  `v1.6.6-android-debug.1` (doc 10 §"Device test circle" is the
-  checklist), fix what his testing surfaces (root-cause discipline,
-  the D77–D83 honesty rules binding as ever), bump `versionCode` and
-  cut the next debug build (`v1.6.6-android-debug.2`…) with the same
-  release lane (doc 06's M8 record), and close checklist rows with
-  his measured evidence. When Ali decides to release publicly, the
-  signed-release decision returns (doc 07 §8: his local keystore or
-  an EC key; never committed).
+  ANSWERED (D84 — debug-only for now; the debug key is pinned per
+  D85; release signing returns only for the public release). The
+  allow-list question is ANSWERED and implemented (D83, confirmed by
+  Ali at M8). Standing environment blocker: no /dev/kvm, no device —
+  mitigated by Ali's own device testing through the debug release;
+  the first install attempt surfaced a network-side failure mode
+  instead (the truncated-download branch, D85).
+- **Exact next task:** continue the **device-test feedback loop**:
+  ingest Ali's retry result and the remaining test-circle rows
+  (doc 10 §"Device test circle" is the checklist), fix what they
+  surface (root-cause discipline, the D77–D85 honesty rules binding
+  as ever), bump `versionCode` and cut the next debug build
+  (`v1.6.6-android-debug.2`…) through the same release lane (doc 06's
+  M8 record) WHEN a code change warrants it, and close checklist rows
+  with his measured evidence. When Ali decides to release publicly,
+  the signed-release decision returns (doc 07 §8: his local keystore
+  or an EC key; never committed).

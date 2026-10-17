@@ -1396,3 +1396,56 @@ failStart(String) and routedApps()); the dependency closure re-run
 platform-requirements recheck against developer.android.com primary
 sources; the GitHub release itself, verified through the API after
 creation (tag, prerelease flag, asset size and digest match).
+
+**D85 — the pinned debug keystore + the first device observation's
+diagnosis (2026-10-17, the device-test feedback loop's first
+session).** Ali's first observation from the test circle arrived:
+"Android didn't let me install it." Diagnosis before any fix, all with
+evidence:
+
+- THE ARTIFACT IS EXONERATED END-TO-END. The bytes GitHub serves were
+  downloaded this session and hash to exactly the recorded sha256
+  (ccf46a2e…7b64); apksigner v2-verifies the served file with the
+  recorded debug certificate (c76bb7c6…8551d); badging shows
+  minSdk 26 / target 36 / versionCode 1 / the four permissions; the
+  binary manifest carries debuggable=true (normal for a debug build,
+  does not block sideloading) and NO testOnly attribute (the flag that
+  would make the package uninstallable); the zip central directory is
+  intact (20 entries, testzip clean — 4 dex + 3 native libs + manifest/
+  resources, exactly the gomobile app's shape).
+- THE DECISIVE CLUE: the release asset's download_count is 0. Only
+  completed downloads count, so the most probable story is the
+  download never finished on his phone — GitHub release assets are
+  served from release-assets.githubusercontent.com, which is
+  frequently slow or unreliable from Iranian networks — and Android
+  refused a truncated/HTML file. The remaining branches are the two
+  gates doc 10 already warned about (the install-unknown-apps gate;
+  Play Protect's "unsafe app blocked") or a device below Android 8.0.
+  The ordered troubleshooting path (size check ≈ 35,567,561 B first,
+  PC + USB as the reliable fallback route) is now ON THE LIVE RELEASE
+  BODY (PATCHed through the API, HTTP 200) and in doc 10 §1 — the
+  help sits exactly where the retry happens, on his phone.
+- THE LATENT HOST-SIDE HOLE THE OBSERVATION EXPOSED: doc 10 promised
+  "successive debug builds install over this one (same certificate),"
+  but that promise rested on ~/.android/debug.keystore — a
+  machine-local file REGENERATED on every sandbox wipe (three wipes
+  already in this project's record). A post-wipe rebuild would have
+  signed with a new debug key and silently broken in-place updates.
+  FIX: the exact keystore that signed v1.6.6-android-debug.1 (still
+  present; certificate digest verified identical) is now vendored at
+  android/app/debug.keystore and wired as the debug signingConfig in
+  android/app/build.gradle.kts. Verification: clean assembleDebug →
+  apksigner shows the SAME certificate digest c76bb7c6…8551d, and the
+  rebuild is byte-identical to the published release (sha256
+  ccf46a2e…7b64 — deterministic packaging). The update promise is now
+  wipe-proof.
+- A DEBUG KEYSTORE IS NOT A SECRET: the store password is the
+  well-known "android" and the certificate is the standard Android
+  debug identity; committing it carries no credential risk. The
+  no-committed-keys rule (doc 09) covers RELEASE keystores, which
+  remain out of the repo per D84/doc 07 §8 (Ali's local keystore or
+  an EC key when the public release happens).
+- No debug.2 was cut this session: nothing about the ARTIFACT changed
+  (it is byte-reproducible), so a re-release would churn tags without
+  fixing a device-side or network-side cause. The next debug build
+  rides on the next observation batch that changes code.

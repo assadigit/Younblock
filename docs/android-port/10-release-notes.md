@@ -1,12 +1,14 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8 (2026-10-17, D84). This document now holds
-two things: §1 the **shipped** debug test-circle release
-(`v1.6.6-android-debug.1`, a prerelease on the private repo — the same
-text lives on the GitHub release itself), and §2 the **public v1
-DRAFT**, unpublished until the ⛔ device gates close or Ali explicitly
-accepts shipping with them recorded as known limitations. Every claim
-traces to implementation evidence (docs 01–09, DECISIONS.md D1–D84).
+**Status:** updated at the first device-observation session (2026-10-17,
+D85). This document now holds two things: §1 the **shipped** debug
+test-circle release (`v1.6.6-android-debug.1`, a prerelease on the
+private repo — the same text lives on the GitHub release itself,
+including the install-blocked troubleshooting section added when Ali's
+first observation arrived), and §2 the **public v1 DRAFT**, unpublished
+until the ⛔ device gates close or Ali explicitly accepts shipping
+with them recorded as known limitations. Every claim traces to
+implementation evidence (docs 01–09, DECISIONS.md D1–D85).
 
 ## 1. v1.6.6-android-debug.1 — the device test circle (SHIPPED, prerelease)
 
@@ -32,12 +34,47 @@ versionCode 1; Android 8.0+ (minSdk 26), targets API 36; native code
 for arm64-v8a, armeabi-v7a and x86_64; debug certificate (SHA-256
 digest `c76bb7c61ec623892eabc37ac90ac1bc0041d39490f2d48073676d6e2ed
 8551d`), apksigner v2-scheme verified. Successive debug builds bump
-versionCode and install over this one (same certificate).
+versionCode and install over this one (same certificate — **pinned
+in the repo since D85** at `android/app/debug.keystore`, so the
+promise survives sandbox wipes; the clean rebuild is byte-identical:
+sha256 match).
 
 **Install (private repo, doc 07 §8).** Download the APK from this
 release with your GitHub account, allow installs from your browser
 app, accept the Play Protect warning, install. Nothing auto-starts;
 connecting is always a user action.
+
+### If the install is blocked — read this first (D85)
+
+Ali's first observation: "Android didn't let me install it." The
+artifact was exonerated end-to-end first (the served bytes hash to
+the recorded sha256; apksigner/badging/manifest clean; no testOnly;
+zip intact) — and the asset's download_count was **0**, pointing at
+an interrupted download as the probable cause. The ordered path now
+lives on the release body itself:
+
+1. **The download didn't complete** (most likely from Iranian
+   networks — release assets are served from
+   release-assets.githubusercontent.com, frequently slow/unreliable
+   there). Check the file size: it must be **about 34 MB
+   (35,567,561 bytes)** — a few-KB file is an error page, not the
+   APK. Retry on Wi-Fi, or download on a PC and copy via USB (the
+   most reliable route).
+2. **"For your security, your phone is not allowed to install
+   unknown apps from this source."** → Settings on the dialog →
+   allow **Install unknown apps** for the opening app (Chrome /
+   Files) → back → Install.
+3. **Play Protect "Unsafe app blocked"** → More details →
+   **Install anyway (unsafe)** — expected for a debug-signed unknown
+   developer.
+4. **"There was a problem parsing the package"** → usually also a
+   truncated download; if the size is right, check the Android
+   version — **8.0+ required**.
+5. **"App not installed"** at the end → free storage; uninstall any
+   older Younblock first.
+
+If none match, the exact on-screen wording + Android version is the
+feedback this circle needs.
 
 ### Device test circle — what to test and report
 

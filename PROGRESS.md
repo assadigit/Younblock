@@ -2347,3 +2347,59 @@ v1.6.6-android-debug.1, fix what they surface, cut
 v1.6.6-android-debug.2 (versionCode bumped) through the same release
 lane, and close checklist rows with measured evidence. The
 signed-release decision returns only when a public release is planned.
+
+## Android port — the device-test feedback loop, session 1: the install observation (2026-10-17)
+
+Ali's first observation from `v1.6.6-android-debug.1` arrived: "Android
+didn't let me install it." Diagnosed before any fix, per the honesty
+rules, with the artifact exonerated end-to-end first:
+
+- The bytes GitHub actually serves were downloaded through the API and
+  hash to exactly the recorded SHA-256 (ccf46a2e…7b64) — the serving
+  lane is sound. apksigner v2-verifies the served file with the
+  recorded debug certificate; badging shows minSdk 26 / target 36 /
+  versionCode 1 / the four permissions; the binary manifest carries
+  `debuggable=true` (normal for a debug build; does not block
+  sideloading) and no `testOnly` (the flag that would make the package
+  uninstallable); the zip central directory is intact (20 entries,
+  testzip clean).
+- The decisive clue: the release asset's **download_count was 0** —
+  only completed downloads count, so the most probable story is that
+  the download never finished on his phone (release assets are served
+  from release-assets.githubusercontent.com, frequently slow or
+  unreliable from Iranian networks), and Android refused the truncated
+  file. The remaining branches: the install-unknown-apps gate, Play
+  Protect's "unsafe app blocked," or a device below Android 8.0.
+
+What shipped in response (D85):
+
+- **The ordered troubleshooting path is now on the live release body**
+  (PATCHed through the GitHub API, HTTP 200) and mirrored in doc 10 §1:
+  check the file size first (must be ≈ 35,567,561 B — a few-KB file is
+  an error page), retry on Wi-Fi or download on a PC and copy via USB;
+  then the unknown-apps gate; then Play Protect's "install anyway";
+  then the parse-error/storage branches. The help sits exactly where
+  the retry happens — on his phone, on the release page.
+- **The pinned debug keystore**: the exact key that signed debug.1 is
+  vendored at `android/app/debug.keystore` and wired as the debug
+  signingConfig. The latent hole it closes: doc 10 promised
+  "successive debug builds install over this one (same certificate),"
+  but that promise rested on the machine-local
+  ~/.android/debug.keystore, which regenerates on every sandbox wipe
+  (three wipes already in the record). Verified: clean assembleDebug →
+  the same certificate digest c76bb7c6…8551d → and the rebuild is
+  **byte-identical to the published release** (sha256 match). The
+  update promise is now wipe-proof. A debug keystore is not a secret
+  (the well-known "android" password); the no-committed-keys rule
+  covers release keystores, which stay out per D84/doc 07 §8.
+- **No debug.2 was cut**: nothing about the artifact changed — it is
+  byte-reproducible — so a re-release would churn tags without fixing
+  a device-side or network-side cause. The next release rides on the
+  next observation batch that changes code.
+
+Exit gates: vet clean; go test 17/17 ×2 (exit 0 both passes);
+svelte-check 0/0; vite build clean; webui dist zero-diff (the D74 trap
+checked). No Go, Kotlin or frontend code changed this session. Standing
+⛔ re-verified implicitly by the observation itself: the device gates
+close on Ali's device, and the first one (install) is now mid-loop —
+his retry result is the next input.
