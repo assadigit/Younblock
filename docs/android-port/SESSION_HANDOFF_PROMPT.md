@@ -1,4 +1,4 @@
-# Prompt — Continue Younblock: the device-test feedback loop (M8-u — the debug.13 round: the report WITH retry/salvaged lines)
+# Prompt — Continue Younblock: the device-test feedback loop (M8-v — the debug.13 round: the report WITH retry/salvaged lines, shell line versionCode 12)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -7,8 +7,30 @@ Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL; the
 session prompt carries a fresh token if push is rejected).
 
-## Where the project stands (verified at the M8-t close, 2026-10-18/19)
+## Where the project stands (verified at the M8-u close, 2026-10-19)
 
+- **THE FOURTH PASTED REPORT ARRIVED — but it ran the PREVIOUS
+  build (M8-u, a NO-BUILD round).** Ali pasted "The problem
+  persists" again with a report generated 23:41:37 UTC, but its
+  "android shell: 1.6.6 (versionCode 11)" line names debug.12 — the
+  build debug.13 replaces — and the identity is authoritative
+  (MainActivity reads it from Android's PackageManager at runtime).
+  The log confirmed it three ways: 21 `reason=timeout` dones at
+  8054–8070 ms (the old 8 s budget — the 2.5 s build cannot produce
+  an 8 s death), zero retry/salvaged lines in the whole 200-line
+  window, and the clock: **debug.13 was published at 23:16:28 UTC —
+  twenty-five minutes BEFORE the report was generated.** The report
+  carried zero bytes of salvage-build evidence (it was the third
+  report's signature measured again: 21 timeouts + 17 resets,
+  67 errors / 114 conns, healthy first-bytes 58–548 ms, DNS ok
+  118 / fail 0, udpDropped=107). **The round's lesson, now standing
+  doctrine: the fix can ship while the phone still runs the old
+  build — EVERY report's first check is its shell line, and D99
+  gives every release the same APK asset name (v1.6.6-debug.apk), so
+  the release PAGE is what disambiguates which build Ali gets.**
+  debug.13 was re-verified end-to-end at M8-u (asset hash-matched,
+  salvage lines in libgojni.so in all three ABIs, Latest). No
+  versionCode bump, no release cut (D84: no app change).
 - **THE THIRD PASTED DIAGNOSTICS REPORT ARRIVED and was acted on:
   `v1.6.6-android-debug.13` (versionCode 12, Latest, the APK asset
   named v1.6.6-debug.apk) ships the fix it drove (ADR-0019).** Ali's
@@ -62,15 +84,23 @@ session prompt carries a fresh token if push is rejected).
   §"Current handoff fields". If anything disagrees with the
   repository, **the repository wins** — report the discrepancy.
 
-## The session's ONE workstream — the device-test feedback loop (Task ID M8-u)
+## The session's ONE workstream — the device-test feedback loop (Task ID M8-v)
 
 For each issue Ali reports from `v1.6.6-android-debug.13` (device
 side) or his rebuilt desktop exe:
 
 - **FIRST: the pasted diagnostics report.** If he pasted one: verify
-  the "android shell:" line names **versionCode 12** (a versionCode
-  11 report means the old APK is still installed and the round
-  starts with the install). Then read it in this order: (a) the NEW
+  the "android shell:" line names **versionCode 12**. (M8-u proved
+  this check is not a formality: a versionCode 11 report means the
+  old APK is still installed — the round is the INSTALL again, not a
+  fix. Before anything else, establish WHICH release page the APK
+  came from: D99 names every release's asset v1.6.6-debug.apk, so
+  the page — not the filename — is what disambiguates. The install
+  itself is ordinary: download v1.6.6-debug.apk from the
+  v1.6.6-android-debug.13 release page, install over the old app in
+  place — same pinned certificate, higher versionCode, settings and
+  usage survive — then reconnect and confirm the report header reads
+  versionCode 12.) Then read it in this order: (a) the NEW
   **`tunnel first-byte retry reason=… attempt=N`** lines — dead
   attempts the salvage ABSORBED (the app never saw them); (b) the
   NEW **`tunnel first-byte salvaged dials=N`** lines — flows the
@@ -123,20 +153,22 @@ side) or his rebuilt desktop exe:
 
 1. Read `/home/z/my-project/worklog.md` — the shared agent worklog.
    Append your own entry (Task ID + the standard template) when you
-   finish; never overwrite. The feedback-round Task IDs run M8-t,
-   M8-u, … The next decision number is D102 — reserved for Ali's
+   finish; never overwrite. The feedback-round Task IDs run M8-u,
+   M8-v, … The next decision number is D102 — reserved for Ali's
    rulings; record his rulings there BEFORE any code.
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.13 edition + §"Device test circle" — row 3 is the stall row
-   with the D102 question), doc 06 (the M8-c…M8-t records), doc 08 +
-   `DECISIONS.md` (D1-D101; read D97, D98, D99, D100, D101 in full;
-   **ADR-0019 is the M8-t decision**), and the tail of
-   `PROGRESS.md`.
+   with the D102 question and the fourth-report note), doc 06 (the
+   M8-c…M8-u records), doc 08 + `DECISIONS.md` (D1-D101; read D97,
+   D98, D99, D100, D101 in full; **ADR-0019 is the M8-t decision**),
+   and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
-   `git status -sb`, `git log --oneline -3` (expect the M8-t commit
-   — the salvage re-dial + ADR-0019 — on top of f4e2091, the
-   M8-s commit). Preserve any uncommitted work. If push is rejected
-   (credential rotated), the session prompt carries a fresh token.
+   `git status -sb`, `git log --oneline -3` (expect the M8-u commit
+   on top — a docs-only record of the no-build round (doc 06/09/10,
+   PROGRESS, this prompt) over 6b3520a, the M8-t commit — the
+   salvage re-dial + ADR-0019). Preserve any uncommitted work. If
+   push is rejected (credential rotated), the session prompt carries
+   a fresh token.
 4. Check whether Ali's debug.13 device feedback has arrived. If a
    pasted diagnostics report is present: the feedback loop above,
    the report first. If not: say so plainly and put the honest
@@ -216,7 +248,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
   handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D102, as
   rulings land), `CHANGELOG.md`; append the worklog entry (Task ID
-  M8-u / M8-v / …); commit and push; cut the debug release with the
+  M8-v / M8-w / …); commit and push; cut the debug release with the
   bumped versionCode when APP code changed — **always attach the
   debug APK per D98, named v<versionName>-debug.apk per D99** — and
   record the artifact.

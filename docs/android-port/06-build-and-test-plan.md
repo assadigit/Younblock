@@ -1549,3 +1549,41 @@ dist sync / gomobile bind / gradle assembleDebug, each exit 0):
   report's expected evidence: the retry/salvaged line ratios against
   the terminal failures — the tuning material for the budget and the
   D102 material for the method policy.
+
+
+M8-u record (2026-10-19, early — the FOURTH pasted report round, a
+NO-BUILD round: the report ran the previous build):
+
+- **The round's finding:** Ali pasted "The problem persists" + a
+  fourth diagnostics report generated at 23:41:37 UTC — but the
+  report names itself `android shell: 1.6.6 (versionCode 11)`: the
+  PREVIOUS build (debug.12), not the salvage build. The identity is
+  authoritative (MainActivity reads it from PackageManager at
+  runtime), and the log confirms it three independent ways: 21
+  `reason=timeout` dones at 8054-8070 ms (the old 8 s budget — the
+  2.5 s build cannot produce an 8 s death), zero `tunnel
+  first-byte retry` / `salvaged` lines in the whole 200-line
+  window, and the release clock — debug.13 published 23:16:28 UTC,
+  the report generated 23:41:37 UTC. Zero bytes of the report
+  describe the salvage build's behavior.
+- **What the report does confirm (all old-build evidence):** the
+  M8-s budget kept firing exactly as designed; DNS fully healthy
+  (ok 118 / fail 0); ~24 healthy first-bytes at 58-548 ms — every
+  one inside the new 2.5 s budget with 4.5x headroom; the storm
+  shape unchanged (21 timeouts + 17 resets at 64-527 ms, 67 errors
+  / 114 conns, first video-data responses ~80 s into the window,
+  udpDropped=107) — exactly what the salvage re-dial collapses.
+- **The round's action:** NO new build (D84: no app change, no
+  versionCode bump — nothing to tune yet). debug.13 re-verified
+  end-to-end this session: the release asset re-downloaded through
+  the API and hash-matched (SHA-256
+  18b4ea648b0aa02d7eebf84f2dc596d13894093a1469dfc4f111ddc5b286b518,
+  35,130,385 B); the embedded engine checked to carry both salvage
+  lines in libgojni.so in ALL THREE ABIs; Latest confirmed via
+  /releases/latest; the HEAD knobs re-read (FirstByteTimeout 2.5 s,
+  FirstByteSalvageDials 2). The reply and the preview page walk Ali
+  through installing v1.6.6-android-debug.13 — every release names
+  its APK v1.6.6-debug.apk (D99), so the debug.13 PAGE is what
+  disambiguates — and name the next evidence: the retry/salvaged
+  line ratios against terminal failures, from a report whose shell
+  line reads versionCode 12.

@@ -1,20 +1,23 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-t (2026-10-18/19, late — Ali's debug.12
-device round: "The problem persists" + the THIRD pasted diagnostics
-report, versionCode 11. The report PROVED the M8-s budget on-device
-(the expected "tunnel first-byte failed reason=timeout" dones at
-~8.3 s arrived — the tuning evidence ADR-0018 asked for) and named
-the remaining per-video start lag's shape: roughly half the
-video-start waves die at first byte and the app re-opens wave after
-wave. **v1.6.6-android-debug.13 is now the CURRENT build**,
-versionCode 12: FirstByteTimeout retuned 8 s → 2.5 s + the salvage
-re-dial (ADR-0019 — a dead first-byte origin is re-dialed INSIDE the
-same flow, same host, same preset, the client's bytes replayed, so
-the app never sees the failure; per-flow preset variation stays D102,
-Ali's ruling). The stall row stays OPEN for the debug.13
-confirmation — the expected new lines: "tunnel first-byte retry
-reason=… attempt=N" and "tunnel first-byte salvaged dials=N".)
+**Status:** updated at M8-u (2026-10-19, early — Ali's FOURTH pasted
+report round, a NO-BUILD round: "The problem persists" arrived
+again, but the report names itself versionCode 11 — the PREVIOUS
+build — though it was generated at 23:41:37 UTC, twenty-five minutes
+AFTER v1.6.6-android-debug.13 shipped (23:16:28 UTC). The identity
+is authoritative (read from PackageManager at runtime) and the log
+confirms it: 21 reason=timeout dones at 8054–8070 ms (the old 8 s
+budget; the 2.5 s build cannot produce an 8 s death) and zero
+retry/salvaged lines. Zero salvage-build evidence — the report is
+the third report's signature measured again (21 timeouts + 17
+resets, 67 errors / 114 conns, healthy first-bytes 58–548 ms — all
+inside the new budget, DNS ok 118 / fail 0, udpDropped=107).
+**v1.6.6-android-debug.13 stays the CURRENT build** — re-verified
+this session: the release asset re-downloaded through the API and
+hash-matched, the salvage lines present in libgojni.so in all three
+ABIs, Latest confirmed. The stall row stays OPEN for the ACTUAL
+debug.13 report — whose first check is the shell line reading
+versionCode 12.)
 Earlier: M8-s (ADR-0018, debug.12 — superseded by debug.13: its
 round produced the third pasted report, which debug.13 acts on),
 M8-r (ADR-0017, debug.11), M8-q/p (the diagnostics surface,
@@ -789,6 +792,26 @@ remove the Last-session line).**
    remains his ruling to make, never unilateral. udpDropped=88
    (row 9) keeps measuring; the QUIC path already fast-fails via
    ICMP port-unreachable, so it is not a startup-lag contributor.)
+   **THE FOURTH REPORT ARRIVED (2026-10-19, early — M8-u, a
+   NO-BUILD round): "The problem persists" again — but this report
+   is from the PREVIOUS build. Its "android shell: 1.6.6
+   (versionCode 11)" line names debug.12 (the identity is read from
+   Android's PackageManager at runtime, so it names the installed
+   build); every timeout done sits at 8054–8070 ms — the old 8 s
+   budget, which the 2.5 s build cannot produce; not one retry/
+   salvaged line in the 200-line window; and the release clock
+   closes the case: debug.13 published 23:16:28 UTC, the report
+   generated 23:41:37 UTC — the phone never received the fix. The
+   report is the third report's signature measured again (21
+   timeouts + 17 resets at 64–527 ms, 67 errors / 114 conns, ~24
+   healthy first-bytes at 58–548 ms, DNS ok 118 / fail 0,
+   udpDropped=107 — the storm still costing ~80 s to first video
+   data). No new build: zero bytes of the report describe the
+   salvage build's behavior, so there is nothing to tune (D84). The
+   row STAYS OPEN, unchanged, for the ACTUAL debug.13 report —
+   first check: the shell line reads versionCode 12; every release
+   names its APK v1.6.6-debug.apk, so download from the debug.13
+   release page specifically.)
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

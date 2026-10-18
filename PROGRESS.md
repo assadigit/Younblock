@@ -3291,3 +3291,39 @@ his ruling. udpDropped=88 keeps measuring (row 9); the QUIC path
 already fast-fails via ICMP port-unreachable, so it is not a
 startup-lag contributor. Next: M8-u expects the debug.13 report
 with retry/salvaged line ratios as the tuning evidence.
+
+
+## M8-u (2026-10-19, early) — the fourth report ran the previous build: a no-build round
+
+Ali pasted "The problem persists" with a fourth diagnostics report
+generated 23:41:37 UTC — but the report names itself versionCode 11,
+the PREVIOUS build (debug.12), the one debug.13 replaces. Identity
+proven three ways: the PackageManager-read "android shell:" line
+(authoritative — it names the installed build); 21 reason=timeout
+dones at 8054-8070 ms, the old 8 s budget, which the 2.5 s build
+cannot produce; zero retry/salvaged lines in the 200-line window.
+And the release clock: debug.13 published 23:16:28 UTC — the report
+was generated twenty-five minutes AFTER the fix shipped. The report
+carries zero bytes of salvage-build evidence; it is the third
+report's signature measured again (21 timeouts + 17 resets at
+64-527 ms, 67 errors / 114 conns, ~24 healthy first-bytes at
+58-548 ms — all inside the new 2.5 s budget with 4.5x headroom, DNS
+ok 118 / fail 0, udpDropped=107, first video-data responses ~80 s
+into the window).
+
+No new build (D84: no app change, no bump — nothing to tune). This
+round's work: debug.13 re-verified end-to-end (the release asset
+re-downloaded through the API and hash-matched — SHA-256
+18b4ea648b0aa02d7eebf84f2dc596d13894093a1469dfc4f111ddc5b286b518,
+35,130,385 B; the embedded engine checked to carry both salvage
+lines in libgojni.so in all three ABIs; Latest confirmed via
+/releases/latest; the HEAD knobs re-read: FirstByteTimeout 2.5 s,
+FirstByteSalvageDials 2), and the reply + the preview page walk Ali
+through the install (the debug.13 release page specifically — D99
+names every release's APK asset v1.6.6-debug.apk — install over
+debug.12 in place, settings survive, then verify the report's shell
+line reads versionCode 12).
+
+The D102 question stands unchanged, reserved for Ali. Next: M8-v
+expects the ACTUAL debug.13 report — shell line versionCode 12,
+retry/salvaged line ratios as the tuning evidence.
