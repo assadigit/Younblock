@@ -2248,3 +2248,40 @@ diagnostics so i can paste it here."
 3. **First application:** v1.6.6-android-debug.9 (the M8-p build,
    versionCode 8) — the round that shipped the surface.
 4. Next decision ID: D101.
+
+**D101 — a surface ships in the variant the edition serves (the M8-q
+root cause, 2026-10-18 — Ali's round on debug.9: "I still dont see
+diagnostic button").** The debug.9 APK DID carry the ADR-0015 surface —
+but only in the classic UI tree, while the APK bakes the pro screen
+(D66: `build-android.sh` leaves `VITE_UI_VARIANT` unset, so
+`main.ts`'s dispatcher defaults to pro; only the desktop wails lanes
+bake classic). Ali's phone rendered the pro screen, whose only
+diagnostics surface was the M6-era section buried at the very bottom
+of the menu sheet behind an android gate, with the raw
+`navigator.clipboard` Copy that silently fails in the WebView — the
+exact failure ADR-0015 was written to end. The promised "Menu →
+Diagnostics → Copy" existed only on screens his device cannot show.
+
+1. **RULED — every user-facing surface ships in the variant(s) the
+   edition actually serves.** A feature merged into one UI tree is
+   INVISIBLE to every edition that bakes the other tree, and a
+   "shipped" claim that holds for only one tree is a false claim. The
+   check is part of the ship checklist from M8-q on: name the variant
+   each affected edition bakes (Android + web single-file → pro;
+   Windows/Linux wails desktops → classic), and verify the surface in
+   the served variant through the real webui server (the loopback
+   page the WebView loads), not only in the source tree.
+2. **First application — the ADR-0015 port (ADR-0016):** the
+   diagnostics surface now exists in BOTH trees. The pro screen (what
+   the APK serves) carries Diagnostics as the FIRST row of the menu
+   sheet — no scrolling, no gate — opening a full-screen report view
+   (the same clipboard ladder, Share behind the shell bridge, the
+   selectable readonly text). The old buried sheet section is
+   removed. The classic tree keeps its M8-p screen unchanged.
+3. **Scope:** UI-tree placement discipline and the port itself. It
+   does NOT decide which variant the APK SHOULD serve (pro stays the
+   Android screen — D66 unchanged; switching variants on Ali's device
+   now would change the whole UI under him mid-loop), and it does not
+   touch the stall (doc 10 row 3 stays open; a real pasted report is
+   still the next evidence).
+4. Next decision ID: D102.

@@ -3103,3 +3103,44 @@ stall, Menu → Diagnostics → Copy and paste the report here — the
 tunnel lines + the tun: line + the speed number split the remaining
 suspects in one read; row 3 stays OPEN. Next Task ID: M8-q. Next
 decision: D101.
+
+M8-q (2026-10-18, late; FOURTEENTH feedback-loop exchange; Ali's
+debug.9 device round). Inputs: "commit and push and new release. I
+still dont see diagnostic button" — precise, and the root cause was
+in the build, not the phone: the M8-p surface shipped ONLY into the
+classic UI tree, but the APK bakes the pro screen (D66's dispatcher
+default when VITE_UI_VARIANT is unset — build-android.sh never sets
+it; only the desktop wails lanes bake classic). The phone rendered
+the pro screen, whose lone diagnostics surface was the M6-era sheet
+section buried below Help behind an android gate, with the raw
+navigator.clipboard copy that silently fails in the WebView. The
+round ported the surface into the served variant (ADR-0016) and
+recorded the rule (D101 — a surface ships in the variant(s) the
+edition serves; served-variant verification joins the ship
+checklist): DiagnosticsView.svelte (NEW — the pro screen's
+full-screen report view: auto-load, the cross-tree clipboard-ladder
+Copy, Share behind canShare(), Refresh, honest inline status, the
+readonly selectable textarea), the MenuSheet LEAD row (every
+platform, no gate, 56px target; the old buried section + its broken
+copy removed), the App.svelte wiring (diagOpen, focus return to the
+menu button). Verification is the point of the round: the served
+surface proven END-TO-END through the real webui server (cmd/core
+--web, the same embedded dist + dispatcher the APK serves; mobile
+viewport: menu → Diagnostics is the FIRST row → the real report
+loads → Copy → honest "Copied" → Back; no console errors; ?ui=
+classic re-verified intact). Baseline green: svelte-check 0/0; vite
+clean; dist CLEAN-synced (placeholder restored); vet clean; 18/18
+×2 + an uncached engine/mobile round; GOOS=windows exit 0.
+versionCode 8 → 9; the full build-android.sh lane exit 0; the AAR's
+embedded Go library verified to carry the new UI (diag-entry ×2 +
+the row hint inside libgojni.so); app-debug.apk 35,053,265 B,
+SHA-256 4264996ae39bb3e268bcf28913d3884d038c0833bb35ffd2233d60edd
+51ef9e7; apksigner OK (the pinned c76bb7c6…8551d); badging
+versionCode 9 / versionName 1.6.6. Released
+v1.6.6-android-debug.10 (regular, Latest) with the APK asset named
+v1.6.6-debug.apk (D99), served bytes re-verified. The ask for the
+debug.10 round: TWO pastes — one now (its "android shell:
+1.6.6 (versionCode 9)" line proves the round), one at the next
+stall (the tunnel lines + the tun: line + the speed number split
+the remaining suspects in one read); row 3 stays OPEN. Next Task
+ID: M8-r. Next decision: D102.

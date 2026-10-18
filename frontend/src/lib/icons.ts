@@ -7,4 +7,19 @@
 // Sizing: Lucide's `size` prop is pixels, but this screen scales with the
 // root font (app.css), so every icon is sized in rem through CSS instead —
 // the components render plain <svg> elements the sheet's styles can reach.
-export { Power, Ellipsis, ChevronsUp, ChevronsDown, ArrowDown, ArrowUp, X } from "lucide-svelte";
+export {
+  Power,
+  Ellipsis,
+  ChevronsUp,
+  ChevronsDown,
+  ArrowDown,
+  ArrowUp,
+  X,
+  ChevronRight,
+  ChevronLeft,
+  Activity,
+  Copy,
+  Share2,
+  RefreshCw,
+  Check,
+} from "lucide-svelte";

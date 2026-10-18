@@ -1249,3 +1249,69 @@ M8-p record (2026-10-18, night; the THIRTEENTH feedback-loop exchange
   (dns/dial/first-byte/dur), the tun: line (flows/udpDropped) and the
   speed number at the slow moment split the remaining suspects in one
   read. Row 3 stays OPEN; no guess ships before that report arrives.
+
+### M8-q — the ADR-0015 port: the surface ships in the variant the APK serves (2026-10-18)
+
+- **The round's discriminator** (Ali on debug.9: "I still dont see
+  diagnostic button"): the M8-p surface shipped ONLY in the classic
+  tree, but the APK bakes the pro screen — D66's dispatcher defaults
+  to pro when `VITE_UI_VARIANT` is unset, and `build-android.sh`
+  never sets it (only the desktop wails lanes bake classic). The
+  phone rendered the pro screen; its only diagnostics surface was the
+  M6-era sheet section buried below Help behind an `android` gate,
+  with the raw `navigator.clipboard` Copy that silently fails in the
+  WebView. The fix is not a third stall guess — it is making the
+  promised button exist in the variant the device renders (D101,
+  ADR-0016).
+- **The port** (frontend only — the engine, the facade and the Kotlin
+  bridge from M8-p are variant-independent and unchanged):
+  1. `src/lib/DiagnosticsView.svelte` (NEW, the pro screen's report
+     view): auto-load on open, Copy through the SAME ladder
+     (cross-tree import of `classic/lib/clipboard.ts` — pure
+     DOM/window code), Share behind `canShare()`, Refresh, honest
+     inline status, the readonly selectable textarea; Escape/Back
+     close, Tab wraps, focus returns to the menu button.
+  2. `MenuSheet.svelte`: Diagnostics is now the LEAD row of the sheet
+     (full-width card, activity icon, 56px target, every platform, no
+     gate) dispatching `diagnostics`; the old bottom section and its
+     broken copy path are REMOVED (one surface, not two).
+  3. `App.svelte`: the `diagOpen` state, the sheet→view handoff
+     (sheet closes, view opens, focus returns on close);
+     `icons.ts` grows the six Lucide imports the view needs.
+- **The verification is the point of the round**: the served surface
+  verified END-TO-END through the real webui server (`cmd/core --web
+  --webport 8097`, the same embedded dist + dispatcher the APK
+  serves; mobile viewport 360×760): menu open → Diagnostics is the
+  FIRST row → the view loads the real report ("Younblock 1.6.6
+  diagnostic report…") → Copy resolves to the honest "Copied" state →
+  Back returns to the app; no console errors. The classic variant
+  re-verified through the same server (`?ui=classic`: Menu →
+  Diagnostics entry intact — the M8-p screen is unchanged).
+- **Baseline, all green**: svelte-check 0/0 (two quick rounds: a
+  component-invalid class: directive, then an unused-selector warn —
+  both fixed at the source); vite build clean; webui dist
+  CLEAN-synced (placeholder.txt restored); go vet clean; go test
+  18/18 ×2 (plus an uncached engine+mobile round); GOOS=windows
+  exit 0.
+- **The build lane**: versionCode 8 → 9 (the D84 rule); the full
+  `./build-android.sh` lane (frontend rebuild → dist sync → gomobile
+  bind → assembleDebug) exit 0; the AAR's embedded Go library VERIFIED
+  to carry the new UI (`diag-entry` ×2, the row's hint text — the
+  go:embed content is inside libgojni.so); app-debug.apk
+  **35,053,265 B**, SHA-256
+  **4264996ae39bb3e268bcf28913d3884d038c0833bb35ffd2233d60edd51ef9e7**;
+  badging: versionCode 9 / versionName 1.6.6 / minSdk 26 / targetSdk
+  36; apksigner OK — the pinned debug certificate c76bb7c6…8551d
+  (installs over debug.9 in place).
+- **D101 recorded** (the variant rule): a surface ships in the
+  variant(s) the edition serves; the served-variant check is part of
+  the ship checklist from this round on.
+- **The release lane**: v1.6.6-android-debug.10 at the pushed full
+  SHA (regular release, D89, Latest), the APK asset uploaded AS
+  v1.6.6-debug.apk (D99), served bytes re-verified through the API.
+- **The honest ask for the debug.10 round** (release notes + wrap-up
+  page): open the menu — Diagnostics is the first row now — open it,
+  Copy, paste the report here (even with nothing stalled: the build
+  identity line proves the round). Then, when a video stalls mid-
+  session, Diagnostics → Copy again and paste that report too. Row 3
+  stays OPEN; no guess ships before a real pasted report arrives.

@@ -2,6 +2,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import DotRings from './lib/DotRings.svelte'
+  import DiagnosticsView from './lib/DiagnosticsView.svelte'
   import MenuSheet from './lib/MenuSheet.svelte'
   import PowerPill from './lib/PowerPill.svelte'
   import Timer from './lib/Timer.svelte'
@@ -41,6 +42,11 @@
   let snap: Snapshot = { phase: 'disconnected', connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null, downBytes: -1, upBytes: -1, lastSession: null }
   let now = Date.now()
   let menuOpen = false
+  // M8-q (the ADR-0015 port): the diagnostics dialog over the stage,
+  // opened from the menu sheet's lead row. Closing it hands focus back
+  // to the menu button — the place the journey started.
+  let diagOpen = false
+  let menuButton: HTMLElement | undefined
   // The host's version (backend.getAppInfo) for the About sheet — the one
   // copy of the number lives in internal/config on the Go side, so it can
   // never disagree with --version. Empty in a plain-browser preview, where
@@ -169,7 +175,7 @@
         <span>{APP_NAME}</span>
       </div>
       <span class="spacer"></span>
-      <button type="button" class="menu" aria-label="Open menu" on:click={() => (menuOpen = true)}>
+      <button type="button" class="menu" bind:this={menuButton} aria-label="Open menu" on:click={() => (menuOpen = true)}>
         <Ellipsis class="menu-icon" />
       </button>
     </header>
@@ -221,7 +227,21 @@
       {tray}
       {backend}
       on:close={() => (menuOpen = false)}
+      on:diagnostics={() => {
+        menuOpen = false
+        diagOpen = true
+      }}
     />
+
+    {#if diagOpen}
+      <DiagnosticsView
+        {backend}
+        on:close={() => {
+          diagOpen = false
+          menuButton?.focus({ preventScroll: true })
+        }}
+      />
+    {/if}
   </div>
 </main>
 

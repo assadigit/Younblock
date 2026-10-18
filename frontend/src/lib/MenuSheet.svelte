@@ -15,7 +15,7 @@
   import { createEventDispatcher } from "svelte";
   import type { Backend, Settings } from "./backend";
   import { formatBytes, formatDateTime, formatDurationWords } from "./format";
-  import { X } from "./icons";
+  import { X, Activity, ChevronRight } from "./icons";
   import type { UsageSummary } from "./types";
 
   export let open = false;
@@ -34,7 +34,7 @@
   /** The backend for settings/report reads and saves (null in preview). */
   export let backend: Backend | null = null;
 
-  const dispatch = createEventDispatcher<{ close: void }>();
+  const dispatch = createEventDispatcher<{ close: void; diagnostics: void }>();
 
   const android = platform === "android";
 
@@ -261,40 +261,6 @@
     }
   }
 
-  // ---- diagnostics (Android only) --------------------------------------
-
-  let report: string | null = null;
-  let reportBusy = false;
-  let reportError = "";
-  let copied = false;
-  let copiedTimer: number | undefined;
-
-  async function runDiagnostics(): Promise<void> {
-    if (!backend || reportBusy) return;
-    reportBusy = true;
-    reportError = "";
-    try {
-      report = await backend.getDiagnosticReport();
-      if (report === null) reportError = "The report could not be created.";
-    } catch {
-      reportError = "The report could not be created. Try again.";
-    } finally {
-      reportBusy = false;
-    }
-  }
-
-  async function copyReport(): Promise<void> {
-    if (report === null) return;
-    try {
-      await navigator.clipboard.writeText(report);
-      copied = true;
-      window.clearTimeout(copiedTimer);
-      copiedTimer = window.setTimeout(() => (copied = false), 2000);
-    } catch {
-      reportError = "Copying failed — select the text and copy it manually.";
-    }
-  }
-
   // ---- data usage (round-3, every platform) ------------------------------
 
   // The menu's top section: totals for Today / This month / All time, the
@@ -418,6 +384,25 @@
   </header>
 
   <div class="content">
+    <!-- M8-q (the ADR-0015 port): the diagnostics entry leads the sheet.
+         The old surface lived at the very BOTTOM of this sheet (below
+         Help) behind an android gate, its Copy used the raw
+         navigator.clipboard call that silently fails inside the Android
+         WebView — and the M8-p rewrite shipped only in the classic tree
+         the APK never renders. One first-class entry on every platform
+         now: it opens the full DiagnosticsView (report + the honest
+         clipboard ladder + Share + selectable text). -->
+    <button type="button" class="diag-entry" on:click={() => dispatch("diagnostics")}>
+      <span class="diag-icon" aria-hidden="true">
+        <Activity />
+      </span>
+      <span class="diag-text">
+        <span class="diag-title">Diagnostics</span>
+        <span class="diag-hint">Copy a support report to paste into a chat</span>
+      </span>
+      <ChevronRight class="diag-chev" aria-hidden="true" />
+    </button>
+
     {#if perAppRouting}
       <section aria-labelledby="apps-heading">
         <h2 id="apps-heading">Apps to unblock</h2>
@@ -611,27 +596,6 @@
         <p>{line}</p>
       {/each}
     </section>
-
-    {#if android}
-      <section aria-labelledby="diag-heading">
-        <h2 id="diag-heading">Diagnostics</h2>
-        <p>A support report: version, connection state, counters and the last log lines — no website names unless you turned them on in the advanced settings.</p>
-        {#if report === null}
-          <button type="button" class="action" disabled={reportBusy} on:click={runDiagnostics}>
-            {reportBusy ? "Creating…" : "Create report"}
-          </button>
-        {:else}
-          <pre class="report" aria-label="Diagnostic report">{report}</pre>
-          <div class="diag-row">
-            <button type="button" class="action" on:click={copyReport}>
-              {copied ? "Copied" : "Copy report"}
-            </button>
-            <button type="button" class="action" on:click={() => (report = null)}>Clear</button>
-          </div>
-        {/if}
-        {#if reportError}<p class="inline-error" role="alert">{reportError}</p>{/if}
-      </section>
-    {/if}
   </div>
 </div>
 
@@ -744,6 +708,85 @@
   }
   section + section {
     border-top: 1px solid var(--sheet-border);
+  }
+  /* the diagnostics entry (a button, not a section) sits above them all;
+     * it gets the same bottom rhythm the first section would, and a
+     * separator from the section list below it */
+  .diag-entry + section {
+    border-top: 1px solid var(--sheet-border);
+    margin-top: 0.25rem;
+  }
+
+  /* ---- the diagnostics entry (M8-q, ADR-0015 — the sheet's lead row) ---- */
+
+  .diag-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 3.5rem; /* a 56px target — the sheet's most important row */
+    margin: 0.25rem 0.375rem 0.25rem 0;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--chip-border);
+    background: var(--sheet-raised);
+    color: var(--text-primary);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background 150ms ease,
+      transform 150ms ease;
+  }
+  .diag-entry:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .diag-entry:active {
+    transform: scale(0.99);
+  }
+  .diag-entry:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .diag-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.625rem;
+    background: rgba(255, 0, 0, 0.14);
+    border: 1px solid rgba(255, 0, 0, 0.25);
+  }
+  .diag-icon :global(svg) {
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--red-400);
+  }
+  .diag-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .diag-title {
+    font-size: 0.875rem;
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.01em;
+  }
+  .diag-hint {
+    font-size: 0.75rem;
+    font-weight: var(--fw-medium);
+    line-height: 1.4;
+    color: var(--text-tertiary);
+  }
+  .diag-entry :global(.diag-chev) {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+    color: var(--text-tertiary);
   }
 
   h2 {
@@ -1100,28 +1143,7 @@
     background: rgba(224, 107, 107, 0.12);
   }
 
-  /* ---- the diagnostics view ---- */
-
-  .report {
-    margin: 0.75rem 0 0;
-    max-height: 14rem;
-    overflow-y: auto;
-    padding: 0.75rem;
-    border-radius: 0.75rem;
-    border: 1px solid var(--sheet-border);
-    background: rgba(0, 0, 0, 0.25);
-    color: var(--text-secondary);
-    font-size: 0.6875rem;
-    line-height: 1.5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    white-space: pre-wrap;
-    word-break: break-word;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-  }
-  .diag-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-  }
+  /* The old in-sheet diagnostics view (.report/.diag-row) is gone —
+     M8-q moved the whole surface into DiagnosticsView.svelte (the
+     full-screen dialog the sheet's lead row opens). */
 </style>

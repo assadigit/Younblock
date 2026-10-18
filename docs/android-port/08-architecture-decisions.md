@@ -442,6 +442,67 @@ engine report (M8-p)
   snapshot is the surface; the rotating app.log stays a developer
   path).
 
+## ADR-0016 — The diagnostics surface ships in the variant the edition
+serves: the pro screen's first-class Diagnostics row and report view
+(M8-q, the ADR-0015 port)
+
+- **Status:** Accepted 2026-10-18 (M8-q, Ali's debug.9 round: "I still
+  dont see diagnostic button" — after a release that claimed to ship
+  exactly that button).
+- **Context:** ADR-0015 shipped the diagnostics surface into the
+  classic UI tree (`src/classic/*`). But the variant dispatcher
+  (`src/main.ts`, D66) bakes the UI at build time from
+  `VITE_UI_VARIANT` — set ONLY by the desktop wails lanes; the
+  Android lane (`build-android.sh`) leaves it unset, so the APK
+  serves the pro screen (`src/App.svelte` + `src/lib/MenuSheet.svelte`).
+  Ali's device therefore never rendered the M8-p surface at all. The
+  pro screen's only diagnostics surface was the M6-era sheet section
+  buried at the very bottom (below About, How it works, Privacy,
+  Other websites and Help) behind an `android` platform gate, whose
+  Copy used the raw `navigator.clipboard` call — the exact
+  silent-failure ADR-0015 documents. The web single-file edition
+  (also pro by default) had the same hole. A shipped-in-the-wrong-
+  tree feature is indistinguishable from a not-shipped feature on the
+  device; D101 records the rule, this ADR records the port.
+- **Decision:** The ADR-0015 surface exists in BOTH UI trees, and the
+  pro screen's entry is placed where the evidence path leads:
+  1. **The lead row of the menu sheet** (`MenuSheet.svelte`): a
+     full-width card row — activity icon, "Diagnostics", "Copy a
+     support report to paste into a chat", chevron — the FIRST thing
+     in the sheet on every platform (no android gate, no scrolling;
+     56px target). It dispatches `diagnostics`; the sheet closes and
+     the view opens.
+  2. **The full-screen report view** (`src/lib/DiagnosticsView.svelte`,
+     new): auto-loads the report on open; Copy through the SAME
+     ladder (`classic/lib/clipboard.ts` imported cross-tree — pure
+     DOM/window code, no classic-UI dependencies); Share only where
+     the shell bridge offers it (`canShare()`); Refresh; honest
+     inline status ("Copied — paste it into the chat." / the manual
+     instruction on failure); the report in a readonly selectable
+     textarea (the path of last resort). Escape and Back close it;
+     Tab wraps inside; focus returns to the menu button.
+  3. **The old buried section is REMOVED** — one surface, not two,
+     and the broken-copy path goes with it. The classic tree keeps
+     its M8-p screen unchanged (verified: `?ui=classic` still shows
+     the Menu → Diagnostics entry).
+- **Evidence:** svelte-check 0/0; vite build clean; the served
+  surface verified END-TO-END through the real webui server
+  (`cmd/core --web`, the same embedded dist + dispatcher the APK
+  serves): menu open → Diagnostics is the first row → the view loads
+  the real report → Copy resolves honestly → Back returns; classic
+  variant re-verified through the same server. The AAR's embedded
+  Go library carries the new UI strings (`diag-entry`, the row hint);
+  debug.10 APK verified (sha256, apksigner pinned cert, badging
+  versionCode 9). Desktop baseline green (vet clean, 18/18 ×2,
+  GOOS=windows exit 0).
+- **What this ADR does NOT decide:** which variant the APK should
+  serve (D66 unchanged — pro stays the Android screen; switching the
+  whole UI on Ali's device mid-loop would be its own disruption);
+  the per-video stall (doc 10 row 3 stays open — the port makes the
+  evidence path reachable; the report itself is still Ali's to
+  send); the classic tree's own entry placement (its Menu shape is
+  unchanged).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

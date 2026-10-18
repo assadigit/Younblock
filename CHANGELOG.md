@@ -12,6 +12,31 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-18, late — M8-q; shipped in `v1.6.6-android-debug.10`, versionCode 9)
+
+- **The diagnostics button now exists on the screen your phone
+  actually shows.** Ali's debug.9 round: "I still dont see
+  diagnostic button" — exact, because the debug.9 build shipped the
+  Diagnostics screen into the app's CLASSIC interface while the APK
+  bakes the redesigned (pro) interface (D66's build-time variant
+  default; only the Windows/Linux desktops bake classic). On the
+  phone, the only diagnostics was a section at the very bottom of
+  the menu — below Help — and its Copy could silently fail inside
+  the WebView. This build ports the whole surface into the served
+  screen (ADR-0016, and D101's standing rule: a surface ships in
+  the variant the edition serves): **Diagnostics is now the FIRST
+  row of the menu** (open the ⋯ menu — it is right there, no
+  scrolling, every edition), opening the full report view with
+  **Copy report** (the honest clipboard ladder: the Android-native
+  bridge first), **Share** (the system share sheet), **Refresh**,
+  and the selectable report text as the path of last resort. The
+  old buried section is gone. Verified end-to-end through the real
+  webui server — the same bundle and dispatcher the APK serves —
+  before release: menu → Diagnostics first row → the report loads →
+  Copy → "Copied". The engine report itself (TUN counters, build
+  identity, 200-line window) is unchanged from debug.9 and now
+  actually reachable on the device.
+
 ### Added (2026-10-18, night — M8-p; shipped in `v1.6.6-android-debug.9`, versionCode 8)
 
 - **The in-app Diagnostics screen — "copy paste logs and diagnostics"

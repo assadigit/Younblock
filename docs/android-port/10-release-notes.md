@@ -1,21 +1,26 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-p (2026-10-18, night — Ali's debug.8 device
-round: the per-video stall PERSISTED, and the required evidence input
-was missing — "there is no diagnostic option in the apk app setting" —
-so this round SHIPS the in-app diagnostics surface itself (ADR-0015:
-the Diagnostics screen on Menu AND in Settings, the Android-native
-copy/share bridge, the TUN counters + exact build identity inside the
-report, the doubled 200-line log window); **`v1.6.6-android-debug.9` is
-now the CURRENT build**, versionCode 8; the stall row stays OPEN and
-its expected input is now a real, reachable button). Earlier the same
-day: M8-n (the first-video fix, ADR-0013 + D98), M8-o (the per-video
-fix, ADR-0014 + D99), A0/A0-R2/A0-R3 — **the account gate is CANCELLED
-(D97)**, see the closing note below. This document now holds two things: §1 the
-**shipped** debug test-circle releases (`v1.6.6-android-debug.9` is
+**Status:** updated at M8-q (2026-10-18, late — Ali's debug.9 device
+round: "I still dont see diagnostic button". The debug.9 APK DID carry
+the ADR-0015 surface — but only in the classic UI tree, while the APK
+bakes the pro screen (D66: build-android.sh leaves VITE_UI_VARIANT
+unset, so main.ts defaults to pro). The phone rendered the pro screen,
+whose only diagnostics surface was the M6-era sheet section buried
+below Help with the WebView-silent clipboard copy. This round ports
+the surface into the variant the phone actually serves (ADR-0016,
+D101): **Diagnostics is now the FIRST row of the menu**, opening the
+full report view (the clipboard ladder, Share, the selectable text);
+**`v1.6.6-android-debug.10` is now the CURRENT build**, versionCode 9;
+the stall row stays OPEN, still awaiting the first real pasted
+report). Earlier the same day: M8-p (the diagnostics surface,
+ADR-0015 + D100 — shipped into the classic tree only, completed by
+this round's port), M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/
+D99), A0/A0-R2/A0-R3 — **the account gate is CANCELLED (D97)**, see
+the closing note below. This document now holds two things: §1 the
+**shipped** debug test-circle releases (`v1.6.6-android-debug.10` is
 the CURRENT build — a regular release in the private repo per D89,
 the same text lives on the GitHub release itself; beneath it:
-debug.8 the per-video-stall-fix build, debug.7 the first-video-fix
+debug.9 the classic-tree diagnostics build (its surface was invisible on the phone — superseded by debug.10's port), debug.8 the per-video-stall-fix build, debug.7 the first-video-fix
 build, debug.6 the one-UI-everywhere + data-usage build, debug.5 the
 first-device-feedback build, debug.4 the helper-fix maintenance
 release, debug.3 the device-circle build whose APK ran on Ali's
@@ -23,9 +28,11 @@ phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D100, of which D97 cancels the gate D94 had
+01–09, DECISIONS.md D1–D101, of which D97 cancels the gate D94 had
 announced, D98 rules the APK asset onto every release page, D99 names
-it with the version, and D100 is this round's diagnostics ruling).
+it with the version, D100 is the diagnostics-surface ruling, and D101
+is this round's variant rule: a surface ships in the variant the
+edition serves).
 **A0-R3 closing note (D97, 2026-10-18): the gate is CANCELLED — it
 will never ship, so none of that future ever happens. The "no
 account, no data collection" line in §2 stays verbatim PERMANENTLY;
@@ -34,11 +41,48 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.9 — the in-app diagnostics surface (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.10 — the diagnostics surface on the screen your phone actually serves (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 9, built at the M8-q commit, APK
+35,053,265 B (SHA-256 4264996a…f9e7), the pinned debug certificate
+— **installs directly over debug.9** in place; settings and usage
+history survive. The APK asset on the release page is NAMED with the
+version (**v1.6.6-debug.apk**, per D99). It carries ONE theme: **the
+diagnostics surface finally rendered where you have been looking all
+along** (ADR-0016, D101):
+
+1. **What was wrong (found this round):** the debug.9 build DID ship
+   the Diagnostics screen — but into the app's CLASSIC interface,
+   while your phone runs the redesigned (pro) interface the APK
+   bakes. On your screen, the only diagnostics was a section at the
+   very BOTTOM of the menu (below Help), and its Copy button can
+   silently fail inside the WebView. A shipped-in-the-wrong-
+   interface feature is invisible — your report was exact: the
+   button did not exist where you looked.
+2. **What changed:** **Diagnostics is now the FIRST row of the menu**
+   — open the menu (the ⋯ button, top right) and it is right there,
+   no scrolling: "Diagnostics — Copy a support report to paste into
+   a chat". It opens the full report view: **Copy report** (the
+   native clipboard path first, honest "Copied" only on real
+   success), **Share** (the system share sheet — the most reliable
+   way to hand the report to a chat app), **Refresh**, and the
+   report text itself, selectable (press-and-hold, Select all,
+   Copy — the path that cannot fail). The old buried section is
+   gone. The report still carries the TUN counters, the exact build
+   identity ("android shell: 1.6.6 (versionCode 9)") and the last
+   200 log lines from debug.9.
+3. **What to verify on the phone (two pastes, please):** (a) open
+   the menu → **Diagnostics is the first row** → open it → **Copy**
+   → paste the report here — even with nothing stalled: its build
+   line proves this round; (b) when a video stalls mid-session,
+   Diagnostics → Copy again and paste that report too. The stall
+   row stays OPEN until a real pasted report arrives.
+
+## 1a. v1.6.6-android-debug.9 — the classic-tree diagnostics surface (SHIPPED — a regular release, superseded by debug.10: the surface existed but the APK serves the pro screen, so it never rendered on the phone)
 
 **What this build is:** versionCode 8, built at the M8-p commit, APK
 35,026,961 B (SHA-256 1a2b2bf7…7833), the pinned debug certificate
-— **installs directly over debug.8** in place; settings and usage
+— installed directly over debug.8 in place; settings and usage
 history survive. The APK asset on the release page is NAMED with the
 version (**v1.6.6-debug.apk**, per D99). It carries ONE theme: **the
 evidence-collection surface for the still-open per-video stall
@@ -494,19 +538,20 @@ remove the Last-session line).**
    first-byte=/dur=) + the on-screen speed number at the slow
    moment are the expected inputs.**
 
-   **Re-observed on debug.8 (2026-10-18, M8-p): the stall PERSISTED
-   — and the round's own report named the gap in the loop: "there is
-   no diagnostic option in the apk app setting" (the Help screen's
-   buried copy button was both undiscoverable and silently broken
-   inside the WebView). No new stall evidence arrived, so NO new
-   root-cause was attempted this round — guessing past two
-   disproven fixes without the report is exactly what the loop must
-   not do. Instead debug.9 SHIPS the evidence path itself (ADR-0015:
-   the Diagnostics screen on Menu AND in Settings, the native
-   copy/share bridge, the TUN counters and build identity inside the
-   report, the 200-line window). The row STAYS OPEN: its expected
-   input is now one reachable button away — after the next stall,
-   Menu → Diagnostics → Copy (or Share), paste the report here.**
+   **Re-observed on debug.9 (2026-10-18, M8-q): "I still dont see
+   diagnostic button" — and the report was exact. The debug.9 build
+   carried the ADR-0015 surface, but ONLY in the classic UI tree;
+   the APK bakes the pro screen (D66), whose lone diagnostics was
+   the M6-era section buried below Help with the WebView-silent
+   clipboard copy. A surface shipped into a tree the edition never
+   renders is indistinguishable from not shipped (D101). Still NO
+   new stall evidence, so still NO root-cause attempt — debug.10
+   ports the evidence path into the served variant (ADR-0016:
+   Diagnostics is the FIRST row of the menu, opening the full report
+   view — the ladder Copy, Share, the selectable text). The row
+   STAYS OPEN: after the next stall, open the menu, tap the first
+   row, Copy, paste the report here. Two pastes close this loop:
+   one now (its build line proves the round), one at the stall.**
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed
