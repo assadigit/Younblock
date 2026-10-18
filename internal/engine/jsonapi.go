@@ -219,7 +219,8 @@ func (e *Engine) ClearUsageJSON() string {
 
 // GetDiagnosticReport builds the report text. It contains only: app version,
 // platform, settings summary (no custom lists), self-test status summary,
-// counters, measured sleep and the last 100 log lines.
+// counters, the embedder's extra section when installed (M8-p), measured
+// sleep and the last 200 log lines.
 func (e *Engine) GetDiagnosticReport() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s diagnostic report\n", config.AppName, e.opts.Version)
@@ -241,9 +242,24 @@ func (e *Engine) GetDiagnosticReport() string {
 	fmt.Fprintf(&b, "counters: dns ok %d, fail %d, up %s, down %s\n",
 		d.DnsOK, d.DnsFail, config.FormatBytes(d.BytesUp), config.FormatBytes(d.BytesDown))
 	fmt.Fprintf(&b, "%s\n", e.lastSelfTestSummary())
+	// The embedder's section (M8-p, ADR-0015): snapshot under the lock,
+	// run OUTSIDE it — the hook is free to touch engine state (GetState
+	// below takes mu again, so holding it here would deadlock).
+	e.mu.Lock()
+	extra := e.reportExtra
+	e.mu.Unlock()
+	if extra != nil {
+		if text := extra(); text != "" {
+			fmt.Fprintf(&b, "%s\n", text)
+		}
+	}
+	// M8-p: 200 lines (was 100) — a stalled video retries every few
+	// seconds and each attempt writes its tunnel-up/first-byte/done
+	// triple, so the doubled window keeps the stall's whole story in the
+	// report the user copies afterwards.
 	lines := e.logger.Ring.Lines()
-	if len(lines) > 100 {
-		lines = lines[len(lines)-100:]
+	if len(lines) > 200 {
+		lines = lines[len(lines)-200:]
 	}
 	fmt.Fprintf(&b, "last %d log lines:\n", len(lines))
 	for _, l := range lines {

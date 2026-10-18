@@ -20,16 +20,16 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 7: the M8-o build (the dial-failure → DNS-requery
-        // feedback loop: a total dial failure now demotes the host's
-        // cached DoH answer to stale, so the client's next retry gets a
-        // fresh server answer instead of the same suspect set until the
-        // 120 s minimum TTL expires; the resolver's own bootstrap dial
-        // races its IPs the same way the door does), so it installs
-        // OVER debug.7 (same pinned debug certificate — D85). The D84
-        // rule: every debug build bumps this. D99: from this release on
-        // the APK asset carries the version name (v1.6.6-debug.apk).
-        versionCode = 7
+        // versionCode 8: the M8-p build (the in-app diagnostics surface,
+        // ADR-0015 — Ali's round on debug.8: the stall persisted AND the
+        // promised "Menu → Diagnostics → Copy" did not exist yet; this
+        // build ships the Diagnostics screen (Menu + Settings entry), the
+        // Android-native copy/share bridge, the TUN counters + shell
+        // build identity inside the report, and the doubled 200-line log
+        // window), so it installs OVER debug.8 (same pinned debug
+        // certificate — D85). The D84 rule: every debug build bumps this.
+        // D99: the APK asset carries the version name (v1.6.6-debug.apk).
+        versionCode = 8
         versionName = "1.6.6"
     }
 

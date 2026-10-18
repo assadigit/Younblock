@@ -21,4 +21,7 @@
     <string name="consent_denied_text">Younblock is not connected. Without the VPN permission, the selected apps\' traffic cannot be routed — nothing is being filtered right now.</string>
     <string name="consent_retry">Try again</string>
     <string name="consent_ok">OK</string>
+    <!-- The Diagnostics screen's share sheet title (M8-p, ADR-0015): the
+         system chooser asks where to send the diagnostic report. -->
+    <string name="share_diagnostics">Share diagnostics</string>
 </resources>

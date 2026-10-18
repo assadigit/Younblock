@@ -177,6 +177,14 @@ type Engine struct {
 	events EventSink
 	onQuit func()
 
+	// reportExtra (M8-p, ADR-0015) is an optional embedder-supplied
+	// section appended to the diagnostic report — the Android facade
+	// adds its TUN counters and shell version through it. Nil on the
+	// desktops (the report is unchanged there). Guarded by mu; the
+	// hook itself runs OUTSIDE the lock (GetDiagnosticReport calls
+	// GetState, which takes mu).
+	reportExtra func() string
+
 	measuredSleep time.Duration
 	stopWait      sync.WaitGroup
 }
@@ -339,6 +347,17 @@ func (e *Engine) SetOnQuit(fn func()) {
 
 // Logger exposes the app logger for diagnostics.
 func (e *Engine) Logger() *logx.Logger { return e.logger }
+
+// SetReportExtra installs an embedder-supplied section that
+// GetDiagnosticReport appends after the counters (M8-p, ADR-0015) — the
+// Android facade uses it for its TUN counters and shell version. Passing
+// nil removes the section again. The hook may be called concurrently with
+// this swap; it must not call back into the engine's locked methods.
+func (e *Engine) SetReportExtra(f func() string) {
+	e.mu.Lock()
+	e.reportExtra = f
+	e.mu.Unlock()
+}
 
 // Stats exposes the counters for diagnostics.
 func (e *Engine) Stats() *stats.Counters { return e.stats }

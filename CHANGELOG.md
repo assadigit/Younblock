@@ -12,6 +12,38 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (2026-10-18, night — M8-p; shipped in `v1.6.6-android-debug.9`, versionCode 8)
+
+- **The in-app Diagnostics screen — "copy paste logs and diagnostics"
+  is now one reachable button (Ali's D100 directive).** His debug.8
+  round: the stall persisted AND the promised evidence path did not
+  exist ("there is no diagnostic option in the apk app setting" — the
+  copy button lived buried in Help and could silently fail inside the
+  Android WebView, toasting "Copied" over an empty clipboard). This
+  build ships the evidence-collection surface itself (ADR-0015): a
+  Diagnostics screen in the menu AND in Settings, showing the full
+  report with Copy (an honest three-path clipboard ladder — the
+  Android-native bridge first), Share (the system share sheet, APK
+  only), and the selectable text itself as the path of last resort.
+  Help's copy button joins the same ladder and stops claiming false
+  success. Every edition gets the screen; the desktops and the Linux
+  web edition just don't show Share.
+- **The report now carries the evidence only the APK can see.** The
+  TUN counters (flows opened/reset-unmapped/over-cap, door failures,
+  DNS queries, dropped UDP — the one surface that names the "flow
+  never reached the door" case and the QUIC/UDP row's suspect) and
+  the exact build identity ("android shell: 1.6.6 (versionCode 8)" —
+  a pasted report names its own release). The log window doubled
+  from the last 100 to the last 200 lines, so a stalled video's
+  whole retry story survives until the copy. Counters only — the
+  report's privacy redaction (no hostnames, no addresses) extends to
+  the new sections and is pinned by test.
+- **No third guess on the stall.** Two root-caused fixes
+  (debug.7/ADR-0013, debug.8/ADR-0014) are disproven on-device; the
+  next root-cause waits for a real pasted report (doc 10's circle
+  row 3 stays open). After a stall: Menu → Diagnostics → Copy, and
+  paste the report in the chat.
+
 ### Fixed (2026-10-18, later evening — M8-o; shipped in `v1.6.6-android-debug.8`, versionCode 7)
 
 - **Every video, not just the first: the per-video stall loop is

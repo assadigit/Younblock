@@ -1,11 +1,15 @@
 <script lang="ts">
   // The header menu button and its panel (file 02, section 4): Settings,
   // Help, About, a divider, Quit Younblock. Esc closes it.
+  // M8-p: Diagnostics joins the list — the release notes' "Menu →
+  // Diagnostics → Copy" is finally true on every edition.
   import Icon from "./Icon.svelte";
   import { copy } from "../i18n";
 
+  type View = "settings" | "help" | "diagnostics" | "about";
+
   interface Props {
-    onNavigate: (view: "settings" | "help" | "about") => void;
+    onNavigate: (view: View) => void;
     onQuit: () => void;
   }
   let { onNavigate, onQuit }: Props = $props();
@@ -21,7 +25,7 @@
     open = false;
   }
 
-  function go(view: "settings" | "help" | "about") {
+  function go(view: View) {
     close();
     onNavigate(view);
   }
@@ -67,6 +71,10 @@
       <button type="button" role="menuitem" onclick={() => go("help")}>
         <Icon name="life-buoy" size={18} />
         <span>{copy.menu.help}</span>
+      </button>
+      <button type="button" role="menuitem" onclick={() => go("diagnostics")}>
+        <Icon name="activity" size={18} />
+        <span>{copy.menu.diagnostics}</span>
       </button>
       <button type="button" role="menuitem" onclick={() => go("about")}>
         <Icon name="info" size={18} />

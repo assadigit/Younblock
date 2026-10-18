@@ -2222,3 +2222,29 @@ version) in the releases."
    versionCode 7) — its APK asset is named v1.6.6-debug.apk, and
    every release after it follows the form.
 4. Next decision ID: D100.
+
+**D100 — the in-app diagnostics surface is the evidence path (Ali's
+ruling, 2026-10-18, the M8-p round — his directive after the debug.8
+device round).** "The problem persists, there is no diagnostic option
+in the apk app setting. add an option to copy paste logs and
+diagnostics so i can paste it here."
+
+1. **RECORDED as ruled — the APK carries a first-class diagnostics
+   surface**: a Diagnostics screen reachable from BOTH the menu and
+   Settings (the two places he looked), with the report text
+   selectable on screen and delivered out through Copy (native
+   clipboard), Share (the system sheet), or manual selection. The
+   surface shipped as ADR-0015 in v1.6.6-android-debug.9. The ruling
+   also fixes the loop's evidence discipline: after this round, a
+   device report of "still broken" without the pasted report is
+   incomplete — the report is one button away and names its own build
+   (versionCode identity inside it).
+2. **Scope:** the diagnostics surface and its honesty rules (Copy may
+   only claim success when a path delivered; the report's R21
+   redaction extends to the new TUN/build sections). It does NOT
+   decide the stall itself (doc 10 row 3 stays open; no third
+   root-cause guess without a pasted report), and it does not change
+   QUIC/UDP policy (the tun: counters are observation, not policy).
+3. **First application:** v1.6.6-android-debug.9 (the M8-p build,
+   versionCode 8) — the round that shipped the surface.
+4. Next decision ID: D101.

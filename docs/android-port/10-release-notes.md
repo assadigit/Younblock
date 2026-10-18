@@ -1,26 +1,31 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-n (2026-10-18, evening — Ali's first
-debug.6 device round arrived: the slow first video stays, Windows
-is instant; both root-caused to a code-level asymmetry between the
-two doors and FIXED — ADR-0013 — so **`v1.6.6-android-debug.7` is now
-the CURRENT build**, versionCode 6; and his D98 ruling: every release
-page carries the debug APK from now on). Earlier same day: A0 (the
-account-gate spec pack per D94 + the `//go:build unix` host-side fix),
-A0-R2 (D95/D96 recorded), A0-R3 — **the account gate is CANCELLED
+**Status:** updated at M8-p (2026-10-18, night — Ali's debug.8 device
+round: the per-video stall PERSISTED, and the required evidence input
+was missing — "there is no diagnostic option in the apk app setting" —
+so this round SHIPS the in-app diagnostics surface itself (ADR-0015:
+the Diagnostics screen on Menu AND in Settings, the Android-native
+copy/share bridge, the TUN counters + exact build identity inside the
+report, the doubled 200-line log window); **`v1.6.6-android-debug.9` is
+now the CURRENT build**, versionCode 8; the stall row stays OPEN and
+its expected input is now a real, reachable button). Earlier the same
+day: M8-n (the first-video fix, ADR-0013 + D98), M8-o (the per-video
+fix, ADR-0014 + D99), A0/A0-R2/A0-R3 — **the account gate is CANCELLED
 (D97)**, see the closing note below. This document now holds two things: §1 the
-**shipped** debug test-circle releases (`v1.6.6-android-debug.7` is
+**shipped** debug test-circle releases (`v1.6.6-android-debug.9` is
 the CURRENT build — a regular release in the private repo per D89,
 the same text lives on the GitHub release itself; beneath it:
-debug.6 the one-UI-everywhere + data-usage build, debug.5 the
+debug.8 the per-video-stall-fix build, debug.7 the first-video-fix
+build, debug.6 the one-UI-everywhere + data-usage build, debug.5 the
 first-device-feedback build, debug.4 the helper-fix maintenance
 release, debug.3 the device-circle build whose APK ran on Ali's
 phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D98, of which D97 cancels the gate D94 had
-announced and D98 rules the APK asset onto every release page).
+01–09, DECISIONS.md D1–D100, of which D97 cancels the gate D94 had
+announced, D98 rules the APK asset onto every release page, D99 names
+it with the version, and D100 is this round's diagnostics ruling).
 **A0-R3 closing note (D97, 2026-10-18): the gate is CANCELLED — it
 will never ship, so none of that future ever happens. The "no
 account, no data collection" line in §2 stays verbatim PERMANENTLY;
@@ -29,7 +34,52 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.8 — the per-video stall loop closed (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.9 — the in-app diagnostics surface (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 8, built at the M8-p commit, APK
+35,026,961 B (SHA-256 1a2b2bf7…7833), the pinned debug certificate
+— **installs directly over debug.8** in place; settings and usage
+history survive. The APK asset on the release page is NAMED with the
+version (**v1.6.6-debug.apk**, per D99). It carries ONE theme: **the
+evidence-collection surface for the still-open per-video stall
+(ADR-0015) — "Menu → Diagnostics → Copy" is now a real, reachable
+path on every edition**:
+
+1. **What was wrong (the evidence):** Ali's debug.8 round reported
+   the stall PERSISTED — and that the promised evidence input did not
+   exist: "there is no diagnostic option in the apk app setting".
+   The report's copy path DID exist (Help → Still stuck → Copy
+   diagnostic report) but it was buried, and inside the Android
+   WebView its clipboard write can silently fail — the button
+   toasted "Copied" while the clipboard stayed empty. A diagnostics
+   loop cannot run on a broken evidence path.
+2. **What changed:** (a) a **Diagnostics screen** — in the menu
+   (between Help and About) AND as a row in Settings — showing the
+   full report with three ways out: **Copy** (the Android-native
+   clipboard bridge first, the browser API second, a legacy fallback
+   third — honest "Copied"/"Copy failed" toasts, never a false
+   success), **Share** (the system share sheet, the most reliable
+   way to hand the report to a chat app), and the selectable text
+   itself (the copy path of last resort, always available);
+   (b) the report now carries the **TUN counters** (flows, dropped
+   UDP, door failures — the one surface that names the "flow never
+   reached the door" case and the QUIC suspect) and the **exact
+   build identity** ("android shell: 1.6.6 (versionCode 8)" — a
+   pasted report names its own release); (c) the report's log window
+doubled to **the last 200 lines** (a stalled video's retry loop
+   writes ~3 lines per attempt; the wider window keeps the whole
+   stall story). The desktops and the Linux web edition get the same
+   screen (minus Share) — one UI, every edition.
+3. **What to verify on the phone (the row stays open until you
+   confirm):** connect, play videos until one stalls, then **Menu →
+   Diagnostics → Copy** (or Settings → Diagnostics report) and send
+   the report here — paste it in the chat. The tunnel lines
+   (dns=/dial=/first-byte=/dur=), the tun: line, and the on-screen
+   speed number at the slow moment split the remaining suspects in
+   one read. If copy ever says "Copy failed", use Share, or
+   press-and-hold the text and copy manually.
+
+## 1a. v1.6.6-android-debug.8 — the per-video stall loop closed (SHIPPED — a regular release, superseded by debug.9)
 
 **What this build is:** versionCode 7, built at the M8-o commit, APK
 34,978,761 B (SHA-256 c0c4019f…cd5f6), the pinned debug certificate
@@ -78,7 +128,7 @@ that survived the debug.7 fix**:
    zero = the door path is starved; high while the player still
    buffers = the player's own transport.
 
-## 1a. v1.6.6-android-debug.7 — the first-video fix (SHIPPED — a regular release, superseded by debug.8)
+## 1b. v1.6.6-android-debug.7 — the first-video fix (SHIPPED — a regular release, superseded by debug.8)
 
 **What this build is:** versionCode 6, built at the M8-n commit, APK
 34,960,649 B (SHA-256 dc01c041…dd83d), the pinned debug certificate
@@ -113,7 +163,7 @@ start on Android should now behave like the Windows app** (ADR-0013):
    model + Android version; the per-flow timing lines from debug.5
    name the phase that waits.
 
-## 1b. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, superseded by debug.7)
+## 1c. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, superseded by debug.7)
 
 > Note added at D93 (2026-10-18): the shared tree has since gained the
 > desktop close ruling (closing the window is a real shutdown by
@@ -367,10 +417,11 @@ The build environment has no emulator and no device (verified — doc
 09's standing blocker), so every device-side claim is **unclaimed
 until observed on your device**. This circle is the checklist's
 closure path; report pass/fail per row plus the in-app diagnostics
-report (Menu → Diagnostics → copy) and your device model + Android
-version. **If anything "doesn't work", the diagnostics report is the
-single most valuable thing to send** — it carries the engine's own
-view of what happened, redacted for privacy:
+report (Menu → Diagnostics → Copy — **shipped in debug.9, ADR-0015;
+before that build the path was Help's buried copy button**) and your
+device model + Android version. **If anything "doesn't work", the
+diagnostics report is the single most valuable thing to send** — it
+carries the engine's own view of what happened, redacted for privacy:
 
 **The debug.6 round (D92) adds two checks of its own, above the
 rows below: (a) the cross-device UI match — install debug.6 on the
@@ -442,6 +493,20 @@ remove the Last-session line).**
    not, the diagnostics report's tunnel lines (dns=/dial=/
    first-byte=/dur=) + the on-screen speed number at the slow
    moment are the expected inputs.**
+
+   **Re-observed on debug.8 (2026-10-18, M8-p): the stall PERSISTED
+   — and the round's own report named the gap in the loop: "there is
+   no diagnostic option in the apk app setting" (the Help screen's
+   buried copy button was both undiscoverable and silently broken
+   inside the WebView). No new stall evidence arrived, so NO new
+   root-cause was attempted this round — guessing past two
+   disproven fixes without the report is exactly what the loop must
+   not do. Instead debug.9 SHIPS the evidence path itself (ADR-0015:
+   the Diagnostics screen on Menu AND in Settings, the native
+   copy/share bridge, the TUN counters and build identity inside the
+   report, the 200-line window). The row STAYS OPEN: its expected
+   input is now one reachable button away — after the next stall,
+   Menu → Diagnostics → Copy (or Share), paste the report here.**
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

@@ -7,6 +7,7 @@
   import Wordmark from "./components/Wordmark.svelte";
   import About from "./screens/About.svelte";
   import Connect from "./screens/Connect.svelte";
+  import Diagnostics from "./screens/Diagnostics.svelte";
   import FirstRun from "./screens/FirstRun.svelte";
   import Help from "./screens/Help.svelte";
   import SettingsScreen from "./screens/Settings.svelte";
@@ -14,13 +15,22 @@
   import { mockBackend } from "./lib/adapters/mock";
   import { wailsAvailable, WailsBackend } from "./lib/adapters/wails";
   import { httpAvailable, HttpBackend } from "./lib/adapters/http";
+  import { copyText } from "./lib/clipboard";
   import type { Backend, BackendState, Settings, Stats, TestStep } from "./lib/backend";
 
-  type View = "connect" | "settings" | "help" | "about";
+  type View = "connect" | "settings" | "help" | "diagnostics" | "about";
 
-  let backend: Backend = mockBackend;
+  // $state (M8-p): the adapter picked in onMount now crosses into the
+  // template (the Diagnostics screen takes it as a prop), so the
+  // non_reactive_update warning is fixed at the source — the assignment
+  // in onMount correctly re-renders whoever reads it.
+  let backend = $state<Backend>(mockBackend);
   let ready = $state(false);
   let view: View = $state("connect");
+  // The initializer only captures the mock's placeholder; onMount (which
+  // primes the real adapter) and every onState event re-assign it — the
+  // capture-once intent, per the Settings.svelte precedent.
+  // svelte-ignore state_referenced_locally
   let uiState = $state<BackendState>(backend.state);
   let stats = $state<Stats | null>(null);
   let settings = $state<Settings | null>(null);
@@ -165,13 +175,13 @@
   }
 
   async function copyReport() {
+    // M8-p: honest feedback — the old catch swallowed the failure and
+    // toasted "Copied" anyway, which inside the Android WebView meant a
+    // button that copies nothing while claiming success. The clipboard
+    // ladder (lib/clipboard.ts) resolves truthfully.
     const report = await backend.getDiagnosticReport();
-    try {
-      await navigator.clipboard.writeText(report.report);
-    } catch {
-      // Clipboard may be unavailable; still show the toast for the attempt.
-    }
-    toast(copy.toast.copied);
+    const ok = await copyText(report.report);
+    toast(ok ? copy.toast.copied : copy.toast.copyFailed);
   }
 
   async function restoreSettings() {
@@ -187,7 +197,7 @@
     backend.quit();
   }
 
-  function navigate(next: "settings" | "help" | "about") {
+  function navigate(next: "settings" | "help" | "diagnostics" | "about") {
     view = next;
   }
 </script>
@@ -198,9 +208,11 @@
   {#if view === "connect" && settings && !settings.firstRunDone}
     <FirstRun startWithWindowsSupported={startWithOS} hasTray={hasTray} onGetStarted={getStarted} />
   {:else if view === "settings" && settings}
-    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} browserSessionSupported={browserSession} traySupported={hasTray} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
+    <SettingsScreen {settings} startWithWindowsSupported={startWithOS} browserSessionSupported={browserSession} traySupported={hasTray} onDiagnostics={() => (view = "diagnostics")} onSave={saveSettings} onBack={() => (view = "connect")} onToast={toast} />
   {:else if view === "help"}
     <Help {steps} {testing} hasTray={hasTray} onBack={() => (view = "connect")} onRunTest={runTest} onFixConnection={fixConnection} onCopyReport={copyReport} onOpenLogs={openLogs} onRestore={restoreSettings} />
+  {:else if view === "diagnostics"}
+    <Diagnostics {backend} onBack={() => (view = "connect")} onToast={toast} />
   {:else if view === "about"}
     <About {version} onBack={() => (view = "connect")} />
   {:else}

@@ -17,6 +17,10 @@
     /** D93: the keep-in-tray row renders only where a tray exists (the
      *  Windows desktop) — every other host has nothing to keep running. */
     traySupported?: boolean;
+    /** M8-p: opens the Diagnostics screen — the row Ali looked for in
+     *  the APK's settings ("add an option to copy paste logs and
+     *  diagnostics"). */
+    onDiagnostics: () => void;
     onSave: (settings: Settings) => void;
     onBack: () => void;
     onToast: (text: string) => void;
@@ -26,6 +30,7 @@
     startWithWindowsSupported,
     browserSessionSupported = true,
     traySupported = false,
+    onDiagnostics,
     onSave,
     onBack,
     onToast,
@@ -216,6 +221,19 @@
       </div>
     {/if}
 
+    <!-- M8-p: the diagnostics entry point inside Settings — a navigation
+         row, not a toggle: it opens the screen that carries the report,
+         the copy/share buttons and the selectable text. -->
+    <button type="button" class="row nav-row" onclick={onDiagnostics}>
+      <div class="row-text">
+        <p class="row-title">{copy.settings.diagnostics}</p>
+        <p class="row-hint">{copy.settings.diagnosticsHint}</p>
+      </div>
+      <span class="chevron" aria-hidden="true">
+        <Icon name="chevron-right" size={18} />
+      </span>
+    </button>
+
     <button type="button" class="row advanced-head" onclick={() => (advancedOpen = !advancedOpen)} aria-expanded={advancedOpen}>
       <div class="row-text">
         <p class="row-title">{copy.settings.advanced}</p>
@@ -390,6 +408,24 @@
     width: 100%;
     text-align: start;
     border-bottom: 1px solid var(--color-border);
+  }
+  /* The M8-p diagnostics row: same rhythm as the Advanced expander — a
+     full-width, start-aligned button row with the trailing chevron. */
+  .nav-row {
+    width: 100%;
+    text-align: start;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .nav-row:hover {
+    background: transparent;
+  }
+  .nav-row:hover .row-title,
+  .nav-row:hover .chevron {
+    color: var(--color-text);
+  }
+  .nav-row:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: -2px;
   }
   .advanced-head:hover {
     background: transparent;

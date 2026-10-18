@@ -25,6 +25,10 @@
     "folder-open":
       "m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2",
     globe: "M12 22a10 10 0 1 0 0.001 0 M12 2a15 15 0 0 0 0 20 15 15 0 0 0 0-20 M2 12h20",
+    // M8-p: the Diagnostics screen's glyphs (Lucide, same stroke).
+    activity: "M22 12h-4l-3 9L9 3l-3 9H2",
+    share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13",
+    refresh: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5",
   };
   // Multi-segment paths split on " M" for correct SVG syntax.
   const segments = $derived(

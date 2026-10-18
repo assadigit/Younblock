@@ -47,6 +47,7 @@
   "menu": {
     "settings": "Settings",
     "help": "Help",
+    "diagnostics": "Diagnostics",
     "about": "About",
     "quit": "Quit Younblock"
   },
@@ -104,7 +105,9 @@
     "dohNeedOne": "Keep at least one secure-DNS server",
     "domains": "YouTube domain list",
     "logDomains": "Keep website names in the log",
-    "reset": "Reset to defaults"
+    "reset": "Reset to defaults",
+    "diagnostics": "Diagnostics report",
+    "diagnosticsHint": "Copy logs and connection stats for troubleshooting"
   },
   "help": {
     "title": "Help",
@@ -145,6 +148,22 @@
       "copied": "Copied",
       "restored": "Internet settings restored"
     }
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "intro": "Copy this report right after a video stalls — it carries the timing of every connection the app made. Paste it into the chat with the developer.",
+    "logDomainsHint": "Tip: Settings → Advanced → “Keep website names in the log” adds the video-server names to the report.",
+    "copy": "Copy report",
+    "share": "Share",
+    "refresh": "Refresh",
+    "copied": "Report copied — paste it in the chat",
+    "copyFailed": "Copy failed. Press and hold the text below, select all, and copy manually.",
+    "shared": "Sharing opened — pick your chat app",
+    "shareFailed": "Sharing is not available here",
+    "loading": "Loading the report…",
+    "loadFailed": "Could not load the report.",
+    "retry": "Retry",
+    "reportLabel": "Diagnostic report"
   },
   "about": {
     "title": "About",
@@ -192,13 +211,15 @@
     "restored": "Internet settings restored",
     "browserOpened": "Chrome opened in a separate session",
     "browserClosed": "Chrome session closed",
-    "browserFailed": "Chrome could not be opened"
+    "browserFailed": "Chrome could not be opened",
+    "copyFailed": "Copy failed — the clipboard is unavailable"
   },
   "a11y": {
     "powerButton": "Unblock YouTube",
     "menuButton": "Menu",
     "menuPanel": "Younblock menu",
     "back": "Back",
-    "logo": "Younblock logo"
+    "logo": "Younblock logo",
+    "reportBox": "Diagnostic report text"
   }
 }

@@ -383,6 +383,43 @@ func TestEngineDiagnosticReportRedacted(t *testing.T) {
 	eng.Stop()
 }
 
+// TestEngineReportExtra pins the M8-p embedder hook: an installed section
+// lands in the report between the self-test summary and the log lines, a
+// nil hook keeps the report unchanged, and the hook runs without the
+// engine lock held (it may read engine state itself).
+func TestEngineReportExtra(t *testing.T) {
+	eng, _, _, _ := newTestEngine(t)
+	if err := eng.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitForPhase(t, eng, engine.PhaseOn)
+
+	// Without a hook the report carries no section marker.
+	if report := eng.GetDiagnosticReport(); strings.Contains(report, "embedder-section") {
+		t.Fatalf("report carries a section with no hook installed:\n%s", report)
+	}
+
+	eng.SetReportExtra(func() string {
+		// Reading engine state from inside the hook must not deadlock.
+		return "embedder-section state=" + string(eng.GetState().Phase)
+	})
+	report := eng.GetDiagnosticReport()
+	if !strings.Contains(report, "embedder-section state=on") {
+		t.Errorf("report missing the embedder section:\n%s", report)
+	}
+	// The section sits before the log lines.
+	if strings.Index(report, "embedder-section") > strings.Index(report, "log lines:") {
+		t.Errorf("embedder section appears after the log lines:\n%s", report)
+	}
+
+	// Removing the hook removes the section again.
+	eng.SetReportExtra(nil)
+	if report := eng.GetDiagnosticReport(); strings.Contains(report, "embedder-section") {
+		t.Errorf("section survives hook removal:\n%s", report)
+	}
+	eng.Stop()
+}
+
 func TestEngineRingClearedOnStop(t *testing.T) {
 	eng, _, _, _ := newTestEngine(t)
 	if err := eng.Start(); err != nil {

@@ -363,6 +363,85 @@ failure demotes the cached answer to stale (M8-o)
   device half stays open); QUIC/UDP forwarding policy (ADR-0009
   unchanged); the DNS cache TTL constants themselves.
 
+## ADR-0015 — The in-app diagnostics surface: a first-class Diagnostics
+screen with an honest clipboard ladder, and the facade's evidence in the
+engine report (M8-p)
+
+- **Status:** Accepted 2026-10-18 (M8-p, Ali's debug.8 round: the
+  stall persisted AND the promised evidence path did not exist —
+  "there is no diagnostic option in the apk app setting").
+- **Context:** The device feedback loop's required input (doc 10's
+  circle: "the diagnostics report is the single most valuable thing
+  to send") had a broken delivery path. The report copy button lived
+  buried in Help → Still stuck, and its implementation —
+  `navigator.clipboard.writeText` with a catch that toasts "Copied"
+  regardless — silently fails inside the Android WebView, where the
+  async clipboard API is missing or rejects depending on the WebView
+  build. Two root-caused fixes (ADR-0013/0014) had already been
+  disproven on-device in a row; a third guess without evidence would
+  violate the loop's own discipline. The correct engineering move is
+  to make the evidence reachable and verifiably delivered: the
+  diagnostics surface itself is the round's deliverable (Ali's D100
+  directive).
+- **Decision (four pieces, one theme — evidence that actually arrives):**
+  1. **The Diagnostics screen** (frontend, every edition): a menu
+     entry (between Help and About) AND a Settings row — the two
+     places a user looks — showing the full report with three ways
+     out: Copy, Share (Android only), and the selectable text itself
+     (a readonly textarea — the path of last resort that cannot
+     fail). Refresh re-pulls the snapshot.
+  2. **The honest clipboard ladder** (`lib/clipboard.ts`): the
+     Android shell bridge first (window.YounblockShell — see piece 3),
+     navigator.clipboard second, an execCommand fallback third. Every
+     path resolves a real boolean; the toasts say "Copied" only on
+     success and otherwise instruct the manual path. Help's copy
+     button joins the same ladder (its silent false-success is fixed).
+  3. **The Android shell bridge** (Kotlin PageBridge,
+     addJavascriptInterface "YounblockShell"): copyToClipboard via
+     the native ClipboardManager (thread-safe binder call; works on
+     every WebView build) and shareText via the system share sheet
+     (marshalled to the main thread). The exposed surface is
+     deliberately write-only with caller-provided text — nothing
+     reads data back out, and only the engine's own loopback page can
+     load in this WebView at all (the navigation guard, doc 07 §6).
+  4. **The facade's evidence in the report** (Go): the engine gains
+     an optional embedder hook — `Engine.SetReportExtra(func()
+     string)` — which the mobile facade installs with (a) the TUN
+     counters (flows/rstUnmapped/overCap/doorFailures/dnsQueries/
+     udpDropped — the one surface that names the "flow never reached
+     the door" case and the QUIC/UDP row's suspect, invisible to the
+     engine by construction) and (b) the shell build identity
+     ("android shell: 1.6.6 (versionCode 8)", set by Kotlin from
+     PackageManager — a pasted report names its own release, since
+     versionName stays 1.6.6 across debug rounds). The report's log
+     window doubles from 100 to 200 lines (a stalled video's retry
+     loop writes ~3 lines per attempt; the wider window keeps the
+     whole stall story). Counters only in the new section — the R21
+     redaction (no hostnames, no addresses) extends to it, pinned by
+     test.
+- **Evidence:** `internal/engine/engine.go` (SetReportExtra) +
+  `internal/engine/jsonapi.go` (the hook call, the 200-line window)
+  pinned by TestEngineReportExtra; `mobile/mobile.go` (the facade
+  hook, SetShellVersion, diagnosticsExtra) + `mobile/report_test.go`
+  (NEW — TestReportSectionWithoutTun, TestReportSectionWithLiveTun:
+  the section lands in the real report, inactive and active branches,
+  no address leak); frontend `lib/clipboard.ts`, `screens/
+  Diagnostics.svelte`, the Menu/Settings entries, i18n keys
+  (svelte-check 0/0, vite build clean); `MainActivity.kt` (PageBridge
+  + the EngineHolder version call) compiled by the clean
+  assembleDebug; AAR carries the setShellVersion binding. Desktop
+  baseline green (vet clean, 18/18 ×2, GOOS=windows exit 0); Android
+  compile matrix 4/4 ABIs + arm64 full tree; debug.9 APK verified
+  (sha256, apksigner pinned cert, badging versionCode 8).
+- **What this ADR does NOT decide:** the still-open per-video stall
+  itself (row 3 stays open — the next root-cause waits for a real
+  pasted report; no third guess); QUIC/UDP forwarding policy
+  (ADR-0009 unchanged — the tun: line's udpDropped counter is the
+  OBSERVATION surface, not a policy change); whether Share grows into
+  a full export/save path; log-file export (the report's ring
+  snapshot is the surface; the rotating app.log stays a developer
+  path).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

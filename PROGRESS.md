@@ -3071,3 +3071,35 @@ the diagnostics report's tunnel lines (dns=/dial=/first-byte=/dur=)
 inputs — they split the remaining suspects in one read. Row 3
 stays OPEN for Ali's measured evidence. Next Task ID: M8-p. Next
 decision: D100.
+
+M8-p (2026-10-18, night; THIRTEENTH feedback-loop exchange; Ali's
+debug.8 device round). Inputs: the per-video stall PERSISTED, and
+the evidence path itself was missing — "there is no diagnostic
+option in the apk app setting. add an option to copy paste logs and
+diagnostics so i can paste it here" (recorded as D100). The round
+therefore shipped the evidence-collection surface instead of a
+third root-cause guess (ADR-0015): the Diagnostics screen (menu
+entry + Settings row; Copy through the honest three-path clipboard
+ladder, Share via the system sheet on the APK, the selectable text
+as last resort), the Android shell bridge (PageBridge:
+copyToClipboard/shareText, write-only, loopback-page-only), the
+engine's SetReportExtra embedder hook carrying the facade's TUN
+counters + the shell build identity inside every report, and the
+report's log window doubled to 200 lines. Three new test pins
+(TestEngineReportExtra, TestReportSectionWithoutTun,
+TestReportSectionWithLiveTun — the last through the full serving
+harness + socketpair TUN). Baseline green: svelte-check 0/0; vite
+clean; dist CLEAN-synced; vet clean; 18/18 ×2; GOOS=windows exit 0;
+compile matrix 4/4 + arm64 full tree. versionCode 7 → 8; gomobile
+bind → younblock.aar 25,035,860 B (setShellVersion binding
+verified in classes.jar); clean assembleDebug → app-debug.apk
+35,026,961 B, SHA-256
+1a2b2bf75553ea2b4d9d2eddc6ba8e2f694e40e2e1e47b25954cbb04c73d7833;
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 8 /
+versionName 1.6.6. Released v1.6.6-android-debug.9 (regular,
+Latest) with the APK asset named v1.6.6-debug.apk (D99), served
+bytes re-verified. The ask for the debug.9 round: after the next
+stall, Menu → Diagnostics → Copy and paste the report here — the
+tunnel lines + the tun: line + the speed number split the remaining
+suspects in one read; row 3 stays OPEN. Next Task ID: M8-q. Next
+decision: D101.

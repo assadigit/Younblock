@@ -1186,3 +1186,66 @@ round's work:
   path; fast setup + slow dur = a throughput leg; nothing logged at
   all = the flow never reached the door). Row 3 stays OPEN until Ali's
   measured evidence; row 9's device half unchanged.
+
+M8-p record (2026-10-18, night; the THIRTEENTH feedback-loop exchange
+— the debug.8 device round, Task ID M8-p, decision D100, ADR-0015).
+
+- **Ali's inputs**: the per-video stall PERSISTED on debug.8, and the
+  round's own evidence ask was impossible to fulfill — "there is no
+  diagnostic option in the apk app setting. add an option to copy
+  paste logs and diagnostics so i can paste it here." (D100.)
+- **What the round therefore did (ADR-0015)**: NO third root-cause
+  guess — two disproven fixes in a row make guessing the one thing the
+  loop must not do; the deliverable is the evidence path itself:
+  1. Engine: `Engine.SetReportExtra` (the embedder hook; runs outside
+     the engine lock, pinned by TestEngineReportExtra) + the report's
+     log window doubled 100 → 200 lines.
+  2. Facade: the hook installed with the TUN counters line
+     (flows/rstUnmapped/overCap/doorFailures/dnsQueries/udpDropped —
+     counters only, R21 redaction extends to it) + `SetShellVersion`
+     (Kotlin passes "1.6.6 (versionCode 8)" from PackageManager at
+     EngineHolder.ensure — best-effort, never blocks). Pinned by the
+     NEW mobile/report_test.go (WithoutTun + WithLiveTun through the
+     full serving harness + socketpair TUN).
+  3. Frontend (every edition): the Diagnostics screen (screens/
+     Diagnostics.svelte) — menu entry + Settings row; Copy/Share/
+     Refresh + the selectable readonly textarea; the honest clipboard
+     ladder (lib/clipboard.ts: shell bridge → navigator.clipboard →
+     execCommand; "Copied" only on real success, else the manual-path
+     instruction); Help's copy button joins the ladder (its silent
+     false-success fixed); i18n keys; `backend` became $state in
+     App.svelte (the prop crossing fixed the non_reactive_update
+     warning at the source).
+  4. Kotlin: MainActivity.PageBridge (addJavascriptInterface
+     "YounblockShell") — copyToClipboard (native ClipboardManager,
+     binder-thread-safe) + shareText (system share sheet, marshalled
+     to main); write-only surface, only the loopback page can load.
+     strings.xml: share_diagnostics.
+- **Baseline, all green**: svelte-check 0/0 (one round on the
+  $state/app-referenced-locally pair — fixed with the repo's
+  established svelte-ignore pattern); vite build clean; webui dist
+  CLEAN-synced (placeholder.txt restored, built files ignored); go vet
+  clean; go test 18/18 ×2 consecutive; GOOS=windows exit 0; Android
+  compile matrix 4/4 ABIs (CGO_ENABLED=0) + arm64 full tree exit 0.
+- **The build lane**: versionCode 7 → 8 (the D84 rule; the gradle
+  wrinkle did not recur this session — plain `./gradlew --stop` +
+  JAVA_HOME form); gomobile bind (GOFLAGS=-mod=mod, the recorded
+  3-ABI target form, androidapi 26) → younblock.aar 25,035,860 B (the
+  binding verified to carry setShellVersion before gradle ran); clean
+  assembleDebug → app-debug.apk **35,026,961 B**, SHA-256
+  **1a2b2bf75553ea2b4d9d2eddc6ba8e2f694e40e2e1e47b25954cbb04c73d7833**;
+  badging: versionCode 8 / versionName 1.6.6 / minSdk 26 / targetSdk
+  36; apksigner OK — the pinned debug certificate c76bb7c6…8551d
+  (installs over debug.8 in place, settings + usage history survive).
+- **D100 recorded** (the diagnostics surface ruling): the APK carries
+  the first-class diagnostics path; after this round a "still broken"
+  report without the pasted diagnostics is incomplete.
+- **The release lane**: v1.6.6-android-debug.9 at the pushed full SHA
+  (regular release, D89, Latest), the APK asset uploaded AS
+  v1.6.6-debug.apk (D99), served bytes re-verified through the API.
+- **The honest ask for the debug.9 round** (release notes + wrap-up
+  page): play videos until one stalls, then Menu → Diagnostics →
+  Copy (or Share) and paste the report here. The tunnel lines
+  (dns/dial/first-byte/dur), the tun: line (flows/udpDropped) and the
+  speed number at the slow moment split the remaining suspects in one
+  read. Row 3 stays OPEN; no guess ships before that report arrives.

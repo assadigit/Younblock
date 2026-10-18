@@ -29,6 +29,7 @@ package mobile
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/assadigit/Younblock/internal/engine"
@@ -67,6 +68,12 @@ type Engine struct {
 	webUISrv chan struct{} // closed when the Serve goroutine returned
 
 	tun *tunState // the live TUN stack (nil when none); see tun.go
+
+	// shellVersion (M8-p, ADR-0015) is the APK's identity string as
+	// Kotlin reports it from PackageManager ("1.6.6 (versionCode 8)"), so
+	// a pasted diagnostic report names the exact build it came from —
+	// versionName alone stays 1.6.6 across debug rounds. Guarded by mu.
+	shellVersion string
 }
 
 // NewEngine builds the engine for the Android shell: the platform adapter
@@ -136,6 +143,10 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
 	if sink != nil {
 		eng.SetEventSink(&protectedSink{target: sink})
 	}
+	// M8-p (ADR-0015): the facade owns evidence the engine cannot see —
+	// the TUN counters and the shell version — so the diagnostic report
+	// the WebView copies carries them too (engine.SetReportExtra).
+	eng.SetReportExtra(m.diagnosticsExtra)
 	return m, nil
 }
 
@@ -170,6 +181,44 @@ func (m *Engine) GetDiagnosticReport() string { return m.eng.GetDiagnosticReport
 // GetAppInfo returns app metadata JSON (version, platform, capabilities,
 // config/log paths).
 func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
+
+// SetShellVersion records the APK's identity (M8-p, ADR-0015) — Kotlin
+// passes it once at engine construction, built from PackageManager's
+// versionName + versionCode (e.g. "1.6.6 (versionCode 8)"). It rides in
+// the diagnostic report's android section so a pasted report names the
+// exact debug round it came from. Empty until set; never fails.
+func (m *Engine) SetShellVersion(v string) {
+	m.mu.Lock()
+	m.shellVersion = v
+	m.mu.Unlock()
+}
+
+// diagnosticsExtra is the report section the facade installs on the
+// engine (ADR-0015): the shell version line, then the TUN counters —
+// the one surface that names the "flow never reached the door" case
+// (flowsOpened stuck at zero while the app buffers) and the QUIC suspect
+// (udpDropped climbing while the YouTube app tries UDP). Counters only,
+// in the report's style — no addresses, no hostnames (the R21 redaction
+// applies to this section too).
+func (m *Engine) diagnosticsExtra() string {
+	var b strings.Builder
+	m.mu.Lock()
+	shell := m.shellVersion
+	t := m.tun
+	m.mu.Unlock()
+	if shell != "" {
+		fmt.Fprintf(&b, "android shell: %s\n", shell)
+	}
+	if t == nil {
+		b.WriteString("tun: inactive\n")
+	} else {
+		st := t.stack.Stats()
+		fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d\n",
+			st.FlowsOpened, st.FlowsRSTUnmapped, st.FlowsOverCap,
+			st.DoorFailures, st.DNSQueries, st.UDPDropped)
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
 
 // SetVpnReady is the M5 lifecycle door (D77): true once the VPN consent
 // is granted AND the TUN interface is established — the engine's connect

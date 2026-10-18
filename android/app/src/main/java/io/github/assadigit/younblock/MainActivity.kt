@@ -2,11 +2,15 @@ package io.github.assadigit.younblock
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -66,6 +70,13 @@ class MainActivity : Activity() {
             allowFileAccess = false    // doc 07 §6 hardening: local page only
             allowContentAccess = false
         }
+        // M8-p (ADR-0015): the page's copy/share escape hatch. The
+        // interface is deliberately minimal — two fire-and-forget actions
+        // with CALLER-provided text, nothing that reads data back out —
+        // and the only page that can ever reach it is the engine's own
+        // loopback webui ([LoopbackOnlyClient] refuses every navigation
+        // elsewhere).
+        webView.addJavascriptInterface(PageBridge(this), "YounblockShell")
         webView.webViewClient = LoopbackOnlyClient
         setContentView(webView)
 
@@ -228,6 +239,62 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * The page's escape hatch (M8-p, ADR-0015): the Svelte Diagnostics
+     * screen reaches this object as window.YounblockShell. The Android
+     * WebView is the one host where navigator.clipboard is unreliable
+     * (missing or rejecting depending on the WebView build), so the
+     * report's Copy button tries this NATIVE path first and the page's
+     * clipboard ladder falls through gracefully when the bridge is
+     * absent (the desktops and the Linux web edition never see it).
+     *
+     * Threading: [JavascriptInterface] methods arrive on a WebView binder
+     * thread. ClipboardManager is a binder call (thread-safe); the share
+     * intent marshals to the main thread before startActivity.
+     *
+     * Security surface (kept minimal by design): both methods are
+     * write-only with caller-provided text — the shell never returns data
+     * to the page, and only the engine's own loopback page can load here
+     * at all (see [LoopbackOnlyClient]).
+     */
+    private class PageBridge(private val activity: Activity) {
+
+        @JavascriptInterface
+        fun copyToClipboard(text: String): Boolean {
+            return try {
+                val cm = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("Younblock diagnostics", text))
+                true
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "clipboard write failed: ${e.message}")
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun shareText(text: String): Boolean {
+            return try {
+                activity.runOnUiThread {
+                    try {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        activity.startActivity(
+                            Intent.createChooser(send, activity.getString(R.string.share_diagnostics))
+                        )
+                    } catch (e: RuntimeException) {
+                        Log.w(TAG, "share sheet failed: ${e.message}")
+                    }
+                }
+                true // the sheet was dispatched; its own failure is logged above
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "share dispatch failed: ${e.message}")
+                false
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "Younblock"
         private const val REQUEST_PREPARE = 100
@@ -274,6 +341,22 @@ object EngineHolder {
                 VpnProtector,
                 EngineEvents,
             )
+            // M8-p (ADR-0015): name the exact build in every diagnostic
+            // report — versionName alone stays 1.6.6 across debug rounds,
+            // versionCode is what maps a pasted report to its release.
+            // Best-effort: a PackageManager refusal must not block the
+            // engine (the report then simply carries no shell line).
+            runCatching {
+                @Suppress("DEPRECATION") // the flags overload needs API 33; minSdk is 26
+                val info = context.packageManager.getPackageInfo(context.packageName, 0)
+                val code = if (Build.VERSION.SDK_INT >= 28) {
+                    info.longVersionCode
+                } else {
+                    @Suppress("DEPRECATION")
+                    info.versionCode.toLong()
+                }
+                created.setShellVersion("${info.versionName} (versionCode $code)")
+            }.onFailure { Log.w("Younblock", "shell version not reported: ${it.message}") }
             engine = created
             return created
         }
