@@ -1,8 +1,10 @@
 # 04 — Admin and Operations (A0)
 
-**Status:** draft for Ali's review. The admin model rides **OPEN (b)**
-(who creates accounts) and the surface choice is **OPEN (f)**'s
-sibling; recommendations below.
+**Status:** draft for Ali's review; revised A0-R2 (2026-10-18):
+**OPEN (b) is now RULED (D95) — admin-only creation** (Ali creates
+every account; no open signup exists to design around). The admin
+surface choice remains a recommendation riding (f)'s sibling; the
+deployment questions ride (a) as before.
 
 ## 1. Deployment and day-to-day (rides OPEN (a))
 
@@ -20,6 +22,10 @@ sibling; recommendations below.
   audit log is the operational record.
 
 ## 2. The admin surface (recommendation: CLI first)
+
+**(b) is RULED (D95): admin-only creation.** Every account is a
+deliberate act by the admin (Ali) — the `create` flow below is the
+only way an account ever exists.
 
 - **A1 ships a server CLI** (subcommands mirroring the endpoints:
   `users add|list|disable|enable|reset|expire`, `audit tail`) — the

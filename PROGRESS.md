@@ -2881,3 +2881,54 @@ under Unreleased) and SESSION_HANDOFF_PROMPT rewritten for the next
 session (M8-n first; A1 only after D95+). Next Task IDs: M8-n (the
 device round, still awaiting Ali's feedback) and A1 (the auth
 backend, gated on the rulings). Next decision D95.
+
+A0-R2 (2026-10-18, later the same day; docs only — no code, no
+release): Ali's reply to the A0 wrap-up arrived as one message with
+three parts, and the session recorded them per the D94 pattern —
+rulings recorded verbatim before anything else, never faked, never
+narrowed. Part one, his ruling on open question (b): "I create
+account - admin-only" → recorded as D95 (admin-only creation; no
+open signup, no approval queue; the surface FORM stays a
+recommendation riding (f)'s sibling). Part two, a new direction:
+"Also I want two apk version, one with auth, one without (free for
+all)" → recorded as D96 (the two-edition split: members carries the
+full gate; free contains zero auth code and no server dependency —
+build-time only, Go build tags + Gradle product flavors; a runtime
+toggle is ruled out by the direction itself; the privacy copy splits
+per edition and both copies disclose together at the first split
+release; OPEN (g) added with sub-rulings g1–g4: install identity,
+distribution, scope, naming — none a decision yet). Part three, his
+hosting question — "Can we host it via cloudflare workers/github io
+pages/ vercel/netlify etc?" — is NOT a ruling; the session answered
+it in the spec pack (02 §6, the honest platform matrix): GitHub
+Pages can never host a backend (static only — useful for the website
++ APK downloads); Cloudflare Workers + D1 is the only single-vendor
+$0 path (TS/Go-WASM service, ~10 ms/request CPU budgets that cannot
+run the A0 argon2id parameters — re-tuned down and re-worded
+honestly, platform lock-in, *.workers.dev intermittently filtered
+from Iranian ISPs); Vercel and Netlify both force the DB to a second
+vendor (no persistent disk) and carry sanctioned-region account
+risk; the recommendation stays the small always-on host (the whole
+A0 spec runs unmodified; a few US$/month, or Oracle's always-free
+ARM if a card at signup can be arranged; the practical constraint
+from Iran is the payment method). The cross-cutting hard requirement
+is stated in the same section: the auth endpoint must be reachable
+from Iranian ISPs as ordinary HTTPS — login happens before connect
+and never rides the tunnel — so reachability from inside Iran is the
+primary hosting criterion, verifiable only by Ali (a phone, no VPN,
+one minute); the sandbox cannot test Iranian-ISP paths and says so.
+Docs revised in place with dated A0-R2 notes: docs/auth/00 (the
+question table — b RULED, row g added, row a points at 02 §6), 01
+(status, §0's objective-split note, new §6 AUTH-040…044), 02 (§1
+qualified per D96, §6 the platform matrix, §7 the edition build
+mechanism), 03 (§5 now also rides (a) — the argon2/CPU note), 04
+(§2's WHO ruled), 05 (§2 and §6 addenda — the free edition has no
+gate to bypass; the privacy copy splits per edition). CHANGELOG's
+Planned section rewritten for D95/D96. His request for "your
+questionaire. in bullet points" was answered in chat and rendered on
+the session preview page (the one user-visible route): hosting
+sub-questions, edition sub-questions, and the still-open (c)–(f),
+each with its recommendation marked as a recommendation. No device
+feedback arrived with the message (no repo issues, all states
+unchanged); the device round stays open exactly as before. Next
+decision: D97 ((a) and (c)–(g) remain open; D95/D96 are spent).

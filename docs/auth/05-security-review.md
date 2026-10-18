@@ -1,8 +1,9 @@
 # 05 — Security Review (A0)
 
-**Status:** draft for Ali's review. Per D94's own standard — auth is
-security-related, so this review names the gate's limitations as
-frankly as its features. Nothing here is a claim about shipped code;
+**Status:** draft for Ali's review; revised A0-R2 (2026-10-18): §2
+and §6 carry the two-edition addenda (D96). Per D94's own standard —
+auth is security-related, so this review names the gate's limitations
+as frankly as its features. Nothing here is a claim about shipped code;
 A0 builds nothing, and every statement below is a design statement the
 A-series must re-verify against the implementation before any of it
 appears in user-facing copy (the D77–D94 rule).
@@ -22,6 +23,16 @@ member circle is a door with no key. A disabled or expired member
 stops at the next verify (AUTH-021).
 
 **Does not block — stated plainly:**
+
+> **A0-R2 addendum (D96, the two-edition split):** the bounds below
+> apply to the **members edition** and are unchanged by the split —
+> identical gate code, so identical bounds. The **free edition** has
+> no gate to bypass at all: nothing in it is exclusive, by design —
+> that is the honest meaning of "free for all", and it is also its
+> resilience: the free edition keeps working even if the auth server
+> dies or is never paid for again. The split neither weakens nor
+> strengthens the members edition; it only makes each edition say
+> exactly what it is.
 
 - **Token extraction.** A determined member can read their own token
   file (it is their device) and hand it to a friend. The friend then
@@ -109,6 +120,13 @@ at the release that ships the gate — in the changelog, the release
 notes, the Privacy sheet and README together (D94 ruling 2: disclosed,
 never silent). Until that release, nothing of the gate exists in any
 build, and the old copy stays true of every shipped build.
+
+> **A0-R2 addendum (D96, 2026-10-18) — the copy splits per edition:**
+> the **free edition** keeps the standing "no account, no data
+> collection" claims VERBATIM — they stay literally true of it (it
+> talks to nothing; it has no server). The **members edition** ships
+> the drafted account copy above. Both are disclosed together at the
+> first release that ships the split — never silently.
 
 ## 7. Review obligations for the implementing milestones
 

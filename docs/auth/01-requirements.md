@@ -2,7 +2,9 @@
 
 **Status:** draft for Ali's review; every numbered requirement carries
 its verification idea for the A-series implementation. Requirements the
-six rulings must settle are marked **OPEN (a)–(f)** — see 00's table.
+rulings must settle are marked **OPEN (a)–(f)** — see 00's table.
+**Revised A0-R2 (2026-10-18): (b) is RULED (D95); OPEN (g) is new
+(D96, the two-edition split) — §6 below.**
 
 ## 0. The objective (D94, verbatim intent)
 
@@ -12,6 +14,13 @@ Windows, Linux, Android (and the web edition inherits it, because the
 gate lives in the engine, not in a shell). The objective is
 **exclusivity** — controlling who may use the app — not any change to
 how traffic is treated once inside.
+
+> **A0-R2 revision (D96, 2026-10-18):** the objective now splits by
+> edition. The **members edition** is exclusive as written above. The
+> new **free edition** is ungated — no account, no server — and keeps
+> today's behavior and claims verbatim. In this pack, "every edition"
+> from here on means "every edition that carries the gate" (see §6,
+> AUTH-040…044).
 
 ## 1. Gate enforcement (the load-bearing requirement)
 
@@ -107,3 +116,44 @@ how traffic is treated once inside.
   member; the server stores the minimum 05 §6 lists.
 - **Not a CAPTCHA/anti-bot system in v1** — **OPEN (f)**; brute-force
   protection is rate-limiting, stated in 03 §7.
+
+## 6. The two editions (NEW, A0-R2 — OPEN (g); design draft per D96)
+
+Added 2026-10-18 from Ali's direction (D96): "two apk version, one
+with auth, one without (free for all)". Verification ideas included;
+nothing below is built, and (g1)–(g4) wait on Ali's rulings.
+
+- **AUTH-040 (build-time only, one source tree):** two APKs come from
+  the same tree — the members edition compiles the gate in; the free
+  edition compiles it out entirely. Never a runtime toggle: one APK
+  with a flag is not "two versions", and it would place the gate's
+  code inside the free APK too. Mechanism (design; A2 implements only
+  after the rulings): Go build tags on the engine gate and the facade
+  (the pattern the A0 `//go:build unix` fix used) + Gradle product
+  flavors on Android.
+- **AUTH-041 (the free edition is gate-free by construction):** no
+  auth client package, no token file, no signed-out state, no
+  `auth` capability bit, no auth methods in the facade — verifiable
+  by absence (the free APK's engine is exactly today's engine). It
+  has no server dependency at all: it keeps working forever, even if
+  the auth server dies or is never paid for again. Its behavior and
+  its privacy claims are today's, verbatim.
+- **AUTH-042 (the members edition is the gate as designed):**
+  AUTH-001…007 apply as written — nothing is weakened by the split;
+  the gate code is identical to the single-edition design.
+- **AUTH-043 (privacy copy splits per edition, disclosed together):**
+  the free edition keeps the standing "no account, no data collection"
+  claims verbatim (still literally true of it); the members edition
+  ships 05 §6's drafted copy. Both disclosed at the first release that
+  ships the split — never silently (D94 ruling 2).
+- **AUTH-044 (the release lane carries both, clearly labeled):** two
+  APKs per release cut, one per edition; separate `versionCode`
+  sequences if the applicationIds differ (**OPEN g1**); the signing
+  story is unchanged (the debug keystore for the test circle, the
+  release keystore for public — D84/D88/D90 discipline).
+- **OPEN (g) sub-rulings, none a decision yet:** (g1) package identity
+  — side-by-side install (recommended: an `.auth` applicationId
+  suffix) vs one replacing package; (g2) distribution channel per
+  edition; (g3) scope — Android only first (recommended; the same Go
+  tags extend the split to the desktop shells later) vs desktop from
+  day one; (g4) the two names for release notes and privacy sheets.

@@ -12,26 +12,37 @@ every release are on the
 
 ## [Unreleased]
 
-### Planned (announced 2026-10-18 — design first, nothing built yet)
+### Planned (announced 2026-10-18 — design first, nothing built yet; revised the same day with Ali's first rulings)
 
 - **The app is becoming members-only: a login authorization gate is
-  planned (D94).** Only people with a verified Younblock account
-  (username and password) will be able to use the app, on every
-  edition — Windows, Linux and Android. This brings a login page, a
+  planned (D94).** Members sign in with a Younblock account (username
+  and password) before they can connect. This brings a login page, a
   small authentication backend with a user database, and an admin
   surface for managing accounts. One truthful-claims change comes
   with it and is being said now: the privacy copy today says "no
-  account, no data collection" — after this ships, an account and
-  its login check exist, and the copy changes to say so (the
-  proxying itself stays local and unchanged: no VPN server, no IP
-  hiding, no added encryption). The architecture spec has now
-  landed (2026-10-18, A0): the six-document design pack under
-  `docs/auth/`, with six open questions for Ali (backend location;
-  who creates accounts; behavior when the auth server is
-  unreachable; token/session design; password storage; brute-force
-  protection) — each answered by his ruling before any of it is
-  built, and the privacy-copy change ships with the gate, never
-  silently.
+  account, no data collection" — for the gated edition it changes to
+  say so at the release that ships it (the proxying itself stays
+  local and unchanged: no VPN server, no IP hiding, no added
+  encryption). The architecture spec has landed (2026-10-18, A0): the
+  six-document design pack under `docs/auth/`.
+- **Ali's first rulings on the open questions (2026-10-18, A0-R2):**
+  - **Admin-only accounts (D95):** Ali creates every account; there
+    is no open signup anywhere.
+  - **Two editions (D96):** Younblock will ship as two Android
+    editions — **members** (with the account gate) and **free** (no
+    gate, no account, no server — free for all, and it keeps working
+    even if the auth server is gone). The free edition keeps today's
+    privacy claims verbatim; the members edition ships the new
+    account copy. Both disclosed at the first release that ships the
+    split, never silently.
+- **Still open before anything is built** (each needs Ali's ruling,
+  recorded in DECISIONS.md D95+): (a) where the backend lives — he
+  asked about Cloudflare Workers / GitHub Pages / Vercel / Netlify;
+  the honest matrix is in `docs/auth/02` §6 (GitHub Pages can never
+  host a backend; Workers+D1 is the only single-vendor $0 path, with
+  named trade-offs; the recommendation stays a small always-on host);
+  (c)–(f) the protocol parameters; (g) the edition packaging details
+  (install identity, distribution, naming).
 
 ### Fixed (host-side, 2026-10-18 — A0 session; no app-facing change, no new build)
 

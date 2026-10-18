@@ -30,20 +30,45 @@ working clone carries the credential in its `origin` remote URL).
   scoped shell builds always did — that is what "the whole shell"
   meant); one line (`//go:build unix`) fixed it; baseline re-verified
   green after; no release followed (nothing app-facing changed).
-- **The six open questions (D94 ruling 3) still await Ali's rulings —
-  D95+ is reserved for them.** They gate A1/A2, nothing else:
-  (a) backend location (recommendation: a small self-hosted VPS);
-  (b) admin-only account creation vs open signup (recommendation:
-  admin-only — the exclusivity goal);
-  (c) fail-open vs fail-closed when the auth server is unreachable
+- **A0-R2 (2026-10-18, later the same day — docs only, no code): Ali
+  replied to the A0 wrap-up and the session recorded it.** His ruling
+  on (b) — "I create account - admin-only" — is **D95**: admin-only
+  creation, no open signup, no approval queue (the surface FORM stays
+  a recommendation riding (f)'s sibling). His new direction — "Also I
+  want two apk version, one with auth, one without (free for all)" —
+  is **D96**: the two-edition split (members carries the full gate;
+  free contains zero auth code and no server dependency; build-time
+  only — Go build tags + Gradle product flavors; the privacy copy
+  splits per edition and both copies disclose together at the first
+  split release). It opened **(g)** with sub-rulings g1–g4 (install
+  identity, distribution, scope, naming) — none a decision yet. His
+  hosting question (Cloudflare Workers / GitHub Pages / Vercel /
+  Netlify) is NOT a ruling; the honest platform matrix is in
+  `docs/auth/02` §6, and the recommendation stays the small always-on
+  host. The whole auth pack was revised in place with dated A0-R2
+  notes (00's table: b RULED, row g added; 01 §0 + new §6
+  AUTH-040…044; 02 §1/§6/§7; 03 §5; 04 §2; 05 §2/§6).
+- **The remaining open questions — each needs Ali's ruling before
+  A1/A2 starts; D97+ is reserved for them:**
+  (a) backend location — the platform matrix is in docs/auth/02 §6
+  (recommendation: a small always-on host; the strictly-$0
+  alternative is Cloudflare Workers + D1 with named trade-offs); (c)
+  fail-open vs fail-closed when the auth server is unreachable
   (recommendation: fail-closed with a bounded offline grace, ~72 h);
   (d) token/session design and expiry (recommendation: opaque
-  server-side session tokens, ~30-day sliding);
+  server-side session tokens, ~30-day sliding; open sub-item: single
+  active session per account);
   (e) password storage parameters (recommendation: argon2id
-  m=64 MiB t=3 p=4, tuned at A1);
-  (f) brute-force protection + the login form (recommendation:
-  per-username and per-IP limits with admin-clearable lockout; the
-  form is the shared screen's signed-out state, D92's one-UI rule).
+  m=64 MiB t=3 p=4 — now also rides (a): full strength presumes an
+  always-on host; serverless CPU budgets force a re-tune down);
+  (f) brute-force protection + the login form + the admin surface
+  form (recommendation: per-username and per-IP limits with
+  admin-clearable lockout; the form is the shared screen's signed-out
+  state; CLI first);
+  (g) the edition packaging — g1 side-by-side install (recommended:
+  an `.auth` applicationId suffix) vs one replacing package; g2
+  distribution channel per edition; g3 Android-only first
+  (recommended) vs desktop too; g4 the two names.
   Recommendations are NOT decisions — never record one as if ruled.
 - **The open slow-video defect and the device test circle are
   unchanged** (the feedback loop stays the FIRST workstream):
@@ -119,12 +144,14 @@ or his rebuilt desktop exe (the D93 close ruling):
 
 ### Workstream 2 — the account-gate IMPLEMENTATION lane (Task IDs A1, A2, …) — ONLY after the rulings
 
-A0 (the spec) is done. **A1 (the auth backend) may not start until
-Ali rules on the six questions (D95+)** — if the rulings have not
-arrived, this workstream stays closed and the session says so plainly.
-If they HAVE arrived: record them in DECISIONS.md first (from D95),
-update `docs/auth/00`'s table to mark them ruled, then implement per
-the pack, in the ladder it specifies:
+A0 (the spec) is done, and A0-R2 recorded D95 (b ruled: admin-only)
+and D96 (the two-edition direction, OPEN (g) added). **A1 (the auth
+backend) may not start until Ali rules on the REMAINING questions —
+(a) and (c)–(f); A2 additionally needs (g)** — if the rulings have
+not arrived, this workstream stays closed and the session says so
+plainly. If they HAVE arrived: record them in DECISIONS.md first (from
+D97), update `docs/auth/00`'s table to mark them ruled, then
+implement per the pack, in the ladder it specifies:
 
 - **A1 — the backend**: a small self-hosted HTTPS service
   (login/verify/refresh/logout + admin), the user DB (users/sessions/
@@ -156,27 +183,31 @@ priority whenever Ali's reports arrive).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-n,
    M8-o, … ; the account-gate lane runs A1, A2, … for implementation
-   (A0, the spec round, is DONE). **The next decision number is
-   D95 — reserved for Ali's rulings on the six questions.**
+   (A0 the spec round and A0-R2 the ruling round are DONE). **The
+   next decision number is D97 — reserved for Ali's rulings on the
+   remaining open questions ((a), (c)–(g)); D95 and D96 are spent.**
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.6 edition + §"Device test circle"), doc 06 (the M8-c…M8-m +
-   A0 records), doc 08 + `DECISIONS.md` (D1–D94; the D94 entry is the
-   account-gate ruling — read it in full), `docs/auth/00-start-here.md`
+   A0 records), doc 08 + `DECISIONS.md` (D1–D96; the D94 entry is the
+   account-gate ruling, D95/D96 the A0-R2 rulings — read them in
+   full), `docs/auth/00-start-here.md`
    (the six questions + where each is specified), and the tail of
    `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
-   `git status -sb`, `git log --oneline -3` (expect the A0 commit —
-   the auth spec pack + the nonblock fix — on top of cf136aa). Preserve
+   `git status -sb`, `git log --oneline -3` (expect the A0-R2 docs
+   commit — the auth pack revision per D95/D96 — on top of the A0
+   commit on top of cf136aa). Preserve
    any uncommitted work; never reset it just to get a clean diff. If
    push is rejected (credential rotated), the session prompt carries a
    fresh token — update the `origin` remote URL with it.
 4. Check whether Ali's device-test feedback from debug.6 has arrived
-   (session messages), AND whether his six rulings (a)–(f) have
-   arrived. If device feedback is present: Workstream 1 first. If the
-   rulings are present: record them (DECISIONS.md from D95) before any
-   A1 code. If neither: say so plainly; the honest options are the
-   desktop release lane (gap 3) or public-release engineering (gap 4)
-   — ask Ali which, do not guess.
+   (session messages), AND whether his rulings on the remaining open
+   questions ((a), (c)–(g)) have arrived. If device feedback is
+   present: Workstream 1 first. If the rulings are present: record
+   them (DECISIONS.md from D97) before any A1 code. If neither: say so
+   plainly; the honest options are the desktop release lane (gap 3)
+   or public-release engineering (gap 4) — ask Ali which, do not
+   guess.
 5. Make the desktop baseline GREEN before writing any code, in the
    D74 ORDER (a fresh clone fails the Go lanes until the frontend is
    built): `cd frontend && npm ci`; `npx svelte-check` (0/0);
@@ -263,7 +294,8 @@ Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
 from debug.6 has arrived, and if so the exact first issue you will
-address (Workstream 1); (5) whether his six rulings (a)–(f) have
-arrived — if yes, record them (D95+) before any A1 code; if no, say
-so plainly and pick up the honest alternative (the desktop release
-lane or public-release engineering — ask Ali which). Then execute.
+address (Workstream 1); (5) whether his rulings on the remaining open
+questions ((a), (c)–(g)) have arrived — if yes, record them (D97+)
+before any A1 code; if no, say so plainly and pick up the honest
+alternative (the desktop release lane or public-release engineering —
+ask Ali which). Then execute.

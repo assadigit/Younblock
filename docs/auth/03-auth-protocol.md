@@ -1,7 +1,9 @@
 # 03 — Auth Protocol (A0)
 
-**Status:** draft for Ali's review. Everything here is design; the
-parameters marked **OPEN** wait on the six rulings (00's table).
+**Status:** draft for Ali's review; revised A0-R2 (2026-10-18): §5
+now also rides OPEN (a) (the hosting analysis in 02 §6). Everything
+here is design; the parameters marked **OPEN** wait on the rulings
+(00's table).
 
 ## 1. Transport
 
@@ -79,6 +81,17 @@ validity; that is the recommendation.
   "wrong password"). Never an indefinite open.
 
 ## 5. Password storage (OPEN (e))
+
+> **A0-R2 note (2026-10-18): the parameters now also ride OPEN (a)**
+> (02 §6's platform matrix). Full strength (64 MiB × 3) presumes an
+> always-on host. On serverless CPU budgets — e.g. Workers' ~10 ms
+> per request on the free tier — the A0 parameters cannot run at all;
+> they would have to be re-tuned down, and 05 §3's offline-cracking
+> resistance claim re-worded to match what is actually stored. That
+> re-wording is mandatory, not optional — a weaker hash shipped under
+> the strong-hash claim would be exactly the dishonesty D94 rules out.
+> Whatever (a) rules: the hash parameters are recorded at A1 with the
+> measured login latency, as below.
 
 - **argon2id, recommended parameters:** memory 64 MiB, iterations 3,
   parallelism 4, salt 16 bytes random per user, encoded with the

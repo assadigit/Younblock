@@ -2038,3 +2038,77 @@ etc."
    check, the still-open slow-video diagnostics report, the D93
    Windows check on the rebuilt exe) stays the FIRST input — field
    evidence keeps flowing while the spec is written.
+
+**D95 — question (b) ruled: admin-only account creation — no open
+signup, no approval queue; Ali creates every account (Ali's ruling,
+2026-10-18, the second exchange of the A0 day).** "I create account -
+admin-only."
+
+1. **RECORDED as ruled; it matches the A0 recommendation (00's table
+   row b) and settles the WHO:** an account exists only because the
+   admin deliberately creates it, one per member, through the admin
+   surface (04 §2's lifecycle flows unchanged). No open registration
+   page, no self-signup, no approval queue ever gets built — there is
+   nothing to design around. The exclusivity mechanism is admin trust,
+   exactly as D94 intended.
+2. **What it does NOT settle (no silent narrowing):** the surface FORM
+   remains a recommendation riding (f)'s sibling — CLI first (04 §2),
+   a web admin only if the member count or the admin's patience later
+   warrants it. Questions (a), (c), (d), (e), (f) stay exactly as open
+   as before this ruling, and the new (g) below is added on top.
+3. Docs updated with it: docs/auth/00 (row b marked RULED), 01 (status
+   line; §3 was already admin-shaped), 04 (§2's WHO marked ruled). No
+   code exists; nothing was built this round.
+
+**D96 — the two-edition direction recorded BEFORE any code: Younblock
+will ship as two Android editions — members (with the account gate)
+and free (no gate, no account, no server) (Ali's direction,
+2026-10-18).** "Also I want two apk version, one with auth, one
+without (free for all)."
+
+1. **The direction is ACCEPTED and recorded before any code exists
+   (the D94 pattern).** Two APKs means build-time by construction —
+   one source tree produces both; the gate is compiled in only for
+   the members edition. The free edition contains no gate code at
+   all: no auth client, no token file, no signed-out state, no
+   `auth` capability bit, no auth methods in the facade — verifiable
+   by absence; its engine is exactly today's engine. The mechanism
+   (design, A2 implements only after the rulings): Go build tags on
+   the engine gate and the facade (the same mechanism the A0 fix just
+   used for `//go:build unix`) + Gradle product flavors on Android.
+   A runtime toggle is ruled out by the direction itself — one APK
+   with a flag would not be "two apk versions", and it would put the
+   gate's code inside the free APK too.
+2. **The A0 assumption "every shell inherits the gate" (02 §1,
+   AUTH-001) is REVISED accordingly:** every shell *of the members
+   edition* inherits the gate by construction; the free edition
+   compiles the gate out entirely. The pack's cross-references now
+   read that way (dated notes in 00/01/02/05).
+3. **The privacy copy splits per edition (D94 ruling 2's discipline,
+   never silent):** the free edition keeps today's claims VERBATIM —
+   "no account, no data collection" stays literally true of it (it
+   talks to nothing); the members edition ships 05 §6's drafted
+   account copy. Both are disclosed at the first release that ships
+   the split.
+4. **The honest bounds, stated now (05's discipline):** the free
+   edition is free-for-all BY CONSTRUCTION and keeps working forever
+   even if the auth server dies or is never paid for again — a
+   feature of the split, and the honest meaning of "free": nothing in
+   that edition is exclusive, and nothing in it can be bypassed,
+   because there is no gate to bypass. The members edition's bounds
+   are EXACTLY 05 §2's (client patching, token extraction, credential
+   sharing); the split neither weakens nor strengthens them — the
+   gate code is identical.
+5. **What it opens — OPEN (g); nothing below is a decision until Ali
+   rules:** (g1) package identity — side-by-side install
+   (recommended: an applicationId suffix, e.g. `.auth`, two icons on
+   one phone) vs one package name that replaces itself on install;
+   (g2) distribution channel per edition (free public — GitHub
+   Releases / a website / anywhere; members only to the circle?);
+   (g3) scope — Android only first (recommended; the same Go tags
+   extend the split to the desktop shells later if Ali asks), or
+   desktop splits too from day one; (g4) naming for the release notes
+   and the two privacy sheets (e.g. "Younblock" vs "Younblock
+   (Members)") — needed before any copy is written. The Gradle-flavor
+   + build-tag mechanism in (1) is the design recommendation,
+   recorded as such.
