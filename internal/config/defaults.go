@@ -60,6 +60,20 @@ const DialTimeoutPerIP = 5 * time.Second
 // DialTimeoutOverall — cap for trying all of a site's addresses.
 const DialTimeoutOverall = 12 * time.Second
 
+// TunHandshakeTimeout — the Android TUN stack's budget for one flow's
+// door dial (the SOCKS5 exchange), which waits out the door's own honest
+// setup before replying: the DoH resolve (up to DoHTimeout per server,
+// three servers by default) plus the upstream dial (DialTimeoutOverall).
+// The value is that full budget plus slack: 3×3 s + 12 s ≈ 21 s → 30 s.
+// It must NEVER be shorter than the door's budget — a flow aborted here
+// mid-setup is reset on the phone while the same flow succeeds on the
+// desktop path (which has no such abort), the exact defect M8-n fixed
+// (the old 10 s default killed every dial that needed the per-IP walk,
+// and the app's retries piled up into the reported minutes-long
+// first-video wait). The facade passes this to tunstack; the stack's own
+// default carries the same value as the backstop.
+const TunHandshakeTimeout = 30 * time.Second
+
 // RequestReadTimeout — how long the browser may take to send its request headers.
 const RequestReadTimeout = 10 * time.Second
 

@@ -2969,3 +2969,63 @@ release cut (D84/D89), versionCode stays 5, debug.6 stays Latest.
 No device feedback arrived with this message either; the device
 round (M8-n) stays the first workstream exactly as before. Next
 decision: D98.
+
+## 2026-10-18 (evening) — M8-n: the first-video defect root-caused and fixed (ADR-0013); D98 (the APK on every release); debug.7 shipped
+
+Ali's first debug.6 device round arrived: "The problem of video
+waiting to load stays. the windows app doesnt have this problem.
+youtube instantly refreshes and video instantly open. but the APP
+android needs 2-3 minutes, less or more, for first video to actually
+play." Plus the standing ruling: "from now on, add the APK version
+(debug version) in the releases" — recorded as D98 (the M8-i-era
+offer, answered; debug.4's missing APK was the observable trigger).
+
+The Windows-instant/Android-minutes discriminator localized the
+defect to the Android-only layers, and the root cause was found in
+the code — the one structural difference M8-j's host-level
+elimination had left standing: the TUN stack accepted the phone's TCP
+handshake locally, then asked the SOCKS5 door bounded by
+HandshakeTimeout — a 10 s default the facade never overrode — while
+the door's own honest setup (DoH resolve up to 3×3 s + the upstream
+dial up to 12 s, run with NO client-side abort on the desktop
+HTTP-CONNECT door) could legitimately exceed it. googlevideo answers
+on filtered networks carry silently-blackholed addresses, and
+netx.DialHost walked them sequentially at 5 s each; with the DNS
+answer cached at a 120 s minimum TTL, every app retry repeated the
+same walk into the same 10 s wall until the cache rotated — the
+reported minutes. The feed never hit it (PrewarmNames + the
+QuickCheck warm youtube.com/redirector.googlevideo.com before PhaseOn
+— the first video is the first cold rr*.googlevideo.com flow).
+
+The fix (ADR-0013, two halves at the two correct layers):
+netx.DialHost now races the address list Happy-Eyeballs-style
+(attempt k at k×750 ms, full per-IP timeout each, first success
+wins, losers canceled — both doors benefit); and the TUN handshake
+budget is budget-true: config.TunHandshakeTimeout 30 s (= 3×3 s DoH
++ 12 s dial + slack), passed explicitly by the facade, the tunstack
+default raised to the same value. Pinned by
+TestDialHostRacesPastBlackholedFrontAddress,
+TestDialHostWinnerCancelsLosers, and
+TestHandshakeTimeoutDefaultCoversDoorBudget (the lockstep with the
+config constant + the covers-the-door-budget invariant).
+
+Full lane, all green (D74 order): svelte-check 0/0; vite build clean;
+webui dist CLEAN-synced; go vet clean; go test 18/18 ×2;
+GOOS=windows exit 0; compile matrix 4/4 ABIs (19 non-main packages
+per ABI — the count grew with internal/usage at M8-k) + arm64 full
+tree; gomobile bind → younblock.aar 25,002,994 B; versionCode 5 → 6;
+clean assembleDebug → app-debug.apk 34,960,649 B, SHA-256
+dc01c0419a211ca007235ffbeaec6ab5acecb2e5930a4efd4642097209cdd83d;
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 6 /
+minSdk 26 / target 36 / 3 ABIs. Release: v1.6.6-android-debug.7, a
+regular release (D89), Latest, carrying app-debug.apk per D98 (asset
+bytes verified through the API). Docs: doc 06 M8-n record; doc 08
+ADR-0013; doc 10 status + the debug.7 section + row 3 re-observation
+(the row stays OPEN for the device confirmation); doc 07 §9 closing
+paragraph; doc 09 handoff fields; DECISIONS.md D98; CHANGELOG Fixed
+entry. One sandbox note: the first compile-matrix attempt ran the
+arm64 full-tree link with the host gcc — the recorded matrix form
+(CGO_ENABLED=0) is the lane's actual form; no app-facing
+consequence. The device circle: row 3 now carries the fix and awaits
+Ali's debug.7 confirmation; rows 4–8 and the cross-device UI verdict
+still unreported. Next Task ID: M8-o. Next decision: D99.

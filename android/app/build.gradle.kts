@@ -20,13 +20,13 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 5: the M8-k build (Ali's cross-platform UI
-        // unification: the round-2 fixes + the round-3 data-usage feature
-        // applied to the one shared screen, so Windows, Linux and Android
-        // render the same UI), so it installs OVER debug.5 (same pinned
-        // debug certificate — D85). The D84 rule: every debug build
-        // bumps this.
-        versionCode = 5
+        // versionCode 6: the M8-n build (the first-video fix: the
+        // dialer's fast address failover + the budget-true TUN handshake
+        // timeout — flows the desktop doors always delivered are no
+        // longer aborted mid-setup on Android), so it installs OVER
+        // debug.6 (same pinned debug certificate — D85). The D84 rule:
+        // every debug build bumps this.
+        versionCode = 6
         versionName = "1.6.6"
     }
 

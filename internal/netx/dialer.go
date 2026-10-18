@@ -25,7 +25,24 @@ type Dialer struct {
 	OverallTimeout time.Duration
 	// Control is the optional socket hook (nil on desktop).
 	Control ControlFunc
+	// FallbackDelay is how long one address attempt may hold the
+	// stage before the NEXT address is started alongside it
+	// (Happy-Eyeballs style, RFC 8305's reasoning: a filtered
+	// network that blackholes the first address silently should
+	// not cost a full PerIPTimeout per address). Zero → the
+	// package default (DefaultFallbackDelay). The first attempt
+	// always starts immediately; attempt k starts at k×
+	// FallbackDelay; the first connection that completes wins and
+	// the losers are canceled (M8-n, ADR-0013).
+	FallbackDelay time.Duration
 }
+
+// DefaultFallbackDelay staggers parallel address attempts. 750 ms is
+// far above any healthy connect RTT (so a working first address is
+// always alone in flight) and far below DialTimeoutPerIP (5 s), so a
+// blackholed front address costs ~0.75 s + RTT instead of a full
+// silent 5 s wait per address.
+const DefaultFallbackDelay = 750 * time.Millisecond
 
 // New returns a dialer with the given timeouts and optional control hook.
 func New(perIP, overall time.Duration, control ControlFunc) *Dialer {
@@ -39,9 +56,12 @@ func (d *Dialer) DialIP(ctx context.Context, network string, ip net.IP, port int
 	return nd.DialContext(ctx, network, addr)
 }
 
-// DialHost tries every address in order (file 03, R4) within the overall
-// timeout, returning the first connection that succeeds. host is used only
-// in the error message, never dialed directly.
+// DialHost tries the addresses with staggered parallel attempts
+// (file 03 R4's "try every address" with fast failover, M8-n/ADR-0013):
+// attempt 0 starts immediately, attempt k starts k×FallbackDelay later,
+// every attempt keeps its full PerIPTimeout, and the first connection
+// that completes wins — the losers are canceled. host is used only in
+// the error message, never dialed directly.
 func (d *Dialer) DialHost(ctx context.Context, network string, host string, port int, ips []net.IP) (net.Conn, error) {
 	if len(ips) == 0 {
 		return nil, fmt.Errorf("no addresses to dial for %s", safeHost(host))
@@ -51,16 +71,57 @@ func (d *Dialer) DialHost(ctx context.Context, network string, host string, port
 		ctx, cancel = context.WithTimeout(ctx, d.OverallTimeout)
 		defer cancel()
 	}
+	fallback := d.FallbackDelay
+	if fallback <= 0 {
+		fallback = DefaultFallbackDelay
+	}
+
+	// stop cancels the moment a winner exists; every goroutine then
+	// unwinds (in-flight DialIPs abort on ctx, pending stagger
+	// timers exit) and reports into the buffered channel, so the
+	// collector below always reads exactly len(ips) results.
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+
+	type attempt struct {
+		conn net.Conn
+		err  error
+	}
+	results := make(chan attempt, len(ips))
+	for i, ip := range ips {
+		go func(i int, ip net.IP) {
+			if i > 0 {
+				timer := time.NewTimer(time.Duration(i) * fallback)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					results <- attempt{err: ctx.Err()}
+					return
+				}
+			}
+			conn, err := d.DialIP(ctx, network, ip, port)
+			results <- attempt{conn: conn, err: err}
+		}(i, ip)
+	}
+
 	var lastErr error
-	for _, ip := range ips {
-		if ctx.Err() != nil {
-			break
+	var winner net.Conn
+	for range ips {
+		a := <-results
+		if a.err == nil {
+			if winner == nil {
+				winner = a.conn
+				stop() // losers: cancel what is pending, close what landed
+			} else {
+				_ = a.conn.Close() // a parallel success that lost the race
+			}
+			continue
 		}
-		conn, err := d.DialIP(ctx, network, ip, port)
-		if err == nil {
-			return conn, nil
-		}
-		lastErr = err
+		lastErr = a.err
+	}
+	if winner != nil {
+		return winner, nil
 	}
 	if lastErr == nil {
 		lastErr = ctx.Err()

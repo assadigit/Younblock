@@ -2174,3 +2174,29 @@ anymore."
    those remain exactly as open (or dormant) as before this message.
    The device-test feedback loop (M8-n and successors) is unaffected
    and remains the first workstream. Next decision ID: D98.
+
+**D98 — every release carries the debug APK asset (Ali's ruling,
+2026-10-18, the M8-n round — the standing offer from the M8-i/doc-06
+era is answered).** "also from now on, add the APK version (debug
+version) in the releases."
+
+1. **RECORDED as ruled — every release page from now on carries the
+   app's debug APK as a release asset.** This relaxes D84's
+   no-duplicate-asset discipline deliberately: the APK (the debug
+   test-circle build with the pinned D85 certificate) is attached to
+   EVERY release, including helper/docs-only rounds like debug.4 was,
+   so a release page never exists without the installable app on it.
+   The trigger was observable: v1.6.6-android-debug.4 shipped without
+   an APK asset (only make-release-keystore.bat) — Ali noticed, and
+   this ruling closes that gap permanently.
+2. **Scope:** the ruling covers the APK asset on release pages. It
+   does not change D84's versionCode-bump rule (every debug build
+   still bumps), D85's pinned debug certificate, D89's
+   regular-release discipline (never prerelease), or D88/D90's
+   release-keystore ceremony. The release lane (doc 06 §5) gains one
+   standing step: upload the APK, verify bytes via the API, record
+   asset size + digest.
+3. **First application:** v1.6.6-android-debug.7 (the M8-n
+   first-video fix build, versionCode 6) — its release page carries
+   app-debug.apk, and every release after it does too.
+4. Next decision ID: D99.

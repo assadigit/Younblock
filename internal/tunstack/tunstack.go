@@ -82,8 +82,13 @@ type Config struct {
 	MaxFlows int
 	// DNSMaxDomains bounds the fake-IP table (default 4096).
 	DNSMaxDomains int
-	// HandshakeTimeout bounds the door dial + SOCKS5 exchange
-	// (default 10s).
+	// HandshakeTimeout bounds the door dial + SOCKS5 exchange.
+	// It must cover the door's own honest setup budget — the DoH
+	// resolve plus the upstream dial the door completes before
+	// replying — or flows that the desktop doors deliver get
+	// aborted here mid-setup (the M8-n defect). Default
+	// defaultHandshakeTimeout, kept in lockstep with
+	// config.TunHandshakeTimeout (the test pins the equality).
 	HandshakeTimeout time.Duration
 	// Logger may be nil.
 	Logger Logger
@@ -99,6 +104,15 @@ type Stats struct {
 	DNSQueries       int64
 	UDPDropped       int64
 }
+
+// defaultHandshakeTimeout is the stack's backstop for a caller that
+// omits HandshakeTimeout: the SOCKS5 door's full honest setup budget
+// (DoH resolve: DoHTimeout × servers ≈ 9 s; upstream dial:
+// DialTimeoutOverall 12 s) plus slack — the same derivation as
+// config.TunHandshakeTimeout, which the production facade passes
+// explicitly. TestHandshakeTimeoutDefaultCoversDoorBudget pins the
+// lockstep with the config constant.
+const defaultHandshakeTimeout = 30 * time.Second
 
 // Stack is one TUN-fed netstack. Construct, use, Stop; not restartable
 // (the facade builds a fresh one per engine cycle, mirroring how the
@@ -140,7 +154,7 @@ func New(cfg Config) (*Stack, error) {
 		cfg.MaxFlows = 1024
 	}
 	if cfg.HandshakeTimeout <= 0 {
-		cfg.HandshakeTimeout = 10 * time.Second
+		cfg.HandshakeTimeout = defaultHandshakeTimeout
 	}
 
 	s := &Stack{

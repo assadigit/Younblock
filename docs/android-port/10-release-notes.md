@@ -1,32 +1,26 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the A0 session (2026-10-18 — the account-gate
-spec round: the six-document design pack now exists under `docs/auth/`
-per D94's design-before-code rule, plus one host-side fix — the
-missing `//go:build unix` on `mobile/nonblock_unix.go`, which had kept
-`GOOS=windows go build ./...` from ever compiling since M4; NO
-Android change, so `v1.6.6-android-debug.6` remains the CURRENT build,
-and the D93 close ruling still rides Ali's next rebuilt desktop exes /
-a future debug.7). Updated again at A0-R3 (2026-10-18, the third
-exchange of the A0 day): **the account gate is CANCELLED (D97)** —
-see the closing note of this status block. This document now holds two things: §1 the
-**shipped** debug test-circle releases (`v1.6.6-android-debug.6` is
+**Status:** updated at M8-n (2026-10-18, evening — Ali's first
+debug.6 device round arrived: the slow first video stays, Windows
+is instant; both root-caused to a code-level asymmetry between the
+two doors and FIXED — ADR-0013 — so **`v1.6.6-android-debug.7` is now
+the CURRENT build**, versionCode 6; and his D98 ruling: every release
+page carries the debug APK from now on). Earlier same day: A0 (the
+account-gate spec pack per D94 + the `//go:build unix` host-side fix),
+A0-R2 (D95/D96 recorded), A0-R3 — **the account gate is CANCELLED
+(D97)**, see the closing note below. This document now holds two things: §1 the
+**shipped** debug test-circle releases (`v1.6.6-android-debug.7` is
 the CURRENT build — a regular release in the private repo per D89,
 the same text lives on the GitHub release itself; beneath it:
-debug.5 the first-device-feedback build, debug.4 the helper-fix
-maintenance release, debug.3 the device-circle build whose APK ran
-on Ali's phone, and debug.2/debug.1 superseded and kept as history),
+debug.6 the one-UI-everywhere + data-usage build, debug.5 the
+first-device-feedback build, debug.4 the helper-fix maintenance
+release, debug.3 the device-circle build whose APK ran on Ali's
+phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D97, of which D97 cancels the gate D94 had
-announced). The D94 announcement is recorded here
-for the release notes' future: when the account gate ships, the
-"no account, no data collection" line in §2's What-it-does-NOT
-section changes with it — disclosed at that release, never silently
-(today nothing of it exists: no login, no server, no database; the
-drafted replacement copy lives in docs/auth/05 §6, and doc 07 §9's
-open row blocks whichever release first carries the gate).
+01–09, DECISIONS.md D1–D98, of which D97 cancels the gate D94 had
+announced and D98 rules the APK asset onto every release page).
 **A0-R3 closing note (D97, 2026-10-18): the gate is CANCELLED — it
 will never ship, so none of that future ever happens. The "no
 account, no data collection" line in §2 stays verbatim PERMANENTLY;
@@ -35,7 +29,42 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1a. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, the CURRENT build)
+## 1a. v1.6.6-android-debug.7 — the first-video fix (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 6, built at the M8-n commit, APK
+34,960,649 B (SHA-256 dc01c041…dd83d), the pinned debug certificate
+— **installs directly over debug.6** in place; settings and usage
+history survive. It carries ONE theme: **the first-video fix — video
+start on Android should now behave like the Windows app** (ADR-0013):
+
+1. **What was wrong (the evidence):** on Ali's debug.6 round the
+   feed loaded fast but the FIRST video took 2–3 minutes to actually
+   play, while the Windows app on the same network was instant. The
+   root cause was a code-level asymmetry between the two doors, not
+   the network: the Android TUN path aborted every flow whose door
+   dial exceeded 10 s — but the door's own honest setup (secure-DNS
+   resolve + the upstream dial, up to ~21 s when a googlevideo
+   address is silently blackholed by the ISP) can legitimately take
+   longer, and the desktop path has no such abort. Worse, the DNS
+   answer is cached for at least 120 s, so every app retry repeated
+   the SAME address walk into the SAME 10 s wall — the minutes-long
+   wait was that retry loop running until the DNS cache rotated.
+2. **What changed:** (a) the engine's dialer now fails over between
+   addresses in ~0.75 s instead of 5 s per dead address (the same
+   fix benefits the Windows/Linux browsers too — any flow whose
+   first address is blackholed used to pay 5 s there as well); and
+   (b) the Android tunnel's handshake budget now covers the door's
+   full honest setup, so a flow is never aborted mid-setup — it
+   either connects or fails with the same timing the desktop sees.
+3. **What to verify on the phone (the row stays open until you
+   confirm):** connect, open the YouTube app, tap the FIRST video
+   right after the feed loads — it should start within a few
+   seconds, like the Windows app. If any video still waits,
+   Menu → Diagnostics → Copy and send the report with the phone
+   model + Android version; the per-flow timing lines from debug.5
+   name the phase that waits.
+
+## 1b. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, superseded by debug.7)
 
 > Note added at D93 (2026-10-18): the shared tree has since gained the
 > desktop close ruling (closing the window is a real shutdown by
@@ -334,10 +363,19 @@ remove the Last-session line).**
    **Observed on Ali's device (debug.3, 2026-10-17): PARTIAL** —
    browse/feed fast; **video playback took 30 s–1 min+ to show**
    ("feed quickly refreshed but actual video playing delayed").
-   The host-side suspects were eliminated with evidence and the
-   per-flow timing instrumentation shipped in debug.5 (D91); the
-   diagnostics report from a slow-video moment is the expected
-   next input.
+   **Re-observed on debug.6 (2026-10-18, M8-n): the delay GREW to
+   2–3 minutes for the first video, while the Windows app on the
+   same network is instant — that discriminator localized the defect
+   to the Android-only layers, and the root cause was found IN THE
+   CODE (ADR-0013): the TUN path aborted flows at 10 s, shorter than
+   the door's own honest resolve+dial budget, and the sequential
+   5 s-per-address dial walk against a 120 s-cached DNS answer turned
+   every retry into the same wall — fixed in debug.7 (fast ~0.75 s
+   address failover + the budget-true handshake timeout). The row
+   STAYS OPEN for the debug.7 device confirmation: first video after
+   connecting should start within seconds, like Windows; if not, the
+   diagnostics report (Menu → Diagnostics → Copy) at the slow moment
+   + phone model + Android version is the expected input.**
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

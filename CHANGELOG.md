@@ -12,6 +12,38 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-18, evening — M8-n; shipped in `v1.6.6-android-debug.7`, versionCode 6)
+
+- **Video start on Android no longer waits minutes on the first
+  video.** Ali's debug.6 round: the feed loaded fast but the FIRST
+  video took 2–3 minutes to actually play, while the Windows app on
+  the same network was instant. The root cause was in the code, not
+  the network (ADR-0013): the Android tunnel aborted every
+  connection whose setup exceeded 10 s — a budget shorter than the
+  engine's own honest resolve+dial time — so on filtered networks
+  (where googlevideo answers carry silently-dead addresses) the
+  phone's connections were killed mid-setup, retried into the same
+  wall (the DNS answer stays cached ~2 minutes), and the player's
+  retry ladder stacked the visible wait; the desktop has no such
+  abort, which is why Windows was instant. Two changes: the engine's
+  dialer now fails over between a site's addresses in ~0.75 s
+  instead of 5 s per dead address (the Windows/Linux browsers
+  benefit too), and the Android tunnel's handshake budget now
+  covers the engine's full honest setup, so a flow is never aborted
+  mid-setup. Host-proven by timing tests; the on-device
+  confirmation rides Ali's debug.7 round (doc 10's circle row 3
+  stays open until then).
+
+### Changed (release process — D98, 2026-10-18)
+
+- **Every release page now carries the debug APK.** From
+  `v1.6.6-android-debug.7` on, each release in the repo attaches the
+  installable debug APK (the same pinned-certificate build the test
+  circle installs), per Ali's ruling — no more APK-less release
+  pages like debug.4's. versionCode-bumping (D84), the pinned debug
+  certificate (D85) and the regular-release discipline (D89) are
+  unchanged.
+
 ### Cancelled (the planned login gate — announced D94, cancelled D97 the same day; nothing was ever built)
 
 - **The login authorization gate is cancelled (D97, 2026-10-18).**

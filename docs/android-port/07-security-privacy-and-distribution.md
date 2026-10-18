@@ -257,7 +257,10 @@ against the final artifact.
 
 The remaining open item is the device-gate row (IPv4/IPv6 and
 TCP/UDP measured on a real device), which now has its closure path:
-Ali's own device testing through the D84 debug release. (The
+Ali's own device testing through the debug releases — as of M8-n
+(2026-10-18) the test-circle build is `v1.6.6-android-debug.7`
+(versionCode 6, the first-video fix — ADR-0013), and D98 puts the
+debug APK on every release page. (The
 account-gate row closed as CANCELLED at A0-R3 — D97, 2026-10-18: the
 gate will never ship.) The known-
 limitations disclosure obligation is discharged host-side (M6's

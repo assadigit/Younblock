@@ -209,6 +209,61 @@ circle of friends; Play is out of scope
 - **Consequence:** Play-specific compliance (FGS declaration review,
   Data Safety forms) is explicitly not blocking for v1.
 
+## ADR-0013 — First-flow latency: fast address failover in the one
+dialer, and a budget-true TUN handshake timeout (M8-n)
+
+- **Status:** Accepted 2026-10-18 (M8-n, the first-video device defect:
+  feed fast, first video 30 s–3 min, Windows instant — root-caused to a
+  code-level asymmetry between the two doors, not to the network).
+- **Context:** The Android TUN path accepted the phone's TCP handshake
+  locally (netstack), then asked the SOCKS5 door, bounded by
+  `HandshakeTimeout` — a 10 s default the facade never overrode. The
+  door's own honest setup (DoH resolve, up to 3 servers × 3 s, plus the
+  upstream dial, up to 12 s overall) could legitimately exceed 10 s:
+  googlevideo answers on filtered networks carry silently-blackholed
+  addresses, and the dialer walked them SEQUENTIALLY at 5 s each. The
+  desktop doors have no such abort — the browser waits out the same
+  budget and gets its tunnel. The retry trap: DoH answers are cached
+  with a 120 s minimum TTL, so every app retry repeated the same
+  address walk into the same 10 s wall until the cache rotated — the
+  reported minutes-long first-video wait. (M8-j had eliminated the
+  host-level suspects; this pair was the Android-only structural
+  difference left standing.)
+- **Decision (two halves, one fix set):**
+  1. `netx.DialHost` dials the address list with Happy-Eyeballs-style
+     staggered parallelism (RFC 8305's reasoning): attempt 0 starts
+     immediately, attempt k at k×`FallbackDelay` (default 750 ms), each
+     attempt keeps its full `PerIPTimeout`, first success wins and the
+     losers are canceled. A blackholed front address costs ~0.75 s +
+     RTT instead of 5 s — on BOTH doors (the browser path benefits
+     equally). File 03 R4's "try every address" semantics are preserved
+     (every address is still tried; error surface unchanged).
+  2. The TUN handshake budget must cover the door's full budget:
+     `config.TunHandshakeTimeout` (30 s = 3×3 s DoH + 12 s dial +
+     slack), passed explicitly by the mobile facade, with the tunstack
+     package default raised to the same value as the backstop.
+     `TestHandshakeTimeoutDefaultCoversDoorBudget` pins the lockstep
+     and the covers-the-door-budget invariant.
+- **Evidence:** `internal/netx/dialer.go` (the race + cancel-on-winner),
+  `dialer_test.go` (TestDialHostRacesPastBlackholedFrontAddress,
+  TestDialHostWinnerCancelsLosers), `internal/config/defaults.go`
+  (TunHandshakeTimeout + its derivation comment),
+  `internal/tunstack/tunstack.go` (defaultHandshakeTimeout),
+  `mobile/tun.go` (the explicit pass); desktop baseline green
+  (vet clean, 18/18 ×2, GOOS=windows exit 0); compile matrix 4/4 ABIs +
+  arm64 full tree; debug.7 carries the fix (versionCode 6).
+- **Alternatives rejected:** replying SOCKS5 success before the
+  upstream dial (hides failures from the app — dishonest per D77's
+  rule); shrinking the door's budgets instead (the desktop path relies
+  on them; per-IP walking exists precisely for filtered networks);
+  prewarming rr*.googlevideo.com (video CDN names are per-video random
+  — nothing stable to warm).
+- **What this ADR does NOT decide:** the on-device verification — the
+  fix is host-proven (timing tests pin both halves), but "first video
+  starts like Windows" on Ali's phone is his device round to confirm
+  (doc 10 §"Device test circle" row 3 stays open until then). QUIC
+  fast-fail on device (row 9's device half) is likewise still his.
+
 ## ADR-AUTH-0001 — The account gate is engine-enforced (from D94 ruling 1) — RETIRED
 
 - **Status:** **RETIRED (D97, 2026-10-18, A0-R3)** — Ali cancelled the

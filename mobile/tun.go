@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/proxy"
 	"github.com/assadigit/Younblock/internal/tunstack"
 )
@@ -116,7 +117,14 @@ func (m *Engine) StartTun(fd int32, mtu int32) string {
 		Wire:      os.NewFile(uintptr(fd), "tun"),
 		MTU:       uint32(mtu),
 		ProxyAddr: door,
-		Logger:    m.eng.Logger(),
+		// The door dial waits out the door's own honest setup (DoH
+		// resolve + upstream dial) before replying; this budget must
+		// cover it or flows the desktop doors deliver get aborted
+		// mid-setup (the M8-n first-video defect — the old omitted
+		// value meant the 10 s stack default, shorter than the door's
+		// own ≤21 s budget).
+		HandshakeTimeout: config.TunHandshakeTimeout,
+		Logger:           m.eng.Logger(),
 	})
 	if err != nil {
 		return tunError("STACK")

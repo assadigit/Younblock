@@ -41,6 +41,41 @@ import (
         "github.com/assadigit/Younblock/internal/stats"
 )
 
+// TestHandshakeTimeoutDefaultCoversDoorBudget pins the M8-n invariant: the
+// stack's default handshake budget must cover the SOCKS5 door's own honest
+// setup budget (DoH resolve: DoHTimeout per server × the default server
+// count, plus the upstream dial's DialTimeoutOverall) and must stay in
+// lockstep with config.TunHandshakeTimeout, which the production facade
+// passes. A value shorter than the door's budget aborts flows mid-setup on
+// Android while the same flows succeed on the desktop doors — the
+// first-video defect this test keeps from coming back.
+func TestHandshakeTimeoutDefaultCoversDoorBudget(t *testing.T) {
+        wireA, wireB := crossedWires()
+        defer wireA.Close()
+        defer wireB.Close()
+        s, err := New(Config{
+                Wire:      wireA,
+                ProxyAddr: "127.0.0.1:1", // never dialed in this test
+        })
+        if err != nil {
+                t.Fatalf("New: %v", err)
+        }
+        defer s.Stop()
+
+        if s.cfg.HandshakeTimeout != config.TunHandshakeTimeout {
+                t.Errorf("default HandshakeTimeout = %v, want config.TunHandshakeTimeout %v",
+                        s.cfg.HandshakeTimeout, config.TunHandshakeTimeout)
+        }
+        // The budget must cover the door's worst-case honest setup: every DoH
+        // server tried at its per-server timeout, then the full dial walk.
+        doorBudget := config.DoHTimeout*time.Duration(len(config.Defaults())) + config.DialTimeoutOverall
+        if s.cfg.HandshakeTimeout <= doorBudget {
+                t.Errorf("default HandshakeTimeout %v does not cover the door budget %v "+
+                        "(DoH %d×%v + dial %v)", s.cfg.HandshakeTimeout, doorBudget,
+                        len(config.Defaults()), config.DoHTimeout, config.DialTimeoutOverall)
+        }
+}
+
 // ---------------------------------------------------------------- wire
 
 // packetChan is one direction of an in-memory packet wire: one packet

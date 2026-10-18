@@ -1011,3 +1011,94 @@ Verification this round: docs-only, so no build/test lane applies;
 versionCode stays 5, `v1.6.6-android-debug.6` stays Latest. Next
 Task ID: M8-n (the device round — still awaiting Ali's feedback).
 Next decision: D98.
+
+M8-n record (2026-10-18, evening; the ELEVENTH feedback-loop exchange —
+Ali's first DEVICE feedback round on debug.6, Task ID M8-n, decision
+D98). His report: "The problem of video waiting to load stays. the
+windows app doesnt have this problem. youtube instantly refreshes and
+video instantly open. but the APP android needs 2-3 minutes, less or
+more, for first video to actually play." Plus the standing ruling:
+"also from now on, add the APK version (debug version) in the
+releases." The round's work:
+
+- **The slow first video, ROOT-CAUSED to a code-level asymmetry between
+  the two doors — the first Windows-vs-Android difference the M8-j
+  elimination had left standing.** The new discriminator (Windows
+  instant, Android minutes) localized the defect to the Android-only
+  layers; reading the flow-setup path end to end found it:
+  1. The TUN stack accepts the phone's TCP handshake locally
+     (netstack), then asks the SOCKS5 door bounded by
+     HandshakeTimeout — a 10 s DEFAULT the facade never overrode
+     (mobile/tun.go built tunstack.Config without it; tunstack.go
+     defaulted 10 s).
+  2. The door's own honest setup inside that budget: the DoH resolve
+     (up to DoHTimeout 3 s × 3 servers) plus the upstream dial
+     (DialTimeoutOverall 12 s) — it replies only after the upstream
+     connects. The desktop HTTP-CONNECT door runs the SAME resolve+dial
+     with NO client-side abort: the browser waits ≤~21 s and gets its
+     tunnel. THAT is why Windows never shows the problem.
+  3. On filtered networks googlevideo answers carry silently-blackholed
+     addresses (SYN dies, no RST), and netx.DialHost walked the list
+     SEQUENTIALLY at DialTimeoutPerIP 5 s each — one blackholed front
+     address put the dial at 5–6 s, two past 10 s. The first video is
+     the first rr*.googlevideo.com flow (the feed's domains are
+     pre-warmed — PrewarmNames + the QuickCheck resolves
+     www.youtube.com and handshakes redirector.googlevideo.com BEFORE
+     PhaseOn — which is why the feed is fast and only video start
+     waits).
+  4. The retry trap that turns 10 s into minutes: the DoH answer is
+     cached with a 120 s MINIMUM TTL, so every app retry re-dials the
+     SAME addresses in the SAME order into the SAME 10 s wall; the
+     escapes are the cache rotating (~120 s — matching "2-3 minutes,
+     less or more") or DoH landing a working front address — then the
+     player's own retry/backoff ladder stacks the visible wait.
+- **The fix, two halves at the two correct layers (ADR-0013):**
+  `netx.DialHost` now races the address list Happy-Eyeballs-style
+  (attempt k starts at k×FallbackDelay, default 750 ms; every attempt
+  keeps its full per-IP timeout; first success wins, losers canceled;
+  error surface unchanged) — a blackholed front address costs ~0.75 s +
+  RTT instead of 5 s, on BOTH doors; and the TUN handshake budget is
+  now budget-true: config.TunHandshakeTimeout 30 s (= 3×3 s DoH + 12 s
+  dial + slack), passed explicitly by the facade, with the tunstack
+  default raised to the same value as the backstop. Pinned by
+  TestDialHostRacesPastBlackholedFrontAddress,
+  TestDialHostWinnerCancelsLosers and
+  TestHandshakeTimeoutDefaultCoversDoorBudget (the lockstep with the
+  config constant + the covers-the-door-budget invariant).
+- **D98 recorded** (DECISIONS.md): every release page carries the debug
+  APK asset from now on — the standing M8-i-era offer, answered by
+  Ali's message; debug.4's missing APK was the observable trigger.
+- **Baseline after the changes, all green (D74 order):** svelte-check
+  0/0; vite build clean; webui dist CLEAN-synced; go vet clean; go
+  test -count=1 ./... 18/18 packages ok run TWICE consecutively;
+  GOOS=windows go build ./... exit 0; the compile matrix in its exact
+  form — CGO_ENABLED=0 go build ./internal/... ./mobile/... = 19
+  non-main packages per ABI, 4/4 (arm64, arm, 386, amd64), plus arm64
+  linking the full tree ./... (CGO_ENABLED=0) — the count grew from
+  M8-i's 18 with internal/usage (M8-k), not with this round.
+- **The build lane:** versionCode bumped 5 → 6 (the D84 rule); gomobile
+  bind (GOFLAGS=-mod=mod, 3 ABIs, androidapi 26) → younblock.aar
+  25,002,994 B; clean assembleDebug → app-debug.apk **34,960,649 B**,
+  SHA-256
+  **dc01c0419a211ca007235ffbeaec6ab5acecb2e5930a4efd4642097209cdd83d**;
+  badging: io.github.assadigit/younblock 1.6.6 (versionCode 6), minSdk
+  26, targetSdk 36, native-code arm64-v8a/armeabi-v7a/x86_64; apksigner
+  verify --print-certs OK — the pinned debug certificate c76bb7c6…8551d
+  (installs over debug.6 in place, settings survive).
+- **The release lane (D98's first application):** v1.6.6-android-debug.7
+  created at the code commit — a REGULAR release (D89), Latest-marked,
+  carrying app-debug.apk (verified through the API: asset bytes
+  re-downloaded and hashed; size + digest recorded in doc 10).
+- One sandbox note: the session's first compile-matrix attempt ran the
+  arm64 full-tree link with the HOST gcc (aarch64 assembly errors);
+  the recorded matrix form (CGO_ENABLED=0, doc 06 §3's early evidence)
+  is what the lane actually uses — rerun in that form, 4/4 + full tree
+  green. No app-facing consequence; recorded here so the next session
+  does not repeat the 90-second detour.
+- The DEVICE circle rows answered so far: row 3 (video start) now has
+  a code fix + this evidence — but the row stays OPEN for Ali's
+  on-device confirmation on debug.7 (the honest rule: no row closes
+  without his measured evidence). Row 9's device half (QUIC fast-fail
+  observed on a real app flow) still open. Next Task ID: M8-o (ingest
+  the debug.7 device round — first-video timing first). Next decision:
+  D99.
