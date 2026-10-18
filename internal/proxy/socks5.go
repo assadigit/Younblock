@@ -225,6 +225,7 @@ func (s *Server) serveSocks5(conn net.Conn) {
 				s.cfg.Logger.Warn("socks5 dial failed", "reason", errKind(err))
 			}
 		}
+		s.invalidateDNS(host) // M8-o: the whole set failed; re-query next time
 		s.socks5Reply(conn, socks5RepGeneralFailure)
 		s.countConnError()
 		return

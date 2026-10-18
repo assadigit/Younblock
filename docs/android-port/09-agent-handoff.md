@@ -1,12 +1,13 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at M8-n (2026-10-18, evening — **Ali's first
-debug.6 device round: the slow first video stayed (2–3 minutes) while
-Windows was instant; root-caused to a code-level asymmetry between the
-two doors, FIXED as ADR-0013, and shipped as
-`v1.6.6-android-debug.7` (versionCode 6). His D98 ruling landed the
-same round: every release page carries the debug APK from now on**).
-Earlier the same day the account-gate lane ran and closed: A0 (the
+**Status:** Updated at M8-o (2026-10-18, later evening — **Ali's
+debug.7 device round: the stall moved past the M8-n fix — feed and UI
+instant, but EVERY video 1–2 minutes to start and re-buffering
+mid-play, Windows instant on the same ISP; root-caused to the
+surviving amplifier (the 120 s DNS cache serving a blackholed answer
+set to every retry), FIXED as ADR-0014, and shipped as
+`v1.6.6-android-debug.8` (versionCode 7, the APK asset now NAMED
+v1.6.6-debug.apk per his D99 ruling)**). Earlier the same day the account-gate lane ran and closed: A0 (the
 `docs/auth/` spec pack), A0-R2 (D95/D96), A0-R3 — **the account gate
 is CANCELLED (D97)**, nothing of it was ever built. Before that,
 Phase 2 completed host-side; the keystore helper survives
@@ -72,74 +73,84 @@ boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** M8-n (2026-10-18, evening — the ELEVENTH
-  feedback-loop exchange; Ali's first device round on debug.6). His
-  inputs: the video-start delay STAYED and grew ("2-3 minutes, less
-  or more, for first video to actually play") while "the windows app
-  doesnt have this problem" — plus the ruling "from now on, add the
-  APK version (debug version) in the releases" (recorded as D98).
-  The Windows-vs-Android discriminator localized the defect to the
-  Android-only layers; the root cause was found in the code (the one
-  structural difference M8-j's elimination had left standing): the
-  TUN stack aborted every flow whose door dial exceeded 10 s (a
-  default the facade never overrode), SHORTER than the SOCKS5 door's
-  own honest setup budget (DoH resolve up to 3×3 s + dial up to 12 s
-  — which the desktop HTTP-CONNECT door runs with NO abort, hence
-  Windows instant); the sequential 5 s-per-address dial walk against
-  a ≥120 s-cached DNS answer turned every app retry into the same
-  wall until the cache rotated — the minutes. Fixed as ADR-0013
-  (two halves): netx.DialHost now fails over Happy-Eyeballs-style
-  (attempt k at k×750 ms, first success wins, losers canceled —
-  benefits both doors) and the TUN handshake budget is budget-true
-  (config.TunHandshakeTimeout 30 s, passed by the facade, tunstack
-  default raised to match; TestHandshakeTimeoutDefaultCoversDoorBudget
-  pins the lockstep). Pinned also by
-  TestDialHostRacesPastBlackholedFrontAddress and
-  TestDialHostWinnerCancelsLosers.
+- **Phase completed:** M8-o (2026-10-18, later evening — the TWELFTH
+  feedback-loop exchange; Ali's device round on debug.7). His inputs:
+  the stall PERSISTED past the ADR-0013 fix and SHARPENED ("youtube
+  feed refreshes, but it takes a while until first video… even after
+  1-2 mins of first video to be played, every other video has same
+  buffer problem… apk is laggy and buffers a lot, but in UI-wise it
+  connects as quickly… same ISP and net connection works instantly
+  using windows version") — plus the standing naming rule ("mention
+  the version name in the apk. like v16.6-debug.apk", recorded as
+  D99). The every-video discriminator localized the defect to
+  per-hostname setup (each video = fresh rr*.googlevideo.com
+  hostnames; the feed's hosts are prewarmed and long-lived). The
+  whole flow path was re-read end-to-end; the door/tunnel/upstream
+  legs are byte-identical on both platforms, so the surviving
+  amplifier was the one mechanism racing cannot fix: when the WHOLE
+  address set of an rr hostname is blackholed (rr hosts carry the
+  few addresses of one cache node each), every retry re-dials the
+  same cached set and fails, and the 120 s-minimum-TTL DNS cache
+  keeps serving the suspect set until it rotates — the per-video
+  1–2 min wait and (URLs rotate rr hosts mid-play) the mid-play
+  re-buffering. Fixed as ADR-0014: a TOTAL dial failure now demotes
+  the host's cached answer to stale (doh.Resolver.Invalidate; the
+  next retry re-queries the servers; serve-stale preserved), wired
+  at all three dial sites (HTTP-CONNECT, plain-http forward, SOCKS5
+  door) via an optional-capability probe; plus the resolver's own
+  bootstrap dial now races its IPs (ADR-0013's dialer on the
+  resolver's path). Pinned by seven new tests (four doh, three
+  proxy — the new dialfeedback_test.go).
 - **The project's state now:** the CURRENT test-circle build is
-  **v1.6.6-android-debug.7 / versionCode 6** (APK 34,960,649 B,
-  sha256 dc01c041…dd83d, the pinned D85 debug certificate — installs
-  over debug.6 in place, settings + usage history survive): the
-  first-video fix. D98 now rules every release page carries the
-  debug APK asset. The auth lane stays CLOSED (D97 — cancelled
-  before any code; `docs/auth/` bannered history; ADR-AUTH-0001
-  retired). The release-keystore ceremony is complete on Ali's
-  machine; all android releases are regular releases in the private
-  repo (D89).
-- **Branch and commit:** `main`, the M8-n commit (the first-video
-  fix + D98 + this record; see `git log -1` at handoff time) on top
-  of 9f31b51 (A0-R3, the auth cancellation) on top of 6a7bce4
-  (A0-R2) on top of 60bfa13 (A0) on top of cf136aa (M8-m); worktree
-  clean after the commit. The release tag
-  `v1.6.6-android-debug.7` points at the M8-n commit and is the
-  repo's Latest; debug.6 → 078e3a5 (M8-k), debug.5 → ad02980,
-  debug.4 → cb28507 (helper-only; the release whose missing APK
-  triggered D98), debug.3 → 2a8b678 (the device-circle APK),
+  **v1.6.6-android-debug.8 / versionCode 7** (APK 34,978,761 B,
+  sha256 c0c4019f…cd5f6, the pinned D85 debug certificate — installs
+  over debug.7 in place, settings + usage history survive): the
+  dial-failure → DNS-requery feedback loop fix. D98 rules every
+  release page carries the debug APK asset; D99 extends it — the
+  asset is NAMED v<versionName>-debug.apk (v1.6.6-debug.apk here).
+  The auth lane stays CLOSED (D97 — cancelled before any code;
+  `docs/auth/` bannered history; ADR-AUTH-0001 retired). The
+  release-keystore ceremony is complete on Ali's machine; all android
+  releases are regular releases in the private repo (D89).
+- **Branch and commit:** `main`, the M8-o commit (the feedback-loop
+  fix + D99 + this record; see `git log -1` at handoff time) on top
+  of 97adf0c (M8-n, the first-video fix) on top of 9f31b51 (A0-R3,
+  the auth cancellation) on top of 6a7bce4 (A0-R2) on top of 60bfa13
+  (A0) on top of cf136aa (M8-m); worktree clean after the commit.
+  The release tag `v1.6.6-android-debug.8` points at the M8-o commit
+  and is the repo's Latest (its APK asset is v1.6.6-debug.apk);
+  debug.7 → 97adf0c (M8-n), debug.6 → 078e3a5 (M8-k), debug.5 →
+  ad02980, debug.4 → cb28507 (helper-only; the release whose missing
+  APK triggered D98), debug.3 → 2a8b678 (the device-circle APK),
   debug.2 → 096e8c0, debug.1 → f61bfae (superseded; its page keeps
   the D85 troubleshooting guide).
-- **Files changed this phase (M8-n):** `internal/netx/dialer.go` (the
-  racing DialHost + FallbackDelay), `internal/netx/dialer_test.go`
-  (two new pins), `internal/config/defaults.go` (TunHandshakeTimeout),
-  `internal/tunstack/tunstack.go` (defaultHandshakeTimeout 30 s +
-  field doc), `internal/tunstack/tunstack_test.go` (the lockstep
-  pin), `mobile/tun.go` (the explicit HandshakeTimeout pass),
-  `android/app/build.gradle.kts` (versionCode 6), `DECISIONS.md`
-  (D98), doc 06 (the M8-n record), doc 07 (§9's closing paragraph),
-  doc 08 (ADR-0013), doc 09 (this update), doc 10 (status + the
-  debug.7 section + row 3's re-observation), `PROGRESS.md`,
-  `CHANGELOG.md`, `SESSION_HANDOFF_PROMPT.md` (rewritten for M8-o).
-- **Tests run and actual results (this session, M8-n):** svelte-check
+- **Files changed this phase (M8-o):** `internal/doh/cache.go`
+  (invalidate), `internal/doh/resolver.go` (Invalidate + the racing
+  bootstrap dial), `internal/doh/resolver_test.go` (four new pins),
+  `internal/proxy/server.go` (invalidateDNS + the two HTTP-door call
+  sites), `internal/proxy/socks5.go` (the SOCKS5 call site),
+  `internal/proxy/dialfeedback_test.go` (NEW — three door-side
+  pins), `android/app/build.gradle.kts` (versionCode 7),
+  `DECISIONS.md` (D99), doc 06 (the M8-o record), doc 08 (ADR-0014),
+  doc 09 (this update), doc 10 (status + the debug.8 section + row
+  3's re-observation), `PROGRESS.md`, `CHANGELOG.md`,
+  `SESSION_HANDOFF_PROMPT.md` (rewritten for M8-p).
+- **Tests run and actual results (this session, M8-o):** svelte-check
   0/0; vite build clean; webui dist CLEAN-synced; go vet clean; go
   test -count=1 ./... **18/18 packages ok, run TWICE consecutively**;
-  `GOOS=windows go build ./...` exit 0; the compile matrix in its
-  exact form: CGO_ENABLED=0 `go build ./internal/... ./mobile/...` =
-  19 non-main packages per ABI, **4/4** (arm64, arm, 386, amd64),
-  plus arm64 linking the full tree `./...`; gomobile bind (3 ABIs,
-  androidapi 26) → younblock.aar 25,002,994 B; clean assembleDebug →
-  app-debug.apk 34,960,649 B, SHA-256
-  dc01c0419a211ca007235ffbeaec6ab5acecb2e5930a4efd4642097209cdd83d;
+  `GOOS=windows go build ./...` exit 0; the compile matrix:
+  CGO_ENABLED=0 `go build ./internal/... ./mobile/...` **4/4 ABIs**
+  (arm64, arm, 386, amd64) + arm64 full tree `./...` exit 0; gomobile
+  bind (GOFLAGS=-mod=mod, the recorded
+  -target=android/arm,android/arm64,android/amd64 form, androidapi
+  26) → younblock.aar 24,993,512 B; clean assembleDebug →
+  app-debug.apk 34,978,761 B, SHA-256
+  c0c4019ffd3fb9b458b67a2cbffdc62d8f1f6632a3007347a78022ab5b9cd5f6;
   apksigner verify OK (the pinned c76bb7c6…8551d); badging
-  versionCode 6 / minSdk 26 / target 36 / 3 ABIs. The standing ⛔
+  versionCode 7 / versionName 1.6.6 / minSdk 26 / target 36. One
+  build wrinkle recorded for the next session: a stale gradle daemon
+  held the system JRE (no javac) — `./gradlew --stop` then an
+  explicit `JAVA_HOME=~/sdk/jdk` clears it. The standing ⛔
   unchanged: no /dev/kvm, no device — the fix's on-device
   confirmation is Ali's round.
 - **The environment is INTACT this session** (no wipe — verified at
@@ -148,34 +159,42 @@ boundary.
   (`. ~/sdk/env.sh && go version`), reinstall per doc 06 §1 only if
   actually wiped (the cmdline-tools `12.0` alias URL 404s — use the
   versioned commandlinetools-linux-11076708_latest.zip).
-- **Current architecture decision / confidence:** ADR-0013 (doc 08)
-  — the first-flow latency fix: fast address failover in the one
-  dialer + the budget-true TUN handshake timeout; host-proven by the
-  timing tests, device confirmation pending. The auth lane stays
-  CLOSED (D97; ADR-AUTH-0001 retired). Live ADRs: ADR-0001…0013.
-  Next decision ID: **D99**.
+- **Current architecture decision / confidence:** ADR-0014 (doc 08)
+  — the dial-failure → DNS-requery feedback loop: a total dial
+  failure demotes the cached answer to stale; host-proven by seven
+  new tests, device confirmation pending (debug.8). ADR-0013's
+  racing dialer is now also on the resolver's own bootstrap path.
+  The auth lane stays CLOSED (D97; ADR-AUTH-0001 retired). Live
+  ADRs: ADR-0001…0014. Next decision ID: **D100**.
 - **Blocking questions:** none blocking the loop. The standing inputs
-  are **Ali's debug.7 round**: the first-video timing (connect →
-  first video should start within seconds like Windows; if not, the
-  diagnostics report at the slow moment + phone model + Android
-  version), the cross-device UI verdict on debug.6 (does the phone
-  match his desktops? Data usage sane? — still unreported), the rest
-  of doc 10's circle (rows 4–8, rotation/TalkBack), and D93's
-  desktop check on the rebuilt exe.
+  are **Ali's debug.8 round**: the per-video verification (connect →
+  play the first video, then several OTHER videos back to back —
+  each should start within seconds and play without re-buffering;
+  if not, the diagnostics report AFTER a stall is the required
+  input — the tunnel lines carry dns=/dial=/first-byte=/dur= per
+  flow, and the on-screen speed number at the slow moment splits a
+  starved door path from a player-side transport), the cross-device
+  UI verdict on debug.6 (still unreported), the rest of doc 10's
+  circle (rows 4–8, rotation/TalkBack), and D93's desktop check on
+  the rebuilt exe.
 - **Exact next task:** ONE workstream — the feedback loop. **Task ID
-  M8-o — ingest Ali's results from v1.6.6-android-debug.7** (the
-  first-video confirmation FIRST: fixed or not; if not, the
-  diagnostics report is the required input — the debug.5 timing
-  lines name the waiting phase; then the cross-device UI verdict,
-  the data-usage round, the rest of doc 10's circle, D93's desktop
-  check). Root-cause what the evidence names; fix at the correct
-  layer; bump `versionCode` and cut `v1.6.6-android-debug.8` through
-  the same regular-release lane (D89) WHEN an app code change
-  warrants it — **D98 now ALSO requires every release page to carry
-  the debug APK asset, including docs/helper-only rounds** — push
-  the code commit BEFORE creating the release (the full-SHA
-  target_commitish 422s against an unpushed SHA). The auth Task IDs
-  (A1/A2/A3) stay retired (D97). The dormant alternatives when no
-  feedback arrives: the desktop release lane (the rounds under
-  CHANGELOG "Unreleased") or public-release engineering — ask Ali
-  which, do not guess.
+  M8-p — ingest Ali's results from v1.6.6-android-debug.8** (the
+  per-video verification FIRST: fixed or not; if not, the
+  diagnostics report after a stall + the speed number at the slow
+  moment are the required inputs — they split the remaining suspects
+  in one read: slow dns/dial = the network answer path, fast setup +
+  slow dur = a throughput leg, nothing logged = the flow never
+  reached the door, high speed while buffering = the player's own
+  transport; then the cross-device UI verdict, the data-usage
+  round, the rest of doc 10's circle, D93's desktop check).
+  Root-cause what the evidence names; fix at the correct layer;
+  bump `versionCode` and cut `v1.6.6-android-debug.9` through the
+  same regular-release lane (D89) WHEN an app code change warrants
+  it — **D98: every release page carries the debug APK asset; D99:
+  the asset is NAMED v<versionName>-debug.apk (v1.6.6-debug.apk
+  while the version name stays 1.6.6)** — push the code commit
+  BEFORE creating the release (the full-SHA target_commitish 422s
+  against an unpushed SHA). The auth Task IDs (A1/A2/A3) stay
+  retired (D97). The dormant alternatives when no feedback arrives:
+  the desktop release lane (the rounds under CHANGELOG "Unreleased")
+  or public-release engineering — ask Ali which, do not guess.

@@ -1102,3 +1102,87 @@ releases." The round's work:
   observed on a real app flow) still open. Next Task ID: M8-o (ingest
   the debug.7 device round — first-video timing first). Next decision:
   D99.
+
+M8-o record (2026-10-18, later evening; the TWELFTH feedback-loop
+exchange — the debug.7 device round, Task ID M8-o, decision D99).
+Ali's report: "The problem persists, youtube feed refreshes, but it
+takes a while until first video can be actually played. but the pc
+version is instant… even after 1-2 mins of first video to be played,
+every other video has same buffer problem… apk is laggy and buffers a
+lot, but in UI-wise it connects as quickly. so it's NOT routing or
+method or even internet speed… same ISP and net connection works
+instantly using windows version." Plus the standing naming rule:
+"mention the version name in the apk. like v16.6-debug.apk". The
+round's work:
+
+- **The discriminator sharpened**: EVERY video stalls (not just the
+  first), feed and UI stay instant, Windows instant on the same ISP —
+  so the hunt narrowed to mechanisms that poison PER-HOSTNAME
+  connection setup repeatedly (each video = fresh rr*.googlevideo.com
+  hostnames; the feed's hosts are prewarmed and warm-cached). Re-read
+  the whole flow path end-to-end (tunstack wire/dns/tunstack/socks5,
+  the door's socks5 server half + tunnel relay + resolve, the DoH
+  resolver + cache, netx, the Kotlin service): the door, the tunnel
+  relay and the upstream dial are byte-identical on both platforms
+  (one engine, one resolver, one dialer — the M8-m gap audit's
+  "desktop release lane dormant" note means Ali's Windows exe predates
+  M8-n, but the chronic per-video stall predates M8-n too (debug.5's
+  30 s-1 min report), so the M8-n changes are not the regression).
+- **Root-caused the SURVIVING amplifier (ADR-0014)**: ADR-0013 made
+  the walk fast but cannot help when the WHOLE answer set is
+  blackholed — rr hostnames carry the few addresses of ONE cache node
+  each, so one filtered node poisons the set. The app retries every
+  few seconds; every retry re-dials the same cached set and fails; the
+  120 s-minimum-TTL cache keeps serving the suspect set until it
+  rotates — the observed 1-2 min per-video wait, and (videoplayback
+  URLs rotate rr hostnames mid-play) the mid-play re-buffering. The
+  fix closes the loop at the only honest point: a TOTAL dial failure
+  now demotes the host's cached answer to stale (doh.Resolver.
+  Invalidate; the next retry re-queries the servers; serve-stale
+  preserved so the failure path is never worse). Wired at all three
+  dial sites (HTTP-CONNECT, plain-http forward, SOCKS5 door) through
+  an optional-capability probe. Consistency fix: the resolver's own
+  bootstrap dial now RACES its IPs (the same DialHost) instead of
+  walking them at a full Timeout each — ADR-0013's reasoning applied
+  to the resolver's own path.
+- **Pinned by seven new tests**: doh — TestInvalidateForcesRequery
+  (the re-query lands a different answer), TestInvalidateKeepsServeStale
+  (the stale window survives invalidation), TestInvalidateNoops
+  (literals/negatives/misses), TestDialBootstrapFailsOverToSecondBootstrapIP;
+  proxy (new dialfeedback_test.go) — TestSocks5DialFailureInvalidatesDNS,
+  TestConnectDialFailureInvalidatesDNS,
+  TestDialFailureWithoutInvalidatorIsGraceful (the capability probe).
+  The M8-n gofmt lesson applied again: the Edit tool space-converted
+  the two tab-indented proxy files; gofmt -w restored them (real diff
+  +16/-0 in proxy).
+- **Baseline, all green on the fixed tree**: svelte-check 0/0; vite
+  build clean; webui dist CLEAN-synced; go vet clean; go test 18/18
+  ×2 consecutive; GOOS=windows go build ./... exit 0; Android compile
+  matrix 4/4 ABIs (CGO_ENABLED=0) + arm64 full tree ./... exit 0.
+- **The build lane**: versionCode bumped 6 → 7 (the D84 rule); one
+  gradle-daemon wrinkle (a stale daemon held the system JRE — `./gradlew
+  --stop` + explicit JAVA_HOME=~/sdk/jdk cleared it; recorded so the
+  next session skips the detour); gomobile bind (GOFLAGS=-mod=mod,
+  3 ABIs via the recorded -target=android/arm,android/arm64,android/amd64
+  form, androidapi 26) → younblock.aar 24,993,512 B; clean assembleDebug
+  → app-debug.apk **34,978,761 B**, SHA-256
+  **c0c4019ffd3fb9b458b67a2cbffdc62d8f1f6632a3007347a78022ab5b9cd5f6**;
+  badging: io.github.assadigit/younblock 1.6.6 (versionCode 7), minSdk
+  26, targetSdk 36; apksigner verify --print-certs OK — the pinned
+  debug certificate c76bb7c6…8551d (installs over debug.7 in place,
+  settings survive).
+- **D99 recorded** (the APK naming rule, extending D98): every APK
+  asset is named v<versionName>-debug.apk — first application
+  v1.6.6-debug.apk on this release.
+- **The release lane**: v1.6.6-android-debug.8 created at the pushed
+  full SHA (regular release, D89), Latest-marked, APK asset uploaded
+  AS v1.6.6-debug.apk (D99's first application), served bytes
+  re-downloaded through the API and hashed byte-exact.
+- **The honest ask for the debug.8 round** (put in the release notes
+  and the wrap-up page): if ANY video still stalls, open the app's
+  Diagnostics after it happens and copy the "tunnel" lines — they
+  carry per-flow dns/dial/first-byte/dur numbers that split the
+  remaining suspects in one read (slow dns/dial = the network answer
+  path; fast setup + slow dur = a throughput leg; nothing logged at
+  all = the flow never reached the door). Row 3 stays OPEN until Ali's
+  measured evidence; row 9's device half unchanged.

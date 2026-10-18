@@ -1,4 +1,4 @@
-# Prompt — Continue Younblock: the device-test feedback loop (M8-o — confirm the first-video fix on debug.7)
+# Prompt — Continue Younblock: the device-test feedback loop (M8-p — confirm the per-video fix on debug.8)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -7,31 +7,33 @@ Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL; the
 session prompt carries a fresh token if push is rejected).
 
-## Where the project stands (verified at the M8-n close, 2026-10-18 evening)
+## Where the project stands (verified at the M8-o close, 2026-10-18 later evening)
 
-- **The slow first video — the project's longest-open defect — is
-  ROOT-CAUSED and FIXED at host level (ADR-0013), shipped as
-  `v1.6.6-android-debug.7` (versionCode 6, Latest).** Ali's debug.6
-  device round: first video 2–3 minutes while "the windows app doesnt
-  have this problem". The Windows-vs-Android discriminator localized
-  it to the Android-only layers; the cause was IN THE CODE: the TUN
-  stack aborted every flow whose door dial exceeded 10 s (a default
-  the mobile facade never overrode) — SHORTER than the SOCKS5 door's
-  own honest setup budget (DoH resolve ≤ 3×3 s + upstream dial ≤ 12 s,
-  which the desktop HTTP-CONNECT door runs with NO abort, hence
-  Windows instant). googlevideo answers on filtered networks carry
-  silently-blackholed addresses; the dialer walked them sequentially
-  at 5 s each; the DNS answer is cached ≥120 s, so every app retry
-  hit the same wall until the cache rotated — the minutes. The fix:
-  `netx.DialHost` now races addresses (attempt k at k×750 ms, first
-  success wins, losers canceled — BOTH doors benefit) and the TUN
-  handshake budget is budget-true (`config.TunHandshakeTimeout` 30 s,
-  facade passes it, tunstack default raised to match; the lockstep is
-  pinned by TestHandshakeTimeoutDefaultCoversDoorBudget).
-- **D98 (Ali's ruling, this round):** "from now on, add the APK
-  version (debug version) in the releases" — EVERY release page
-  carries the debug APK asset from debug.7 on, including
-  docs/helper-only rounds (debug.4's missing APK was the trigger).
+- **The per-video stall loop — the survivor of the M8-n fix — is
+  ROOT-CAUSED and FIXED at host level (ADR-0014), shipped as
+  `v1.6.6-android-debug.8` (versionCode 7, Latest, the APK asset
+  NAMED v1.6.6-debug.apk).** Ali's debug.7 round: feed and UI
+  instant, but EVERY video 1–2 minutes to start and re-buffering
+  mid-play, Windows instant on the same ISP. The every-video
+  discriminator localized the defect to per-hostname setup (each
+  video = fresh rr*.googlevideo.com hostnames; the feed's hosts are
+  prewarmed and long-lived). The amplifier that racing cannot fix:
+  when the WHOLE address set of an rr hostname is blackholed (rr
+  hosts carry the few addresses of one cache node each), every app
+  retry re-dials the same cached set and fails, and the DoH cache's
+  120 s minimum TTL keeps serving the suspect set until it rotates.
+  The fix: a TOTAL dial failure demotes the host's cached answer to
+  stale (`doh.Resolver.Invalidate` — the next retry re-queries the
+  servers; serve-stale preserved so the failure path is never
+  worse), wired at all three dial sites (HTTP-CONNECT, plain-http
+  forward, SOCKS5 door) via an optional-capability probe; the
+  resolver's own bootstrap dial now races its IPs. Pinned by seven
+  new tests.
+- **D99 (Ali's ruling, this round):** "mention the version name in
+  the apk. like v16.6-debug.apk" — every APK asset is NAMED
+  `v<versionName>-debug.apk` (v1.6.6-debug.apk for the 1.6.6 line),
+  extending D98 (every release page carries the APK) without
+  changing it.
 - **The account-gate lane stays CLOSED (D97)** — cancelled before any
   code; `docs/auth/` is bannered history; ADR-AUTH-0001 retired; the
   A-series Task IDs (A1/A2/A3) are retired; Younblock stays ONE
@@ -48,28 +50,39 @@ session prompt carries a fresh token if push is rejected).
   manual-check steps 4–5).
 - **The dormant desktop release lane** (the rounds under CHANGELOG
   "Unreleased") and **public-release engineering** (release signing,
-  CI, update mechanism) remain open-but-paused by choice.
+  CI, update mechanism) remain open-but-paused by choice. Note: the
+  last shipped desktop artifacts (v0.7.6) predate M8-n's dialer
+  changes — if Ali ever compares a fresh desktop build against the
+  APK, the comparison is finally apples-to-apples from debug.8's
+  tree onward.
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
   discrepancy instead of improvising.
 
-## The session's ONE workstream — the device-test feedback loop (Task ID M8-o)
+## The session's ONE workstream — the device-test feedback loop (Task ID M8-p)
 
-For each issue Ali reports from `v1.6.6-android-debug.7` (device side)
+For each issue Ali reports from `v1.6.6-android-debug.8` (device side)
 or his rebuilt desktop exe:
 
-- **FIRST: the first-video confirmation.** Connect → open the YouTube
-  app → tap the first video right after the feed loads. It should
-  start within seconds, like Windows. If it does, doc 10's circle
-  row 3 finally closes with his measured evidence (the standing
-  rule: no row closes without it). If it does NOT, the required
-  input is the diagnostics report copied at the slow moment (Menu →
-  Diagnostics → Copy) + phone model + Android version + which video
-  (first only or every) — the debug.5 per-flow timing lines
-  (`tunnel up dns=…ms dial=…ms`, `tunnel first-byte …ms`) name the
-  waiting phase; root-cause from there, fix at the correct layer
-  (engine/facade/Kotlin/WebView), keep the D77–D98 honesty rules
+- **FIRST: the per-video confirmation.** Connect → open the YouTube
+  app → play the FIRST video, then several OTHER videos back to
+  back. Each should start within seconds, like Windows, and play
+  without re-buffering. If they do, doc 10's circle row 3 finally
+  closes with his measured evidence (the standing rule: no row
+  closes without it). If they do NOT, the required inputs are
+  (a) the diagnostics report copied AFTER a stalled video (Menu →
+  Diagnostics → Copy) — the per-flow timing lines
+  (`tunnel up dns=…ms dial=…ms`, `tunnel first-byte …ms`,
+  `tunnel done dur=…ms up=… down=…`) name the waiting phase — and
+  (b) the on-screen speed number at the slow moment. Together they
+  split the remaining suspects in one read: slow dns/dial = the
+  network answer path; fast setup + slow dur = a throughput leg;
+  NOTHING logged for the stalled video = the flow never reached the
+  door (a stack/app-side suspect — the QUIC row 9 device half lives
+  there); high speed while the player still buffers = the player's
+  own transport. Root-cause from there, fix at the correct layer
+  (engine/facade/Kotlin/WebView), keep the D77–D99 honesty rules
   binding (the UI may only claim what the engine enforces; ⛔ gates
   are listed, never dropped).
 - Record each closed checklist row with Ali's measured evidence
@@ -77,22 +90,29 @@ or his rebuilt desktop exe:
   observations stay open — never mark them complete.
 - **Bump `versionCode`** in `android/app/build.gradle.kts` (the D84
   rule) and cut the next debug release — a REGULAR release in the
-  private repo, never flagged prerelease (D89), and **carrying the
-  debug APK asset per D98** — through the release lane (push the code
-  commit BEFORE creating the release — the full-SHA target_commitish
-  422s against an unpushed SHA; upload the APK, verify via the API,
-  record asset size + digest) WHEN a code change warrants it — do not
-  re-release identical bytes. Full lane before release: desktop
-  baseline in the D74 order (frontend npm ci → svelte-check 0/0 →
-  vite build → CLEAN-sync dist → go vet → go test 18/18 ×2 →
-  GOOS=windows exit 0); the compile matrix in its exact form
-  (CGO_ENABLED=0 `go build ./internal/... ./mobile/...` = 19
-  non-main packages per ABI ×4, plus arm64 linking the full tree
-  `./...` with CGO_ENABLED=0 — do NOT run the arm64 full-tree link
-  with the host gcc; the M8-n session burned 90 s on exactly that);
-  `gomobile bind` (GOFLAGS=-mod=mod, 3 ABIs, androidapi 26);
-  **clean** `assembleDebug`; artifact verification (sha256, apksigner,
-  badging — doc 06's records); commit.
+  private repo, never flagged prerelease (D89), **carrying the debug
+  APK asset per D98, NAMED v<versionName>-debug.apk per D99** —
+  through the release lane (push the code commit BEFORE creating the
+  release — the full-SHA target_commitish 422s against an unpushed
+  SHA; upload the APK, verify via the API, record asset size +
+  digest) WHEN a code change warrants it — do not re-release
+  identical bytes. Full lane before release: desktop baseline in the
+  D74 order (frontend npm ci → svelte-check 0/0 → vite build →
+  CLEAN-sync dist → go vet → go test 18/18 ×2 → GOOS=windows exit
+  0); the compile matrix in its exact form (CGO_ENABLED=0
+  `go build ./internal/... ./mobile/...` = 19 non-main packages per
+  ABI ×4, plus arm64 linking the full tree `./...` with
+  CGO_ENABLED=0 — do NOT run the arm64 full-tree link with the host
+  gcc; the M8-n session burned 90 s on exactly that); `gomobile
+  bind` (GOFLAGS=-mod=mod, the recorded
+  `-target=android/arm,android/arm64,android/amd64` form, androidapi
+  26); **clean** `assembleDebug` (if it fails on "Toolchain
+  installation … does not provide the required capabilities:
+  [JAVA_COMPILER]", a stale gradle daemon holds the system JRE —
+  `./gradlew --stop` then `JAVA_HOME=~/sdk/jdk ./gradlew clean
+  assembleDebug`; the M8-o session hit exactly that); artifact
+  verification (sha256, apksigner, badging — doc 06's records);
+  commit.
 - If feedback has NOT arrived when the session opens, do not block
   and do not guess: say so plainly and put the honest alternatives
   to Ali — the desktop release lane or public-release engineering —
@@ -105,26 +125,26 @@ or his rebuilt desktop exe:
    (sandbox resets have destroyed it before; if it is missing,
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
-   finish; never overwrite. The feedback-round Task IDs run M8-o,
-   M8-p, … **The auth lane's Task IDs (A1, A2, A3) are RETIRED —
+   finish; never overwrite. The feedback-round Task IDs run M8-p,
+   M8-q, … **The auth lane's Task IDs (A1, A2, A3) are RETIRED —
    cancelled with the feature at D97; never open them. The next
-   decision number is D99 — reserved for Ali's rulings; D94–D98 are
+   decision number is D100 — reserved for Ali's rulings; D94–D99 are
    spent (D97 is the cancellation, D98 is the APK-on-every-release
-   ruling).**
+   ruling, D99 is the APK-naming ruling).**
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
-   debug.7 edition + §"Device test circle" — row 3 is the fix's
-   confirmation row), doc 06 (the M8-c…M8-n records), doc 08 +
-   `DECISIONS.md` (D1–D98; **read D97 and D98 in full**), and the
-   tail of `PROGRESS.md`.
+   debug.8 edition + §"Device test circle" — row 3 is the fix's
+   confirmation row), doc 06 (the M8-c…M8-o records), doc 08 +
+   `DECISIONS.md` (D1–D99; **read D97, D98 and D99 in full**), and
+   the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
-   `git status -sb`, `git log --oneline -3` (expect the M8-n commit —
-   the first-video fix + D98 — on top of 9f31b51, the A0-R3 auth
-   cancellation). Preserve any uncommitted work; never reset it just
+   `git status -sb`, `git log --oneline -3` (expect the M8-o commit —
+   the per-video fix + D99 — on top of 97adf0c, the M8-n first-video
+   fix). Preserve any uncommitted work; never reset it just
    to get a clean diff. If push is rejected (credential rotated), the
    session prompt carries a fresh token — update the `origin` remote
    URL with it.
-4. Check whether Ali's debug.7 device feedback has arrived (session
-   messages). If yes: the feedback loop above, the first-video
+4. Check whether Ali's debug.8 device feedback has arrived (session
+   messages). If yes: the feedback loop above, the per-video
    confirmation first. If no: say so plainly and offer the honest
    alternatives — do not guess, do not invent work.
 5. Make the desktop baseline GREEN before writing any code, in the
@@ -134,7 +154,7 @@ or his rebuilt desktop exe:
    (rm + restore placeholder.txt + cp); then `go vet ./...`;
    `go test -count=1 ./...` (expect **18/18 packages ok**, run twice
    consecutively); `GOOS=windows go build ./...` (exit 0).
-   **~/sdk was intact at the M8-n close; wipes happen at ANY
+   **~/sdk was intact at the M8-o close; wipes happen at ANY
    boundary — VERIFY first (`. ~/sdk/env.sh && go version &&
    javac -version`) and only reinstall if actually wiped (the
    cmdline-tools `12.0` alias URL 404s — use the versioned
@@ -196,27 +216,29 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   credential); preserve Windows/Linux desktop behavior (the full
   regression gate is part of every change set).
 - Do not assume Wails or desktop proxy semantics transfer to Android;
-  the ADRs (doc 08, now ADR-0001…0013) are the ground truth.
-- The honesty rules D77–D98 bind: the UI/release notes may only claim
+  the ADRs (doc 08, now ADR-0001…0014) are the ground truth.
+- The honesty rules D77–D99 bind: the UI/release notes may only claim
   what the engine actually enforces; privacy copy follows
   implementation evidence; ⛔ gates are listed, never dropped; no
   recommendation may be recorded as a ruling; a cancellation is
   recorded as exactly what it is (D97 is the pattern).
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D99, as
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D100, as
   rulings land), `CHANGELOG.md`; append the worklog entry (Task ID
-  M8-o / M8-p / …); commit and push; cut the debug release with the
-  bumped versionCode when APP code changed — **and always attach the
-  debug APK per D98** — and record the artifact.
+  M8-p / M8-q / …); commit and push; cut the debug release with the
+  bumped versionCode when APP code changed — **always attach the
+  debug APK per D98, named v<versionName>-debug.apk per D99** — and
+  record the artifact.
 
 ## Required first response
 
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
-from debug.7 has arrived, and if so the exact first issue you will
-address (the first-video confirmation leads if present); (5)
-confirmation that you have read D97 (the auth lane stays untouched)
-and D98 (every release carries the APK). If no feedback arrived, say
-so plainly and put the honest alternatives to Ali. Then execute.
+from debug.8 has arrived, and if so the exact first issue you will
+address (the per-video confirmation leads if present); (5)
+confirmation that you have read D97 (the auth lane stays untouched),
+D98 (every release carries the APK) and D99 (the APK asset is named
+with the version). If no feedback arrived, say so plainly and put
+the honest alternatives to Ali. Then execute.

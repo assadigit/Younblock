@@ -303,6 +303,66 @@ dialer, and a budget-true TUN handshake timeout (M8-n)
   parameters, brute-force form) — they stay OPEN for Ali (docs/auth/00
   §"The six open questions"); D95+ records the rulings when they land.
 
+## ADR-0014 — Dial-failure feedback into the DNS cache: a total dial
+failure demotes the cached answer to stale (M8-o)
+
+- **Status:** Accepted 2026-10-18 (M8-o, the per-video stall loop:
+  feed instant, EVERY video 1-2 min to start and re-buffering mid-play,
+  Windows instant on the same ISP — the surviving amplifier behind the
+  symptom M8-n's dialer fix could not cure).
+- **Context:** ADR-0013 made the address walk fast (750 ms failover
+  past a blackholed front address) and the handshake budget honest.
+  But the device round on top of it (debug.7) reported the same
+  per-video stall — because racing cannot help when the WHOLE answer
+  set is blackholed: rr*.googlevideo.com hostnames map to the few
+  addresses of one cache node each, and on a filtered network a
+  filtered node poisons the entire set. The phone app retries every
+  few seconds; every retry re-dials the same cached set, fails, RSTs —
+  and the DoH cache (120 s minimum TTL) keeps serving that suspect set
+  until it rotates. The app's only escape is a DIFFERENT answer, which
+  the cache blocks for up to two minutes — exactly the observed
+  per-video wait, and (because videoplayback URLs rotate rr hostnames
+  during playback) exactly the mid-play re-buffering. The feed never
+  suffers: its hosts are prewarmed, warm-cached and long-lived.
+  The desktop door shares this path but the browser player's retry
+  profile hides the loop better — the feedback loop is a defect on
+  BOTH doors regardless; fixing it cannot regress the desktop.
+- **Decision (one mechanism, three call sites + one consistency fix):**
+  1. `doh.Resolver.Invalidate(host)`: demote a still-fresh success
+     entry to STALE (expiresAt = now; staleUntil unchanged). The next
+     Lookup re-queries the servers; if they fail, serve-stale still
+     answers (R5 preserved — invalidation never makes a failure path
+     worse). IP literals, negatives and misses are no-ops (negatives
+     already re-query at their own 15 s expiry).
+  2. Both doors report total dial failures: the HTTP-CONNECT tunnel,
+     the plain-http forward and the SOCKS5 door call
+     `Server.invalidateDNS(host)` after `DialHost` fails on every
+     address. Optional capability (interface assertion) so the tests'
+     minimal fakes keep working unchanged.
+  3. The resolver's OWN bootstrap dial joins ADR-0013: dialBootstrap
+     now races the bootstrap IPs through the same `DialHost` instead
+     of walking them sequentially at one full Timeout each — a
+     blackholed front bootstrap costs ~0.75 s, not 3 s, per query.
+- **Evidence:** `internal/doh/cache.go` (invalidate),
+  `internal/doh/resolver.go` (Invalidate + the racing bootstrap),
+  `internal/proxy/server.go` (invalidateDNS + the two HTTP-door call
+  sites), `internal/proxy/socks5.go` (the SOCKS5 call site); pinned by
+  TestInvalidateForcesRequery, TestInvalidateKeepsServeStale,
+  TestInvalidateNoops, TestDialBootstrapFailsOverToSecondBootstrapIP
+  (doh) and TestSocks5DialFailureInvalidatesDNS,
+  TestConnectDialFailureInvalidatesDNS,
+  TestDialFailureWithoutInvalidatorIsGraceful (proxy, the new
+  dialfeedback_test.go). Desktop baseline green on the fixed tree
+  (vet clean, 18/18 ×2, GOOS=windows exit 0); Android compile matrix
+  4/4 ABIs + arm64 full tree.
+- **What this ADR does NOT decide:** whether the rr-hostname answer
+  sets are actually all-blackholed on Ali's network (that is the
+  device question the debug.8 round answers — if the stall persists
+  with this fix, the diagnostics report's tunnel timing lines carry
+  the decisive dns/dial/first-byte/dur numbers, and the QUIC row 9
+  device half stays open); QUIC/UDP forwarding policy (ADR-0009
+  unchanged); the DNS cache TTL constants themselves.
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

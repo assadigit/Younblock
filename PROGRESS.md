@@ -3029,3 +3029,45 @@ arm64 full-tree link with the host gcc — the recorded matrix form
 consequence. The device circle: row 3 now carries the fix and awaits
 Ali's debug.7 confirmation; rows 4–8 and the cross-device UI verdict
 still unreported. Next Task ID: M8-o. Next decision: D99.
+
+## M8-o — the per-video stall loop closed (ADR-0014) + D99 (the APK naming rule) — 2026-10-18, later evening
+
+Ali's debug.7 device round: the stall moved past the M8-n fix —
+feed and UI instant, but EVERY video 1–2 minutes to start and
+re-buffering mid-play, Windows instant on the same ISP ("so it's
+NOT routing or method or even internet speed… it's something wrong
+with the APK version"). Plus the standing naming rule: "mention
+the version name in the apk. like v16.6-debug.apk" (recorded as
+D99). The round: the every-video discriminator localized the
+defect to per-hostname setup (each video = fresh rr*.googlevideo.com
+hostnames; the feed's hosts are prewarmed and long-lived); the
+whole flow path re-read end-to-end (the door, the tunnel relay and
+the upstream dial are byte-identical on both platforms — one
+engine, one resolver, one dialer); the surviving amplifier found:
+racing cannot fix a fully-blackholed answer set, and the 120 s
+minimum-TTL DNS cache serves the suspect set to every retry until
+it rotates — the per-video wait and (URLs rotate rr hosts
+mid-play) the mid-play re-buffering. Fixed as ADR-0014: a TOTAL
+dial failure demotes the host's cached answer to stale
+(doh.Resolver.Invalidate — the next retry re-queries the servers;
+serve-stale preserved), wired at all three dial sites via an
+optional-capability probe; the resolver's own bootstrap dial now
+races its IPs (ADR-0013's dialer on the resolver's path). Seven
+new tests pin it (4 doh + the new proxy dialfeedback_test.go's 3).
+Baseline green on the fixed tree: svelte-check 0/0; vite clean;
+dist CLEAN-synced; vet clean; 18/18 ×2; GOOS=windows exit 0;
+compile matrix 4/4 + arm64 full tree. versionCode 6 → 7 (one
+gradle wrinkle recorded: a stale daemon held the system JRE —
+--stop + JAVA_HOME clears it); gomobile bind → younblock.aar
+24,993,512 B; clean assembleDebug → app-debug.apk 34,978,761 B,
+SHA-256 c0c4019ffd3fb9b458b67a2cbffdc62d8f1f6632a3007347a78022ab5b9cd5f6;
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 7 /
+versionName 1.6.6. Released v1.6.6-android-debug.8 (regular,
+Latest) with the APK asset NAMED v1.6.6-debug.apk (D99's first
+application), served bytes re-downloaded and hashed byte-exact.
+The honest ask rides the release notes: if any video still stalls,
+the diagnostics report's tunnel lines (dns=/dial=/first-byte=/dur=)
++ the on-screen speed number at the slow moment are the required
+inputs — they split the remaining suspects in one read. Row 3
+stays OPEN for Ali's measured evidence. Next Task ID: M8-p. Next
+decision: D100.

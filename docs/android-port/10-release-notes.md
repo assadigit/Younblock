@@ -29,7 +29,56 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1a. v1.6.6-android-debug.7 — the first-video fix (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.8 — the per-video stall loop closed (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 7, built at the M8-o commit, APK
+34,978,761 B (SHA-256 c0c4019f…cd5f6), the pinned debug certificate
+— **installs directly over debug.7** in place; settings and usage
+history survive. The APK asset on the release page is now NAMED with
+the version (**v1.6.6-debug.apk**) and every release after this one
+follows that form (D99). It carries ONE theme: **the dial-failure →
+DNS-requery feedback loop (ADR-0014) — the per-video stall amplifier
+that survived the debug.7 fix**:
+
+1. **What was wrong (the evidence):** on Ali's debug.7 round the
+   feed and UI stayed instant but EVERY video took 1–2 minutes to
+   start and re-buffered during playback, while the Windows app on
+   the same network was instant. Racing past one blackholed address
+   (the debug.7 fix) cannot help when the WHOLE address set is
+   blackholed: each rr*.googlevideo.com hostname carries the few
+   addresses of ONE cache node, so one filtered node poisons the
+   entire set. The app retried every few seconds; every retry
+   re-dialed the same cached addresses and failed — and the DNS
+   cache (120 s minimum) kept serving that suspect answer until it
+   rotated. That lock was the per-video wait, and because video
+   URLs rotate rr hostnames DURING playback, also the mid-play
+   re-buffering. The feed never suffers: its hosts are prewarmed
+   and long-lived.
+2. **What changed:** when a door dials every address of a host's
+   answer set and none connect, the cached answer is demoted to
+   stale immediately — the app's NEXT retry fetches a fresh answer
+   from the DNS servers instead of waiting out the 120 s cache
+   (serve-stale is preserved: if the servers then fail, the old
+   answer still serves — the failure path is never worse). The
+   resolver's own bootstrap dial also races its addresses now (the
+   same ~0.75 s failover the doors got in debug.7). One mechanism,
+   wired identically on the browser doors and the Android SOCKS5
+   door — the desktop benefits from the same fix.
+3. **What to verify on the phone (the row stays open until you
+   confirm):** connect, play the first video, then play several
+   OTHER videos back to back — each should start within seconds,
+   like the Windows app, and keep playing without re-buffering.
+   If any video still stalls: let it finish stalling, then Menu →
+   Diagnostics → Copy and send the report — the "tunnel" lines
+   carry per-flow dns=/dial=/first-byte=/dur= numbers that name
+   the waiting phase in one read (nothing logged at all for the
+   stalled video = the flow never reached the door, a different
+   suspect; fast setup + slow dur = a throughput leg). The phone's
+   on-screen speed number during a stall splits it further: near
+   zero = the door path is starved; high while the player still
+   buffers = the player's own transport.
+
+## 1a. v1.6.6-android-debug.7 — the first-video fix (SHIPPED — a regular release, superseded by debug.8)
 
 **What this build is:** versionCode 6, built at the M8-n commit, APK
 34,960,649 B (SHA-256 dc01c041…dd83d), the pinned debug certificate
@@ -376,6 +425,23 @@ remove the Last-session line).**
    connecting should start within seconds, like Windows; if not, the
    diagnostics report (Menu → Diagnostics → Copy) at the slow moment
    + phone model + Android version is the expected input.**
+
+   **Re-observed on debug.7 (2026-10-18, M8-o): the stall moved past
+   the fix — feed and UI instant, but EVERY video 1–2 minutes to
+   start and re-buffering mid-play, Windows instant on the same ISP.
+   The surviving amplifier was root-caused in the code (ADR-0014):
+   racing cannot help when the WHOLE address set of a host is
+   blackholed (rr*.googlevideo.com hostnames carry the few addresses
+   of one cache node each), and the 120 s-minimum DNS cache kept
+   serving the suspect set to every retry — fixed in debug.8 (a
+   total dial failure demotes the cached answer to stale, so the
+   next retry re-queries the servers; the resolver's own bootstrap
+   dial races its addresses too). The row STAYS OPEN for the
+   debug.8 device confirmation: every video, first and later,
+   should start within seconds and play without re-buffering; if
+   not, the diagnostics report's tunnel lines (dns=/dial=/
+   first-byte=/dur=) + the on-screen speed number at the slow
+   moment are the expected inputs.**
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

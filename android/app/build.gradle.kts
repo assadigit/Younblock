@@ -20,13 +20,16 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 6: the M8-n build (the first-video fix: the
-        // dialer's fast address failover + the budget-true TUN handshake
-        // timeout — flows the desktop doors always delivered are no
-        // longer aborted mid-setup on Android), so it installs OVER
-        // debug.6 (same pinned debug certificate — D85). The D84 rule:
-        // every debug build bumps this.
-        versionCode = 6
+        // versionCode 7: the M8-o build (the dial-failure → DNS-requery
+        // feedback loop: a total dial failure now demotes the host's
+        // cached DoH answer to stale, so the client's next retry gets a
+        // fresh server answer instead of the same suspect set until the
+        // 120 s minimum TTL expires; the resolver's own bootstrap dial
+        // races its IPs the same way the door does), so it installs
+        // OVER debug.7 (same pinned debug certificate — D85). The D84
+        // rule: every debug build bumps this. D99: from this release on
+        // the APK asset carries the version name (v1.6.6-debug.apk).
+        versionCode = 7
         versionName = "1.6.6"
     }
 

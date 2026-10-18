@@ -414,6 +414,7 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 				s.cfg.Logger.Warn("tunnel dial failed", "reason", errKind(err))
 			}
 		}
+		s.invalidateDNS(host) // M8-o: the whole set failed; re-query next time
 		s.reply(client, statusBadGateway)
 		s.countConnError()
 		return
@@ -470,6 +471,7 @@ func (s *Server) forwardRequest(client net.Conn, br *bufio.Reader, req *http.Req
 		if s.cfg.Logger != nil {
 			s.cfg.Logger.Warn("forward dial failed", "reason", errKind(err))
 		}
+		s.invalidateDNS(host) // M8-o: the whole set failed; re-query next time
 		s.reply(client, statusBadGateway)
 		s.countConnError()
 		return
@@ -534,6 +536,19 @@ func (s *Server) resolve(host string) ([]net.IP, error) {
 		return nil, errors.New("no addresses returned")
 	}
 	return ips, nil
+}
+
+// invalidateDNS reports a total dial failure to the resolver (M8-o,
+// ADR-0014): every address of the set resolve() returned for this host
+// failed to connect, so the set is suspect on this network and the next
+// lookup should re-query the servers instead of serving the same cached
+// set until TTL expiry. Optional capability — resolvers without
+// Invalidate (tests' minimal fakes) are skipped; IP literals never
+// cached by the real resolver, and it no-ops them itself.
+func (s *Server) invalidateDNS(host string) {
+	if inv, ok := s.resolverData().(interface{ Invalidate(string) }); ok {
+		inv.Invalidate(host)
+	}
 }
 
 // register tracks a live tunnel so Stop can force-close it.

@@ -426,3 +426,123 @@ func TestCacheBoundedEntries(t *testing.T) {
 		t.Errorf("oldest entry should have been evicted")
 	}
 }
+
+// TestInvalidateForcesRequery (M8-o, ADR-0014): a total dial failure on the
+// cached set must drop the fresh entry to stale, so the client's next lookup
+// re-queries the servers and can pick up a different answer instead of
+// being served the same suspect set until the 120 s minimum TTL expires.
+func TestInvalidateForcesRequery(t *testing.T) {
+	var f *fakeDoH
+	f = newFakeDoH(t, func(name string) ([]net.IP, uint32) {
+		if f.hits.Load() >= 2 { // the handler counts this hit before answering
+			return []net.IP{net.ParseIP("93.184.216.99")}, 300
+		}
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	cfg := testConfig(f.serverConfig("Fake"))
+	cfg.TLS = f.tlsConfig()
+	r := New(cfg)
+
+	ips, err := r.Lookup(context.Background(), "example.com")
+	if err != nil {
+		t.Fatalf("first Lookup: %v", err)
+	}
+	if !ips[0].Equal(net.ParseIP("93.184.216.34")) {
+		t.Fatalf("first answer = %v, want 93.184.216.34", ips)
+	}
+	r.Invalidate("example.com")
+
+	ips, err = r.Lookup(context.Background(), "example.com")
+	if err != nil {
+		t.Fatalf("Lookup after Invalidate: %v", err)
+	}
+	if !ips[0].Equal(net.ParseIP("93.184.216.99")) {
+		t.Fatalf("answer after Invalidate = %v, want the re-queried 93.184.216.99", ips)
+	}
+	if f.hits.Load() != 2 {
+		t.Errorf("server hits = %d, want 2 (the cache must not have served)", f.hits.Load())
+	}
+}
+
+// TestInvalidateKeepsServeStale: invalidation must not make failures worse —
+// when the servers are unreachable after an invalidation, the stale answer
+// is still served (R5's serve-stale contract is preserved).
+func TestInvalidateKeepsServeStale(t *testing.T) {
+	f := newFakeDoH(t, func(name string) ([]net.IP, uint32) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	cfg := testConfig(f.serverConfig("Fake"))
+	cfg.TLS = f.tlsConfig()
+	r := New(cfg)
+
+	if _, err := r.Lookup(context.Background(), "example.com"); err != nil {
+		t.Fatalf("first Lookup: %v", err)
+	}
+	f.fail.Store(true)
+	r.Invalidate("example.com")
+
+	ips, err := r.Lookup(context.Background(), "example.com")
+	if err != nil {
+		t.Fatalf("Lookup after Invalidate with dead servers: %v (serve-stale must cover it)", err)
+	}
+	if !ips[0].Equal(net.ParseIP("93.184.216.34")) {
+		t.Fatalf("stale answer = %v, want 93.184.216.34", ips)
+	}
+}
+
+// TestInvalidateNoops: IP literals (never cached), unknown hosts (nothing
+// cached) and negative entries (already re-query at their own short expiry)
+// are all no-ops — invalidation only demotes still-fresh success entries.
+func TestInvalidateNoops(t *testing.T) {
+	f := newFakeDoH(t, func(name string) ([]net.IP, uint32) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	cfg := testConfig(f.serverConfig("Fake"))
+	cfg.TLS = f.tlsConfig()
+	r := New(cfg)
+
+	r.Invalidate("93.184.216.34")      // IP literal: no panic, no cache change
+	r.Invalidate("never.seen.example") // unknown host: no-op
+	r.Invalidate("")                   // empty: no-op
+
+	// A negative entry keeps its own short TTL: Invalidate must not clear it.
+	if _, err := r.Lookup(context.Background(), "down.example"); err != nil {
+		t.Fatalf("first Lookup of an answerable name: %v", err)
+	}
+	f.fail.Store(true)
+	if _, err := r.Lookup(context.Background(), "poisoned.example"); err == nil {
+		t.Fatalf("expected failure with dead server")
+	}
+	r.Invalidate("poisoned.example")
+	if _, err := r.Lookup(context.Background(), "poisoned.example"); err == nil {
+		t.Fatalf("negative entry must survive Invalidate (it is not a success entry)")
+	}
+}
+
+// TestDialBootstrapFailsOverToSecondBootstrapIP: the resolver's own bootstrap
+// dial (ADR-0013's racing DialHost since M8-o) must fail over to the next
+// bootstrap address when the first one refuses. (The silent-blackhole race
+// mechanics themselves are pinned by netx's own tests.)
+func TestDialBootstrapFailsOverToSecondBootstrapIP(t *testing.T) {
+	f := newFakeDoH(t, func(name string) ([]net.IP, uint32) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	srvCfg := f.serverConfig("Fake")
+	// 127.0.0.2:<port> refuses instantly (nothing listens there); the real
+	// server is on 127.0.0.1:<port> — same port, both loopback /8.
+	srvCfg.Bootstrap = []string{"127.0.0.2", "127.0.0.1"}
+	cfg := testConfig(srvCfg)
+	cfg.TLS = f.tlsConfig()
+	r := New(cfg)
+
+	ips, err := r.Lookup(context.Background(), "example.com")
+	if err != nil {
+		t.Fatalf("Lookup through the second bootstrap: %v", err)
+	}
+	if !ips[0].Equal(net.ParseIP("93.184.216.34")) {
+		t.Fatalf("ips = %v, want the fake answer", ips)
+	}
+	if f.hits.Load() != 1 {
+		t.Errorf("server hits = %d, want 1", f.hits.Load())
+	}
+}

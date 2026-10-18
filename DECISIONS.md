@@ -2200,3 +2200,25 @@ version) in the releases."
    first-video fix build, versionCode 6) — its release page carries
    app-debug.apk, and every release after it does too.
 4. Next decision ID: D99.
+
+**D99 — the APK asset carries the version name (Ali's ruling,
+2026-10-18, the M8-o round — extends D98 with the naming rule).**
+"mention the version name in the apk . like v16.6-debug.apk"
+
+1. **RECORDED as ruled — from now on every release's APK asset is
+   NAMED with the version**, in the form `v<versionName>-debug.apk`
+   (v1.6.6-debug.apk for the 1.6.6 line; Ali's "v16.6-debug.apk"
+   example reads as the quick-typing of the same idea — the version
+   name 1.6.6 with the v prefix and the debug suffix). The asset name
+   must identify the build without opening the release page.
+2. **Scope:** the asset NAME only. The release TAG keeps its
+   v<versionName>-android-debug.N form (D84/D89 unchanged — the tag
+   still carries the build sequence N, which the filename does not
+   need), the versionCode-bump rule is untouched, and the artifact
+   itself stays the same debug build with the pinned D85 certificate.
+   D98 (every release carries the APK) is unchanged — this ruling
+   names what D98 attaches.
+3. **First application:** v1.6.6-android-debug.8 (the M8-o build,
+   versionCode 7) — its APK asset is named v1.6.6-debug.apk, and
+   every release after it follows the form.
+4. Next decision ID: D100.

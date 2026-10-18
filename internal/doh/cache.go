@@ -80,6 +80,26 @@ func (c *cache) lookup(host string) lookupResult {
 	return lookupResult{state: stateMiss}
 }
 
+// invalidate drops a still-fresh success entry to stale (M8-o, the
+// dial-failure feedback loop): the caller dialed every address of the
+// cached set and none connected, so the set is suspect on this network
+// and the next lookup should re-query the servers instead of serving
+// the same set until TTL expiry. The stale window is kept — if the
+// servers then fail, the old answer is still served (R5). Negative
+// entries, already-expired entries and misses are untouched.
+func (c *cache) invalidate(host string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.m[host]
+	if !ok || e.negative != "" {
+		return
+	}
+	now := c.now()
+	if now.Before(e.expiresAt) {
+		e.expiresAt = now // fresh -> stale; staleUntil unchanged
+	}
+}
+
 func (c *cache) putSuccess(host string, ips []net.IP, ttl time.Duration) {
 	if ttl < config.DNSCacheMinTTL {
 		ttl = config.DNSCacheMinTTL

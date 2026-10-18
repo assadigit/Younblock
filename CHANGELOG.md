@@ -12,6 +12,40 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-18, later evening — M8-o; shipped in `v1.6.6-android-debug.8`, versionCode 7)
+
+- **Every video, not just the first: the per-video stall loop is
+  closed.** Ali's debug.7 round: the feed and UI stayed instant but
+  EVERY video took 1–2 minutes to start and re-buffered during
+  playback, while the Windows app on the same ISP was instant. The
+  M8-n racing dialer cannot help when the WHOLE address set of a
+  host is blackholed — each rr*.googlevideo.com hostname carries
+  the few addresses of one cache node, so one filtered node poisons
+  the entire set. The app retried every few seconds, every retry
+  re-dialed the same cached addresses and failed, and the DNS cache
+  (a 120 s minimum TTL) kept serving that suspect answer until it
+  rotated — the observed per-video wait, and (video URLs rotate rr
+  hostnames mid-play) the mid-play re-buffering. The fix (ADR-0014):
+  when a door dials every address of a host's answer set and none
+  connect, the cached answer is demoted to stale immediately — the
+  app's NEXT retry fetches a fresh answer from the DNS servers
+  (serve-stale preserved: if the servers then fail, the old answer
+  still serves). The resolver's own bootstrap dial now also races
+  its addresses (~0.75 s failover instead of a full 3 s per dead
+  bootstrap). One mechanism, wired identically on the browser doors
+  and the Android SOCKS5 door. Host-proven by seven new tests; the
+  on-device confirmation rides Ali's debug.8 round (doc 10's circle
+  row 3 stays open until then).
+
+### Changed (release process — D99, 2026-10-18)
+
+- **The release APK is now named with the version.** From
+  `v1.6.6-android-debug.8` on, the APK asset on every release page
+  carries the version name — `v1.6.6-debug.apk` — per Ali's ruling,
+  so the build is identifiable without opening the release page.
+  D98 (every release carries the APK) is unchanged; this names what
+  it attaches.
+
 ### Fixed (2026-10-18, evening — M8-n; shipped in `v1.6.6-android-debug.7`, versionCode 6)
 
 - **Video start on Android no longer waits minutes on the first

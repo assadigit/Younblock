@@ -215,6 +215,26 @@ func (r *Resolver) fragmentData() (fragment.Preset, fragment.Config) {
 	return r.fragPreset, r.fragConfig
 }
 
+// Invalidate drops a host's still-fresh cached answer to stale (M8-o,
+// ADR-0014 — the dial-failure feedback loop). The proxy calls this when
+// it dialed every address of the cached set and none connected: on a
+// filtered network that answer set is suspect, and the client's next
+// retry should get a fresh server answer, not the same set until TTL
+// expiry (the 120 s minimum TTL otherwise turns one bad answer into a
+// minutes-long retry loop — the rr*.googlevideo.com hostnames map to
+// few addresses of one cache node each, so a filtered node poisons the
+// whole set). Serve-stale is preserved: if the servers then fail, the
+// old answer is still better than nothing. IP literals and negatives
+// are no-ops (literals are never cached; negatives already re-query at
+// their own short expiry).
+func (r *Resolver) Invalidate(host string) {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if host == "" || net.ParseIP(host) != nil {
+		return
+	}
+	r.cache.invalidate(host)
+}
+
 // Reset clears the cache and the sticky server (used when the network
 // changes; file 03, R19).
 func (r *Resolver) Reset() {
@@ -449,23 +469,15 @@ func (r *Resolver) dialBootstrap(ctx context.Context, network, addr string) (net
 		return nil, fmt.Errorf("server has no valid bootstrap addresses")
 	}
 	d := netx.New(r.cfg.Timeout, r.cfg.Timeout, r.cfg.Control)
-	// Try every bootstrap IP in order.
-	var lastErr error
-	for _, ip := range ips {
-		if ctx.Err() != nil {
-			break
-		}
-		conn, err := d.DialIP(ctx, network, ip, port)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		return fragment.NewConn(conn, r.cfg.FragmentPreset, r.cfg.FragmentConfig, r.cfg.RNG), nil
+	// Race the bootstrap IPs Happy-Eyeballs-style (ADR-0013's dialer,
+	// M8-o): a filtered network that blackholes the front bootstrap
+	// silently must not cost a full Timeout before the next IP — the
+	// same reasoning as the door's DialHost, on the resolver's own path.
+	conn, err := d.DialHost(ctx, network, host, port, ips)
+	if err != nil {
+		return nil, err
 	}
-	if lastErr == nil {
-		lastErr = ctx.Err()
-	}
-	return nil, lastErr
+	return fragment.NewConn(conn, r.cfg.FragmentPreset, r.cfg.FragmentConfig, r.cfg.RNG), nil
 }
 
 // codeFor maps an error to its UI code string.
