@@ -41,7 +41,55 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.11 — the false "Couldn't fix it" fixed: the heal sweep probes from zero (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.12 — the first-byte budget: silent origins fail fast (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 11, built at the M8-s commit, the
+pinned debug certificate — **installs directly over debug.11** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED with the version (**v1.6.6-debug.apk**, per
+D99). This is the round your SECOND diagnostics report built: it
+proved the debug.11 fixes on-device (state on, a sweep that found
+its method) and exposed the remaining stall's exact shape
+(ADR-0018).
+
+1. **What was wrong (read from YOUR report, not guessed):** every
+   video start still lagged, but your report told us WHY it waits:
+   at each video start the app opens a handful of parallel
+   connections; in your log, some of them complete in half a second
+   while others connect fine, send the ~1.7 KB TLS hello, and then
+   never receive ONE byte back — the origin (or the path to it)
+   stays silent. Some of those silent flows get reset in ~0.5 s
+   (fine — the app retries immediately), but the rest hang for
+   EXACTLY ~60 s with zero bytes down. We read that number back
+   against the engine line by line: nothing in the engine closes a
+   flow at 60 s (its own quiet-close timer is 300 s) — the ~60 s is
+   the YouTube app's own patience, and our engine was holding the
+   dead flow open the whole time, and worse: because the connection
+   SUCCEEDED, the engine kept trusting that server's address set,
+   so every retry could land on the same dead server until the
+   address cache expired.
+2. **What changed (ADR-0018, host-proven — reproduced exactly, then
+   fixed):** a processed host's origin must now answer within 8
+   seconds of the app's first message, or the flow fails FAST —
+   both ends closed immediately (your app sees the reset and
+   retries at once, exactly like it already retries the ~0.5 s
+   resets), the failure is counted and logged with its reason
+   ("tunnel first-byte failed reason=timeout/reset/closed"), and
+   the server's address set is demoted — the next lookup re-asks
+   the DNS servers instead of serving the same suspect set. 8 s is
+   >12x the slowest healthy first byte in your report (619 ms), so
+   a healthy origin never trips it; a silent one now costs 8 s
+   instead of 60. Everything NOT on the unblock list keeps the old
+   behavior byte-for-byte.
+3. **What to verify on the phone:** video starts should open in
+   seconds instead of "after a while" — and when one still stalls,
+   menu → Diagnostics (first row) → Copy → paste it here: the
+   report should now carry "tunnel first-byte failed reason=…"
+   lines and done lines like "dur=~8000ms down=0 B" — that is the
+   tuning evidence for the budget (and the material for the method
+   question below).
+
+## 1a. v1.6.6-android-debug.11 — the false "Couldn't fix it" fixed: the heal sweep probes from zero (SHIPPED — a regular release, superseded by debug.12: its round produced the second pasted report, which debug.12 acts on)
 
 **What this build is:** versionCode 10, built at the M8-r commit, the
 pinned debug certificate — **installs directly over debug.10** in
@@ -624,6 +672,39 @@ remove the Last-session line).**
    reason=timeout (filtered) or reason=network (transient) — and do
    the stalled flows correlate with specific cache nodes? No
    steering or policy change is made without Ali's ruling.**
+   **THE SECOND REPORT ARRIVED (debug.11, 2026-10-18/19, M8-s): Ali
+   pasted it with the round's key observation — "the problem
+   persists, but when after a while, video plays, it can be easily
+   rewinded and go next, which means the speed is okay, the routing
+   is okay... only the problem is each video starting to play which
+   lags considerably. IN pc, it's instant." The report PROVED the
+   M8-r fixes on-device (state on, a sweep that found strong 3 s in,
+   the startup DoH blip still logging its three baked
+   reason=DNS_UNREACHABLE lines and self-healing — the sharpened
+   question answered: a transient at Start, not a filter) and gave
+   the stall its exact shape: video-start waves where some flows
+   complete (first-byte 56-619 ms) while others dial fine, send the
+   ~1.7 KB hello, and never receive one byte — ~0.5 s closes
+   (origin reset) and EXACTLY ~60.0 s hangs, all with down=0 B.
+   Nothing in the engine closes at 60 s (the idle timeout is 300 s,
+   the TUN keepalive only probes) — that closer is the app's own
+   patience, amplified by an engine that held the dead flow open;
+   and because the dial SUCCEEDED, the M8-o demotion never fired, so
+   the suspect address set stayed fresh for every retry. Fixed in
+   debug.12 (ADR-0018, the first-byte budget: silent origins fail
+   fast at 8 s, the reason lands in the report, and the suspect set
+   is demoted like a total dial failure). The row STAYS OPEN for
+   the debug.12 device confirmation with a SHARPENED question — and
+   one for ALI himself (D102 material, his ruling, not our code):
+   the sweep picks the method from its redirector.googlevideo.com
+   probe, but the media flows hit rr*.googlevideo.com cache nodes
+   whose tolerance differs per node — this report ran method strong
+   while his PC is instant on the same network. Should the engine
+   retry a dead routed flow once with the NEXT preset
+   (balanced→strong→light→legacy, per-flow method variation)?
+   That is a method-policy change: no steering without his ruling.
+   The next report's expected shape: "tunnel first-byte failed
+   reason=…" lines and dur≈8000ms down=0 B dones.
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

@@ -144,6 +144,7 @@ func newTestServer(t *testing.T, mutate func(*Config)) (*Server, *stats.Counters
 		MaxConns:           64,
 		RequestTimeout:     2 * time.Second,
 		FirstRecordTimeout: 2 * time.Second,
+		FirstByteTimeout:   2 * time.Second,
 		IdleTimeout:        5 * time.Second,
 		MaxHeaderBytes:     config.MaxHeaderBytes,
 		Resolver:           staticResolver{ips: []net.IP{net.ParseIP("127.0.0.1")}},

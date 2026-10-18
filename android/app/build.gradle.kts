@@ -20,20 +20,23 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 10: the M8-r build (the debug.10 report round). Ali's
-        // first pasted diagnostic report exposed the negative-cache ×
-        // heal-sweep deadlock: the QuickCheck's dns failure cached the
-        // sweep's own probe name, every method's youtube step then failed
-        // instantly on the negative entry, and a recovered network was
-        // still declared "no working method" (degraded + "Couldn't fix it"
-        // notification, method dragged to legacy). This build resets the
-        // resolver when a sweep starts, restores the previous method when
-        // a sweep finds nothing, and bakes the DNS failure reasons into
-        // the log lines the report carries (server=#N reason=…). Installs
-        // over debug.10 (same pinned debug certificate — D85). The D84
-        // rule: every debug build bumps this. D99: the APK asset carries
-        // the version name (v1.6.6-debug.apk).
-        versionCode = 10
+        // versionCode 11: the M8-s build (the debug.11 report round). Ali's
+        // second pasted diagnostic report proved the M8-r fixes on-device
+        // (state on, a sweep that finds its method) and exposed the
+        // remaining stall's true shape: video-start waves where some
+        // flows complete in ~0.5 s while others dial fine, send the
+        // ~1.7 KB ClientHello, and never receive one byte — held open
+        // until the app's own ~60 s patience closes them. This build adds
+        // the first-byte budget (ADR-0018): a processed host's origin
+        // must answer within 8 s of the first record or the flow fails
+        // fast (both ends closed, the client retries immediately, the
+        // reason baked into a "tunnel first-byte failed reason=…" line,
+        // and the host's cached answer set demoted exactly like a total
+        // dial failure — the M8-o loop extended to silent origins).
+        // Installs over debug.11 (same pinned debug certificate — D85).
+        // The D84 rule: every debug build bumps this. D99: the APK asset
+        // carries the version name (v1.6.6-debug.apk).
+        versionCode = 11
         versionName = "1.6.6"
     }
 

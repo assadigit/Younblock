@@ -1385,3 +1385,91 @@ D-number — no ruling landed, D102 stays reserved for Ali).
   failure reasons (the missing stall-row evidence) and row 3's
   sharpened question: reason=timeout vs reason=network on the
   startup blip.
+
+
+### M8-s — the second pasted report acted on: the first-byte budget (2026-10-18/19)
+
+M8-s record (2026-10-18/19; the FIFTEENTH feedback-loop exchange — the
+debug.11 device round, Task ID M8-s, ADR-0018; no new D-number — no
+ruling landed, D102 stays reserved for Ali, and the round SURFACED the
+method-policy question for him: see the end of this record).
+
+- **The round's input:** Ali's SECOND pasted diagnostics report (the
+  M8-r evidence loop, working): "the problem persists, but when after
+  a while, video plays, it can be easily rewinded and go next, which
+  means the speed is okay, the routing is okay... only the problem is
+  each video starting to play which lags considerably. IN pc, it's
+  instant." + the full report — build identity versionCode 10 (the
+  debug.11 APK), state on, method strong, response time 726 ms,
+  dns ok 60 / fail 4, tun active flows=27 doorFailures=2
+  udpDropped=82, and 124 log lines that read back against the code
+  exactly (the reconstruction is in ADR-0018's Context): the M8-r
+  fixes PROVEN on-device (the sweep found strong 3 s in; the startup
+  blip still logging its three baked
+  `dns server failed server=#N reason=DNS_UNREACHABLE` lines and
+  self-healing — the sharpened question answered: a transient, not a
+  filter); the stall re-observed with its exact shape — video-start
+  waves where some flows complete (first-byte 56-619 ms) while others
+  dial fine, send the ~1.7 KB hello, and never receive one byte:
+  ~0.5 s closes with `down=0 B` (origin reset) and EXACTLY ~60.0 s
+  hangs with `down=0 B` (silent blackhole; nothing in the engine
+  closes at 60 s — IdleTimeout is 300 s, the TUN keepalive only
+  probes — the ~60 s closer is the app's own patience, and the engine
+  amplified it by holding the flow open; and because the dial
+  SUCCEEDED, the M8-o Invalidate never fired, so the suspect answer
+  set stayed fresh and every retry wave could land on the same dead
+  node until TTL expiry).
+- **The host reproduction IS the proof:** the two new tests in
+  internal/proxy/firstbyte_test.go, verified BOTH WAYS — with the
+  tunnel.go restructure stashed (the pre-M8-s relay),
+  `TestFirstByteTimeoutFailsSilentRoutedTunnelFast` FAILS at ~5.0 s
+  (the silent processed flow hangs to the idle timeout; the device's
+  60 s signature compressed) and
+  `TestFirstByteFailureInvalidatesSuspectSet` FAILS (no demotion on a
+  connect-but-never-speak origin); with the fix both PASS (~250 ms
+  close, the `tunnel first-byte failed reason=timeout` line, the done
+  line `down=0 B`, the demotion recorded). The two guards
+  (`TestFirstByteBudgetSparesUnroutedHosts`,
+  `TestFirstByteWithinBudgetFlowsNormally`) pass both ways, as guards
+  must.
+- **The changes (ADR-0018):** `FirstByteTimeout = 8 s`
+  (internal/config, the CONFIGURATION block); the proxy Config gains
+  the field (zero = the default, negative = disabled); the engine
+  wires it; tunnel.go's relay splits into two shapes — the budgeted
+  processed-host shape (the origin's first byte under the deadline;
+  silent = fail fast, both ends closed, the error counted, the reason
+  baked into the message, and the host's cached answer set demoted
+  exactly like a total dial failure — the M8-o loop extended to
+  silent origins) and the plain two-goroutine shape every other
+  tunnel keeps byte-for-byte; `firstByteReason` maps timeout /
+  closed / reset (the OS reset string carries addresses before its
+  first colon, so it is matched directly).
+- **Baseline, all green:** frontend untouched this round (the
+  committed dist verified intact; the frontend tree clean); go vet
+  clean; go test 18/18 x2; GOOS=windows exit 0; the Android compile
+  matrix in its exact form (arm64 full tree + the non-main set 4/4
+  ABIs, CGO_ENABLED=0, -mod=vendor); disk managed (the Go build cache
+  cleared before the bind).
+- **The build lane:** versionCode 10 -> 11 (the D84 rule); the full
+  `./build-android.sh` lane (run detached, the double-fork setsid
+  pattern); the AAR's embedded engine VERIFIED to carry the new
+  strings ("tunnel first-byte failed" inside libgojni.so); the
+  app-debug.apk **35,076,497 B**, SHA-256 **ce25f9cdd9a103f26a1286
+  1c21c989e0ecb451a2dfe9dd2251bc421beeab261c**; badging versionCode
+  11 / versionName 1.6.6 / minSdk 26 / targetSdk 36; apksigner OK —
+  the pinned debug certificate c76bb7c6...8551d (installs over
+  debug.11 in place).
+- **The release lane:** v1.6.6-android-debug.12 at the pushed full
+  SHA (regular, D89, Latest), the APK asset uploaded AS
+  v1.6.6-debug.apk (D99), served bytes re-verified through the API.
+- **The question surfaced for Ali (D102 material, NOT decided):**
+  the sweep picks the method from its redirector.googlevideo.com
+  probe, but the media flows hit rr*.googlevideo.com cache nodes
+  whose tolerance differs per node — this report ran method strong
+  while his PC is instant on the same network. Whether the engine
+  should retry a dead routed flow once with the NEXT preset in
+  HealSweepOrder (per-flow method variation) is a METHOD POLICY
+  change: his ruling, not this round's code. The next report is
+  expected to carry `tunnel first-byte failed reason=...` lines and
+  `dur=~8000ms down=0 B` dones — the tuning evidence for the budget
+  and the material for that ruling.

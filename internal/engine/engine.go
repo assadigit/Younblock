@@ -419,6 +419,7 @@ func (e *Engine) startListener() error {
 		MaxConns:           config.MaxConcurrentConnections,
 		RequestTimeout:     config.RequestReadTimeout,
 		FirstRecordTimeout: config.FirstRecordReadTimeout,
+		FirstByteTimeout:   config.FirstByteTimeout,
 		IdleTimeout:        idle,
 		MaxHeaderBytes:     config.MaxHeaderBytes,
 		Resolver:           e.resolver.Load(),

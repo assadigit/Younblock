@@ -3198,3 +3198,38 @@ apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 10 /
 versionName 1.6.6. Released v1.6.6-android-debug.11 (regular,
 Latest) with the APK asset named v1.6.6-debug.apk (D99), served
 bytes re-verified. Next Task ID: M8-s. Next decision: D102.
+
+
+## M8-s — the second pasted report acted on: the first-byte budget (ADR-0018) — 2026-10-18/19
+
+Ali's debug.11 round: "the problem persists, but when after a while,
+video plays... IN pc, it's instant" + the SECOND pasted diagnostics
+report (versionCode 10, state on, method strong). The M8-r fixes
+proven on-device (the sweep found its method 3 s in; the startup DoH
+blip logged its baked reason=DNS_UNREACHABLE lines and self-healed —
+the sharpened question answered: a transient, not a filter). The
+stall re-observed with its exact shape: video-start waves where some
+flows complete (first-byte 56-619 ms) while others dial fine, send
+the ~1.7 KB hello, and never receive one byte — ~0.5 s closes and
+EXACTLY ~60.0 s hangs, all down=0 B. Nothing in the engine closes at
+60 s (idle 300 s; the TUN keepalive only probes) — the app's own
+patience, amplified by an engine holding the dead flow open, with
+the M8-o demotion never firing because the dial SUCCEEDED.
+
+Fixed in debug.12 (versionCode 11, ADR-0018): FirstByteTimeout = 8 s
+on processed hosts — silent origins fail the flow fast (both ends
+closed, the client retries immediately, "tunnel first-byte failed
+reason=..." lands in the report, and the suspect answer set is
+demoted like a total dial failure). Unrouted relays keep the plain
+shape byte-for-byte. Both-ways proof: the two new
+firstbyte_test.go tests FAIL at ~5.0 s with the fix stashed (the
+device's 60 s signature compressed) and PASS with it.
+
+The question surfaced for Ali (D102 material, his ruling, NOT
+decided): the sweep picks the method from its
+redirector.googlevideo.com probe while the media flows hit
+rr*.googlevideo.com nodes whose tolerance differs per node (method
+strong on the phone, PC instant) — should the engine retry a dead
+routed flow once with the NEXT preset? No steering without his
+ruling. Next: M8-t expects the debug.12 report with
+reason=/dur≈8000ms evidence.

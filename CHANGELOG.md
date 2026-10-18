@@ -12,6 +12,37 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-18/19 — M8-s; shipped in `v1.6.6-android-debug.12`, versionCode 11)
+
+- **The per-video start wait: silent origins now fail fast instead
+  of hanging to the app's own ~60 s patience.** Ali's second pasted
+  diagnostics report (debug.11) proved the previous round's fixes
+  on-device (state on, a heal sweep that found its method) and gave
+  the remaining stall its exact shape: at each video start the app
+  opens a wave of parallel connections; some complete in ~0.5 s
+  while others connect fine, send the ~1.7 KB TLS hello, and never
+  receive one byte — the quick ones get reset (~0.5 s, `down=0 B`),
+  the rest hang for EXACTLY ~60 s (`down=0 B`). Read back against
+  the engine: nothing in it closes a flow at 60 s (the relay idle
+  timeout is 300 s; the TUN keepalive only probes) — that closer is
+  the app's own patience, and the engine amplified it by holding
+  the dead flow open; and because the dial SUCCEEDED, the DNS
+  demotion loop (M8-o) never fired, so the suspect address set
+  stayed fresh and every retry wave could land on the same dead
+  node. **A processed host's origin must now answer within 8
+  seconds** of the app's first message (FirstByteTimeout; >12x the
+  worst healthy first byte observed, 619 ms), or the flow fails
+  fast: both ends closed immediately (the client sees the reset and
+  retries at once, as it already retries the ~0.5 s resets), the
+  failure is counted, the reason lands in the report's log
+  (`tunnel first-byte failed reason=timeout|reset|closed`), and the
+  host's cached answer set is demoted exactly like a total dial
+  failure — the M8-o loop extended to origins that connect but
+  never speak. Everything not on the unblock list keeps the old
+  relay behavior byte-for-byte. Host-proven both ways: with the
+  fix reverted, the new tests fail at ~5.0 s into the report's
+  exact signature; with it, the flow closes in ~250 ms (ADR-0018).
+
 ### Fixed (2026-10-18, late night — M8-r; shipped in `v1.6.6-android-debug.11`, versionCode 10)
 
 - **The false "Couldn't fix it": the heal sweep no longer poisons

@@ -60,8 +60,13 @@ type Config struct {
 
 	RequestTimeout     time.Duration
 	FirstRecordTimeout time.Duration
-	IdleTimeout        time.Duration
-	MaxHeaderBytes     int64
+	// FirstByteTimeout bounds the origin's silence after the first
+	// record was written upstream, for processed (routed) hosts only
+	// (M8-s, ADR-0018). Zero → the config default; negative → disabled
+	// (the plain copy shape, every tunnel's behavior before M8-s).
+	FirstByteTimeout time.Duration
+	IdleTimeout      time.Duration
+	MaxHeaderBytes   int64
 
 	Resolver           Resolver
 	Dialer             *netx.Dialer
@@ -113,6 +118,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.FirstRecordTimeout <= 0 {
 		cfg.FirstRecordTimeout = config.FirstRecordReadTimeout
+	}
+	if cfg.FirstByteTimeout == 0 {
+		cfg.FirstByteTimeout = config.FirstByteTimeout
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = config.IdleTimeout

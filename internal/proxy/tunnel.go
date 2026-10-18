@@ -5,6 +5,7 @@ import (
         "fmt"
         "io"
         "net"
+        "strings"
         "sync"
         "sync/atomic"
         "time"
@@ -88,6 +89,11 @@ func putBuf(b *[]byte) { bufPool.Put(b) }
 // when this tunnel should be fragmented (in youtube mode only hosts on the
 // routed list — everything else is a plain relay; D46), then copies both
 // directions until both end (file 01, section 7 steps 5-6).
+//
+// M8-s (ADR-0018) adds the first-byte budget for processed hosts: after
+// the first record went upstream, the origin's first byte must arrive
+// within FirstByteTimeout or the flow fails fast (see
+// copyFirstByteBudgeted).
 // flowMeter counts one tunnel's own bytes so the close line can report
 // the flow's totals alongside the global counters (M8-j).
 type flowMeter struct {
@@ -121,6 +127,45 @@ func (s *Server) logTunnelFirstByte(host string, d time.Duration) {
                 msg += " host=" + host
         }
         s.cfg.Logger.Info(msg)
+}
+
+// logTunnelFirstByteFailed records a budgeted tunnel whose origin never
+// sent its first byte (M8-s, ADR-0018): the reason rides in the message
+// so the diagnostics report's log ring (which drops attrs — the M8-r
+// lesson) carries the failure kind.
+func (s *Server) logTunnelFirstByteFailed(host string, err error) {
+        if s.cfg.Logger == nil {
+                return
+        }
+        msg := "tunnel first-byte failed reason=" + firstByteReason(err)
+        if s.cfg.LogHostnames {
+                msg += " host=" + host
+        }
+        s.cfg.Logger.Warn(msg)
+}
+
+// firstByteReason reduces a first-read error to a short, hostless reason
+// (the report's ring keeps only the message). timeout / closed / reset
+// cover the observed silent-origin shapes; the OS reset string carries
+// socket addresses before its first colon, so it is matched directly.
+func firstByteReason(err error) string {
+        if err == nil {
+                return ""
+        }
+        if isTimeout(err) {
+                return "timeout"
+        }
+        if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+                return "closed"
+        }
+        msg := err.Error()
+        if strings.Contains(msg, "connection reset") {
+                return "reset"
+        }
+        if i := indexByte(msg, ':'); i > 0 {
+                return msg[:i]
+        }
+        return msg
 }
 
 // logTunnelDone records the flow's lifetime and its own byte totals —
@@ -179,6 +224,21 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
                 flow.up.Add(int64(len(first)))
         }
 
+        // Copy phase. A processed host with a first-byte budget runs the
+        // budgeted shape (ADR-0018); every other tunnel keeps the plain
+        // two-goroutine relay, byte-for-byte the pre-M8-s behavior.
+        if fragmentTLS && s.cfg.FirstByteTimeout > 0 {
+                s.copyFirstByteBudgeted(client, upstream, host, flow, tstart, logFirst, tcloser)
+                return
+        }
+        s.copyPlain(client, upstream, host, flow, tstart, logFirst)
+}
+
+// copyPlain is the original relay shape: both directions copy concurrently
+// from the start; the first downstream read fires onFirst (the first-byte
+// line). Every tunnel without a first-byte budget runs this — unrouted
+// relays and budget-disabled runs keep the pre-M8-s behavior exactly.
+func (s *Server) copyPlain(client *bufferedConn, upstream net.Conn, host string, flow *flowMeter, tstart time.Time, onFirst func()) {
         // Idle-wrapped ends for the copy phase.
         cIdle := &idleConn{Conn: client, timeout: s.cfg.IdleTimeout}
         uIdle := &idleConn{Conn: upstream, timeout: s.cfg.IdleTimeout}
@@ -190,7 +250,7 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
                 done <- struct{}{}
         }()
         go func() {
-                s.copyDir(uIdle, cIdle, false, flow, logFirst) // upstream -> client counts as down
+                s.copyDir(uIdle, cIdle, false, flow, onFirst) // upstream -> client counts as down
                 closeWrite(client.Conn)
                 done <- struct{}{}
         }()
@@ -198,6 +258,84 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
         <-done
         s.logTunnelDone(host, time.Since(tstart), flow)
 }
+
+// copyFirstByteBudgeted is the processed-host relay shape (M8-s,
+// ADR-0018): after the first record went upstream, the origin's first
+// byte must arrive within FirstByteTimeout. A silent origin — the second
+// pasted report's signature: a dial that completes, ~1.7 KB up, never
+// one byte down, previously held open until the app's own ~60 s
+// patience closed it — fails the flow FAST instead: both ends close
+// immediately (the client sees a reset and retries, as it already does
+// the ~0.5 s reset waves), the error is counted, the
+// "tunnel first-byte failed reason=..." line lands in the log ring with
+// the reason baked into the message (the ring drops attrs — M8-r), and
+// the host's cached answer set is demoted exactly like a total dial
+// failure (the M8-o loop): a set that connects but never speaks is
+// suspect on this network, so the next lookup re-queries the servers
+// instead of serving the same set until TTL expiry.
+//
+// Shape: the upstream (client -> origin) copy starts immediately, so a
+// chatty client is never blocked behind the budget; the main goroutine
+// reads the origin's first byte under the deadline, writes it to the
+// client, and only then starts the downstream copy — from the second
+// byte on, both directions are plain idle-relay again.
+func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, host string, flow *flowMeter, tstart time.Time, onFirst func(), tc *tunnelCloser) {
+        // Idle-wrapped ends for the copy phase.
+        cIdle := &idleConn{Conn: client, timeout: s.cfg.IdleTimeout}
+        uIdle := &idleConn{Conn: upstream, timeout: s.cfg.IdleTimeout}
+
+        done := make(chan struct{}, 2)
+        go func() {
+                s.copyDir(cIdle, uIdle, true, flow, nil) // client -> upstream counts as up
+                closeWrite(upstream)
+                done <- struct{}{}
+        }()
+
+        buf := getBuf()
+        upstream.SetReadDeadline(time.Now().Add(s.cfg.FirstByteTimeout))
+        n, rerr := upstream.Read(*buf)
+        upstream.SetReadDeadline(time.Time{})
+        if n == 0 && rerr != nil {
+                // Silent origin: fail the flow now, both ends at once. The in-flight
+                // upstream goroutine unwinds on the closed sockets and reports first,
+                // so the done line's byte totals are final; closeBoth is idempotent
+                // (runBidirectionalCopy's deferred pair becomes the no-op).
+                putBuf(buf)
+                tc.closeBoth()
+                <-done
+                s.countConnError()
+                s.invalidateDNS(host)
+                s.logTunnelFirstByteFailed(host, rerr)
+                s.logTunnelDone(host, time.Since(tstart), flow)
+                return
+        }
+        if n > 0 {
+                if err := writeFull(client, (*buf)[:n], s.cfg.IdleTimeout); err != nil {
+                        // The origin spoke but the client is gone: the flow died client-side;
+                        // no answer-set demotion (this is not a suspect-origin signal).
+                        putBuf(buf)
+                        tc.closeBoth()
+                        <-done
+                        s.countConnError()
+                        s.logTunnelDone(host, time.Since(tstart), flow)
+                        return
+                }
+                s.stats.AddBytesDown(int64(n))
+                flow.down.Add(int64(n))
+                onFirst()
+        }
+        putBuf(buf)
+
+        go func() {
+                s.copyDir(uIdle, cIdle, false, flow, nil) // upstream -> client counts as down
+                closeWrite(client.Conn)
+                done <- struct{}{}
+        }()
+        <-done
+        <-done
+        s.logTunnelDone(host, time.Since(tstart), flow)
+}
+
 
 // copyDir moves bytes one way, counting them globally and on the flow
 // meter; onFirst (when non-nil) fires once, on the first downstream read.

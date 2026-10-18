@@ -593,6 +593,94 @@ round)
   same poison in miniature — left as documented scope, the sweep is
   the automatic path that produced the report).
 
+## ADR-0018 — The first-byte budget: a processed host's silent origin
+fails the flow fast, and the suspect answer set is demoted (M8-s, the
+debug.11 report round)
+
+- **Status:** Accepted 2026-10-18/19 (M8-s — the SECOND pasted
+  diagnostics report; Ali's "the problem persists, but when after a
+  while, video plays" round).
+- **Context:** Ali's debug.11 report (versionCode 10) first PROVED the
+  M8-r fixes on-device: state on (not degraded), a heal sweep that
+  found a working method (strong) 3 s in, no false "Couldn't fix it",
+  the startup DoH blip still logging its three
+  `dns server failed server=#N reason=DNS_UNREACHABLE` lines (the
+  baked evidence working; ~170 ms each, self-healed — the M8-r
+  sharpened question answered: a transient at Start, not a
+  persistent bootstrap filter). The stall (row 3) re-observed with a
+  SHARPER signature: at each video start the app opens waves of
+  parallel tunnels; within one wave some flows complete (first-byte
+  56–619 ms, KBs down) while others never receive one byte at all —
+  some close in ~0.5 s with `down=0 B` (the origin reset right after
+  the fragmented hello), and the rest hang until EXACTLY ~60.0–60.1 s
+  with `down=0 B`. Read back against the code: NOTHING in the engine
+  ends a flow at 60 s (IdleTimeout is 300 s; the TUN keepalive idle is
+  60 s but it only probes and the phone kernel answers; every other
+  candidate is 5/6/8/10/12/30/35/120 s) — the ~60 s closer is the
+  app's own patience, and the engine AMPLIFIES it by holding the
+  silent flow open the whole time. Worse: because the dial SUCCEEDED,
+  the M8-o Invalidate loop (dial-failure feedback) never fires — the
+  suspect answer set stays fresh for its 120 s+ TTL and every retry
+  wave can keep landing on the same dead node. Ali's discriminators
+  (smooth after start, instant rewind/next, PC instant on the same
+  network) localize the defect to the first-byte phase of fresh
+  routed flows to specific cache nodes — the same per-node
+  interference the M8-r telemetry named, now with its exact shape.
+- **Decision:** A first-byte budget on processed (routed) tunnels
+  only — the same species as M8-n's handshake-budget fix and M8-o's
+  demotion (failure detection and answer-set hygiene, NOT steering):
+  after the first client record is written upstream, the origin's
+  first byte must arrive within `FirstByteTimeout` (8 s, >12x the
+  worst healthy first byte observed in either report; the constant
+  lives in the CONFIGURATION block). On expiry — or a reset/EOF with
+  zero bytes — the flow fails FAST: both ends close immediately (the
+  client sees a reset and retries, exactly as it already retries the
+  ~0.5 s reset waves ~1 s later), the error is counted, a
+  `tunnel first-byte failed reason=timeout|reset|closed` line lands
+  in the log ring with the reason baked into the MESSAGE (the M8-r
+  lesson — the ring drops attrs), and the host's cached answer set is
+  demoted exactly like a total dial failure: a set that connects but
+  never speaks is suspect on this network, so the next lookup
+  re-queries the servers instead of serving the same set until TTL
+  expiry. Unrouted relays (non-list hosts, .ir, plain-http forwards)
+  keep the plain two-goroutine copy shape byte-for-byte — the budget
+  is part of the app's processing of the hosts it processes (the D46
+  scoping), not of the relay. The value 8 s is a measurement-derived
+  default: it turns a silent flow's cost from the app's ~60 s into
+  8 s while never approaching a healthy origin's round trip.
+- **Evidence:** `TestFirstByteTimeoutFailsSilentRoutedTunnelFast` and
+  `TestFirstByteFailureInvalidatesSuspectSet` (new,
+  internal/proxy/firstbyte_test.go) both verified BOTH WAYS: with the
+  tunnel.go restructure stashed (the pre-M8-s relay), the silent
+  processed flow hangs to the idle timeout and FAILS the tests at
+  ~5.0 s (the report's 60 s signature compressed); with the fix, the
+  flow closes in ~250 ms, the reason line and the done line
+  (`down=0 B`) land, and the demotion is recorded.
+  `TestFirstByteBudgetSparesUnroutedHosts` and
+  `TestFirstByteWithinBudgetFlowsNormally` pin the no-regression
+  guards (they pass both ways, as guards must). Full baseline green:
+  go vet clean; 18/18 packages ×2; GOOS=windows exit 0; the Android
+  compile matrix 4/4 ABIs + arm64 full tree; the full
+  build-android.sh lane with the embedded engine verified in the AAR
+  ("tunnel first-byte failed" present in libgojni.so); the debug.12
+  APK artifact-verified (badging versionCode 11, apksigner pinned
+  cert, sha256 in doc 06).
+- **What this ADR does NOT decide:** the ORIGIN of the per-node
+  silence (why specific rr*.googlevideo.com cache nodes reset or
+  blackhole the fragmented hello while others answer — ISP-side, not
+  observable from the app; no third guess); any METHOD steering —
+  in particular whether a dead routed flow should be retried once
+  with the NEXT preset in HealSweepOrder (per-flow method variation):
+  the sweep picks the preset from its redirector.googlevideo.com
+  probe, but the media flows hit rr*.googlevideo.com nodes whose
+  tolerance differs per node — the report shows method strong while
+  Ali's PC is instant (possibly a different preset on the same
+  network). That is a POLICY change and stays Ali's ruling (D102
+  material, surfaced in doc 10 row 3); the QUIC drop policy
+  (ADR-0009 stands; udpDropped 82 and climbing keeps measuring); the
+  budget's value beyond this round (the next report's
+  `dur≈8000ms down=0 B` + reason lines are the tuning evidence).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives
