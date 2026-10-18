@@ -2932,3 +2932,40 @@ each with its recommendation marked as a recommendation. No device
 feedback arrived with the message (no repo issues, all states
 unchanged); the device round stays open exactly as before. Next
 decision: D97 ((a) and (c)–(g) remain open; D95/D96 are spent).
+
+A0-R3 (2026-10-18, the third exchange of the A0 day; docs only — no
+code, no release): Ali cancelled the account gate outright. His
+message — "You know I've decided to defer and cancel this auth
+version, only work on non-auth version. it doesnt worth this
+headache. cancel it altogether, no auth needed anymore." — was
+recorded verbatim as **D97** (cancellation, not deferral: the closing
+words govern). Younblock stays ONE free-for-all app: no login, no
+accounts, no auth server, no admin surface, no editions. D95
+(admin-only accounts) and D96 (the two-edition split) are superseded
+— kept as history, their subject no longer exists; every open auth
+question ((a), (c)–(f), (g1)–(g4)) closed as MOOT, never ruled on
+its merits; ADR-AUTH-0001 (doc 08) retired; the A1/A2/A3 ladder
+cancelled with those Task IDs. Nothing needed removing from the code
+because nothing was ever added (A0, A0-R2 and this round were all
+docs-only commits — the design-first rule held to the end); today's
+"no account, no data collection" claims stay literally true,
+permanently, and the privacy-copy change D94 anticipated never
+ships. Session actions, all docs: DECISIONS.md D97 (with its bounds:
+the cancellation governs the gate only — website, distribution,
+release-lane and public-release questions are untouched); docs/auth/
+bannered CANCELLED on all six files (full notice in 00, one-line
+banners in 01–05, bodies kept as history; 02 §6's Iran-reachability
+finding noted as a surviving network constraint for any future
+server-side feature); doc 07 §9's account-gate row closed as
+cancelled; doc 08's ADR-AUTH-0001 retired + the file Status line;
+doc 10's status block closing note + the D1–D97 range fix; doc 09's
+handoff fields rewritten (single workstream, next decision D98, A-
+series retired); doc 06's A0-R3 session record; README's docs-map
+line; CHANGELOG's Planned section rewritten as Cancelled;
+SESSION_HANDOFF_PROMPT.md rewritten for the M8-n-only next session.
+Verification: docs-only — `go vet ./...` on the untouched tree clean
+(exit 0) as the health check; no build/test/release lane applies; no
+release cut (D84/D89), versionCode stays 5, debug.6 stays Latest.
+No device feedback arrived with this message either; the device
+round (M8-n) stays the first workstream exactly as before. Next
+decision: D98.

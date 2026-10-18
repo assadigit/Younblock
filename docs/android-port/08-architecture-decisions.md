@@ -4,7 +4,9 @@
 constraints and are now backed by audit evidence; ADR-0003/0004/0005
 moved from Proposed to **Accepted** on 2026-10-16 with the evidence
 below; ADR-0008…0012 record the new decisions this phase produced;
-ADR-AUTH-0001 (2026-10-18) opens the auth lane from D94 ruling 1.
+ADR-AUTH-0001 (2026-10-18) opened the auth lane from D94 ruling 1 and
+was **RETIRED the same day by D97** (the gate cancelled before
+implementation — kept below as history).
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -207,12 +209,22 @@ circle of friends; Play is out of scope
 - **Consequence:** Play-specific compliance (FGS declaration review,
   Data Safety forms) is explicitly not blocking for v1.
 
-## ADR-AUTH-0001 — The account gate is engine-enforced (from D94 ruling 1)
+## ADR-AUTH-0001 — The account gate is engine-enforced (from D94 ruling 1) — RETIRED
 
-- **Status:** Accepted as the gate's architecture (D94, 2026-10-18);
-  elaborated in `docs/auth/02-architecture.md` (A0, 2026-10-18). The
-  implementing A-series re-verifies every seam claim against code
-  before any user-facing copy claims it (D77–D94 rule).
+- **Status:** **RETIRED (D97, 2026-10-18, A0-R3)** — Ali cancelled the
+  account gate before a line of it was built ("cancel it altogether,
+  no auth needed anymore"); the A1/A2 implementation ladder that
+  would have re-verified this ADR's seams is cancelled with it. The
+  ADR never governed shipped code (A0 built nothing — it was a design
+  decision for a future feature), so retirement changes nothing in
+  the product; it is kept below as the history of the cancelled
+  design, alongside the bannered `docs/auth/` pack. D95 and D96 are
+  superseded by the same ruling; all auth open questions closed as
+  moot. Originally: accepted as the gate's architecture (D94,
+  2026-10-18); elaborated in `docs/auth/02-architecture.md` (A0,
+  2026-10-18). The implementing A-series was to re-verify every seam
+  claim against code before any user-facing copy claimed it (D77–D94
+  rule) — that re-verification never ran and will never run.
 - **Context:** D94 opens the members-only lane; the gate must hold on
   every edition and cannot be a UI-layer promise.
 - **Decision:** the gate lives in the engine — `Engine.Start()` refuses

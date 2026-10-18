@@ -1,5 +1,11 @@
 # 05 — Security Review (A0)
 
+> ⛔ **CANCELLED — D97 (2026-10-18, A0-R3): the account gate will
+> never be built; the §6 privacy-copy change it drafted will never
+> ship — today's "no account, no data collection" claims stay
+> literally true, permanently. See `00-start-here.md` and
+> `DECISIONS.md` D97. Kept as history.**
+
 **Status:** draft for Ali's review; revised A0-R2 (2026-10-18): §2
 and §6 carry the two-edition addenda (D96). Per D94's own standard —
 auth is security-related, so this review names the gate's limitations

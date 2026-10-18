@@ -1,4 +1,4 @@
-# Prompt — Continue Younblock: the device-test feedback loop + the account-gate implementation lane (after the A0 spec round)
+# Prompt — Continue Younblock: the device-test feedback loop (after the auth lane was cancelled)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -6,77 +6,46 @@ starting fresh. Read this prompt fully, then act.
 Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL).
 
-## Where the project stands (verified at the A0 round close, 2026-10-18)
+## Where the project stands (verified at the A0-R3 close, 2026-10-18)
 
-- **Phase 2 is host-complete. M0–M8 are all done**, and the account-gate
-  lane now has its DESIGN: the six-document spec pack under `docs/auth/`
-  (delivered at A0, 2026-10-18), plus ADR-AUTH-0001 in doc 08 (the gate
-  is engine-enforced, from D94 ruling 1).
-- **A0 (2026-10-18): the account-gate spec round — delivered.** The
-  session ran it because NO device feedback had arrived (zero issues on
-  the repo, all states; none in the session messages). It produced
-  `docs/auth/00-start-here.md` (the consolidated six questions +
-  recommendations), `01-requirements.md` (AUTH-001…031), `02
-  -architecture.md` (the engine-level gate on the real seams: Platform/
-  Capabilities/StartGater D77/PlatformRefusalError D81; the typed-code
-  road NO_TARGET_APPS travels; capabilities gain `auth: true`), `03
-  -auth-protocol.md` (endpoints, token design, argon2id, brute-force),
-  `04-admin-and-operations.md` (CLI-first admin, lifecycle table,
-  backups), and `05-security-review.md` (the honest threat model + the
-  drafted privacy copy). **Nothing is built — no login code, no server,
-  no database exists anywhere.** The same session caught and fixed a
-  latent M4 defect: `mobile/nonblock_unix.go` had no build constraint,
-  so `GOOS=windows go build ./...` had NEVER compiled since M4 (the
-  scoped shell builds always did — that is what "the whole shell"
-  meant); one line (`//go:build unix`) fixed it; baseline re-verified
-  green after; no release followed (nothing app-facing changed).
-- **A0-R2 (2026-10-18, later the same day — docs only, no code): Ali
-  replied to the A0 wrap-up and the session recorded it.** His ruling
-  on (b) — "I create account - admin-only" — is **D95**: admin-only
-  creation, no open signup, no approval queue (the surface FORM stays
-  a recommendation riding (f)'s sibling). His new direction — "Also I
-  want two apk version, one with auth, one without (free for all)" —
-  is **D96**: the two-edition split (members carries the full gate;
-  free contains zero auth code and no server dependency; build-time
-  only — Go build tags + Gradle product flavors; the privacy copy
-  splits per edition and both copies disclose together at the first
-  split release). It opened **(g)** with sub-rulings g1–g4 (install
-  identity, distribution, scope, naming) — none a decision yet. His
-  hosting question (Cloudflare Workers / GitHub Pages / Vercel /
-  Netlify) is NOT a ruling; the honest platform matrix is in
-  `docs/auth/02` §6, and the recommendation stays the small always-on
-  host. The whole auth pack was revised in place with dated A0-R2
-  notes (00's table: b RULED, row g added; 01 §0 + new §6
-  AUTH-040…044; 02 §1/§6/§7; 03 §5; 04 §2; 05 §2/§6).
-- **The remaining open questions — each needs Ali's ruling before
-  A1/A2 starts; D97+ is reserved for them:**
-  (a) backend location — the platform matrix is in docs/auth/02 §6
-  (recommendation: a small always-on host; the strictly-$0
-  alternative is Cloudflare Workers + D1 with named trade-offs); (c)
-  fail-open vs fail-closed when the auth server is unreachable
-  (recommendation: fail-closed with a bounded offline grace, ~72 h);
-  (d) token/session design and expiry (recommendation: opaque
-  server-side session tokens, ~30-day sliding; open sub-item: single
-  active session per account);
-  (e) password storage parameters (recommendation: argon2id
-  m=64 MiB t=3 p=4 — now also rides (a): full strength presumes an
-  always-on host; serverless CPU budgets force a re-tune down);
-  (f) brute-force protection + the login form + the admin surface
-  form (recommendation: per-username and per-IP limits with
-  admin-clearable lockout; the form is the shared screen's signed-out
-  state; CLI first);
-  (g) the edition packaging — g1 side-by-side install (recommended:
-  an `.auth` applicationId suffix) vs one replacing package; g2
-  distribution channel per edition; g3 Android-only first
-  (recommended) vs desktop too; g4 the two names.
-  Recommendations are NOT decisions — never record one as if ruled.
+- **Phase 2 is host-complete. M0–M8 are all done.** The account-gate
+  lane ran its full design arc in one day and is now CLOSED: A0
+  delivered the six-document spec pack under `docs/auth/`, A0-R2
+  recorded Ali's rulings D95 (admin-only accounts) and D96 (the
+  two-edition direction), and **A0-R3 (2026-10-18, the third exchange
+  of the day) CANCELLED the whole feature as D97** — his words: "You
+  know I've decided to defer and cancel this auth version, only work
+  on non-auth version. it doesnt worth this headache. cancel it
+  altogether, no auth needed anymore."
+- **What D97 means (read it in full in DECISIONS.md before doing
+  anything):** Younblock stays ONE free-for-all app — no login, no
+  accounts, no auth server, no admin surface, no editions, no build
+  flavors. D95/D96 are superseded (history); every auth open question
+  — (a), (c)–(f), (g1)–(g4) — closed as MOOT, never ruled on its
+  merits; ADR-AUTH-0001 (doc 08) is RETIRED; the A1/A2/A3
+  implementation ladder is cancelled and those Task IDs are RETIRED —
+  do not open them. Nothing was ever built (design-first per D94 held
+  to the end), so nothing was removed: no login code, no server, no
+  database, no keys exist anywhere. Today's privacy claims — "no
+  account, no data collection" — stay literally true, permanently.
+  `docs/auth/` stays in the repo as the bannered (CANCELLED) design
+  record; its 02 §6 Iran-reachability finding stays on record as a
+  network constraint for any FUTURE server-side feature, not as an
+  auth plan. If Ali ever re-opens auth, a new decision supersedes
+  D97 and the pack must be revalidated against the then-current tree
+  before anything is trusted.
+- **What D97 does NOT decide:** the cancellation governs the gate
+  only. A public website, the APK distribution channel, the dormant
+  desktop release lane, and public-release engineering (release
+  signing, CI, update mechanism) are all still open questions —
+  none of them is cancelled, none of them is decided.
 - **The open slow-video defect and the device test circle are
-  unchanged** (the feedback loop stays the FIRST workstream):
-  1. **The slow-video defect** (video takes 30 s–1 min+ to start; feed
-     loads fast). Every host-level suspect is eliminated WITH EVIDENCE
-     (UDP/443 gets an instant ICMP port-unreachable — pinned by test;
-     the per-flow timing instrumentation ships in debug.5/6). The
-     missing input is **Ali's diagnostics report copied at a
+  unchanged** (the feedback loop is the ONE remaining workstream):
+  1. **The slow-video defect** (video takes 30 s–1 min+ to start;
+     feed loads fast). Every host-level suspect is eliminated WITH
+     EVIDENCE (UDP/443 gets an instant ICMP port-unreachable — pinned
+     by test; the per-flow timing instrumentation ships in debug.5/6).
+     The missing input is **Ali's diagnostics report copied at a
      slow-video moment** (Menu → Diagnostics → Copy) + phone model +
      Android version + whether every video or only the first after
      connecting.
@@ -102,9 +71,7 @@ working clone carries the credential in its `origin` remote URL).
   disagrees with the repository, **the repository wins** — report the
   discrepancy instead of improvising.
 
-## The session's TWO workstreams
-
-### Workstream 1 — the device-test feedback loop (Task ID M8-n) — STILL FIRST
+## The session's ONE workstream — the device-test feedback loop (Task ID M8-n)
 
 For each issue Ali reports from `v1.6.6-android-debug.6` (device side)
 or his rebuilt desktop exe (the D93 close ruling):
@@ -138,42 +105,12 @@ or his rebuilt desktop exe (the D93 close ruling):
   `gomobile bind`; **clean** `assembleDebug`; artifact verification
   (sha256, apksigner, badging, manifest dump — doc 06's records);
   commit.
-- If feedback has NOT arrived when the session opens, do not block:
-  proceed to Workstream 2 and re-check for messages before any
-  release-cutting.
-
-### Workstream 2 — the account-gate IMPLEMENTATION lane (Task IDs A1, A2, …) — ONLY after the rulings
-
-A0 (the spec) is done, and A0-R2 recorded D95 (b ruled: admin-only)
-and D96 (the two-edition direction, OPEN (g) added). **A1 (the auth
-backend) may not start until Ali rules on the REMAINING questions —
-(a) and (c)–(f); A2 additionally needs (g)** — if the rulings have
-not arrived, this workstream stays closed and the session says so
-plainly. If they HAVE arrived: record them in DECISIONS.md first (from
-D97), update `docs/auth/00`'s table to mark them ruled, then
-implement per the pack, in the ladder it specifies:
-
-- **A1 — the backend**: a small self-hosted HTTPS service
-  (login/verify/refresh/logout + admin), the user DB (users/sessions/
-  audit per docs/auth/02 §4), the admin CLI (docs/auth/04 §2's
-  recommendation), host-tested end to end. Nothing deployed until Ali
-  has a location for it.
-- **A2 — the client engine gate**: the engine refusal (typed
-  AUTH_REQUIRED on the NO_TARGET_APPS road), the `auth: true`
-  capability, the auth client package + token file (never the
-  password), the signed-out state on the shared screen (D92), Android
-  login-before-consent ordering — desktop-first (host-testable),
-  then Android wiring.
-- **A3 — hardening + the privacy-copy change shipped together with
-  the gate** (never silently — D94 ruling 2; docs/auth/05 §6 is the
-  drafted copy; doc 07 §9's open row blocks that release until the
-  copy changes with it).
-- Each step: baseline green after it, scoped commits, evidence in
-  doc 06 / PROGRESS.md; the debug build that first carries app code
-  bumps versionCode and goes through the regular-release lane (D89).
-
-While implementing, keep the feedback loop alive (Workstream 1 takes
-priority whenever Ali's reports arrive).
+- If feedback has NOT arrived when the session opens, do not block
+  and do not guess: say so plainly and put the honest alternatives
+  to Ali — the desktop release lane (gap 3) or public-release
+  engineering (gap 4) — his pick, or a new feature direction if he
+  has one (recorded as a decision before any code, per the D94
+  pattern).
 
 ## First actions, in order
 
@@ -182,32 +119,27 @@ priority whenever Ali's reports arrive).
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
    finish; never overwrite. The feedback-round Task IDs run M8-n,
-   M8-o, … ; the account-gate lane runs A1, A2, … for implementation
-   (A0 the spec round and A0-R2 the ruling round are DONE). **The
-   next decision number is D97 — reserved for Ali's rulings on the
-   remaining open questions ((a), (c)–(g)); D95 and D96 are spent.**
+   M8-o, … **The auth lane's Task IDs (A1, A2, A3) are RETIRED —
+   cancelled with the feature at D97; never open them. The next
+   decision number is D98 — reserved for Ali's rulings; D94–D97 are
+   spent (D97 is the cancellation).**
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.6 edition + §"Device test circle"), doc 06 (the M8-c…M8-m +
-   A0 records), doc 08 + `DECISIONS.md` (D1–D96; the D94 entry is the
-   account-gate ruling, D95/D96 the A0-R2 rulings — read them in
-   full), `docs/auth/00-start-here.md`
-   (the six questions + where each is specified), and the tail of
-   `PROGRESS.md`.
+   A0/A0-R3 records), doc 08 + `DECISIONS.md` (D1–D97; **read D97 in
+   full** — it is the cancellation ruling and states its own bounds),
+   and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
-   `git status -sb`, `git log --oneline -3` (expect the A0-R2 docs
-   commit — the auth pack revision per D95/D96 — on top of the A0
-   commit on top of cf136aa). Preserve
+   `git status -sb`, `git log --oneline -3` (expect the A0-R3
+   docs-only commit — the auth cancellation — on top of the A0-R2
+   commit on top of the A0 commit). Preserve
    any uncommitted work; never reset it just to get a clean diff. If
    push is rejected (credential rotated), the session prompt carries a
    fresh token — update the `origin` remote URL with it.
 4. Check whether Ali's device-test feedback from debug.6 has arrived
-   (session messages), AND whether his rulings on the remaining open
-   questions ((a), (c)–(g)) have arrived. If device feedback is
-   present: Workstream 1 first. If the rulings are present: record
-   them (DECISIONS.md from D97) before any A1 code. If neither: say so
-   plainly; the honest options are the desktop release lane (gap 3)
-   or public-release engineering (gap 4) — ask Ali which, do not
-   guess.
+   (session messages). If yes: the feedback loop above, first issue
+   first. If no: say so plainly and offer the honest alternatives
+   (desktop release lane / public-release engineering / a new
+   direction he names) — do not guess, do not invent work.
 5. Make the desktop baseline GREEN before writing any code, in the
    D74 ORDER (a fresh clone fails the Go lanes until the frontend is
    built): `cd frontend && npm ci`; `npx svelte-check` (0/0);
@@ -269,23 +201,20 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   force-push; no unrelated changes; **no secrets or RELEASE signing
   keys committed** (D85's deliberate exception: the debug test-circle
   keystore is vendored — the well-known debug identity, not a
-  credential; the exception does NOT extend to anything auth-related
-  — no auth secret ever lives in the repo); preserve Windows/Linux
-  desktop behavior (the full regression gate is part of every change
-  set).
+  credential); preserve Windows/Linux desktop behavior (the full
+  regression gate is part of every change set).
 - Do not assume Wails or desktop proxy semantics transfer to Android;
   the ADRs (doc 08) are the ground truth.
-- The honesty rules D77–D94 bind: the UI/release notes may only claim
+- The honesty rules D77–D97 bind: the UI/release notes may only claim
   what the engine actually enforces; privacy copy follows
-  implementation evidence; ⛔ gates are listed, never dropped. The
-  account gate doubles this discipline: auth is SECURITY — the spec
-  and its implementation must name their limits as plainly as their
-  features; no recommendation may be recorded as a ruling.
+  implementation evidence; ⛔ gates are listed, never dropped; no
+  recommendation may be recorded as a ruling; a cancellation is
+  recorded as exactly what it is (D97 is the pattern).
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D95, as
+  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D98, as
   rulings land), `CHANGELOG.md`; append the worklog entry (Task ID
-  M8-n / A1 / …); commit and push; cut the debug release with the
+  M8-n / M8-o / …); commit and push; cut the debug release with the
   bumped versionCode when APP code changed, and record the artifact.
 
 ## Required first response
@@ -294,8 +223,7 @@ Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
 from debug.6 has arrived, and if so the exact first issue you will
-address (Workstream 1); (5) whether his rulings on the remaining open
-questions ((a), (c)–(g)) have arrived — if yes, record them (D97+)
-before any A1 code; if no, say so plainly and pick up the honest
-alternative (the desktop release lane or public-release engineering —
-ask Ali which). Then execute.
+address; (5) confirmation that you have read D97 and will not touch
+the retired auth lane (docs/auth/ stays bannered history unless a
+future ruling re-opens it). If no feedback arrived, say so plainly
+and put the honest alternatives to Ali. Then execute.

@@ -1,8 +1,30 @@
 # Younblock Account Gate — Specification Pack (A0)
 
+> ## ⛔ CANCELLED — D97 (2026-10-18, the third exchange of the A0 day, A0-R3)
+>
+> Ali cancelled the account gate before a line of it was ever built:
+> "You know I've decided to defer and cancel this auth version, only
+> work on non-auth version. it doesnt worth this headache. cancel it
+> altogether, no auth needed anymore." Younblock stays ONE
+> free-for-all app — no login, no accounts, no auth server, no
+> editions. **D95 and D96 are superseded** (kept as history in
+> DECISIONS.md); every open question below — (a), (c)–(f) and (g1)–(g4)
+> — closed as MOOT, never ruled on its merits; **ADR-AUTH-0001
+> (doc 08) is retired**; the A1/A2/A3 implementation ladder is
+> cancelled and those Task IDs retire. The privacy claims the gate was
+> going to change ("no account, no data collection") stay literally
+> true, permanently. Nothing needs removing from the code because
+> nothing was ever added. This pack is kept below, unmodified below
+> this banner, as the design record of a feature that never existed in
+> code; if auth is ever re-opened, a new decision supersedes D97 and
+> the pack is revalidated against the then-current tree first. Full
+> ruling and its bounds: `DECISIONS.md` D97.
+
 **Repository:** <https://github.com/assadigit/Younblock>
 **Documentation location:** `docs/auth/`
-**Status:** A0 DRAFT — design-first per D94 (2026-10-18); delivered
+**Status:** **CANCELLED (D97, 2026-10-18, A0-R3) — see the banner
+above; everything below is the A0-R2 revision, kept as history.**
+A0 DRAFT — design-first per D94 (2026-10-18); delivered
 2026-10-18; **revised in place 2026-10-18 (second exchange, A0-R2)**
 after Ali's next message: question (b) is now RULED (D95), the
 two-edition direction is recorded (D96) and adds OPEN (g), and (a)

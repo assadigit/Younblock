@@ -1,11 +1,15 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the A0 round (2026-10-18, the
-account-gate spec session: the six-document design pack delivered
-under docs/auth/ per D94's design-before-code rule, plus one
+**Status:** Updated at the A0-R3 round (2026-10-18, the third
+exchange of the A0 day — **the account gate is CANCELLED, D97**:
+nothing of it was ever built and nothing ever will be; the
+`docs/auth/` pack stays as bannered history, ADR-AUTH-0001 is
+retired, D95/D96 are superseded, and Younblock stays one
+free-for-all app — no login, no server, no editions. Docs-only
+round: no code change, debug.6 stays Latest, no release was cut).
+Before that, the A0 round delivered the spec pack itself plus one
 two-line host-side fix — `GOOS=windows go build ./...` had never
-compiled since M4; nothing app-facing changed, debug.6 stays Latest,
-no release was cut) — **Phase 2 host-complete; the test circle
+compiled since M4 — **Phase 2 host-complete; the test circle
 is on its FIFTH build, published as regular releases in the
 private repo, and the keystore helper survives PowerShell-less
 PATH machines (D90)**. This file is the live handoff; keep the
@@ -96,49 +100,50 @@ boundary.
   debug.5 carried PLUS the D92 UI unification and the engine-traced
   data usage. The keystore ceremony is COMPLETE on Ali's machine
   (M8-i-b); all android releases are regular releases in the private
-  repo (D89). On top of the shipped state, the account-gate lane now
-  has its DESIGN: `docs/auth/` (A0) — nothing built; A1 (the auth
-  backend) and A2 (the client engine gate) run only after Ali rules
-  on the six questions (D95+); the privacy-copy change ships with
-  the gate, never silently (doc 07 §9's new open row carries it).
-  The A0 session also fixed `mobile/nonblock_unix.go`'s missing
-  `//go:build unix` (the M4 defect that kept `GOOS=windows go build
-  ./...` from ever compiling) — a host-side fix only; no Android
-  behavior change by construction (every android ABI is unix).
-- **Branch and commit:** `main`, the A0 commit (the auth spec pack
-  + the nonblock fix — see `git log -1` at handoff time) on top of
+  repo (D89). On top of the shipped state, the account-gate lane ran
+  its full design arc and is now CLOSED: A0 delivered `docs/auth/`
+  (nothing built), A0-R2 recorded D95 (admin-only accounts) and D96
+  (the two-edition direction), and **A0-R3 CANCELLED the whole
+  feature (D97, 2026-10-18) before a line of code existed — no
+  login, no server, no editions; the pack is kept as bannered
+  history; doc 07 §9's row is closed as cancelled; ADR-AUTH-0001
+  (doc 08) is retired.** The A0 session also fixed
+  `mobile/nonblock_unix.go`'s missing `//go:build unix` (the M4
+  defect that kept `GOOS=windows go build ./...` from ever
+  compiling) — a host-side fix only; no Android behavior change by
+  construction (every android ABI is unix).
+- **Branch and commit:** `main`, the A0-R3 commit (the auth
+  cancellation — docs only; see `git log -1` at handoff time) on
+  top of 6a7bce4 (A0-R2, the D95/D96 pack revision) on top of
+  60bfa13 (A0, the auth spec pack + the nonblock fix) on top of
   cf136aa (M8-m); worktree clean after the commit. The release tag
   `v1.6.6-android-debug.6` points at 078e3a5 (M8-k) and is the
   repo's Latest; debug.5 → ad02980, debug.4 → cb28507 (helper-only),
   debug.3 → 2a8b678 (the device-circle APK), debug.2 → 096e8c0,
   debug.1 → f61bfae (superseded; debug.1's page keeps the D85
   troubleshooting guide).
-- **Files changed this phase:** `docs/auth/` (the six new spec files
-  — the session's main output), doc 06 (the A0 session record),
-  doc 07 (§9's new open row + its closing paragraph), doc 08
-  (ADR-AUTH-0001 + the Status line), doc 09 (this update), doc 10
-  (the status note), PROGRESS.md, CHANGELOG.md (a Fixed line under
-  Unreleased + the Planned note), README.md (the docs map),
-  SESSION_HANDOFF_PROMPT.md (rewritten for the next session), and
-  ONE code file: `mobile/nonblock_unix.go` (+2 lines: the missing
-  `//go:build unix` constraint + the blank line). No release lane
-  ran — nothing app-facing changed; the D84/D89 discipline held.
-- **Tests run and actual results (this session, on the fixed tree):**
-  the environment was RESTORED from the fifth wipe first (toolchain
-  reinstalled per doc 06 §1; verified: go1.27.2, javac 21.0.12.1,
-  sdkmanager 12.0, gomobile help bind works). Then the full baseline:
-  `npm ci` → svelte-check **0 errors 0 warnings**; vite build clean
-  (✓ 3.99 s); the webui dist CLEAN-synced (D74 — the fresh clone
-  otherwise fails vet on main.go's embed pattern and mobile's
-  TestWebUILifecycle on the placeholder index: the documented
-  source-only-checkout state); `go vet ./...` clean; `go test
-  -count=1 ./...` **18/18 packages ok — three consecutive green
-  passes, zero FAIL lines**; gofmt clean on the touched file;
-  `GOOS=windows go build ./...` **exit 0 — first time since M4**
-  (the defect it exposed is fixed in this commit). The standing ⛔
-  re-confirmed as ever: no /dev/kvm, no device — the UI consistency
-  on Ali's actual devices and the video-start delay both wait for
-  his round.
+- **Files changed this phase (A0-R3, docs only):** `DECISIONS.md`
+  (D97 — the cancellation ruling, verbatim quote + supersession +
+  bounds), `docs/auth/` (the dated CANCELLED banner on all six
+  files; full notice in 00, one-line banners in 01–05; the pack
+  body text untouched), doc 06 (the A0-R3 session record), doc 07
+  (§9's account-gate row closed as cancelled + the closing
+  paragraph), doc 08 (ADR-AUTH-0001 RETIRED + the Status line),
+  doc 09 (this update), doc 10 (the A0-R3 status note + the D-range
+  fix), `README.md` (the docs-map line), `PROGRESS.md`,
+  `CHANGELOG.md` (the Planned section rewritten as cancelled), and
+  `SESSION_HANDOFF_PROMPT.md` (rewritten for the single-workstream
+  next session). ZERO code files — by construction nothing of the
+  gate ever existed to remove. No release lane ran — nothing
+  app-facing changed; the D84/D89 discipline held.
+- **Tests run and actual results (this session, A0-R3):** docs-only
+  round — no code file was touched, so no build/test lane applies;
+  `go vet ./...` run on the untouched tree as a health check: clean
+  (exit 0). The A0/A0-R2 baselines stand as their own evidence
+  (vet clean; 18/18 packages ok three consecutive passes at A0;
+  `GOOS=windows go build ./...` exit 0). The standing ⛔ re-confirmed
+  as ever: no /dev/kvm, no device — the UI consistency on Ali's
+  actual devices and the video-start delay both wait for his round.
 - **The environment is RESTORED and READY** (2026-10-18, A0 — the
   fifth wipe): ~/sdk carries Go 1.27.2, the Temurin JDK 21.0.12.1+1
   (javac), the Android SDK (cmdline-tools 12.0 via the versioned
@@ -148,46 +153,48 @@ boundary.
   build. If a future session finds ~/sdk wiped again, reinstall per
   doc 06 §1 (mind the URL wrinkle) — but VERIFY first; do not
   reinstall over a working toolchain.
-- **Current architecture decision / confidence:** ADR-AUTH-0001
-  (from D94 ruling 1: the gate is engine-enforced, every shell
-  inherits; elaborated in docs/auth/02). Confidence: high on the
-  architecture; the six open questions are NOT decided — backend
-  location, account creation, fail-open/closed, token design,
-  password parameters, brute-force form each need Ali's ruling
-  (D95+) before A1/A2 implement anything. D94's own framing stands:
-  the privacy-claim conflict is named, the copy changes the day the
-  gate ships, never silently. Next decision ID: D95.
+- **Current architecture decision / confidence:** the auth lane is
+  CLOSED — ADR-AUTH-0001 (doc 08) is RETIRED by D97 (2026-10-18,
+  A0-R3): the account gate was cancelled before implementation, so
+  no auth architecture exists or will exist; D94/D95/D96 remain as
+  history and `docs/auth/` as the bannered design record. The
+  live architecture decisions are the Android-port ADRs
+  (ADR-0001…0012, doc 08) — unchanged and evidence-backed. Next
+  decision ID: **D98**.
 - **Blocking questions:** none blocking the feedback loop. The
-  account-gate lane now waits on **Ali's six rulings** (docs/auth/00's
-  table: backend location; admin-only vs open signup; fail-open vs
-  fail-closed offline; token/session design; password storage;
-  brute-force protection + the login form) — they gate A1/A2, not
-  the device round. The standing inputs are **Ali's cross-device UI
-  check on debug.6** (does the phone now match his Windows/Linux
-  builds? the Data usage numbers sane?), the still-open
-  **diagnostics report from a slow-video moment** (the debug.5
-  timing lines name the phase; plus phone model + Android version +
-  every-video-or-first-only), and the rest of the test circle (rows
-  4–8, rotation/TalkBack). D93's desktop input stands: Ali rebuilds
-  the Windows exe and walks README's manual-check steps 4–5.
-- **Exact next task:** TWO workstreams, the feedback loop still
-  first. **(1) Task ID M8-n — ingest Ali's results from
-  v1.6.6-android-debug.6** (unchanged from the A0 handoff: the
-  cross-device UI verdict, the data-usage round, the slow-video
-  diagnostics report with phone model + Android version, the rest
-  of doc 10's circle, D93's desktop check on the rebuilt exe).
-  Root-cause what the evidence names; fix at the correct layer;
-  bump `versionCode` and cut `v1.6.6-android-debug.7` through the
-  same regular-release lane (D89) WHEN an app code change warrants
-  it — push the code commit BEFORE creating the release (the
-  full-SHA target_commitish 422s against an unpushed SHA).
-  **(2) Task ID A1 — the auth backend** — runs ONLY after Ali rules
-  on the six questions (D95+): a small self-hosted HTTPS service
-  (login/verify/refresh/logout + admin), the user DB, the admin
-  CLI, per docs/auth/02–04; A2 (the client engine gate) follows.
+  account-gate questions (backend location, account creation,
+  fail-open/closed, token design, password storage, brute-force
+  form, edition packaging) are all MOOT — cancelled with the
+  feature by D97, never ruled on their merits. The standing inputs
+  are **Ali's cross-device UI check on debug.6** (does the phone now
+  match his Windows/Linux builds? the Data usage numbers sane?), the
+  still-open **diagnostics report from a slow-video moment** (the
+  debug.5 timing lines name the phase; plus phone model + Android
+  version + every-video-or-first-only), and the rest of the test
+  circle (rows 4–8, rotation/TalkBack). D93's desktop input stands:
+  Ali rebuilds the Windows exe and walks README's manual-check
+  steps 4–5.
+- **Exact next task:** ONE workstream — the feedback loop. **Task ID
+  M8-n — ingest Ali's results from v1.6.6-android-debug.6**
+  (unchanged from the A0 handoff: the cross-device UI verdict, the
+  data-usage round, the slow-video diagnostics report with phone
+  model + Android version, the rest of doc 10's circle, D93's
+  desktop check on the rebuilt exe). Root-cause what the evidence
+  names; fix at the correct layer; bump `versionCode` and cut
+  `v1.6.6-android-debug.7` through the same regular-release lane
+  (D89) WHEN an app code change warrants it — push the code commit
+  BEFORE creating the release (the full-SHA target_commitish 422s
+  against an unpushed SHA). The A-series (A1 the backend, A2 the
+  client gate, A3 hardening) is CANCELLED with the feature (D97) —
+  those Task IDs are retired; do not open them unless a future Ali
+  ruling re-opens auth (which would supersede D97 and require
+  revalidating docs/auth/ against the then-current tree first).
   The environment is READY (verify with `. ~/sdk/env.sh && go
   version` first; expect wipes at any boundary and reinstall per
   doc 06 §1 + the URL wrinkle when they land). Open offer on the
   table, awaiting Ali's ruling: attaching the APK to every release
   page (relaxing D84's no-duplicate discipline) — do NOT do it
-  unilaterally.
+  unilaterally. The dormant alternatives when no feedback arrives:
+  the desktop release lane (nine rounds under CHANGELOG
+  "Unreleased") or public-release engineering — ask Ali which, do
+  not guess.

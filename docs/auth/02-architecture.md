@@ -1,5 +1,11 @@
 # 02 — Architecture (A0)
 
+> ⛔ **CANCELLED — D97 (2026-10-18, A0-R3): the account gate will
+> never be built; nothing below will be implemented. See
+> `00-start-here.md` and `DECISIONS.md` D97. Kept as history — §6's
+> Iran-reachability finding stays on record as a network constraint
+> for any future server-side feature.**
+
 **Status:** draft for Ali's review; revised A0-R2 (2026-10-18): §1
 qualified per D96, §6 expanded with the platform analysis Ali asked
 for (OPEN (a)), §7 added (the two-edition build, OPEN (g)). All

@@ -2112,3 +2112,65 @@ without (free for all)."
    (Members)") — needed before any copy is written. The Gradle-flavor
    + build-tag mechanism in (1) is the design recommendation,
    recorded as such.
+
+**D97 — the account gate is CANCELLED outright, before a line of it
+was ever built: Younblock stays ONE free-for-all app — no login, no
+accounts, no auth server, no editions (Ali's ruling, 2026-10-18, the
+third exchange of the A0 day — A0-R3).** "You know I've decided to
+defer and cancel this auth version, only work on non-auth version. it
+doesnt worth this headache. cancel it altogether, no auth needed
+anymore."
+
+1. **RECORDED as ruled — cancellation, not deferral.** The message
+   opens with "defer and cancel" and closes with "cancel it
+   altogether, no auth needed anymore"; the closing words govern.
+   Nothing of the gate will be built: no login page, no signed-out
+   state, no user database, no authentication server, no admin
+   surface, no invite codes — nothing of AUTH-001…044 (or any
+   successor requirement) gets implemented. The implementation ladder
+   A1/A2/A3 is cancelled and those Task IDs retire. The exclusivity
+   objective of D94 is abandoned with the feature, said plainly:
+   the app is free-for-all, and that is now the recorded product
+   direction, not an accident.
+2. **What it supersedes:** D95 (admin-only accounts) and D96 (the
+   two-edition split) are superseded — they remain in this file as
+   history, but their subject no longer exists; there will be no
+   members edition and no free edition, because there is only one
+   app, which was always the free one. OPEN questions (a), (c), (d),
+   (e), (f) and (g1)–(g4) all close as MOOT — cancelled by this
+   ruling, never ruled on their merits; no recommendation among them
+   is promoted to a decision. ADR-AUTH-0001 (doc 08) is RETIRED —
+   accepted once as the gate's architecture, now the record of a
+   design that will never be implemented. D94 stands as history: the
+   design lane it opened ran, delivered `docs/auth/`, and is now
+   closed by this cancellation.
+3. **What the product keeps, verbatim:** today's truthful-claims set
+   — "no account, no data collection" (doc 07 §1, doc 10 §2, the
+   in-app Privacy sheet, README) — was always literally true and now
+   stays so permanently; the copy change D94 anticipated (05 §6's
+   drafted account text) will never ship. Nothing needs removing
+   from the code because nothing was ever added: no login code, no
+   server, no database, no keys exist anywhere in the repository or
+   in production (the A0 state, carried forward verbatim through
+   A0-R2 and this round — verified by construction: both rounds were
+   docs-only commits).
+4. **What survives as record, marked CANCELLED:** `docs/auth/` stays
+   in the repository as the design record of a feature that was
+   specified, questioned, partially ruled on, and then cancelled
+   before implementation — every file carries a dated cancellation
+   banner (D97). The Iran-reachability finding in 02 §6 (any future
+   server-side feature must be reachable from Iranian ISPs as
+   ordinary HTTPS, and that is verifiable only in the field) stays
+   on record as a constraint, because it is true of the network, not
+   of this feature. If auth is ever re-opened, a NEW decision
+   supersedes this one, and the pack is revalidated against the
+   then-current tree before anything is trusted — it describes the
+   seams as of 6a7bce4, not of whatever the tree becomes.
+5. **What this does NOT decide (no silent narrowing, no silent
+   widening):** the cancellation governs the account gate only. It
+   is not a ruling on a public website or APK distribution channel,
+   on the dormant desktop release lane, on public-release
+   engineering (signing, CI, updates), or on any future feature —
+   those remain exactly as open (or dormant) as before this message.
+   The device-test feedback loop (M8-n and successors) is unaffected
+   and remains the first workstream. Next decision ID: D98.

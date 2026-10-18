@@ -967,3 +967,47 @@ DECISIONS.md is reserved for Ali's rulings, and no recommendation was
 recorded as if ruled. Next Task IDs: M8-n (the device round, still
 awaiting Ali's feedback) and A1 (the auth backend) — A1 runs only
 after the rulings. Next decision D95.
+
+### A0-R3 — the account gate CANCELLED before any code — 2026-10-18 (docs-only; no build, no release)
+
+The third exchange of the A0 day. Ali's message: "You know I've
+decided to defer and cancel this auth version, only work on non-auth
+version. it doesnt worth this headache. cancel it altogether, no auth
+needed anymore." — recorded verbatim as **D97**: the account gate is
+cancelled outright (the closing words govern: cancellation, not
+deferral). Younblock stays ONE free-for-all app: no login, no
+accounts, no auth server, no admin surface, no editions. D95 and D96
+are superseded (kept as history); every open auth question — (a),
+(c)–(f), (g1)–(g4) — closed as MOOT, never ruled on its merits;
+ADR-AUTH-0001 (doc 08) is RETIRED; the A1/A2/A3 implementation ladder
+is cancelled and those Task IDs retire.
+
+**Nothing needed removing from the code because nothing was ever
+added** — the design-first rule (D94) held all the way to the
+cancellation: no login code, no server, no database, no keys exist
+anywhere in the repository or in production (A0 and A0-R2 were both
+docs-only commits; this round is too). Today's privacy claims — "no
+account, no data collection" (doc 07 §1, doc 10 §2, the in-app
+Privacy sheet, README) — were always literally true and stay so
+permanently; the copy change D94 anticipated never ships.
+
+Session actions (all docs): D97 written in DECISIONS.md (verbatim
+quote, supersession, what survives, what it does NOT decide — the
+cancellation governs the gate only; website/distribution/release-lane
+questions stay untouched); `docs/auth/` bannered CANCELLED on all six
+files (full notice in 00, one-line banners in 01–05, body text kept
+as history; 02 §6's Iran-reachability finding noted as staying on
+record — it is a network constraint, not a feature property); doc 07
+§9's account-gate row closed as CANCELLED; doc 08's ADR-AUTH-0001
+retired; doc 10's status block carries the closing note; doc 09's
+handoff fields rewritten for the single remaining workstream;
+README's docs map updated; CHANGELOG's Planned section rewritten as
+cancelled; PROGRESS.md entry added; SESSION_HANDOFF_PROMPT.md
+rewritten for M8-n-only.
+
+Verification this round: docs-only, so no build/test lane applies;
+`go vet ./...` run on the untouched tree as a health check — clean
+(exit 0). No release cut (D84/D89: nothing app-facing changed);
+versionCode stays 5, `v1.6.6-android-debug.6` stays Latest. Next
+Task ID: M8-n (the device round — still awaiting Ali's feedback).
+Next decision: D98.

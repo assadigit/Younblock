@@ -7,7 +7,9 @@ missing `//go:build unix` on `mobile/nonblock_unix.go`, which had kept
 `GOOS=windows go build ./...` from ever compiling since M4; NO
 Android change, so `v1.6.6-android-debug.6` remains the CURRENT build,
 and the D93 close ruling still rides Ali's next rebuilt desktop exes /
-a future debug.7). This document now holds two things: §1 the
+a future debug.7). Updated again at A0-R3 (2026-10-18, the third
+exchange of the A0 day): **the account gate is CANCELLED (D97)** —
+see the closing note of this status block. This document now holds two things: §1 the
 **shipped** debug test-circle releases (`v1.6.6-android-debug.6` is
 the CURRENT build — a regular release in the private repo per D89,
 the same text lives on the GitHub release itself; beneath it:
@@ -17,13 +19,21 @@ on Ali's phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D94). The D94 announcement is recorded here
+01–09, DECISIONS.md D1–D97, of which D97 cancels the gate D94 had
+announced). The D94 announcement is recorded here
 for the release notes' future: when the account gate ships, the
 "no account, no data collection" line in §2's What-it-does-NOT
 section changes with it — disclosed at that release, never silently
 (today nothing of it exists: no login, no server, no database; the
 drafted replacement copy lives in docs/auth/05 §6, and doc 07 §9's
 open row blocks whichever release first carries the gate).
+**A0-R3 closing note (D97, 2026-10-18): the gate is CANCELLED — it
+will never ship, so none of that future ever happens. The "no
+account, no data collection" line in §2 stays verbatim PERMANENTLY;
+no release ever changes it for a gate; `docs/auth/` carries dated
+cancellation banners and stays as history; doc 07 §9's row is closed
+as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
+free-for-all app.**
 
 ## 1a. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, the CURRENT build)
 

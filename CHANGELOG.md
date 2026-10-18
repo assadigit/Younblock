@@ -12,37 +12,23 @@ every release are on the
 
 ## [Unreleased]
 
-### Planned (announced 2026-10-18 — design first, nothing built yet; revised the same day with Ali's first rulings)
+### Cancelled (the planned login gate — announced D94, cancelled D97 the same day; nothing was ever built)
 
-- **The app is becoming members-only: a login authorization gate is
-  planned (D94).** Members sign in with a Younblock account (username
-  and password) before they can connect. This brings a login page, a
-  small authentication backend with a user database, and an admin
-  surface for managing accounts. One truthful-claims change comes
-  with it and is being said now: the privacy copy today says "no
-  account, no data collection" — for the gated edition it changes to
-  say so at the release that ships it (the proxying itself stays
-  local and unchanged: no VPN server, no IP hiding, no added
-  encryption). The architecture spec has landed (2026-10-18, A0): the
-  six-document design pack under `docs/auth/`.
-- **Ali's first rulings on the open questions (2026-10-18, A0-R2):**
-  - **Admin-only accounts (D95):** Ali creates every account; there
-    is no open signup anywhere.
-  - **Two editions (D96):** Younblock will ship as two Android
-    editions — **members** (with the account gate) and **free** (no
-    gate, no account, no server — free for all, and it keeps working
-    even if the auth server is gone). The free edition keeps today's
-    privacy claims verbatim; the members edition ships the new
-    account copy. Both disclosed at the first release that ships the
-    split, never silently.
-- **Still open before anything is built** (each needs Ali's ruling,
-  recorded in DECISIONS.md D95+): (a) where the backend lives — he
-  asked about Cloudflare Workers / GitHub Pages / Vercel / Netlify;
-  the honest matrix is in `docs/auth/02` §6 (GitHub Pages can never
-  host a backend; Workers+D1 is the only single-vendor $0 path, with
-  named trade-offs; the recommendation stays a small always-on host);
-  (c)–(f) the protocol parameters; (g) the edition packaging details
-  (install identity, distribution, naming).
+- **The login authorization gate is cancelled (D97, 2026-10-18).**
+  The gate announced at D94 (members sign in with a Younblock
+  account before they can connect — a login page, a small
+  authentication backend with a user database, an admin surface for
+  accounts), ruled admin-only at D95 and split into members/free
+  editions at D96, was cancelled before a line of it existed:
+  "cancel it altogether, no auth needed anymore." Younblock stays
+  ONE free-for-all app: no account, no login, no server, no
+  editions. Nothing was ever built, so nothing is removed — the
+  design-first rule held to the end — and today's "no account, no
+  data collection" privacy claims stay literally true, permanently.
+  The six-document design pack survives under `docs/auth/` as the
+  bannered record of the cancelled feature; D95/D96 remain in
+  DECISIONS.md as superseded history; all auth open questions
+  closed as moot, never ruled on their merits.
 
 ### Fixed (host-side, 2026-10-18 — A0 session; no app-facing change, no new build)
 
