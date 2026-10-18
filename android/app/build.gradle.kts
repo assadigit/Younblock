@@ -20,23 +20,28 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 11: the M8-s build (the debug.11 report round). Ali's
-        // second pasted diagnostic report proved the M8-r fixes on-device
-        // (state on, a sweep that finds its method) and exposed the
-        // remaining stall's true shape: video-start waves where some
-        // flows complete in ~0.5 s while others dial fine, send the
-        // ~1.7 KB ClientHello, and never receive one byte — held open
-        // until the app's own ~60 s patience closes them. This build adds
-        // the first-byte budget (ADR-0018): a processed host's origin
-        // must answer within 8 s of the first record or the flow fails
-        // fast (both ends closed, the client retries immediately, the
-        // reason baked into a "tunnel first-byte failed reason=…" line,
-        // and the host's cached answer set demoted exactly like a total
-        // dial failure — the M8-o loop extended to silent origins).
-        // Installs over debug.11 (same pinned debug certificate — D85).
+        // versionCode 12: the M8-t build (the debug.12 report round). The
+        // third pasted diagnostic report proved the M8-s budget on-device
+        // ("tunnel first-byte failed reason=timeout" dones at ~8.3 s —
+        // the tuning evidence ADR-0018 asked for) and named the
+        // remaining per-video start lag: waves where roughly half the
+        // flows die at first byte (origin resets at ~0.5 s, the rest
+        // silent to the budget) while the app re-opens wave after wave.
+        // This build retunes FirstByteTimeout 8 s -> 2.5 s (every
+        // budget-killed flow was 100% silent; healthy routed origins
+        // answer in 420-508 ms, one 2399 ms outlier) and adds the
+        // salvage re-dial (ADR-0019): a dead first-byte origin is
+        // re-dialed INSIDE the same flow — same host, same preset, the
+        // client's buffered bytes replayed byte-exact — up to 2 times,
+        // so the app never sees the failure and its serial retry chain
+        // collapses into bounded in-engine attempts (per-flow preset
+        // variation stays D102, Ali's ruling, never code). New report
+        // lines: "tunnel first-byte retry reason=… attempt=N" and
+        // "tunnel first-byte salvaged dials=N".
+        // Installs over debug.12 (same pinned debug certificate — D85).
         // The D84 rule: every debug build bumps this. D99: the APK asset
         // carries the version name (v1.6.6-debug.apk).
-        versionCode = 11
+        versionCode = 12
         versionName = "1.6.6"
     }
 

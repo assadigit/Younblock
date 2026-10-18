@@ -1473,3 +1473,79 @@ method-policy question for him: see the end of this record).
   expected to carry `tunnel first-byte failed reason=...` lines and
   `dur=~8000ms down=0 B` dones — the tuning evidence for the budget
   and the material for that ruling.
+
+M8-t record (2026-10-18/19, late — the THIRD pasted report round,
+debug.12 → debug.13; the environment was found wiped a SIXTH time
+before this round: ~/sdk and ~/go erased, the repo itself INTACT and
+clean at f4e2091 with the untracked build state surviving —
+frontend/node_modules, frontend/dist, internal/webui/dist, the old
+AAR. Toolchain reinstalled per §1's pins and verified: Go 1.27.2,
+javac 21.0.12.1 (Temurin, the Adoptium API's 21 GA), cmdline-tools
+12.0 (the versioned commandlinetools-linux-11076708_latest.zip,
+153,607,504 B — the alias URL stays dead), platform-tools 37.0.1,
+platforms 26+36, build-tools 36.1.0, NDK 28.2.13676358,
+gomobile/gobind via `go install` at the pinned
+x/mobile v0.0.0-20261011034528-197770444867; env.sh and the
+git-ignored android/local.properties rewritten. TWO operational
+discoveries this round: (1) the detached sdkmanager died mid-install
+leaving 2.5 GB of stale .temp — cleaned and re-run in the FOREGROUND
+to completion; (2) the detached build-android.sh lane died at the
+vite step the same way — this sandbox's background killer is more
+aggressive than M8-s's, so the lane ran as the documented FOREGROUND
+CHUNKS with the caches carrying the progress: npm ci + vite build +
+dist sync / gomobile bind / gradle assembleDebug, each exit 0):
+
+- **The round's root cause (read from the report):** debug.12's
+  budget fired exactly as designed — 22 `reason=timeout` dones at
+  ~8.3 s + 18 `reason=reset` dones at ~0.5 s, counters 38 errors /
+  61 conns — roughly half the video-start waves die at first byte
+  and the app re-opens wave after wave (~35 s from the first wave to
+  the first video bytes, down=4.4 MB once a flow survived). Every
+  budget-killed flow was 100 % silent (dead nodes, not slow ones);
+  healthy routed origins answered in 420-508 ms (one 2399 ms
+  outlier carrying the fragment-pause write).
+- **The changes (ADR-0019):** FirstByteTimeout retuned 8 s → 2.5 s;
+  the salvage re-dial — a dead first-byte origin is re-dialed INSIDE
+  the same flow (same host, SAME preset captured once per flow, the
+  client's buffered bytes replayed byte-exact through a fresh
+  fragment conn, dead-IP exclusion on the re-resolve), up to
+  FirstByteSalvageDials re-dials (default 2 → 3 total attempts);
+  new report lines `tunnel first-byte retry reason=... attempt=N`
+  and `tunnel first-byte salvaged dials=N`. tunnelCloser.setB keeps
+  Stop's sweep on the live origin; the client pump + swap-able
+  origin link keep the chatty-client live-write semantics of the old
+  up-copy; unrouted relays never enter the shape (D46).
+- **The proof (both ways):** the three new firstbyte_test.go tests
+  (TestFirstByteSalvageRecoversDeadOrigin, ...ExhaustsToFailFast,
+  TestSalvageReplayIsByteExact) FAIL with the tunnel.go salvage
+  stashed (the M8-s shape at HEAD, call sites reverted) and PASS
+  with it; the two guards (...SparesUnroutedHosts,
+  ...DisabledByConfig) pass both ways; the two M8-s tests now pin
+  the terminal shape with FirstByteSalvageDials = -1.
+- **Baseline, all green:** frontend untouched this round (vite
+  rebuild byte-identical, the dist re-sync left the tree clean);
+  go vet clean; go test 18/18 x2; GOOS=windows exit 0; the Android
+  compile matrix in its exact form (arm64 full tree + the non-main
+  set 4/4 ABIs, CGO_ENABLED=0, -mod=vendor); disk managed (the Go
+  build cache cleared before the SDK install; 4.0 GB free after).
+- **The build lane:** versionCode 11 -> 12 (the D84 rule); the full
+  lane in foreground chunks, each exit 0; the AAR
+  **25,101,194 B**, its embedded engine VERIFIED to carry the new
+  strings ("tunnel first-byte salvaged" and "tunnel first-byte
+  retry" inside libgojni.so in all three ABIs); the app-debug.apk
+  **35,130,385 B**, SHA-256 **18b4ea648b0aa02d7eebf84f2dc596d13894
+  093a1469dfc4f111ddc5b286b518**; badging versionCode 12 /
+  versionName 1.6.6 / minSdk 26 / targetSdk 36 / native-code
+  arm64-v8a+armeabi-v7a+x86_64; apksigner OK — the pinned debug
+  certificate c76bb7c6...8551d (installs over debug.12 in place).
+- **The release lane:** v1.6.6-android-debug.13 at the pushed full
+  SHA (regular, D89, Latest), the APK asset uploaded AS
+  v1.6.6-debug.apk (D99), served bytes re-verified through the API.
+- **The D102 question SHARPENS but stays Ali's:** the salvage
+  re-flips the same coin (same preset) up to twice more per flow; if
+  the next report still shows terminal first-byte failures
+  clustering under one method, the NEXT-preset retry (per-flow
+  method variation) remains his ruling, never unilateral. The next
+  report's expected evidence: the retry/salvaged line ratios against
+  the terminal failures — the tuning material for the budget and the
+  D102 material for the method policy.

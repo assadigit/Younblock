@@ -239,7 +239,7 @@ func (s *Server) serveSocks5(conn net.Conn) {
 	// untouched whatever the mode or list says (D83).
 	fragmentTLS := s.routedHost(host)
 	clientSide := &bufferedConn{Conn: conn, prefix: drainBuffered(br)}
-	s.runBidirectionalCopy(clientSide, upstream, host, fragmentTLS)
+	s.runBidirectionalCopy(clientSide, upstream, host, port, fragmentTLS)
 }
 
 // socks5Greeting reads and answers the method negotiation. It sends the

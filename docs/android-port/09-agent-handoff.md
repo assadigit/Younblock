@@ -1,37 +1,32 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at M8-s (2026-10-18/19 — **Ali's debug.11 device
-round: "the problem persists, but when after a while, video plays...
-IN pc, it's instant" + the SECOND pasted diagnostics report — the
-M8-r evidence loop working exactly as designed. The report PROVED the
-debug.11 fixes on-device (state on, a heal sweep that found its
-method 3 s in, the startup DoH blip logging its baked
-reason=DNS_UNREACHABLE lines and self-healing — the sharpened
-question answered: a transient at Start, not a filter) and gave the
-remaining per-video-start stall its exact shape: video-start waves
-where some flows complete (first-byte 56-619 ms) while others dial
-fine, send the ~1.7 KB hello, and never receive one byte — ~0.5 s
-closes (origin reset) and EXACTLY ~60.0 s hangs, all down=0 B;
-nothing in the engine closes at 60 s (the relay idle timeout is 300
-s, the TUN keepalive only probes) — the app's own patience,
-amplified by an engine holding the dead flow open, with the M8-o
-demotion never firing because the dial SUCCEEDED. Fixed in
-`v1.6.6-android-debug.12` (versionCode 11, ADR-0018 — the first-byte
-budget: FirstByteTimeout=8 s on processed hosts; silent origins fail
-fast, the reason lands in the report, and the suspect answer set is
-demoted like a total dial failure)**). The method-policy question was
-SURFACED for Ali (D102 material, his ruling, not our code): the sweep
-picks the preset from its redirector.googlevideo.com probe while the
-media flows hit rr*.googlevideo.com nodes whose tolerance differs per
-node (method strong on his phone, PC instant on the same network) —
-should a dead routed flow be retried once with the NEXT preset? No
-steering without his ruling.** Earlier: M8-r (ADR-0017, the first
-pasted report — the sweep resets the resolver, a failed sweep
-restores the method, the DNS reasons baked into the messages),
+**Status:** Updated at M8-t (2026-10-18/19, late — **Ali's debug.12
+device round: "The problem persists" + the THIRD pasted diagnostics
+report, versionCode 11. The report PROVED the M8-s budget on-device
+exactly as designed — the expected "tunnel first-byte failed
+reason=timeout" dones at ~8.3 s arrived (22 of them) alongside fast
+~0.5 s reason=reset closes (18) — and named the remaining
+per-video-start lag: roughly half the video-start waves die at first
+byte (38 errors / 61 conns) and the app re-opens wave after wave
+(~35 s from the first wave to the first video bytes). Fixed in
+`v1.6.6-android-debug.13` (versionCode 12, ADR-0019): the budget
+retuned 8 s → 2.5 s from the report's tuning evidence (every
+budget-killed flow was 100 % silent — dead nodes, not slow ones;
+healthy routed origins answer in 420–508 ms, one 2399 ms outlier),
+PLUS the salvage re-dial — a dead first-byte origin is re-dialed
+INSIDE the same flow (same host, SAME preset captured once per flow —
+per-flow preset variation stays D102, Ali's ruling, never code), the
+client's buffered bytes replayed byte-exact through a fresh fragment
+conn, dead-IP exclusion on the re-resolve, up to 2 re-dials, so the
+app never sees the failure and its serial retry chain collapses into
+bounded in-engine attempts. New report lines: "tunnel first-byte
+retry reason=… attempt=N" (absorbed) and "tunnel first-byte salvaged
+dials=N" (saved).)** Earlier: M8-s (ADR-0018, the first-byte budget,
+debug.12), M8-r (ADR-0017, the sweep probes from zero, debug.11),
 M8-q/p (the diagnostics surface, ADR-0015/0016 + D100/D101), M8-o/n
 (the stall fixes, ADR-0014/0013 + D99/D98), A0 rounds — **the
-account gate is CANCELLED (D97), nothing of it was ever built.**
-This file is the live handoff; keep the fields in §"Current handoff
+account gate is CANCELLED (D97), nothing of it was ever built.** This
+file is the live handoff; keep the fields in §"Current handoff
 fields" accurate at every session boundary.
 
 ## If starting Phase 2 (implementation) — CURRENT
@@ -92,115 +87,132 @@ fields" accurate at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** M8-s (2026-10-18/19 — the SIXTEENTH
-  feedback-loop exchange; the debug.11 device round). Ali's input:
-  the SECOND pasted diagnostics report + the round's discriminators
-  ("video plays after a while, then smooth — rewind/next instant;
-  only each video START lags; PC instant"). Its "android shell:
-  1.6.6 (versionCode 10)" line proved the debug.11 install; state
-  on, method strong (the M8-r fixes proven: a sweep that found its
-  method 3 s in, no false degraded); the startup DoH blip still
-  logging its three baked reason=DNS_UNREACHABLE lines (~170 ms
-  each, self-healed — the sharpened question answered: transient);
-  and the stall's exact shape (the full reconstruction is
-  ADR-0018's Context): video-start waves where some flows complete
-  (first-byte 56-619 ms) while others dial fine, send the ~1.7 KB
-  hello, and never receive one byte — ~0.5 s closes and EXACTLY
-  ~60.0 s hangs, all down=0 B. Nothing in the engine closes at 60 s
-  (idle 300 s, the TUN keepalive only probes) — the app's own
-  patience, amplified by an engine holding the dead flow open; and
-  because the dial SUCCEEDED, the M8-o demotion never fired, so the
-  suspect answer set stayed fresh for every retry.
-- **What shipped (ADR-0018):** the first-byte budget —
-  `FirstByteTimeout = 8 s` (internal/config, the CONFIGURATION
-  block; >12x the worst healthy first byte observed, 619 ms): after
-  the first client record is written upstream, a processed host's
-  origin must answer within the budget or the flow fails FAST —
-  both ends closed immediately (the client sees the reset and
-  retries, as it already retries the ~0.5 s reset waves), the error
-  counted, "tunnel first-byte failed reason=timeout|reset|closed"
-  baked into the message (the ring drops attrs — M8-r's lesson),
-  and the host's cached answer set demoted exactly like a total
-  dial failure (the M8-o loop extended to origins that connect but
-  never speak). Unrouted relays keep the plain two-goroutine shape
-  byte-for-byte (the D46 scoping: the budget is part of the
-  processing of the hosts the app processes, not of the relay).
+- **Phase completed:** M8-t (2026-10-18/19, late — the SEVENTEENTH
+  feedback-loop exchange; the debug.12 device round). Ali's input:
+  "The problem persists" + the THIRD pasted diagnostics report (its
+  "android shell: 1.6.6 (versionCode 11)" line proved the debug.12
+  install). The report proved the M8-s budget fires on-device exactly
+  as designed (22 reason=timeout dones at ~8.3 s + 18 reason=reset
+  at ~0.5 s — the tuning evidence ADR-0018 asked for) and named the
+  remaining lag: roughly half the video-start waves die at first
+  byte (counters 38 errors / 61 conns), the app re-opens wave after
+  wave (~35 s from the first wave to the first video bytes, down=4.4
+  MB once a flow survived). Every budget-killed flow was 100 %
+  silent (down=0 B; the same flows sat out the full 60 s in the
+  previous report — dead nodes, not slow ones); healthy routed
+  origins answered in 420–508 ms (one 2399 ms outlier carrying the
+  fragment-pause write).
+- **What shipped (ADR-0019):** (1) FirstByteTimeout retuned 8 s →
+  2.5 s (the CONFIGURATION block; ~5x the worst healthy routed
+  wait, covers the outlier, a dead attempt costs 3.3x less); (2) the
+  salvage re-dial — when a processed host's origin dies at first
+  byte, the engine closes ONLY the origin, demotes the answer set
+  (the M8-o loop, per dead attempt), re-resolves excluding the
+  flow's dead IPs, re-dials the SAME host with the SAME preset
+  (captured once per flow — a mid-flight method change cannot vary a
+  flow's wire shape), and replays the client's buffered bytes
+  byte-exact through a fresh fragment conn (first record
+  re-fragmented identically; early data captured during the wait
+  rides after). Up to FirstByteSalvageDials re-dials (default 2 → 3
+  total attempts, bounded); the app never sees the failure. Exhausted
+  or un-dialable → the M8-s terminal exactly. Mechanically: the
+  budgeted shape owns the first record's write; one client pump
+  reads the client for the whole first-byte phase (tee into a 64 KB
+  replay buffer + live writes through a mutex-guarded swap-able
+  origin link); after the origin speaks, the plain two-goroutine
+  relay takes over byte-for-byte; tunnelCloser.setB keeps Stop's
+  sweep on the live origin. New report lines (reason-in-message, the
+  M8-r lesson): "tunnel first-byte retry reason=… attempt=N" (Warn)
+  and "tunnel first-byte salvaged dials=N" (Info). Unrouted relays
+  never enter the shape (the D46 scoping).
 - **The round's proof (both ways):** internal/proxy/firstbyte_test.go
-  — with the tunnel.go restructure stashed,
-  `TestFirstByteTimeoutFailsSilentRoutedTunnelFast` and
-  `TestFirstByteFailureInvalidatesSuspectSet` FAIL at ~5.0 s (the
-  silent processed flow hangs to the idle timeout — the device's 60
-  s signature compressed); with the fix, ~250 ms close, the reason
-  line, the done line (down=0 B), the demotion recorded. The two
-  guards (`...SparesUnroutedHosts`, `...WithinBudgetFlowsNormally`)
-  pass both ways, as guards must.
-- **Baseline green:** frontend untouched (the committed dist intact,
-  the tree clean); go vet clean; go test 18/18 x2; GOOS=windows
-  exit 0; the Android compile matrix in its exact form (arm64 full
-  tree + the non-main set 4/4 ABIs, CGO_ENABLED=0, -mod=vendor);
-  disk managed (Go build cache cleared before the bind).
-- **The build lane:** versionCode 10 -> 11 (the D84 rule); the full
-  build-android.sh lane exit 0 (run detached — the double-fork
-  setsid pattern); the AAR's embedded engine VERIFIED ("tunnel
-  first-byte failed" inside libgojni.so in all three ABIs);
-  app-debug.apk **35,076,497 B**, SHA-256 **ce25f9cdd9a103f26a1286
-  1c21c989e0ecb451a2dfe9dd2251bc421beeab261c**; apksigner OK (the
-  pinned c76bb7c6...8551d); badging versionCode 11 / versionName
-  1.6.6 / minSdk 26 / targetSdk 36. The standing ⛔ unchanged: no
-  /dev/kvm, no device.
-- **The environment is INTACT** (no wipe — verified at open: Go
-  1.27.2, javac 21.0.12, platforms 26/36, the pinned gomobile).
-  Disk was managed by clearing the Go build cache before the bind
-  (~9.9 GB box; expect that again after big builds). Wipes happen
-  at ANY boundary — VERIFY first (`. ~/sdk/env.sh && go version`),
-  reinstall per doc 06 §1 only if actually wiped (the cmdline-tools
-  `12.0` alias URL 404s — use the versioned
-  commandlinetools-linux-11076708_latest.zip).
-- **Current architecture decision / confidence:** ADR-0018 (doc
-  08) — the first-byte budget, same species as M8-n's handshake
-  budget and M8-o's demotion: failure detection and answer-set
-  hygiene, NOT steering. Confidence: the root cause was read FROM
-  Ali's report (the ~60 s elimination list against every engine
-  deadline) and reproduced on the host BEFORE the fix. What remains
-  OPEN: the per-node silence's ORIGIN (ISP-side, not observable
-  from the app — no third guess) and the METHOD question (below).
-  ADR-0017/0014/0013 stand host-proven on the working path. The
-  auth lane stays CLOSED (D97). Live ADRs: ADR-0001..0018. Next
-  decision ID: **D102 (reserved for Ali's rulings — the method
-  question below is its live material)**.
-- **Blocking questions:** none blocking the loop. The standing
-  input is **Ali's debug.12 round**: (a) video starts should open
-  in seconds instead of "after a while"; (b) at any remaining
-  stall, menu → Diagnostics (the first row) → Copy → paste the
-  report — the expected new evidence is "tunnel first-byte failed
-  reason=..." lines and done lines like "dur=~8000ms down=0 B"
-  (the tuning evidence for the budget); (c) **the D102 question for
-  Ali himself**: the sweep picks the method from its
-  redirector.googlevideo.com probe while the media flows hit
-  rr*.googlevideo.com cache nodes whose tolerance differs per node
-  (his report ran method strong; his PC is instant on the same
-  network) — should the engine retry a dead routed flow once with
-  the NEXT preset in HealSweepOrder (per-flow method variation)?
-  That is a method-policy change: his ruling, never unilateral;
-  plus the older circle rows (the cross-device UI verdict on
-  debug.6, rows 4-8, rotation/TalkBack, the data-usage round,
-  D93's desktop check).
+  — TestFirstByteSalvageRecoversDeadOrigin (the client NEVER sees a
+  close; retry + salvaged lines; exactly 2 dials),
+  TestFirstByteSalvageExhaustsToFailFast (exactly 1+2 dials, then the
+  M8-s terminal signature: reason line, done down=0 B, one demotion
+  per dead attempt), TestSalvageReplayIsByteExact (the fresh origin
+  receives record+early-data byte-exact) — each FAILS with the
+  tunnel.go salvage stashed (the M8-s shape at HEAD, call sites
+  reverted) and PASSES with it. The guards
+  (TestFirstByteSalvageSparesUnroutedHosts,
+  TestFirstByteSalvageDisabledByConfig) pass both ways; the two M8-s
+  tests now pin the terminal shape with FirstByteSalvageDials = -1.
+- **Baseline green:** frontend untouched (the vite rebuild
+  byte-identical, dist re-sync left the tree clean); go vet clean;
+  go test 18/18 x2; GOOS=windows exit 0; the Android compile matrix
+  in its exact form (arm64 full tree + the non-main set 4/4 ABIs,
+  CGO_ENABLED=0, -mod=vendor).
+- **The build lane:** versionCode 11 -> 12 (the D84 rule); run as
+  FOREGROUND CHUNKS this round (this sandbox's background killer
+  killed BOTH detached jobs — the sdkmanager install AND the detached
+  build-android.sh lane; the caches carried the progress between
+  chunks, each exit 0); the AAR 25,101,194 B, its embedded engine
+  VERIFIED ("tunnel first-byte salvaged" + "tunnel first-byte retry"
+  inside libgojni.so in all three ABIs); app-debug.apk
+  **35,130,385 B**, SHA-256 **18b4ea648b0aa02d7eebf84f2dc596d13894**
+  **093a1469dfc4f111ddc5b286b518**; apksigner OK (the pinned
+  c76bb7c6...8551d); badging versionCode 12 / versionName 1.6.6 /
+  minSdk 26 / targetSdk 36. The standing ⛔ unchanged: no /dev/kvm,
+  no device.
+- **The environment was WIPED a sixth time before this round** (~/sdk
+  and ~/go erased; the repo INTACT at f4e2091, clean, with the
+  untracked build state surviving — node_modules, dists, the old
+  AAR). Reinstalled per doc 06 §1 and verified: Go 1.27.2, javac
+  21.0.12.1, sdkmanager 12.0 (the versioned 11076708 zip — the alias
+  URL stays dead), platform-tools 37.0.1, platforms 26+36,
+  build-tools 36.1.0, NDK 28.2.13676358, gomobile/gobind at the
+  pinned x/mobile. Disk: 4.0 GB free after; the Go build cache was
+  cleared mid-round (before the SDK install) and rebuilt by the
+  bind.
+- **Current architecture decision / confidence:** ADR-0019 (doc 08)
+  — the salvage re-dial + the budget retune, same species as
+  M8-n/o/s (failure detection, answer-set hygiene, bounded recovery
+  — NOT steering; the preset is captured once per flow and NEVER
+  varies). Confidence: the tuning evidence was read FROM Ali's
+  report (the 8.3 s dones are the budget firing; the 100 % silence
+  is the dead-node proof) and the salvage was reproduced on the host
+  BEFORE shipping (the both-ways proof above). What remains OPEN:
+  the per-node silence's ORIGIN (ISP-side, unobservable — no third
+  guess) and the METHOD question (D102 below). ADR-0018/0017/0014/
+  0013 stand host-proven. The auth lane stays CLOSED (D97). Live
+  ADRs: ADR-0001..0019. Next decision ID: **D102 (still reserved
+  for Ali — the method question, now SHARPER: the salvage re-flips
+  the same coin up to twice more per flow; if terminal first-byte
+  failures still cluster under one method in the next report, the
+  NEXT-preset retry is his ruling to make)**.
+- **Blocking questions:** none blocking the loop. The standing input
+  is **Ali's debug.13 round**: (a) video starts should open in
+  seconds — the dead-origin coin flips now happen inside the flow;
+  (b) at any remaining stall, menu → Diagnostics (the first row) →
+  Copy → paste the report — the expected NEW evidence is "tunnel
+  first-byte retry reason=… attempt=N" lines (absorbed dead
+  attempts), "tunnel first-byte salvaged dials=N" lines (flows the
+  salvage saved), and their ratio against the terminal "first-byte
+  failed" lines — that ratio is the tuning evidence for the budget
+  AND the D102 material; (c) **the D102 question for Ali himself,
+  sharpened**: the salvage retries with the SAME preset (never a
+  method change); should a flow that exhausts its salvages under one
+  preset be retried once with the NEXT preset in HealSweepOrder
+  (per-flow method variation)? His ruling, never unilateral. Plus
+  the older circle rows (the cross-device UI verdict on debug.6,
+  rows 4-8, rotation/TalkBack, the data-usage round, D93's desktop
+  check).
 - **Exact next task:** ONE workstream — the feedback loop. **Task
-  ID M8-t — ingest Ali's results from v1.6.6-android-debug.12**:
-  the pasted diagnostics report FIRST (verify the "android shell:"
-  line names versionCode 11; a versionCode 10 report means the old
-  APK is still installed and the round starts with the install);
-  read the reason= lines + the dur= dones + the tun: line to name
-  the waiting phase; root-cause from the evidence; fix at the
-  correct layer; keep the D77-D101 honesty rules binding (D101:
+  ID M8-u — ingest Ali's results from v1.6.6-android-debug.13**: the
+  pasted diagnostics report FIRST (verify the "android shell:" line
+  names versionCode 12; a versionCode 11 report means the old APK is
+  still installed and the round starts with the install); read the
+  retry/salvaged/failed line ratios + the dur= dones + the tun: line
+  to name the waiting phase; root-cause from the evidence; fix at
+  the correct layer; keep the D77-D101 honesty rules binding (D101:
   any new user-facing surface ships in the variant(s) the affected
   editions bake, verified through the real webui server). Bump
-  `versionCode` and cut `v1.6.6-android-debug.13` through the same
+  `versionCode` and cut `v1.6.6-android-debug.14` through the same
   regular-release lane (D89) WHEN an app code change warrants it —
   D98: every release page carries the debug APK asset; D99: the
   asset is NAMED v<versionName>-debug.apk — push the code commit
   BEFORE creating the release (the full-SHA target_commitish 422s
   against an unpushed SHA). The auth Task IDs (A1/A2/A3) stay
-  retired (D97). The dormant alternatives when no feedback
-  arrives: the desktop release lane or public-release engineering
-  — ask Ali which, do not guess.
+  retired (D97). The dormant alternatives when no feedback arrives:
+  the desktop release lane or public-release engineering — ask Ali
+  which, do not guess.

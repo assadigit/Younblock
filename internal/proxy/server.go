@@ -65,8 +65,15 @@ type Config struct {
 	// (M8-s, ADR-0018). Zero → the config default; negative → disabled
 	// (the plain copy shape, every tunnel's behavior before M8-s).
 	FirstByteTimeout time.Duration
-	IdleTimeout      time.Duration
-	MaxHeaderBytes   int64
+	// FirstByteSalvageDials bounds how many times a processed host's
+	// dead first-byte origin is re-dialed inside the same flow,
+	// replaying the client's buffered bytes (M8-t, ADR-0019; same host,
+	// same preset — never a method change, which is D102's to rule).
+	// Zero → the config default; negative → disabled (the M8-s
+	// fail-fast behavior exactly).
+	FirstByteSalvageDials int
+	IdleTimeout           time.Duration
+	MaxHeaderBytes        int64
 
 	Resolver           Resolver
 	Dialer             *netx.Dialer
@@ -121,6 +128,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.FirstByteTimeout == 0 {
 		cfg.FirstByteTimeout = config.FirstByteTimeout
+	}
+	if cfg.FirstByteSalvageDials == 0 {
+		cfg.FirstByteSalvageDials = config.FirstByteSalvageDials
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = config.IdleTimeout
@@ -446,7 +456,7 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 	fragmentTLS := s.routedHost(host)
 
 	clientSide := &bufferedConn{Conn: client, prefix: drainBuffered(br)}
-	s.runBidirectionalCopy(clientSide, upstream, host, fragmentTLS)
+	s.runBidirectionalCopy(clientSide, upstream, host, port, fragmentTLS)
 }
 
 // forwardRequest relays one plain-http request to its origin server like a

@@ -12,6 +12,49 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-18/19 — M8-t; shipped in `v1.6.6-android-debug.13`, versionCode 12)
+
+- **The per-video start wait, round two: dead first-byte origins are
+  now retried INSIDE the flow instead of being handed back to the
+  app's own wave-after-wave retries.** Ali's third pasted diagnostics
+  report (debug.12, versionCode 11) proved the previous round's
+  budget on-device — the expected `tunnel first-byte failed
+  reason=timeout` closes arrived at ~8.3 s (22 of them) alongside
+  fast ~0.5 s `reason=reset` closes (18) — and named what remained:
+  roughly half of every video-start wave still died at first byte
+  (counters: 38 errors / 61 conns), and the app re-opened wave after
+  wave until one landed (~35 s from the first wave to the first
+  video bytes). Two changes (ADR-0019), both the
+  failure-detection/hygiene species, never steering: **(1)
+  FirstByteTimeout retuned 8 s → 2.5 s** — every budget-killed flow
+  in the report was 100 % silent (`down=0 B`; the same flows sat out
+  the app's full 60 s patience in the previous report: dead nodes,
+  not slow ones), while healthy routed origins answered in 420–508 ms
+  (one 2399 ms outlier that also carries the ~0.1–0.2 s
+  fragment-pause write), so 2.5 s never trips a healthy origin and a
+  dead attempt costs 3.3x less; **(2) the salvage re-dial** — when a
+  processed host's origin dies at first byte, the engine closes only
+  the dead origin (never the client side), demotes the answer set
+  (the M8-o loop, per dead attempt), re-resolves while skipping the
+  IPs whose origins already died this flow, re-dials the SAME host
+  with the SAME preset (captured once per flow — even a mid-flight
+  method change cannot vary a flow's wire shape), and replays the
+  client's buffered bytes through a fresh fragment conn, byte-exact
+  (the first record re-fragmented identically; early data captured
+  during the wait rides after it). Up to `FirstByteSalvageDials`
+  re-dials (default 2 → 3 total attempts, bounded); the app never
+  sees the failure, so its serial retry chain collapses into
+  in-engine attempts of ~0.5–2.5 s each. When the attempts run out
+  the flow fails fast exactly as at M8-s. New report lines:
+  `tunnel first-byte retry reason=… attempt=N` (an absorbed dead
+  attempt) and `tunnel first-byte salvaged dials=N` (a flow the
+  salvage saved). Per-flow METHOD variation is still NOT done — that
+  is D102, Ali's ruling. Everything not on the unblock list keeps
+  the old relay behavior byte-for-byte. Host-proven both ways: with
+  the salvage stashed (the M8-s shape), the three new tests fail —
+  the client sees the budget close, no retry line, no echo; with it,
+  they pass (ADR-0019).
+
 ### Fixed (2026-10-18/19 — M8-s; shipped in `v1.6.6-android-debug.12`, versionCode 11)
 
 - **The per-video start wait: silent origins now fail fast instead

@@ -81,23 +81,35 @@ const RequestReadTimeout = 10 * time.Second
 const FirstRecordReadTimeout = 10 * time.Second
 
 // FirstByteTimeout — how long a processed host's origin may stay silent
-// after the tunnel wrote its first record upstream (M8-s, ADR-0018). The
-// second pasted diagnostics report showed the failure shape this bounds:
-// dials that complete, then flows that send the ~1.7 KB ClientHello and
-// never receive one byte — some get reset in ~0.5 s, and the rest hang
-// until the app's own ~60 s patience closes them (nothing in the engine
-// ends a flow at 60 s: the relay idle timeout is 300 s and the TUN
-// keepalive only probes). A healthy origin's first byte lands in
-// 56–619 ms on that network, so 8 s is >12x the worst observed round
-// trip while cutting a silent flow's cost from the app's 60 s to 8 s;
-// the flow then closes on both ends, the client retries immediately
-// (the report shows the app retries the ~0.5 s reset waves ~1 s later),
-// and the host's cached answer set is demoted exactly like a total dial
-// failure (the M8-o loop): a set that connects but never speaks is
-// suspect on this network. Unrouted relays keep the plain idle
-// semantics — the budget is part of the processing of the hosts this
-// app processes (the D46 scoping), not of the relay.
-const FirstByteTimeout = 8 * time.Second
+// after the tunnel wrote its first record upstream (M8-s, ADR-0018;
+// retuned at M8-t from the debug.12 tuning evidence that report was
+// asked to carry). It proved the budget fires exactly as designed —
+// "tunnel first-byte failed reason=timeout" dones at ~8.3 s — and that
+// every flow it killed was completely silent (down=0 B, and the same
+// flows sat silent through the app's full 60 s patience in the previous
+// report: dead nodes, not slow ones), while every healthy routed origin
+// answered in 420–508 ms (one 2399 ms outlier that also carries the
+// ~0.1–0.2 s fragment-pause write before the budget clock starts).
+// 2.5 s is ~5x the worst healthy routed wait and still covers that
+// outlier, while a silent attempt costs 2.5 s instead of 8 s. Unrouted
+// relays keep the plain idle semantics — the budget is part of the
+// processing of the hosts this app processes (the D46 scoping), not of
+// the relay.
+const FirstByteTimeout = 2500 * time.Millisecond
+
+// FirstByteSalvageDials — how many times a processed host's dead
+// first-byte origin is re-dialed INSIDE the same flow (M8-t, ADR-0019).
+// The debug.12 report gave the per-video start lag its shape: waves
+// where roughly half the flows die at first byte (origin resets at
+// ~0.5 s, the rest silent to the budget) and the app re-opens wave
+// after wave until one lands. A salvage closes only the dead origin,
+// re-dials the SAME host with the SAME preset (never a method change —
+// per-flow preset variation is D102, Ali's ruling, not ours) and
+// replays the client's buffered bytes, so the app never sees the
+// failure and its serial retry chain collapses into bounded in-engine
+// attempts. Zero in a proxy Config → this default; negative → disabled
+// (exactly the M8-s fail-fast behavior).
+const FirstByteSalvageDials = 2
 
 // IdleTimeout — quiet connections are closed after this long (refreshed by activity).
 const IdleTimeout = 300 * time.Second

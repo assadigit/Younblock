@@ -1,26 +1,34 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-q (2026-10-18, late — Ali's debug.9 device
-round: "I still dont see diagnostic button". The debug.9 APK DID carry
-the ADR-0015 surface — but only in the classic UI tree, while the APK
-bakes the pro screen (D66: build-android.sh leaves VITE_UI_VARIANT
-unset, so main.ts defaults to pro). The phone rendered the pro screen,
-whose only diagnostics surface was the M6-era sheet section buried
-below Help with the WebView-silent clipboard copy. This round ports
-the surface into the variant the phone actually serves (ADR-0016,
-D101): **Diagnostics is now the FIRST row of the menu**, opening the
-full report view (the clipboard ladder, Share, the selectable text);
-**`v1.6.6-android-debug.10` is now the CURRENT build**, versionCode 9;
-the stall row stays OPEN, still awaiting the first real pasted
-report). Earlier the same day: M8-p (the diagnostics surface,
-ADR-0015 + D100 — shipped into the classic tree only, completed by
-this round's port), M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/
-D99), A0/A0-R2/A0-R3 — **the account gate is CANCELLED (D97)**, see
-the closing note below. This document now holds two things: §1 the
-**shipped** debug test-circle releases (`v1.6.6-android-debug.10` is
-the CURRENT build — a regular release in the private repo per D89,
-the same text lives on the GitHub release itself; beneath it:
-debug.9 the classic-tree diagnostics build (its surface was invisible on the phone — superseded by debug.10's port), debug.8 the per-video-stall-fix build, debug.7 the first-video-fix
+**Status:** updated at M8-t (2026-10-18/19, late — Ali's debug.12
+device round: "The problem persists" + the THIRD pasted diagnostics
+report, versionCode 11. The report PROVED the M8-s budget on-device
+(the expected "tunnel first-byte failed reason=timeout" dones at
+~8.3 s arrived — the tuning evidence ADR-0018 asked for) and named
+the remaining per-video start lag's shape: roughly half the
+video-start waves die at first byte and the app re-opens wave after
+wave. **v1.6.6-android-debug.13 is now the CURRENT build**,
+versionCode 12: FirstByteTimeout retuned 8 s → 2.5 s + the salvage
+re-dial (ADR-0019 — a dead first-byte origin is re-dialed INSIDE the
+same flow, same host, same preset, the client's bytes replayed, so
+the app never sees the failure; per-flow preset variation stays D102,
+Ali's ruling). The stall row stays OPEN for the debug.13
+confirmation — the expected new lines: "tunnel first-byte retry
+reason=… attempt=N" and "tunnel first-byte salvaged dials=N".)
+Earlier: M8-s (ADR-0018, debug.12 — superseded by debug.13: its
+round produced the third pasted report, which debug.13 acts on),
+M8-r (ADR-0017, debug.11), M8-q/p (the diagnostics surface,
+ADR-0015/0016 + D100/D101), M8-n/M8-o (the stall fixes,
+ADR-0013/0014 + D98/D99), A0/A0-R2/A0-R3 — **the account gate is
+CANCELLED (D97)**, see the closing note below. This document now
+holds two things: §1 the **shipped** debug test-circle releases
+(`v1.6.6-android-debug.13` is the CURRENT build — a regular release
+in the private repo per D89, the same text lives on the GitHub
+release itself; beneath it: debug.12 the first-byte-budget build
+(superseded by debug.13: its round produced the third pasted report,
+which debug.13 acts on), debug.11 the heal-sweep build, debug.10 the
+diagnostics-port build, debug.9 the classic-tree diagnostics build,
+debug.8 the per-video-stall-fix build, debug.7 the first-video-fix
 build, debug.6 the one-UI-everywhere + data-usage build, debug.5 the
 first-device-feedback build, debug.4 the helper-fix maintenance
 release, debug.3 the device-circle build whose APK ran on Ali's
@@ -31,8 +39,8 @@ limitations. Every claim traces to implementation evidence (docs
 01–09, DECISIONS.md D1–D101, of which D97 cancels the gate D94 had
 announced, D98 rules the APK asset onto every release page, D99 names
 it with the version, D100 is the diagnostics-surface ruling, and D101
-is this round's variant rule: a surface ships in the variant the
-edition serves).
+is the variant rule: a surface ships in the variant the edition
+serves).
 **A0-R3 closing note (D97, 2026-10-18): the gate is CANCELLED — it
 will never ship, so none of that future ever happens. The "no
 account, no data collection" line in §2 stays verbatim PERMANENTLY;
@@ -41,7 +49,54 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.12 — the first-byte budget: silent origins fail fast (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.13 — the salvage re-dial: a dead first-byte origin is retried inside the flow (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 12, built at the M8-t commit, the
+pinned debug certificate — **installs directly over debug.12** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED with the version (**v1.6.6-debug.apk**, per
+D99). This is the round your THIRD diagnostics report built: it
+proved the debug.12 budget on-device and named what was still
+missing (ADR-0019).
+
+1. **What was wrong (read from YOUR report, not guessed):** the
+   budget worked — your log now shows "tunnel first-byte failed
+   reason=timeout" closes at ~8.3 s (instead of the 60 s hangs) plus
+   fast ~0.5 s resets — but roughly HALF of every video-start wave
+   still died at first byte, and the YouTube app re-opened wave after
+   wave until one landed: from your log, ~35 seconds from the first
+   wave to the first video bytes. Each silent origin cost the full 8 s
+   budget, and the retry chain itself was the app's — the engine
+   could only make each link cheaper, not shorten the chain.
+2. **What changed (ADR-0019, host-proven — reproduced exactly, then
+   fixed):** two things. First, the budget is retuned 8 s → 2.5 s:
+   your report shows every budget-killed flow was 100 % silent
+   (zero bytes — the same flows that sat out the full 60 s before:
+   dead nodes, not slow ones) while every healthy origin answered in
+   420–508 ms, so 2.5 s never trips a healthy origin and a dead
+   attempt now costs 2.5 s. Second — the big one — the SALVAGE
+   RE-DIAL: when an origin dies at first byte, the engine no longer
+   closes the flow. It closes only the dead origin, re-resolves the
+   host (skipping the addresses that already died), re-dials the SAME
+   host with the SAME method, and replays your app's buffered bytes
+   byte-exact — up to 2 re-dials inside the same flow. The app never
+   sees the failure: its wave-after-wave retry chain collapses into
+   in-engine attempts of ~0.5–2.5 s each, bounded at 3 dials per flow.
+   The method on the wire never changes (that question — retrying a
+   dead flow with the NEXT preset — is still yours to rule, D102;
+   this build does not do it). Everything NOT on the unblock list
+   keeps the old behavior byte-for-byte.
+3. **What to verify on the phone:** video starts should now open in
+   seconds — the dead-origin coin flips get re-flipped inside the
+   flow instead of by the app's own retries. When anything still
+   stalls, menu → Diagnostics (first row) → Copy → paste it here:
+   the NEW lines that tell the story are "tunnel first-byte retry
+   reason=… attempt=N" (an absorbed dead attempt) and "tunnel
+   first-byte salvaged dials=N" (a flow the salvage saved) — their
+   ratio against the terminal "first-byte failed" lines is the
+   tuning evidence for the next round (and the D102 material).
+
+## 1a. v1.6.6-android-debug.12 — the first-byte budget: silent origins fail fast (SHIPPED — a regular release, superseded by debug.13: its round produced the third pasted report, which debug.13 acts on)
 
 **What this build is:** versionCode 11, built at the M8-s commit, the
 pinned debug certificate — **installs directly over debug.11** in
@@ -705,6 +760,35 @@ remove the Last-session line).**
    That is a method-policy change: no steering without his ruling.
    The next report's expected shape: "tunnel first-byte failed
    reason=…" lines and dur≈8000ms down=0 B dones.
+   **THE THIRD REPORT ARRIVED (debug.12, 2026-10-18/19, M8-t): Ali
+   pasted it with "The problem persists" (versionCode 11 verified).
+   The expected shape ARRIVED exactly: 22 reason=timeout dones at
+   ~8.3 s (the budget firing) + 18 reason=reset dones at ~0.5 s —
+   and the counters named the remaining lag: 38 errors / 61 conns —
+   roughly half the video-start waves die at first byte, and the
+   app re-opens wave after wave (~35 s from the first wave to the
+   first video bytes, down=4.4 MB once a flow survived). The
+   tuning evidence ADR-0018 asked for: every budget-killed flow was
+   100 % silent (down=0 B — dead nodes, not slow ones; the previous
+   report showed the same flows silent for the full 60 s), while
+   healthy routed origins answered in 420–508 ms (one 2399 ms
+   outlier carrying the fragment-pause write). Fixed in debug.13
+   (ADR-0019): FirstByteTimeout 8 s → 2.5 s, plus the salvage
+   re-dial — a dead first-byte origin is re-dialed INSIDE the same
+   flow (same host, SAME preset, the client's buffered bytes
+   replayed byte-exact, up to 2 re-dials), so the app never sees
+   the failure and its serial retry chain collapses into bounded
+   in-engine attempts; dead-IP exclusion steers re-dials off the
+   corpses; new report lines "tunnel first-byte retry reason=…
+   attempt=N" (absorbed) and "tunnel first-byte salvaged dials=N"
+   (saved). The row STAYS OPEN for the debug.13 confirmation —
+   and the D102 question for Ali SHARPENS: the salvage re-flips the
+   same coin (same preset) up to twice more per flow; if the next
+   report still shows terminal first-byte failures clustering under
+   one method, the NEXT-preset retry (per-flow method variation)
+   remains his ruling to make, never unilateral. udpDropped=88
+   (row 9) keeps measuring; the QUIC path already fast-fails via
+   ICMP port-unreachable, so it is not a startup-lag contributor.)
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

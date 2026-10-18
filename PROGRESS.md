@@ -3233,3 +3233,61 @@ strong on the phone, PC instant) — should the engine retry a dead
 routed flow once with the NEXT preset? No steering without his
 ruling. Next: M8-t expects the debug.12 report with
 reason=/dur≈8000ms evidence.
+
+## M8-t (2026-10-18/19, late) — the salvage re-dial (ADR-0019): dead
+first-byte origins retried inside the flow
+
+Ali's third pasted diagnostics report ("The problem persists",
+versionCode 11 — the debug.12 build verified by its "android shell:
+1.6.6 (versionCode 11)" line) proved the M8-s budget on-device
+EXACTLY as designed: 22 "tunnel first-byte failed reason=timeout"
+dones at ~8.3 s (the budget firing on silent origins) plus 18
+reason=reset dones at ~0.5 s (the origin/path resetting right after
+the fragmented hello lands) — the tuning evidence ADR-0018 asked for.
+The counters named what remained: 38 errors / 61 conns — roughly half
+the video-start waves die at first byte, and the app re-opens wave
+after wave until one lands (~35 s from the first wave to the first
+video bytes, down=4.4 MB once a flow survived). The serial chain of
+8.3 s budget deaths IS the lag; the budget made each link cheaper
+(8 s vs 60 s) but the chain itself is the app's.
+
+Fixed in debug.13 (versionCode 12, ADR-0019): FirstByteTimeout
+retuned 8 s → 2.5 s (every budget-killed flow was 100 % silent —
+dead nodes, not slow ones; healthy routed origins answered in
+420–508 ms, one 2399 ms outlier carrying the fragment-pause write),
+plus the salvage re-dial: a dead first-byte origin is re-dialed
+INSIDE the same flow — the engine closes only the dead origin,
+demotes the answer set per dead attempt (the M8-o loop), re-resolves
+skipping the flow's dead IPs, re-dials the SAME host with the SAME
+preset (captured once per flow — no per-flow method variation, that
+is D102, Ali's ruling), and replays the client's buffered bytes
+byte-exact through a fresh fragment conn (first record
+re-fragmented identically; early data rides after). Up to
+FirstByteSalvageDials re-dials (default 2 → 3 total attempts,
+bounded); the app never sees the failure. New report lines: "tunnel
+first-byte retry reason=... attempt=N" (absorbed) and "tunnel
+first-byte salvaged dials=N" (saved). Both-ways proof: the three new
+firstbyte_test.go tests (recovers, exhausts to the M8-s terminal,
+byte-exact replay) FAIL with the tunnel.go salvage stashed (the
+M8-s shape at HEAD) and PASS with it; the two guards (unrouted
+spared, negative knob = exact M8-s) pass both ways; the two M8-s
+tests now pin the terminal shape with the knob disabled.
+
+The environment note: the sandbox was wiped a SIXTH time before this
+round (~/sdk and ~/go erased; the repo, node_modules, webui dist and
+the old AAR survived). Toolchain reinstalled per doc 06 §1 pins and
+verified: Go 1.27.2, javac 21.0.12.1 (Temurin), cmdline-tools 12.0
+(the versioned 11076708 zip), platform-tools 37.0.1, platforms
+26+36, build-tools 36.1.0, NDK 28.2.13676358, gomobile/gobind at
+the pinned x/mobile. One operational note: the detached sdkmanager
+run died mid-install (stale .temp, 2.5 GB) — cleaned, re-run in the
+foreground to completion.
+
+The D102 question SHARPENS but stays Ali's: the salvage re-flips the
+same coin (same preset) up to twice more per flow; if the next
+report still shows terminal first-byte failures clustering under one
+method, the NEXT-preset retry (per-flow method variation) remains
+his ruling. udpDropped=88 keeps measuring (row 9); the QUIC path
+already fast-fails via ICMP port-unreachable, so it is not a
+startup-lag contributor. Next: M8-u expects the debug.13 report
+with retry/salvaged line ratios as the tuning evidence.

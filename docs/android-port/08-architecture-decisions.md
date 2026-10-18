@@ -681,6 +681,105 @@ debug.11 report round)
   budget's value beyond this round (the next report's
   `dur≈8000ms down=0 B` + reason lines are the tuning evidence).
 
+## ADR-0019 — The salvage re-dial: a processed host's dead first-byte
+origin is re-dialed INSIDE the same flow (same host, same preset), the
+client's buffered bytes replayed (M8-t, the debug.12 report round);
+FirstByteTimeout retuned 8 s → 2.5 s from that report's tuning evidence
+
+- **Status:** Accepted 2026-10-18/19 (M8-t — the THIRD pasted
+  diagnostics report; Ali's "The problem persists" round, versionCode
+  11).
+- **Context:** The debug.12 report PROVED ADR-0018 on-device exactly as
+  designed — `tunnel first-byte failed reason=timeout` dones at
+  ~8.3 s (22 in the window: the budget firing on silent origins) plus
+  `reason=reset` at ~0.5 s (18: the origin/path resetting right after
+  the fragmented hello lands, at the same latency a healthy answer
+  arrives) — and it carried the tuning evidence the ADR asked for:
+  every budget-killed flow was 100 % silent (`down=0 B`; the same
+  flows sat silent through the app's full 60 s patience in the previous
+  report — dead nodes, not slow ones), while every healthy routed
+  origin answered in 420–508 ms (one 2399 ms outlier that also carries
+  the ~0.1–0.2 s fragment-pause write before the budget clock starts).
+  What REMAINED is the user-visible per-video start lag: roughly half
+  the video-start waves die at first byte (counters: 38 errors / 61
+  conns), and the app re-opens wave after wave until one lands —
+  observed ~35 s from wave one to the first video bytes (down=4.4 MB
+  once a flow survived). The serial chain of 8.3 s budget deaths IS
+  the lag; the budget made each link cheaper (8 s vs 60 s) but the
+  chain itself is the app's, not the engine's.
+- **Decision:** Two changes, both the M8-n/o/s species (failure
+  detection, answer-set hygiene, bounded recovery — NOT steering):
+  1. **Retune** `FirstByteTimeout` 8 s → 2.5 s (CONFIGURATION block):
+     ~5x the worst healthy routed wait, still covering the 2399 ms
+     outlier, cutting each silent attempt's cost 3.3x.
+  2. **Salvage re-dial:** when a processed host's origin dies at first
+     byte (reset/EOF/budget timeout, zero bytes down), the engine
+     closes ONLY the origin — never the client side — demotes the
+     answer set (the M8-o loop, per dead attempt), re-resolves
+     (excluding the IPs whose origins already died this flow; a
+     single-answer host falls back to the full set), re-dials the SAME
+     host with the SAME preset (captured once per flow, so even a
+     mid-flight method change cannot vary a flow's wire shape), and
+     replays the buffered client bytes through a fresh fragment conn —
+     the first record re-fragmented identically (the fragment conn
+     splits its first Write; the replay writes record-then-extras),
+     everything after byte-exact. Up to `FirstByteSalvageDials` re-dials
+     (default 2 → 3 total attempts, bounded), the client never sees a
+     failure: its serial retry chain collapses into in-engine attempts
+     of ~0.5–2.5 s each. When the attempts run out, or a re-dial cannot
+     connect, the flow fails FAST exactly as at M8-s (both ends closed,
+     error counted, `tunnel first-byte failed reason=…`, done line,
+     demotion). Mechanically: the budgeted shape owns the first
+     record's write (it must replay it); a single client pump reads the
+     client for the whole first-byte phase, teeing into a 64 KB replay
+     buffer (a truncated buffer never replays — a partial replay would
+     corrupt the fresh origin's stream) and writing LIVE to the current
+     origin through a mutex-guarded swap-able link (a chatty client —
+     TLS early data — is never blocked behind the budget, exactly like
+     the old up-copy; the swap closes the dead origin under the pump so
+     a racing write fails fast with its bytes safe in the buffer). Once
+     the origin speaks, the pump is stopped (its reads all delivered)
+     and the plain two-goroutine relay takes over byte-for-byte.
+     tunnelCloser learns setB so Stop's force-close sweep hits the
+     live origin. New report lines, all reason-in-message (the M8-r
+     lesson): `tunnel first-byte retry reason=… attempt=N` (Warn,
+     absorbed attempts) and `tunnel first-byte salvaged dials=N`
+     (Info, a flow the salvage saved); the terminal line is unchanged.
+     Unrouted relays never enter the shape (D46).
+- **Evidence:** internal/proxy/firstbyte_test.go —
+  `TestFirstByteSalvageRecoversDeadOrigin` (the first origin silent,
+  the flow delivers the echo and stays up; the client NEVER sees a
+  close; retry + salvaged lines logged; exactly 2 dials),
+  `TestFirstByteSalvageExhaustsToFailFast` (all origins silent: exactly
+  1+2 dials, then the M8-s terminal signature — reason line, done
+  `down=0 B`, one demotion per dead attempt), and
+  `TestSalvageReplayIsByteExact` (the fresh origin receives the client
+  record plus its early data byte-exact) all verified BOTH WAYS: with
+  the tunnel.go salvage stashed (the M8-s shape at HEAD), each FAILS —
+  the client sees the budget close, no retry line, no echo — and with
+  the fix all PASS. The guards
+  (`TestFirstByteSalvageSparesUnroutedHosts`,
+  `TestFirstByteSalvageDisabledByConfig` — the negative knob pins
+  M8-s exactly) pass both ways, as guards must. The two M8-s tests now
+  set `FirstByteSalvageDials = -1` (they pin the TERMINAL shape).
+  Full baseline green: go vet clean; 18/18 packages ×2; GOOS=windows
+  exit 0; the Android compile matrix 4/4 ABIs + arm64 full tree; the
+  full build-android.sh lane with the embedded engine verified in the
+  AAR; the debug.13 APK artifact-verified (badging versionCode 12,
+  apksigner pinned cert, sha256 in doc 06).
+- **What this ADR does NOT decide:** per-flow METHOD variation — the
+  salvage never changes the preset (it is captured once per flow);
+  whether a dead routed flow should be retried once with the NEXT
+  preset in HealSweepOrder remains D102, Ali's ruling (surfaced again
+  in doc 10 row 3 with this round's sharper evidence: the salvage
+  makes flows survive per-node intolerance, but a systematically
+  intolerant network for one preset is still a method-policy
+  question). The ORIGIN of the per-node silence stays unobservable
+  from the app (no third guess). The QUIC drop policy stands
+  (ADR-0009; udpDropped=88 this round keeps measuring). The budget's
+  value beyond 2.5 s of evidence: the next report's retry/salvaged
+  line ratios are the tuning material.
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives
