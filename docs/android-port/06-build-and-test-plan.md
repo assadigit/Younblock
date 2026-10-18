@@ -1315,3 +1315,73 @@ M8-p record (2026-10-18, night; the THIRTEENTH feedback-loop exchange
   identity line proves the round). Then, when a video stalls mid-
   session, Diagnostics → Copy again and paste that report too. Row 3
   stays OPEN; no guess ships before a real pasted report arrives.
+
+### M8-r — the first pasted report acted on: the heal sweep probes from zero (2026-10-18)
+
+M8-r record (2026-10-18, late night; the FOURTEENTH feedback-loop
+exchange — the debug.10 device round, Task ID M8-r, ADR-0017; no new
+D-number — no ruling landed, D102 stays reserved for Ali).
+
+- **The round's input:** Ali's FIRST pasted diagnostics report
+  (D100's standing evidence path, finally used): "the problem
+  persists" + the full report — build identity versionCode 9 (the
+  debug.10 APK — the M8-q surface WORKED), state degraded, last
+  failed check dns (DNS_UNREACHABLE), "heal sweep found no working
+  method" 12.4 s into the run, method legacy, dns ok 58 / fail 16,
+  tun active flows=37 udpDropped=76, and 133 log lines that read
+  back against the code EXACTLY (the reconstruction is in
+  ADR-0017's Context): a startup DoH blip (three ~170 ms
+  fast-failures, once) negative-cached www.youtube.com for the 15 s
+  TTL; the automatic sweep probed that same name for all four
+  methods and failed instantly on the memory every time
+  (ErrRecentlyFailed — the servers are never re-asked inside the
+  window); the sweep's OWN video handshakes were completing (3 of 4
+  methods) while it declared no working method → degraded + the
+  "Couldn't fix it" notification, 21 s after Start, on a recovered
+  network. Collateral: the failed sweep left method=legacy (the
+  last-tried preset) live; the report's DNS lines were attr-stripped
+  by the ring (bare "dns server failed" — no reason).
+- **The host reproduction IS the proof:**
+  `TestHealSweepSurvivesFreshNegativeCache` (new; a DoH that fails
+  exactly the first request, the dns step and the youtube step
+  coupled on the same name — production's shape) fails on the
+  pre-fix code into the report's exact signature —
+  `Phase:degraded Method:legacy`, never ON — and passes with the
+  fix (ON, method balanced, the report carrying the baked failure
+  line). `TestFailedSweepRestoresPreviousMethod` (new) fails
+  pre-fix (method=legacy persists); `TestServerFailureLinesCarryEvidence`
+  (new, internal/doh) fails pre-fix (the bare fallback message).
+  All three verified BOTH ways (fix reverted → FAIL; fix applied →
+  PASS).
+- **The changes (ADR-0017):** the heal sweep resets the resolver at
+  start (the netmon's network-change semantics — a sweep is a
+  suspected-network-change event and probes from zero); a failed
+  sweep restores the previous method; the DNS failure/fallback
+  lines bake server=#N + reason= into the message (the ring keeps
+  only the message; the configured server NAME stays a file-log
+  attr; the report gains the failure KIND — timeout vs network vs
+  DNS_UNREACHABLE-class).
+- **Baseline, all green:** frontend untouched this round (the
+  M8-q dist carries over — verified intact: placeholder.txt +
+  hashed assets; the frontend tree clean at HEAD); go vet clean;
+  go test 18/18 ×2; GOOS=windows exit 0; the Android compile
+  matrix in its exact form (arm64 full tree + the non-main set
+  4/4 ABIs, CGO_ENABLED=0, -mod=vendor).
+- **The build lane:** versionCode 9 → 10 (the D84 rule); the full
+  `./build-android.sh` lane exit 0 (disk managed: the Go build
+  cache cleared before the bind); the AAR's embedded Go library
+  VERIFIED to carry the new engine strings (`dns server failed
+  server=#` inside libgojni.so); app-debug.apk badging versionCode
+  10 / versionName 1.6.6 / minSdk 26 / targetSdk 36; apksigner OK
+  — the pinned debug certificate c76bb7c6…8551d (installs over
+  debug.10 in place); size + SHA-256 in the release record below.
+- **The release lane:** v1.6.6-android-debug.11 at the pushed full
+  SHA (regular release, D89, Latest), the APK asset uploaded AS
+  v1.6.6-debug.apk (D99), served bytes re-verified through the API.
+- **The honest ask for the debug.11 round:** Start on the normal
+  network → Connected without the false "Couldn't fix it"; the
+  method stays what was set. On the next stall: menu → Diagnostics
+  (first row) → Copy → paste — the report now carries the DNS
+  failure reasons (the missing stall-row evidence) and row 3's
+  sharpened question: reason=timeout vs reason=network on the
+  startup blip.

@@ -12,6 +12,49 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-18, late night — M8-r; shipped in `v1.6.6-android-debug.11`, versionCode 10)
+
+- **The false "Couldn't fix it": the heal sweep no longer poisons
+  itself on the check that triggered it.** Ali's first pasted
+  diagnostics report (debug.10) showed the engine degrading 21
+  seconds after Start — `state: degraded`, `last failed check: dns
+  (DNS_UNREACHABLE)`, "heal sweep found no working method",
+  `method: legacy` — while the same report's log showed the
+  network recovering and real video data flowing. The
+  reconstruction (host-reproduced into the exact same signature,
+  ADR-0017): a secure-DNS blip at start failed all three servers
+  once (~170 ms each), which negative-caches `www.youtube.com` for
+  15 seconds; the automatic heal sweep triggered by that failure
+  then probed the SAME name for every method, and every probe
+  failed instantly on the negative entry — no server was ever
+  asked again inside the window, so a recovered network was
+  declared broken and Ali got the "Couldn't fix it. Open
+  Younblock." notification on a working connection. **A heal sweep
+  now resets the DNS resolver before probing** (the same
+  fresh-start semantics the app already applies on a real network
+  change): one blip at start can no longer make every method look
+  dead. A genuinely dead network still fails honestly (the
+  degraded state and the recorded dns failure are unchanged).
+- **A failed repair sweep no longer silently switches your
+  connection method.** The sweep applies each fragmentation preset
+  live as it probes; when NOTHING passed, the last-tried preset
+  (legacy) stayed live — the report's `method: legacy` was exactly
+  that, dragged off the user's saved choice by the sweep that
+  found nothing. A failed sweep now restores the method that ran
+  before it.
+- **The diagnostics report now says WHY a secure-DNS lookup
+  failed.** The report's log ring keeps only the message part of
+  each line (by design); the resolver's failure lines carried
+  their server and reason as structured attributes, so the pasted
+  report showed three bare "dns server failed" lines that could
+  not say timeout vs reset vs bad answer. Those lines now bake the
+  evidence into the message (`dns server failed server=#N
+  reason=…`, the fallback line `…failed=#N now=#M`, and `reason=`
+  on the serve-stale and tunnel-lookup lines) — the next pasted
+  report names the failure kind, the missing piece for the
+  open stall row. No hostnames or user-chosen strings enter the
+  report (the server travels as its 1-based index).
+
 ### Fixed (2026-10-18, late — M8-q; shipped in `v1.6.6-android-debug.10`, versionCode 9)
 
 - **The diagnostics button now exists on the screen your phone

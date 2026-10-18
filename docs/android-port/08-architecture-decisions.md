@@ -503,6 +503,96 @@ serves: the pro screen's first-class Diagnostics row and report view
   send); the classic tree's own entry placement (its Menu shape is
   unchanged).
 
+## ADR-0017 — The heal sweep probes from zero: reset the resolver when a
+sweep starts, restore the method when it finds nothing, and bake the DNS
+failure reasons into the report's log lines (M8-r, the debug.10 report
+round)
+
+- **Status:** Accepted 2026-10-18 (M8-r — the FIRST pasted diagnostics
+  report, Ali's "the problem persists" round; the evidence D100 built
+  the loop around).
+- **Context:** Ali's debug.10 report (versionCode 9) finally carried the
+  engine's own telemetry, and it read back against the code exactly:
+  `state: degraded`, `last failed check: dns (DNS_UNREACHABLE)`,
+  `heal sweep found no working method` 12.4 s into the run,
+  `method: legacy`, `dns ok 58, fail 16` — while the same log showed
+  the sweep's own video handshakes COMPLETING (three of four methods'
+  `tunnel first-byte` lines) and, minutes later, a 2.5 MB download.
+  The reconstruction: the QuickCheck's dns step failed against all
+  three DoH servers in ~170 ms each (a startup blip), which
+  negative-caches `www.youtube.com` for the 15 s negative TTL; the
+  automatic heal sweep triggered by that very failure then probed
+  `www.youtube.com` for EVERY method, and every probe failed
+  INSTANTLY on the negative entry (`ErrRecentlyFailed` — no server is
+  asked again inside the window); the sweep declared "no working
+  method", the engine went degraded, and Ali received "Couldn't fix
+  it. Open Younblock." 21 s after pressing Start on a network that had
+  already recovered. Two collateral defects rode the same report:
+  (a) `applyMethod` mutates the live setting as the sweep probes, so
+  the FAILED sweep silently left `method: legacy` — the last-tried
+  preset, dragged off the user's saved choice by the very sweep that
+  found nothing; (b) the resolver's `dns server failed` line logged
+  its server and reason as slog ATTRS — the log ring that feeds the
+  diagnostic report keeps only the MESSAGE (by design, R21-adjacent),
+  so the pasted report showed three bare `dns server failed` lines
+  that could not say timeout vs reset vs bad answer. The sweep's
+  structural incapacity — poisoned by its own trigger — was the
+  round's root cause; the per-video stall itself (five ~51 s flows
+  with ~7 KB down; `udpDropped=76`) is DPI-side and stays open as
+  row 3 evidence, not guessed at.
+- **Decision:** Three engine changes, each pinned by a regression test
+  that FAILS on the pre-fix code:
+  1. **A heal sweep resets the DNS resolver when it starts**
+     (`healSweep` → `resolver.Reset()`): a sweep is a
+     suspected-network-change event and probes from zero — the exact
+     semantics the network monitor already applies on a real change
+     (R19). The sweep's youtube step re-queries the servers instead of
+     tripping over the check that triggered it; the sticky server and
+     cached answers are re-earned, not inherited from the broken
+     moment. This does NOT make a dead network look alive: if the DoH
+     is still down, the sweep's fresh attempts fail honestly and the
+     engine degrades with the dns failure recorded (D44's test
+     unchanged and green).
+  2. **A failed sweep restores the previous method**
+     (`applyMethod(prev)` on the no-working-method path): nothing was
+     found, so the live fragmentation preset returns to what ran
+     before the sweep. A successful sweep still saves its winner
+     (`METHOD_SWITCHED` / `RECOVERED` notices unchanged).
+  3. **The DNS failure lines carry their evidence in the message**:
+     `dns server failed server=#N reason=<kind>` (and the fallback
+     line `…failed=#N now=#M`, plus `reason=` on the serve-stale and
+     the proxy's `dns lookup failed for tunnel` lines) — the report's
+     ring keeps the message, so the next pasted report names the
+     failure KIND (timeout vs network vs DNS_UNREACHABLE-class). The
+     configured server NAME stays a file-log attr; the message
+     carries only the 1-based index (no user-chosen strings enter the
+     report — the R21 posture holds).
+- **Evidence:** The host reproduction is the round's proof: with the
+  fixes reverted, `TestHealSweepSurvivesFreshNegativeCache` fails into
+  EXACTLY the pasted report's signature — `Phase:degraded
+  Method:legacy` on a recovered network (a DoH that blips once at
+  start); with the fixes, the engine reaches ON through the sweep
+  (method balanced), and the report carries the baked failure line.
+  `TestFailedSweepRestoresPreviousMethod` fails without fix 2
+  (method=legacy persists); `TestServerFailureLinesCarryEvidence`
+  fails without fix 3 (the bare message). Full baseline green: go vet
+  clean; 18/18 packages ×2; GOOS=windows exit 0; the Android compile
+  matrix 4/4 ABIs; the full build-android.sh lane with the embedded
+  engine verified in the AAR (the baked log strings present in
+  libgojni.so); debug.11 APK artifact-verified (badging versionCode
+  10, apksigner pinned cert, sha256 recorded in doc 06).
+- **What this ADR does NOT decide:** the CAUSE of the startup DoH
+  blip itself (three ~170 ms fast-failures — DPI reset vs a routing
+  transient at VPN establish; fix 3 exists so the NEXT report answers
+  it with `reason=` evidence — no third guess); the per-video stall
+  (row 3: the five 51 s / ~7 KB flows and the QUIC drops are
+  ISP-side interference on the direct path — the app cannot un-throttle
+  the network, and no steering change is made without a ruling); the
+  QUIC drop policy (ADR-0009 stands; `udpDropped` keeps measuring);
+  the manual Test-connection button's own negative-cache cascade (the
+  same poison in miniature — left as documented scope, the sweep is
+  the automatic path that produced the report).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

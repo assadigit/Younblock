@@ -394,7 +394,11 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 	dnsMS := time.Since(tDNS).Milliseconds()
 	if err != nil {
 		if s.cfg.Logger != nil {
-			s.cfg.Logger.Warn("dns lookup failed for tunnel", "reason", errKind(err))
+			// The reason rides in the message: the log ring that feeds the
+			// diagnostic report drops attrs (M8-r — the debug.10 report
+			// showed these lines bare, unable to say why the tunnel
+			// lookup failed).
+			s.cfg.Logger.Warn("dns lookup failed for tunnel reason=" + errKind(err))
 		}
 		s.reply(client, statusBadGateway)
 		s.countConnError()

@@ -16,6 +16,7 @@ import (
         "net/http"
         "strings"
         "sync"
+        "sync/atomic"
         "testing"
         "time"
 
@@ -104,6 +105,29 @@ func TestStartNoMethodWorksGoesDegradedListenerStaysUp(t *testing.T) {
         }
         if !found {
                 t.Errorf("notifications = %+v, want the failure text", plat.Notices())
+        }
+}
+
+// TestFailedSweepRestoresPreviousMethod (M8-r, from Ali's debug.10 report:
+// method=legacy after a sweep that found nothing): a heal sweep applies each
+// method live as it probes; when NO method passes, the last-tried preset must
+// not stay live — the user's pre-sweep setting is restored. A failed sweep
+// silently switching the fragmentation preset is a downgrade delivered by
+// the very sweep that found nothing.
+func TestFailedSweepRestoresPreviousMethod(t *testing.T) {
+        eng, _, _, net := newTestEngine(t)
+        net.acceptAll(false) // every method fails every check
+
+        before := eng.GetState().Method
+        if before != config.MethodAuto {
+                t.Fatalf("pre-start method = %s, want the default auto", before)
+        }
+        if err := eng.Start(); err != nil {
+                t.Fatal(err)
+        }
+        st := waitForState(t, eng, 5*time.Second, phaseDegraded)
+        if st.Method != config.MethodAuto {
+                t.Errorf("method after a failed sweep = %s, want auto (the pre-sweep setting)", st.Method)
         }
 }
 
@@ -454,10 +478,20 @@ type localNet struct {
         primaryURL string
         fallback   string
         videoHost  string
+
+        // dohFailFirst, when > 0, makes the fake DoH answer 502 for the
+        // first N requests (a blip at start) and recover afterwards — the
+        // M8-r regression shape from Ali's debug.10 report: the QuickCheck's
+        // dns step fails, negative-caches the probe name, and the heal sweep
+        // that follows must still be able to heal. dohReqs counts requests.
+        dohFailFirst atomic.Int32
+        dohReqs      atomic.Int32
 }
 
 func newLocalNet(t *testing.T) *localNet {
         t.Helper()
+        // Declared first so the DoH handler below can count and blip.
+        env := &localNet{}
         // CA and one leaf covering everything.
         caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
         if err != nil {
@@ -502,6 +536,10 @@ func newLocalNet(t *testing.T) *localNet {
         dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{leaf}})
         dohMux := http.NewServeMux()
         dohMux.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
+                if n := env.dohReqs.Add(1); n <= env.dohFailFirst.Load() {
+                        w.WriteHeader(http.StatusBadGateway)
+                        return
+                }
                 wire, err := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(r.URL.Query().Get("dns"))
                 if err != nil {
                         w.WriteHeader(http.StatusBadRequest)
@@ -566,13 +604,12 @@ func newLocalNet(t *testing.T) *localNet {
         }()
         t.Cleanup(func() { webLn.Close() })
 
-        return &localNet{
-                pool:       pool,
-                dohURL:     "https://" + dohTLS.Addr().String(),
-                primaryURL: fmt.Sprintf("https://yt.test:%d/generate_204", webPort),
-                fallback:   fmt.Sprintf("https://yt.test:%d/robots.txt", webPort),
-                videoHost:  fmt.Sprintf("video.test:%d", webPort),
-        }
+        env.pool = pool
+        env.dohURL = "https://" + dohTLS.Addr().String()
+        env.primaryURL = fmt.Sprintf("https://yt.test:%d/generate_204", webPort)
+        env.fallback = fmt.Sprintf("https://yt.test:%d/robots.txt", webPort)
+        env.videoHost = fmt.Sprintf("video.test:%d", webPort)
+        return env
 }
 
 func TestRunConnectionTestEmitsProgress(t *testing.T) {
@@ -809,6 +846,69 @@ func TestDegradedShowsDnsFailureAndStaysAlive(t *testing.T) {
         waitForState(t, eng, 5*time.Second, phaseOff)
         if st := eng.GetState(); st.Fail != nil {
                 t.Fatalf("fail present after stop: %+v", st.Fail)
+        }
+}
+
+// TestHealSweepSurvivesFreshNegativeCache (M8-r — the debug.10 root cause):
+// the QuickCheck's dns step fails against a DoH that blips exactly once at
+// start, which negative-caches the probe name for the negative TTL; the
+// automatic heal sweep that follows must reset the resolver and re-query,
+// find a working method and reach ON. Before M8-r every method's youtube
+// step failed instantly on the fresh negative entry (ErrRecentlyFailed — no
+// server ever asked again), the sweep declared "no working method" while
+// its own video handshakes were completing, and the engine degraded with a
+// "Couldn't fix it" notification on a network that had already recovered.
+// The dns step and the youtube step probe the SAME name (www.youtube.com in
+// production; yt.test here) — that coupling is the poison's path.
+func TestHealSweepSurvivesFreshNegativeCache(t *testing.T) {
+        env := newLocalNet(t)
+        env.dohFailFirst.Store(1) // the very first DoH request fails; the rest answer
+        dir := t.TempDir()
+        plat := stub.NewWithDir(dir)
+        settings := config.DefaultSettings()
+        settings.Advanced.DoHServers = []config.DoHServer{{
+                Name: "FakeDoH", URL: env.dohURL + "/dns-query?dns={dns}", Bootstrap: []string{"127.0.0.1"},
+        }}
+        if err := config.Save(dir, settings); err != nil {
+                t.Fatal(err)
+        }
+        eng, err := engine.New(engine.Options{
+                Platform:            plat,
+                LogDir:              dir + "/logs",
+                AllowPrivateTargets: true, // the fake network resolves to 127.0.0.1
+                ResolverTLS:         &tls.Config{RootCAs: env.pool},
+                HealthOverrides: func(hc *health.Config) {
+                        hc.PrimaryURL = env.primaryURL
+                        hc.FallbackURL = env.fallback
+                        hc.VideoHost = env.videoHost
+                        hc.DNSName = "yt.test" // the production coupling: the dns step resolves the name the youtube step CONNECTs
+                        hc.WebTLS = &tls.Config{RootCAs: env.pool}
+                        hc.VideoTLS = &tls.Config{RootCAs: env.pool}
+                },
+        })
+        if err != nil {
+                t.Fatal(err)
+        }
+        t.Cleanup(eng.Shutdown)
+
+        if err := eng.Start(); err != nil {
+                t.Fatal(err)
+        }
+        st := waitForState(t, eng, 10*time.Second, phaseOn)
+        if st.Error != nil {
+                t.Errorf("state error = %+v, want none (the network recovered)", st.Error)
+        }
+        if st.Method != config.MethodBalanced {
+                t.Errorf("method = %s, want balanced (the first method the sweep probes)", st.Method)
+        }
+        // The report's log ring carries the baked evidence line from the
+        // QuickCheck's failure (server index + reason in the message — M8-r).
+        rep := eng.GetDiagnosticReport()
+        if !strings.Contains(rep, "dns server failed server=#1") {
+                t.Errorf("diagnostic report missing the baked dns-failure line:\n%s", rep)
+        }
+        if strings.Contains(rep, "heal sweep found no working method") {
+                t.Errorf("the sweep still declared no working method on a recovered network:\n%s", rep)
         }
 }
 

@@ -1,4 +1,4 @@
-# Prompt — Continue Younblock: the device-test feedback loop (M8-r — the first diagnostics-report round, on the screen the phone serves)
+# Prompt — Continue Younblock: the device-test feedback loop (M8-s — the debug.11 round: the report WITH reasons)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -7,103 +7,103 @@ Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL; the
 session prompt carries a fresh token if push is rejected).
 
-## Where the project stands (verified at the M8-q close, 2026-10-18 late)
+## Where the project stands (verified at the M8-r close, 2026-10-18 late night)
 
-- **The diagnostics surface finally ships on the screen the phone
-  actually serves, as `v1.6.6-android-debug.10` (versionCode 9,
-  Latest, the APK asset named v1.6.6-debug.apk).** Ali's debug.9
-  round: "I still dont see diagnostic button" — exact, and the root
-  cause was in the build: the M8-p surface (debug.9) shipped ONLY
-  into the classic UI tree, but the APK bakes the PRO screen
-  (D66: `build-android.sh` leaves `VITE_UI_VARIANT` unset, so
-  `main.ts`'s dispatcher defaults to pro; only the desktop wails
-  lanes bake classic). The phone's only diagnostics was the M6-era
-  sheet section buried below Help, with the raw `navigator.clipboard`
-  copy that silently fails in the WebView. **What the APK now
-  carries (ADR-0016, the port): Diagnostics as the FIRST row of the
-  menu sheet — every platform, no gate, no scrolling — opening the
-  full-screen report view: Copy (the same honest three-path ladder —
-  the Android-native shell bridge first, navigator.clipboard second,
-  execCommand third), Share (the system share sheet, APK only),
-  Refresh, and the selectable text itself as the last resort.** The
-  old buried section is REMOVED. The engine report (TUN counters,
-  the "android shell: 1.6.6 (versionCode 9)" build identity, the
-  200-line window) is unchanged from debug.9 — now actually
-  reachable on the device. The surface was verified END-TO-END
-  through the real webui server (`cmd/core --web` — the same
-  embedded dist + dispatcher the APK serves) before release.
-- **D101 (this round's ruling, read it in full): a user-facing
-  surface ships in the variant(s) the edition serves.** Name the
-  baked variant per edition (Android + the web single-file edition →
-  pro; the Windows/Linux wails desktops → classic) and verify the
-  surface through the real webui server, not only in the source
-  tree. A feature merged into one UI tree is invisible to every
-  edition that bakes the other.
-- **The stall itself is NOT root-caused a third time — by design.**
-  Two host-proven fixes are device-disproven in a row (ADR-0013 in
-  debug.7, ADR-0014 in debug.8). The next root-cause waits for a
-  REAL PASTED REPORT, not a guess. Doc 10's circle row 3 stays
-  open; its expected input is now the first row of the menu.
-- **D100 stands:** the diagnostics surface is the loop's standing
-  evidence path — a "still broken" device report without the pasted
-  diagnostics report is incomplete.
-- **The account-gate lane stays CLOSED (D97)** — cancelled before any
-  code; `docs/auth/` is bannered history; ADR-AUTH-0001 retired;
-  the A-series Task IDs are retired; Younblock stays ONE
-  free-for-all app — no login, no server, no editions. Read D97 in
-  full in DECISIONS.md before doing anything.
+- **THE FIRST PASTED DIAGNOSTICS REPORT ARRIVED and was acted on:
+  `v1.6.6-android-debug.11` (versionCode 10, Latest, the APK asset
+  named v1.6.6-debug.apk) ships the fixes it drove (ADR-0017).** Ali's
+  debug.10 round: "the problem persists" + the full report — its
+  "android shell: 1.6.6 (versionCode 9)" line proved the debug.10
+  install AND that the M8-q surface rendered and copied on his phone;
+  its log read back against the engine code line by line: a startup
+  DoH blip (three ~170 ms fast-failures, once) negative-cached
+  www.youtube.com for the 15 s negative TTL, the automatic heal sweep
+  triggered by that same failure probed that same name for every
+  method and failed INSTANTLY on the negative entry each time (no
+  server re-asked inside the window) while its own video handshakes
+  were completing — so a RECOVERED network was declared broken:
+  degraded, "Couldn't fix it. Open Younblock." 21 s after Start, and
+  the failed sweep left method=legacy live (the last-tried preset,
+  off the saved choice). **What debug.11 carries: the heal sweep
+  RESETS the DNS resolver at start (a sweep probes from zero — the
+  netmon's network-change semantics); a failed sweep RESTORES the
+  previous method; the DNS failure/fallback/stale/tunnel-lookup log
+  lines BAKE server=#N + reason= into the message** (the report's
+  ring keeps only the message — the pasted report's bare "dns server
+  failed" lines could not say timeout vs reset; now they can). The
+  host reproduction is the round's proof: with the fixes reverted,
+  `TestHealSweepSurvivesFreshNegativeCache` fails into the report's
+  EXACT signature (`Phase:degraded Method:legacy`, never ON); with
+  them, the engine heals to ON through the sweep.
+- **The stall row (doc 10 row 3) has its first real telemetry and
+  STAYS OPEN:** five video flows that connected, handshook, and then
+  moved ~7 KB in 51 s while OTHER flows completed fine in the same
+  session (122 KB in ~1 s; 2.5 MB in ~7 s) — ISP-side throttling of
+  the direct path to specific googlevideo cache nodes — plus
+  `udpDropped=76` (the YouTube app's QUIC attempts, dropped by
+  design per ADR-0009, row 9's measurement) adding per-video start
+  latency. **No steering or policy change without Ali's ruling.**
+  The sharpened question for the next report: do the baked
+  `reason=` lines on the startup blip read timeout (filtered) or
+  network (transient)?
+- **D102 is still reserved for Ali's rulings** (none landed in
+  M8-r); D94–D101 are spent. The account-gate lane stays CLOSED
+  (D97) — read it in full in DECISIONS.md before doing anything.
 - **The rest of the device test circle is unchanged and largely
-  unrun** (doc 10 §"Device test circle"): the cross-device UI verdict
-  on debug.6, rows 4–8 (browser routing, .ir direct, stop paths,
-  persistence/battery, network switch), row 9's device half (the
-  QUIC fallback observation — the tun: udpDropped counter is exactly
-  its evidence surface), rotation/TalkBack, the data-usage round,
-  and D93's desktop check.
+  unrun** (doc 10 §"Device test circle"): the cross-device UI
+  verdict on debug.6, rows 4–8 (browser routing, .ir direct, stop
+  paths, persistence/battery, network switch), row 9's device half
+  (the QUIC fallback observation — `udpDropped` is its evidence
+  surface and it is now CLIMBING on record), rotation/TalkBack, the
+  data-usage round, and D93's desktop check.
 - **The dormant desktop release lane** (the rounds under CHANGELOG
   "Unreleased") and **public-release engineering** remain
-  open-but-paused by choice. Both UI trees now carry the Diagnostics
-  surface (classic since debug.9, pro since debug.10).
+  open-but-paused by choice.
 - The canonical live handoff is `docs/android-port/09-agent-handoff.md`
   §"Current handoff fields". If anything (including this prompt)
   disagrees with the repository, **the repository wins** — report the
   discrepancy instead of improvising.
 
-## The session's ONE workstream — the device-test feedback loop (Task ID M8-r)
+## The session's ONE workstream — the device-test feedback loop (Task ID M8-s)
 
-For each issue Ali reports from `v1.6.6-android-debug.10` (device
+For each issue Ali reports from `v1.6.6-android-debug.11` (device
 side) or his rebuilt desktop exe:
 
 - **FIRST: the pasted diagnostics report.** If he pasted one: verify
-  the "android shell:" line names versionCode 9 (the report's own
-  build identity — a versionCode 8 report means the old APK is still
-  installed and the round starts with the install). Then read it
-  against the stall: (a) the `tunnel up dns=…ms dial=…ms` lines —
-  slow dns/dial = the network answer path (the DoH servers or the
-  address sets); (b) `tunnel first-byte`/`tunnel done dur=…` — fast
-  setup + slow dur = a throughput leg; (c) NOTHING logged for the
-  stalled video = the flow never reached the door (a stack/app-side
-  suspect — and the `tun:` line's flows counter plus udpDropped name
-  exactly that case; udpDropped climbing = the QUIC row 9 suspect);
-  (d) high on-screen speed while the player still buffers = the
-  player's own transport. Root-cause from the evidence; fix at the
-  correct layer (engine/facade/Kotlin/WebView); keep the D77–D101
-  honesty rules binding.
-- **Also ingest the surface's own verdict** (it rides the same
-  round): is Diagnostics the first row when the menu opens; does
-  Copy actually copy (the honest status); does Share open the
-  system sheet; does the report render. A broken evidence path is
-  itself a defect — fix it before anything else, and per D101 fix
-  it in the SERVED variant (the pro tree), verified through the
-  real webui server.
+  the "android shell:" line names **versionCode 10** (a versionCode 9
+  report means the old APK is still installed and the round starts
+  with the install). Then read it against the stall, in this order:
+  (a) any **`dns server failed server=#N reason=…`** lines — the
+  M8-r baked evidence: `reason=timeout` on the startup blip means
+  the DoH bootstrap dials are being filtered (a server-list /
+  bootstrap-IP question), `reason=network` means a transient (a
+  retry/ordering question), `reason=DNS_UNREACHABLE`-class with a
+  status means the server answered badly; (b) the
+  `tunnel up dns=…ms dial=…ms` lines — slow dns/dial = the network
+  answer path; (c) `tunnel first-byte`/`tunnel done dur=…` — fast
+  setup + slow dur = a throughput leg (the known ISP-side signature
+  from the debug.10 report: ~51 s flows with ~7 KB down while other
+  flows complete fine); (d) NOTHING logged for the stalled video =
+  the flow never reached the door (the `tun:` line's flows counter
+  + udpDropped name exactly that case; udpDropped climbing = the
+  QUIC row 9 suspect — a POLICY question for Ali, not a unilateral
+  change); (e) high on-screen speed while the player still buffers
+  = the player's own transport. Root-cause from the evidence; fix
+  at the correct layer (engine/facade/Kotlin/WebView); keep the
+  D77–D101 honesty rules binding.
+- **Also ingest the debug.11 round's own ask:** Start on the normal
+  network should reach Connected WITHOUT the false "Couldn't fix
+  it" notification, and the method in Settings should stay what was
+  set. If a REAL degradation still fires on a working network, the
+  report's log now carries the reasons — read them.
 - **If the report is absent**, say so plainly and ask for it (open
   the menu — Diagnostics is the first row — open it, Copy, paste it
   here; even with nothing stalled, its build line proves the
-  round) — do NOT guess the third root-cause; two disproven fixes
-  in a row make guessing the one thing this loop must not do.
-  Offer the honest alternatives — the desktop release lane or
-  public-release engineering — his pick, or a new feature direction
-  if he has one (recorded as a decision before any code, per the
-  D94 pattern).
+  round) — do NOT guess a root-cause; the loop's credibility rests
+  on evidence-first. Offer the honest alternatives — the desktop
+  release lane or public-release engineering — his pick, or a new
+  feature direction if he has one (recorded as a decision before
+  any code, per the D94 pattern).
 - Record each closed checklist row with Ali's measured evidence
   (doc 07 §9 / doc 10 §"Device test circle"); rows without
   observations stay open — never mark them complete.
@@ -115,22 +115,22 @@ side) or his rebuilt desktop exe:
   release — the full-SHA target_commitish 422s against an unpushed
   SHA; upload the APK, verify via the API, record asset size +
   digest) WHEN a code change warrants it — do not re-release
-  identical bytes. Full lane before release: desktop baseline in the
-  D74 order (frontend npm ci → svelte-check 0/0 → vite build →
+  identical bytes. Full lane before release: desktop baseline in
+  the D74 order (frontend npm ci → svelte-check 0/0 → vite build →
   CLEAN-sync dist → go vet → go test 18/18 ×2 → GOOS=windows exit
   0); the compile matrix in its exact form (CGO_ENABLED=0
-  `go build ./internal/... ./mobile/...` = 19 non-main packages per
-  ABI ×4, plus arm64 linking the full tree `./...` with
-  CGO_ENABLED=0 — do NOT run the arm64 full-tree link with the host
-  gcc); `gomobile bind` (GOFLAGS=-mod=mod, the recorded
+  `go build ./internal/... ./mobile/...` per ABI ×4, plus arm64
+  linking the full tree `./...` with CGO_ENABLED=0 — do NOT run the
+  arm64 full-tree link with the host gcc); `gomobile bind`
+  (GOFLAGS=-mod=mod, the recorded
   `-target=android/arm,android/arm64,android/amd64` form, androidapi
   26); **clean** `assembleDebug` (if it fails on "Toolchain
   installation … does not provide the required capabilities:
   [JAVA_COMPILER]", a stale gradle daemon holds the system JRE —
   `./gradlew --stop` then `JAVA_HOME=~/sdk/jdk ./gradlew clean
   assembleDebug`); artifact verification (sha256, apksigner,
-  badging — doc 06's records); **the served-variant check (D101):
-  verify any UI change through the real webui server
+  badging — doc 06's records); **the served-variant check (D101)
+  for any UI change: verify through the real webui server
   (`go build -o /tmp/core ./cmd/core && /tmp/core --web --webport
   <port> --no-open`) in a browser at a 360×760 viewport before
   release**; commit.
@@ -141,30 +141,29 @@ side) or his rebuilt desktop exe:
    (sandbox resets have destroyed it before; if it is missing,
    recreate it from this prompt plus the repo records and say so).
    Append your own entry (Task ID + the standard template) when you
-   finish; never overwrite. The feedback-round Task IDs run M8-r,
-   M8-s, … **The auth lane's Task IDs (A1, A2, A3) are RETIRED —
+   finish; never overwrite. The feedback-round Task IDs run M8-s,
+   M8-t, … **The auth lane's Task IDs (A1, A2, A3) are RETIRED —
    cancelled with the feature at D97; never open them. The next
    decision number is D102 — reserved for Ali's rulings; D94–D101
-   are spent (D98 the APK-on-every-release ruling, D99 the
-   APK-naming ruling, D100 the diagnostics-surface ruling, D101 the
-   served-variant rule).**
+   are spent.**
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
-   debug.10 edition + §"Device test circle" — row 3 is the stall
-   row, now the first row of the menu), doc 06 (the M8-c…M8-q
-   records), doc 08 + `DECISIONS.md` (D1–D101; **read D97, D98,
-   D99, D100 and D101 in full**), and the tail of `PROGRESS.md`.
+   debug.11 edition + §"Device test circle" — row 3 is the stall
+   row with its first telemetry), doc 06 (the M8-c…M8-r records),
+   doc 08 + `DECISIONS.md` (D1–D101; **read D97, D98, D99, D100 and
+   D101 in full; ADR-0017 is the M8-r decision**), and the tail of
+   `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
-   `git status -sb`, `git log --oneline -3` (expect the M8-q commit
-   — the served-variant port + D101 — on top of 65fe1d4, the M8-p
-   classic-tree surface). Preserve any uncommitted work; never
-   reset it just to get a clean diff. If push is rejected
-   (credential rotated), the session prompt carries a fresh token —
-   update the `origin` remote URL with it.
-4. Check whether Ali's debug.10 device feedback has arrived (session
-   messages). If a pasted diagnostics report is present: the
-   feedback loop above, the report first. If not: say so plainly
-   and put the honest alternatives to Ali — do not guess, do not
-   invent work.
+   `git status -sb`, `git log --oneline -3` (expect the M8-r commit
+   — the heal-sweep reset + restore + baked log lines + ADR-0017 —
+   on top of 5fdf8b2, the M8-q port). Preserve any uncommitted
+   work; never reset it just to get a clean diff. If push is
+   rejected (credential rotated), the session prompt carries a
+   fresh token — update the `origin` remote URL with it.
+4. Check whether Ali's debug.11 device feedback has arrived
+   (session messages). If a pasted diagnostics report is present:
+   the feedback loop above, the report first. If not: say so
+   plainly and put the honest alternatives to Ali — do not guess,
+   do not invent work.
 5. Make the desktop baseline GREEN before writing any code, in the
    D74 ORDER (a fresh clone fails the Go lanes until the frontend is
    built): `cd frontend && npm ci`; `npx svelte-check` (0/0);
@@ -172,7 +171,7 @@ side) or his rebuilt desktop exe:
    (rm + restore placeholder.txt + cp); then `go vet ./...`;
    `go test -count=1 ./...` (expect **18/18 packages ok**, run twice
    consecutively); `GOOS=windows go build ./...` (exit 0).
-   **~/sdk was intact at the M8-q close; wipes happen at ANY
+   **~/sdk was intact at the M8-r close; wipes happen at ANY
    boundary — VERIFY first (`. ~/sdk/env.sh && go version &&
    javac -version`) and only reinstall if actually wiped (the
    cmdline-tools `12.0` alias URL 404s — use the versioned
@@ -196,21 +195,26 @@ side) or his rebuilt desktop exe:
   `android/app/debug.keystore` — after a wipe + re-clone,
   assembleDebug signs identically with NO extra step.
 - No /dev/kvm (re-verified every session). Disk is a ~9.9 GB box —
-  clean Go/Gradle build caches before big builds.
+  **the M8-r session ended with the Go build cache CLEARED (1.9 GB
+  freed for the bind); expect to `go clean -cache` again before a
+  big Android build** and clean Go/Gradle caches when low.
 - **The sandbox kills background processes when a Bash command ends
   when they stay in the command's process group — a double-fork
   detach (`( setsid <cmd> > log 2>&1 < /dev/null & )`) survives
   across invocations (proven at M8-q for the webui verification
-  server).**
+  server, used at M8-r for the Android lane itself).**
 - After a re-clone: `git config core.fileMode false` and
   `chmod +x android/gradlew` **and `chmod +x build-android.sh`** (the
   lane script lost its +x at the M8-q session — restored, but a
   fresh clone needs it again).
-- **Formatting note (learned the hard way at M8-n): the .go sources
-  are TAB-indented (gofmt-clean); some _test.go files are not. The
-  Read tool renders tabs as spaces — write Go changes carefully and
-  run `~/sdk/go/bin/gofmt -l <file>` against HEAD vs worktree, or
-  `gofmt -w` your touched files, so the diff stays surgical.**
+- **Formatting note (learned the hard way at M8-n, hit AGAIN at
+  M8-r): the production .go sources are TAB-indented (gofmt-clean)
+  but the Edit tool WRITES SPACES file-wide when it touches a
+  tab-indented file — run `gofmt -w` on every touched production
+  .go file after editing, then check `git diff --stat` is surgical.
+  Some _test.go files are SPACE-indented and NOT gofmt-clean at
+  HEAD (health_test.go, flowtiming_test.go) — do NOT `gofmt -w`
+  those; write their edits in the file's own space style.**
 
 If the sandbox was wiped (repo / toolchain / Go missing):
 
@@ -239,7 +243,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   credential); preserve Windows/Linux desktop behavior (the full
   regression gate is part of every change set).
 - Do not assume Wails or desktop proxy semantics transfer to Android;
-  the ADRs (doc 08, now ADR-0001…0016) are the ground truth.
+  the ADRs (doc 08, now ADR-0001…0017) are the ground truth.
 - The honesty rules D77–D101 bind: the UI/release notes may only
   claim what the engine actually enforces; privacy copy follows
   implementation evidence; ⛔ gates are listed, never dropped; no
@@ -247,12 +251,12 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   recorded as exactly what it is (D97 is the pattern); a copy button
   may only toast success when a path delivered (ADR-0015's ladder);
   **a surface ships in the variant the edition serves, verified
-  through the real webui server (D101/ADR-0016).**
+  through the real webui server (D101/ADR-0016)**.
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
   handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D102, as
   rulings land), `CHANGELOG.md`; append the worklog entry (Task ID
-  M8-r / M8-s / …); commit and push; cut the debug release with the
+  M8-s / M8-t / …); commit and push; cut the debug release with the
   bumped versionCode when APP code changed — **always attach the
   debug APK per D98, named v<versionName>-debug.apk per D99** — and
   record the artifact.
@@ -262,7 +266,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
-from debug.10 has arrived — if a diagnostics report was pasted, quote
+from debug.11 has arrived — if a diagnostics report was pasted, quote
 its "android shell:" line (the build identity) and name the FIRST
 issue you will address from its evidence; if only prose arrived, ask
 for the report (open the menu — Diagnostics is the first row — open

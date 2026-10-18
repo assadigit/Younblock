@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -544,5 +545,62 @@ func TestDialBootstrapFailsOverToSecondBootstrapIP(t *testing.T) {
 	}
 	if f.hits.Load() != 1 {
 		t.Errorf("server hits = %d, want 1", f.hits.Load())
+	}
+}
+
+// captureLogger records log messages for assertions. The engine's log ring
+// — the thing the pasted diagnostic report carries — keeps ONLY the message
+// (attrs are dropped by design), so anything a future report must show has
+// to ride in the message itself.
+type captureLogger struct {
+	mu    sync.Mutex
+	infos []string
+	warns []string
+}
+
+func (c *captureLogger) Info(msg string, _ ...any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.infos = append(c.infos, msg)
+}
+
+func (c *captureLogger) Warn(msg string, _ ...any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.warns = append(c.warns, msg)
+}
+
+// TestServerFailureLinesCarryEvidence (M8-r): the per-server failure and
+// fallback lines must carry the server index and the failure reason IN THE
+// MESSAGE. Ali's debug.10 diagnostic report showed three bare "dns server
+// failed" lines — the ring had dropped the attrs, and the report could not
+// say timeout vs reset vs bad answer. Now the message itself carries
+// server=#N and reason=… so the next pasted report names the failure kind.
+func TestServerFailureLinesCarryEvidence(t *testing.T) {
+	dead := newFakeDoH(t, func(string) ([]net.IP, uint32) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	dead.fail.Store(true) // server #1 fails every request
+	live := newFakeDoH(t, func(string) ([]net.IP, uint32) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	cfg := testConfig(dead.serverConfig("Dead"), live.serverConfig("Live"))
+	// One pool trusting both self-signed httptest certificates.
+	pool := x509.NewCertPool()
+	pool.AddCert(dead.srv.Certificate())
+	pool.AddCert(live.srv.Certificate())
+	cfg.TLS = &tls.Config{RootCAs: pool}
+	log := &captureLogger{}
+	cfg.Logger = log
+	r := New(cfg)
+
+	if _, err := r.Lookup(context.Background(), "example.com"); err != nil {
+		t.Fatalf("Lookup through the second server: %v", err)
+	}
+	if len(log.warns) == 0 || !strings.Contains(log.warns[0], "dns server failed server=#1 reason=") {
+		t.Errorf("warn lines = %v, want the failure to carry server=#1 and a reason in the message", log.warns)
+	}
+	if len(log.infos) == 0 || !strings.Contains(log.infos[0], "using the next one failed=#1 now=#2") {
+		t.Errorf("info lines = %v, want the fallback to name failed=#1 now=#2 in the message", log.infos)
 	}
 }

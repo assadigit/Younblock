@@ -41,7 +41,51 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.10 — the diagnostics surface on the screen your phone actually serves (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.11 — the false "Couldn't fix it" fixed: the heal sweep probes from zero (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 10, built at the M8-r commit, the
+pinned debug certificate — **installs directly over debug.10** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED with the version (**v1.6.6-debug.apk**, per
+D99). This is the round your first diagnostics report built: it
+named the build (versionCode 9 ✓ — the surface worked), and its log
+was read back against the engine line by line (ADR-0017).
+
+1. **What was wrong (read from YOUR report, not guessed):** 21
+   seconds after you pressed Start, the app told you "Couldn't fix
+   it. Open Younblock." and the state read degraded — while the
+   same report showed the network recovering and real video data
+   flowing (a 2.5 MB download minutes later). The sequence in your
+   log: the secure-DNS lookup blipped at start (all three servers
+   failed fast, once); the app remembers a failed lookup for 15
+   seconds; the automatic fix sweep that immediately followed then
+   probed the SAME name and hit that memory every time — so every
+   method "failed" without ever asking the servers again, and the
+   sweep reported no working method on a network that had already
+   recovered. Two smaller defects rode along: the failed sweep left
+   the connection method switched to "legacy" (the last one it
+   tried) instead of your setting, and the report's DNS failure
+   lines carried no reason ("dns server failed" — unable to say
+   timeout vs reset).
+2. **What changed (ADR-0017, host-proven — reproduced exactly, then
+   fixed):** the fix sweep now starts fresh — it clears the DNS
+   memory before probing (the same thing the app already does on a
+   real network change), so one blip at start can no longer poison
+   the whole sweep; a sweep that finds nothing restores your
+   previous method instead of silently switching it; and the DNS
+   failure lines now carry their evidence in the message
+   ("dns server failed server=#N reason=…"), so the NEXT report
+   tells us WHAT KIND of failure the startup blip is.
+3. **What to verify on the phone:** press Start on your normal
+   network — it should reach Connected (or recover on its own if
+   your secure-DNS providers genuinely hiccup) WITHOUT the
+   "Couldn't fix it" notification from a working network, and the
+   method shown in Settings should stay what you set. When a video
+   stalls mid-session: menu → Diagnostics (first row) → Copy →
+   paste the report here — the report now carries the DNS failure
+   reasons, which is the missing piece for the stall row.
+
+## 1. v1.6.6-android-debug.10 — the diagnostics surface on the screen your phone actually serves (SHIPPED — a regular release, superseded by debug.11: its round produced the first pasted report, which debug.11 acts on)
 
 **What this build is:** versionCode 9, built at the M8-q commit, APK
 35,053,265 B (SHA-256 4264996a…f9e7), the pinned debug certificate
@@ -552,6 +596,34 @@ remove the Last-session line).**
    STAYS OPEN: after the next stall, open the menu, tap the first
    row, Copy, paste the report here. Two pastes close this loop:
    one now (its build line proves the round), one at the stall.**
+
+   **THE FIRST REPORT ARRIVED (debug.10, 2026-10-18, M8-r): Ali
+   pasted the full diagnostics report — versionCode 9 on the build
+   line, state degraded, last failed check dns (DNS_UNREACHABLE),
+   "heal sweep found no working method" 12.4 s in, method legacy,
+   dns ok 58 / fail 16, tun active flows=37 udpDropped=76 — and the
+   log read back against the code EXACTLY (ADR-0017): a startup
+   secure-DNS blip (three ~170 ms fast-failures) negative-cached
+   the sweep's own probe name, every method then failed instantly
+   on the 15-second memory, and a RECOVERED network was declared
+   broken (degraded + "Couldn't fix it" notification) — reproduced
+   on the host into the same signature (degraded, method legacy)
+   and fixed in debug.11 (the sweep resets the DNS memory and
+   probes from zero; a failed sweep restores the method; the DNS
+   failure lines now carry server=#N reason=…). The stall itself
+   now has its first real telemetry: five video flows that
+   connected, handshook, and then moved ~7 KB in 51 seconds (the
+   DPI throttling the direct path to specific googlevideo cache
+   nodes) while OTHER flows completed fine on the same session
+   (122 KB in ~1 s; 2.5 MB in ~7 s) — ISP-side interference, not an
+   app-side defect this time; and udpDropped=76 (the YouTube app's
+   QUIC attempts, dropped by design, row 9's measurement) adds
+   per-video start latency while the app falls back to TCP. The row
+   STAYS OPEN with a sharper question for the NEXT report: with
+   debug.11's baked DNS reasons, does the startup blip read
+   reason=timeout (filtered) or reason=network (transient) — and do
+   the stalled flows correlate with specific cache nodes? No
+   steering or policy change is made without Ali's ruling.**
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

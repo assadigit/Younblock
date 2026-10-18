@@ -79,131 +79,143 @@ machines (D90). This file is the live handoff; keep the fields in
 
 ## Current handoff fields
 
-- **Phase completed:** M8-q (2026-10-18, late — the FOURTEENTH
-  feedback-loop exchange; Ali's device round on debug.9). His input:
-  "commit and push and new release. I still dont see diagnostic
-  button" — precise, and the root cause was in OUR build, not his
-  phone: the M8-p diagnostics surface (menu entry, Settings row,
-  Diagnostics screen) shipped into `frontend/src/classic/*` only,
-  but `main.ts`'s variant dispatcher defaults to the PRO screen when
-  `VITE_UI_VARIANT` is unset — and `build-android.sh` never sets it
-  (only the desktop wails lanes bake classic; D66). The APK therefore
-  served the pro screen, whose only diagnostics surface was the
-  M6-era sheet section buried at the very bottom behind an android
-  gate, using the raw `navigator.clipboard` copy that silently fails
-  in the WebView. The round ported the surface into the pro tree
-  (ADR-0016) and recorded the rule (D101): a user-facing surface
-  ships in the variant(s) the edition serves — name the baked variant
-  per edition (Android + web single-file → pro; Windows/Linux wails
-  → classic) and verify through the real webui server, not only in
-  the source tree.
+- **Phase completed:** M8-r (2026-10-18, late night — the FIFTEENTH
+  feedback-loop exchange; the debug.10 device round). Ali's input:
+  "the problem persists" + THE FIRST PASTED DIAGNOSTICS REPORT —
+  the exact evidence D100's loop was built for. Its "android shell:
+  1.6.6 (versionCode 9)" line proved both the debug.10 install and
+  that the M8-q surface rendered and copied on his phone; its log
+  read back against the engine code line by line (ADR-0017's
+  Context holds the full reconstruction): the QuickCheck's dns step
+  failed against all three DoH servers in ~170 ms each (a startup
+  blip, once), negative-caching www.youtube.com for the 15 s
+  negative TTL; the automatic heal sweep triggered by that same
+  failure probed that same name for every method and failed
+  INSTANTLY on the negative entry each time (ErrRecentlyFailed —
+  no server is re-asked inside the window) while the sweep's own
+  video handshakes were completing (3 of 4 methods) — so a
+  RECOVERED network was declared broken: degraded, the "Couldn't
+  fix it" notification 21 s after Start, and the failed sweep left
+  method=legacy live (the last-tried preset, off the saved
+  choice). Collateral finding: the report's DNS lines were
+  attr-stripped by the log ring (bare "dns server failed" — no
+  reason). The round's fixes are host-PROVEN by reproduction: with
+  the fixes reverted, the new regression test fails into the
+  report's EXACT signature (Phase:degraded Method:legacy, never
+  ON); with them, the engine heals to ON through the sweep.
 - **The project's state now:** the CURRENT test-circle build is
-  **v1.6.6-android-debug.10 / versionCode 9** (APK 35,053,265 B,
-  sha256 4264996a…f9e7, the pinned D85 debug certificate — installs
-  over debug.9 in place, settings + usage history survive): the
-  diagnostics surface in the served variant. D98 rules every release
-  page carries the debug APK asset; D99 names it
-  v<versionName>-debug.apk; D100 keeps the diagnostics surface as
-  the loop's standing evidence path; D101 adds the served-variant
-  rule to the ship checklist. The auth lane stays CLOSED (D97 —
-  cancelled before any code). All android releases are regular
+  **v1.6.6-android-debug.11 / versionCode 10** (APK 35,053,457 B,
+  sha256 d4602394…1dcb6, the pinned D85 debug certificate —
+  installs over debug.10 in place, settings + usage history
+  survive): the heal sweep probes from zero (a sweep resets the
+  DNS resolver at start — the netmon's network-change semantics),
+  a failed sweep restores the previous method, and the DNS
+  failure/fallback/stale/tunnel-lookup log lines bake server=#N +
+  reason= into the message so the NEXT pasted report names the
+  failure kind. D98 rules every release page carries the debug APK
+  asset; D99 names it v<versionName>-debug.apk; D100 keeps the
+  diagnostics surface as the loop's standing evidence path; D101
+  keeps the served-variant rule on the ship checklist. The auth
+  lane stays CLOSED (D97). All android releases are regular
   releases in the private repo (D89).
-- **Branch and commit:** `main`, the M8-q commit (the port + D101 +
-  this record; see `git log -1` at handoff time) on top of 65fe1d4
-  (M8-p, the classic-tree surface + D100) on top of 4b632c0 (M8-o)
-  on top of 97adf9c (M8-n) on top of 9f31b51 (A0-R3, the auth
-  cancellation) on top of 6a7bce4 (A0-R2) on top of 60bfa13 (A0) on
-  top of cf136aa (M8-m); worktree clean after the commit. The
-  release tag `v1.6.6-android-debug.10` points at the M8-q commit
-  and is the repo's Latest (its APK asset is v1.6.6-debug.apk);
-  debug.9 → 65fe1d4 (M8-p), debug.8 → 4b632c0 (M8-o), debug.7 →
-  97adf9c (M8-n), debug.6 → 078e3a5 (M8-k), debug.5 → ad02980,
-  debug.4 → cb28507, debug.3 → 2a8b678, debug.2 → 096e8c0, debug.1 →
-  f61bfae (superseded; its page keeps the D85 troubleshooting guide).
-- **Files changed this phase (M8-q):** `frontend/src/lib/
-  DiagnosticsView.svelte` (NEW — the pro screen's full-screen report
-  view: auto-load, the ladder Copy imported cross-tree from
-  `classic/lib/clipboard.ts`, Share behind canShare(), Refresh,
-  honest inline status, the readonly selectable textarea, Escape/
-  Back/Tab-focus handling), `frontend/src/lib/MenuSheet.svelte` (the
-  Diagnostics LEAD row — every platform, no gate; the `diagnostics`
-  dispatch; the old bottom section + its raw-clipboard copy REMOVED),
-  `frontend/src/App.svelte` (the diagOpen state + view wiring +
-  focus return to the menu button), `frontend/src/lib/icons.ts` (the
-  six new Lucide exports), `android/app/build.gradle.kts`
-  (versionCode 9), `DECISIONS.md` (D101), doc 06 (the M8-q record),
-  doc 08 (ADR-0016), doc 09 (this update), doc 10 (status + the
-  debug.10 section + debug.9 retitled + row 3's re-observation),
-  `PROGRESS.md`, `CHANGELOG.md`, `SESSION_HANDOFF_PROMPT.md`
-  (rewritten for M8-r).
-- **Tests run and actual results (this session, M8-q):** svelte-check
-  0/0 (two quick intermediate rounds — a class: directive on a
-  component, then an unused CSS selector; both fixed at the source);
-  vite build clean; webui dist CLEAN-synced (placeholder.txt
-  restored); **the served surface verified END-TO-END through the
-  real webui server** (`go run ./cmd/core --web --webport 8097`,
-  mobile viewport 360×760: menu → Diagnostics is the FIRST row →
-  view opens → the REAL report loads → Copy resolves to the honest
-  "Copied" state → Back returns; no console errors; `?ui=classic`
-  re-verified: the M8-p Menu → Diagnostics entry intact); go vet
-  clean; go test -count=1 ./... **18/18 packages ok, run TWICE**
-  (plus an uncached engine+mobile third round); `GOOS=windows go
-  build ./...` exit 0; the full `./build-android.sh` lane exit 0
-  (frontend rebuild → dist sync → gomobile bind → assembleDebug);
-  the AAR's embedded Go library VERIFIED to carry the new UI
-  (`diag-entry` ×2 + the row's hint string inside libgojni.so —
-  go:embed compiles at bind time); app-debug.apk **35,053,265 B**,
-  SHA-256
-  **4264996ae39bb3e268bcf28913d3884d038c0833bb35ffd2233d60edd51ef9e7**;
-  apksigner verify OK (the pinned c76bb7c6…8551d); badging
-  versionCode 9 / versionName 1.6.6 / minSdk 26 / target 36. The
-  standing ⛔ unchanged: no /dev/kvm, no device — on-device Copy/
-  Share verification still rides Ali's round.
+- **Branch and commit:** `main`, the M8-r commit (the three engine
+  fixes + ADR-0017 + this record; see `git log -1` at handoff
+  time) on top of 5fdf8b2 (M8-q, the served-variant port) on top
+  of 65fe1d4 (M8-p) on top of 4b632c0 (M8-o) on top of 97adf9c
+  (M8-n); worktree clean after the commit. The release tag
+  `v1.6.6-android-debug.11` points at the M8-r commit and is the
+  repo's Latest (its APK asset is v1.6.6-debug.apk); debug.10 →
+  5fdf8b2, debug.9 → 65fe1d4, debug.8 → 4b632c0, debug.7 →
+  97adf9c, debug.6 → 078e3a5, debug.5 → ad02980, debug.4 →
+  cb28507, debug.3 → 2a8b678, debug.2 → 096e8c0, debug.1 →
+  f61bfae (superseded; its page keeps the D85 troubleshooting
+  guide).
+- **Files changed this phase (M8-r):** `internal/engine/health.go`
+  (healSweep: the resolver reset at sweep start + the method
+  restore on the no-working-method path), `internal/doh/
+  resolver.go` (the failure/fallback/stale log lines bake
+  server=#N + reason= into the message; the configured NAME stays
+  a file-log attr), `internal/proxy/server.go` (the tunnel-lookup
+  failure line bakes reason=), `internal/engine/health_test.go`
+  (TestHealSweepSurvivesFreshNegativeCache + TestFailedSweep-
+  RestoresPreviousMethod + the localNet flaky-DoH seam),
+  `internal/doh/resolver_test.go` (TestServerFailureLinesCarry-
+  Evidence + the captureLogger), `android/app/build.gradle.kts`
+  (versionCode 10), doc 06 (the M8-r record), doc 08 (ADR-0017),
+  doc 09 (this update), doc 10 (the debug.11 section + row 3's
+  first-report evidence + debug.10 retitled), `PROGRESS.md`,
+  `CHANGELOG.md`, `SESSION_HANDOFF_PROMPT.md` (rewritten for
+  M8-s). NO frontend file touched — the M8-q dist carries over.
+- **Tests run and actual results (this session, M8-r):** go vet
+  clean; go test -count=1 ./... **18/18 packages ok, run TWICE**;
+  `GOOS=windows go build ./...` exit 0; the Android compile matrix
+  in its exact form (arm64 full tree at CGO_ENABLED=0 exit 0; the
+  non-main set ./internal/... ./mobile/... 4/4 ABIs); the full
+  `./build-android.sh` lane exit 0 (the frontend rebuilt to the
+  same bytes — tree unchanged; dist sync; gomobile bind;
+  assembleDebug); the AAR's embedded Go library VERIFIED to carry
+  the new engine strings ("dns server failed server=#" inside
+  libgojni.so in all three ABIs); app-debug.apk **35,053,457 B**,
+  SHA-256 **d46023942d158c1af0df2161ed59aed46613e1b93693c50b035
+  29b0acc71dcb6**; apksigner verify OK (the pinned c76bb7c6…8551d);
+  badging versionCode 10 / versionName 1.6.6 / minSdk 26 / target
+  36. The three regression tests verified BOTH ways (fix reverted
+  → FAIL with the report's signature; fix applied → PASS). The
+  standing ⛔ unchanged: no /dev/kvm, no device.
 - **The environment is INTACT this session** (no wipe — verified at
-  open: Go 1.27.2, javac present, gomobile present; ~/sdk/env.sh
-  sources fine). Wipes happen at ANY boundary — VERIFY first
-  (`. ~/sdk/env.sh && go version`), reinstall per doc 06 §1 only if
-  actually wiped (the cmdline-tools `12.0` alias URL 404s — use the
-  versioned commandlinetools-linux-11076708_latest.zip).
-- **Current architecture decision / confidence:** ADR-0016 (doc 08)
-  — the served-variant port: the pro screen's lead-row entry + the
-  full report view, host-proven through the real webui server
-  (the strongest host-side proof available — same dist, same
-  dispatcher, same server the WebView loads). ADR-0015's engine/
-  facade/Kotlin pieces carry into debug.10 unchanged. ADR-0013 +
-  ADR-0014 (the two stall fixes) remain host-proven and
-  device-disproven — the NEXT root-cause waits for a pasted report,
-  not a guess. The auth lane stays CLOSED (D97). Live ADRs:
-  ADR-0001…0016. Next decision ID: **D102**.
-- **Blocking questions:** none blocking the loop. The standing input
-  is **Ali's debug.10 round**: (a) open the menu — Diagnostics is
-  the FIRST row now — open it, Copy, PASTE THE REPORT (even with
-  nothing stalled: the "android shell: 1.6.6 (versionCode 9)" line
-  proves the round); (b) after a stall, Diagnostics → Copy again and
-  paste THAT report — the tunnel lines (dns=/dial=/first-byte=/
-  dur=), the tun: line (flows/udpDropped) and the on-screen speed
-  number at the slow moment split the remaining suspects in one
-  read; (c) the surface itself (did Copy copy, did Share open);
-  plus the older circle rows (the cross-device UI verdict on
-  debug.6, rows 4–8, rotation/TalkBack, the data-usage round, D93's
-  desktop check).
-- **Exact next task:** ONE workstream — the feedback loop. **Task ID
-  M8-r — ingest Ali's results from v1.6.6-android-debug.10**: the
-  pasted diagnostics report FIRST (it names its own build via the
-  "android shell:" line — verify the versionCode matches 9; a
-  versionCode 8 report means the old build is still installed);
-  read the tunnel lines + the tun: line + the speed number to name
-  the waiting phase; root-cause from the evidence; fix at the
-  correct layer (engine/facade/Kotlin/WebView); keep the D77–D101
-  honesty rules binding — **D101: any new user-facing surface ships
-  in the variant(s) the affected editions bake, verified through
-  the real webui server before release**. Bump `versionCode` and
-  cut `v1.6.6-android-debug.11` through the same regular-release
-  lane (D89) WHEN an app code change warrants it — **D98: every
-  release page carries the debug APK asset; D99: the asset is NAMED
-  v<versionName>-debug.apk** — push the code commit BEFORE creating
-  the release (the full-SHA target_commitish 422s against an
-  unpushed SHA). The auth Task IDs (A1/A2/A3) stay retired (D97).
-  The dormant alternatives when no feedback arrives: the desktop
-  release lane (the rounds under CHANGELOG "Unreleased") or
-  public-release engineering — ask Ali which, do not guess.
+  open: Go 1.27.2, javac 21.0.12, platforms 26/36, the pinned
+  gomobile; ~/sdk/env.sh sources fine). Disk was tight (604 MB
+  free) — the Go build cache (1.9 GB) was cleared before the bind;
+  expect that again on a ~9.9 GB box after big builds. Wipes
+  happen at ANY boundary — VERIFY first (`. ~/sdk/env.sh && go
+  version`), reinstall per doc 06 §1 only if actually wiped (the
+  cmdline-tools `12.0` alias URL 404s — use the versioned
+  commandlinetools-linux-11076708_latest.zip).
+- **Current architecture decision / confidence:** ADR-0017 (doc
+  08) — the heal sweep probes from zero: the sweep's DNS reset,
+  the failed-sweep method restore, and the message-baked DNS
+  evidence lines, each pinned by a regression test that fails on
+  pre-fix code into the pasted report's own signature. Confidence:
+  the root cause was read FROM Ali's report and reproduced on the
+  host BEFORE the fix — the strongest proof class this loop has.
+  What remains OPEN: the startup DoH blip's CAUSE (the next
+  report's reason= line answers it — no third guess) and the stall
+  row itself (the five 51 s / ~7 KB flows + udpDropped=76 are
+  ISP-side interference on the direct path; other flows completed
+  fine in the same session — no steering or policy change without
+  a ruling). ADR-0013 + ADR-0014 stand host-proven (their layers
+  are now part of the working path). The auth lane stays CLOSED
+  (D97). Live ADRs: ADR-0001…0017. Next decision ID: **D102**.
+- **Blocking questions:** none blocking the loop. The standing
+  input is **Ali's debug.11 round**: (a) Start on the normal
+  network → Connected WITHOUT the false "Couldn't fix it"
+  notification, and the method in Settings stays what was set;
+  (b) at the next stall, menu → Diagnostics (the first row) →
+  Copy → paste THAT report — the baked reason= lines on any "dns
+  server failed" entry (timeout vs network vs DNS_UNREACHABLE-
+  class) are the sharpened row-3 question, plus the tunnel lines
+  and the tun: line as before; (c) the surface itself (did Copy
+  copy, did Share open — carried from debug.10); plus the older
+  circle rows (the cross-device UI verdict on debug.6, rows 4–8,
+  rotation/TalkBack, the data-usage round, D93's desktop check).
+- **Exact next task:** ONE workstream — the feedback loop. **Task
+  ID M8-s — ingest Ali's results from v1.6.6-android-debug.11**:
+  the pasted diagnostics report FIRST (verify the "android shell:"
+  line names versionCode 10; a versionCode 9 report means the old
+  APK is still installed and the round starts with the install);
+  read the baked reason= lines + the tunnel lines + the tun: line
+  to name the waiting phase; root-cause from the evidence; fix at
+  the correct layer (engine/facade/Kotlin/WebView); keep the
+  D77–D101 honesty rules binding — **D101: any new user-facing
+  surface ships in the variant(s) the affected editions bake,
+  verified through the real webui server before release**. Bump
+  `versionCode` and cut `v1.6.6-android-debug.12` through the
+  same regular-release lane (D89) WHEN an app code change
+  warrants it — **D98: every release page carries the debug APK
+  asset; D99: the asset is NAMED v<versionName>-debug.apk** —
+  push the code commit BEFORE creating the release (the full-SHA
+  target_commitish 422s against an unpushed SHA). The auth Task
+  IDs (A1/A2/A3) stay retired (D97). The dormant alternatives when
+  no feedback arrives: the desktop release lane (the rounds under
+  CHANGELOG "Unreleased") or public-release engineering — ask Ali
+  which, do not guess.

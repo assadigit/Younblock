@@ -3144,3 +3144,57 @@ debug.10 round: TWO pastes — one now (its "android shell:
 stall (the tunnel lines + the tun: line + the speed number split
 the remaining suspects in one read); row 3 stays OPEN. Next Task
 ID: M8-r. Next decision: D102.
+
+M8-r (2026-10-18, late night — the FOURTEENTH feedback-loop
+exchange; Task ID M8-r; ADR-0017; no new D — D102 stays reserved
+for Ali's rulings). THE FIRST PASTED REPORT ARRIVED and the loop
+worked exactly as D100 designed it: Ali's "the problem persists"
+carried the full diagnostics report — the "android shell:
+1.6.6 (versionCode 9)" line proving both the debug.10 install AND
+that the M8-q surface rendered and copied on his phone. The report
+read back against the code line by line (ADR-0017's Context holds
+the full reconstruction): a startup secure-DNS blip (three ~170 ms
+fast-failures, once) negative-cached www.youtube.com for the 15 s
+negative TTL; the automatic heal sweep triggered by that same
+failure probed that same name for all four methods and failed
+instantly on the memory every time (ErrRecentlyFailed — no server
+re-asked inside the window) while its own video handshakes were
+completing; the sweep declared "no working method", the engine
+degraded, and the "Couldn't fix it" notification fired 21 s after
+Start on a recovered network. Collateral: the failed sweep left
+method=legacy live (the last-tried preset, off the user's saved
+choice), and the report's DNS lines were attr-stripped by the ring
+(bare "dns server failed" — no reason). THE HOST REPRODUCTION IS
+THE ROUND'S PROOF: TestHealSweepSurvivesFreshNegativeCache (a DoH
+that fails exactly the first request, the dns and youtube steps
+coupled on one name — production's shape) fails on pre-fix code
+into the report's EXACT signature (Phase:degraded Method:legacy,
+never ON) and passes with the fix (ON, method balanced, the baked
+failure line in the report); TestFailedSweepRestoresPreviousMethod
+and TestServerFailureLinesCarryEvidence (internal/doh) likewise
+verified BOTH ways. The fixes (ADR-0017): the sweep resets the
+resolver at start (the netmon's network-change semantics — a sweep
+probes from zero), a failed sweep restores the previous method, and
+the DNS failure/fallback/stale/tunnel-lookup lines bake server=#N
++ reason= into the message (the ring keeps only the message; the
+configured NAME stays a file-log attr; no user-chosen strings
+enter the report). The stall itself now has its first real
+telemetry — five video flows that connected, handshook and then
+moved ~7 KB in 51 s while other flows completed fine on the same
+session (122 KB in ~1 s, 2.5 MB in ~7 s): ISP-side throttling of
+the direct path to specific googlevideo cache nodes, plus
+udpDropped=76 (the QUIC row-9 measurement) adding per-video start
+latency — row 3 STAYS OPEN with a sharpened question for the next
+report (reason=timeout vs reason=network on the startup blip); no
+steering or policy change without a ruling. Baseline green:
+frontend untouched (the M8-q dist carried over, verified intact,
+tree clean); vet clean; 18/18 ×2; GOOS=windows exit 0; the Android
+compile matrix in its exact form (arm64 full tree + non-main 4/4
+ABIs). versionCode 9 → 10; the full build-android.sh lane exit 0
+(disk managed — the Go build cache cleared first); the AAR's
+embedded Go library verified to carry the new engine strings
+("dns server failed server=#" in all three libgojni.so ABIs);
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 10 /
+versionName 1.6.6. Released v1.6.6-android-debug.11 (regular,
+Latest) with the APK asset named v1.6.6-debug.apk (D99), served
+bytes re-verified. Next Task ID: M8-s. Next decision: D102.

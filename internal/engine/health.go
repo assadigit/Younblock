@@ -262,6 +262,17 @@ func (e *Engine) healSweep(ctx context.Context, userInvoked bool) string {
 		e.markAutoSweep()
 	}
 	e.logger.Info("heal sweep started", "userInvoked", userInvoked)
+	// M8-r (Ali's debug.10 diagnostic report): the checks that triggered this
+	// sweep may have just negative-cached the sweep's own probe name. The
+	// QuickCheck's dns failure caches www.youtube.com for the negative TTL
+	// (15 s), every method's youtube step then fails instantly on that entry
+	// (ErrRecentlyFailed — no server is ever asked again), and a sweep that
+	// starts inside the window cannot succeed even on a fully recovered
+	// network — the report showed exactly that: "heal sweep found no working
+	// method" while the sweep's own video handshakes were completing. A sweep
+	// is a suspected-network-change event: reset the resolver exactly like
+	// the network monitor does on a change (R19) and probe from zero.
+	e.resolver.Load().Reset()
 	prev := e.currentMethod()
 	for _, m := range config.HealSweepOrder {
 		if ctx.Err() != nil {
@@ -284,6 +295,12 @@ func (e *Engine) healSweep(ctx context.Context, userInvoked bool) string {
 		}
 	}
 	e.logger.Warn("heal sweep found no working method")
+	// A failed sweep must not leave the last-tried method live: applyMethod
+	// mutates the setting as the sweep probes, and the debug.10 report showed
+	// method=legacy after a failed sweep dragged it off the user's saved
+	// choice — a silent downgrade delivered by the very sweep that found
+	// nothing. Nothing was found, so restore what ran before.
+	e.applyMethod(prev)
 	e.goDegraded(notifyFailedText)
 	return ""
 }

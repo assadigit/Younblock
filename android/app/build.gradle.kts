@@ -20,18 +20,20 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 9: the M8-q build (the ADR-0015 port). Ali's round
-        // on debug.9: "I still dont see diagnostic button" — the M8-p
-        // surface shipped ONLY in the classic UI tree, but the APK bakes
-        // the pro screen (D66: build-android.sh leaves VITE_UI_VARIANT
-        // unset, so main.ts defaults to pro). This build carries the
-        // diagnostics surface in the variant the phone actually renders:
-        // Diagnostics is the FIRST row of the menu sheet, opening the
-        // full report view (the clipboard ladder, Share, the selectable
-        // text), so it installs OVER debug.9 (same pinned debug
-        // certificate — D85). The D84 rule: every debug build bumps this.
-        // D99: the APK asset carries the version name (v1.6.6-debug.apk).
-        versionCode = 9
+        // versionCode 10: the M8-r build (the debug.10 report round). Ali's
+        // first pasted diagnostic report exposed the negative-cache ×
+        // heal-sweep deadlock: the QuickCheck's dns failure cached the
+        // sweep's own probe name, every method's youtube step then failed
+        // instantly on the negative entry, and a recovered network was
+        // still declared "no working method" (degraded + "Couldn't fix it"
+        // notification, method dragged to legacy). This build resets the
+        // resolver when a sweep starts, restores the previous method when
+        // a sweep finds nothing, and bakes the DNS failure reasons into
+        // the log lines the report carries (server=#N reason=…). Installs
+        // over debug.10 (same pinned debug certificate — D85). The D84
+        // rule: every debug build bumps this. D99: the APK asset carries
+        // the version name (v1.6.6-debug.apk).
+        versionCode = 10
         versionName = "1.6.6"
     }
 

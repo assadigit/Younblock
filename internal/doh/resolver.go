@@ -168,7 +168,10 @@ func (r *Resolver) Lookup(ctx context.Context, host string) ([]net.IP, error) {
 		// Serve stale if we still may (R5).
 		if stale := r.cache.lookup(host); stale.state == stateStale {
 			if r.cfg.Logger != nil {
-				r.cfg.Logger.Warn("dns servers failed; serving stale answer", "reason", errKind(err))
+				// The reason rides in the message: the log ring that feeds the
+				// diagnostic report drops attrs (M8-r — the debug.10 report
+				// showed these lines bare).
+				r.cfg.Logger.Warn("dns servers failed; serving stale answer reason=" + errKind(err))
 			}
 			return stale.ips, nil
 		}
@@ -259,6 +262,7 @@ func (r *Resolver) askServers(ctx context.Context, host string) ([]net.IP, int, 
 	}
 	var firstErr error
 	var firstFailed string
+	var firstFailedIdx int
 	for i := 0; i < n; i++ {
 		idx := (start + i) % n
 		if ctx.Err() != nil {
@@ -270,16 +274,24 @@ func (r *Resolver) askServers(ctx context.Context, host string) ([]net.IP, int, 
 		cancel()
 		if err == nil {
 			if firstFailed != "" && r.cfg.Logger != nil {
-				r.cfg.Logger.Info("dns server failed; using the next one", "failed", firstFailed, "nowUsing", srv.Name)
+				r.cfg.Logger.Info(fmt.Sprintf("dns server failed; using the next one failed=#%d now=#%d", firstFailedIdx+1, idx+1),
+					"failed", firstFailed, "nowUsing", srv.Name)
 			}
 			return ips, idx, ttl, nil
 		}
 		if firstErr == nil {
 			firstErr = err
 			firstFailed = srv.Name
+			firstFailedIdx = idx
 		}
 		if r.cfg.Logger != nil {
-			r.cfg.Logger.Warn("dns server failed", "server", srv.Name, "reason", errKind(err))
+			// Server index and reason ride in the message so the diagnostic
+			// report's log ring (which drops attrs) carries the evidence — the
+			// debug.10 report's three bare "dns server failed" lines could not
+			// say timeout vs reset vs bad answer (M8-r). The configured name
+			// stays an attr for the rotating file log.
+			r.cfg.Logger.Warn(fmt.Sprintf("dns server failed server=#%d reason=%s", idx+1, errKind(err)),
+				"server", srv.Name)
 		}
 	}
 	if firstErr == nil {
