@@ -2840,3 +2840,44 @@ SESSION_HANDOFF_PROMPT.md rewritten for the two-workstream session.
 No release: nothing app-facing changed; debug.6 (versionCode 5) stays
 the repo's Latest. Next Task IDs: M8-n (ingest the debug.6 device
 round) and A0 (the account-gate spec lane). Next decision D95.
+
+A0 (2026-10-18, docs-plus-one-fix; no new decision — D95+ stays
+reserved for Ali's six rulings): the account-gate spec round, run as
+the second workstream because NO device feedback had arrived (zero
+issues on the repo, all states; none in the session messages). The
+session opened on the FIFTH sandbox wipe (~/sdk and the repo both
+gone; the worklog missing — recreated at /home/z/my-project/worklog.md
+with a loss note; the repo re-cloned at cf136aa exactly as the handoff
+expected, core.fileMode false + gradlew +x re-applied). The toolchain
+was reinstalled per doc 06 §1's pins and verified (Go 1.27.2, JDK
+21.0.12.1+1, sdkmanager 12.0 via the versioned 11076708 URL at
+153,607,504 B exact, platform-tools 37.0.1, platforms 26+36,
+build-tools 36.1.0, NDK 28.2.13676358, gomobile/gobind at the pinned
+x/mobile). Baseline first, in the D74 order (frontend before judging
+the Go lanes): npm ci; svelte-check 0/0; vite build clean; the webui
+dist CLEAN-synced; then vet clean and 18/18 ×2. The full-sweep gate
+`GOOS=windows go build ./...` exposed a latent M4 defect:
+mobile/nonblock_unix.go had no build constraint, so on Windows it
+redeclared setNonblock/closeFd against nonblock_other.go (whose
+!unix stub exists precisely to keep ./... compilable everywhere);
+the scoped shell builds had always compiled — that is what "the
+whole shell" measured — but the full sweep never had, since 9431477.
+Root-caused and fixed at the source: one line, `//go:build unix`.
+Verified on the fixed tree: gofmt clean (touched file), vet clean,
+go test 18/18 — three consecutive green passes, zero FAIL lines —
+and the Windows full sweep exit 0 for the first time since M4. No
+Android behavior change by construction (every android ABI is unix);
+no release (D84: nothing app-facing; versionCode stays 5, debug.6
+stays Latest). Then the session's main output: `docs/auth/` — the
+six-document A0 spec pack (00-start-here with the consolidated six
+questions + recommendations, 01-requirements AUTH-001…031, 02
+-architecture, 03-auth-protocol, 04-admin-and-operations, 05-security
+-review with the drafted privacy copy), plus ADR-AUTH-0001 in doc 08
+(engine-enforced gate, grounded in D94 ruling 1 — the only ADR,
+because nothing beyond it has Ali's ruling), doc 07 §9's new open row
+(the gate ships only with its privacy-copy change), and the wrap-up
+sync of docs 06/09/10, README's docs map, CHANGELOG (Fixed + Planned
+under Unreleased) and SESSION_HANDOFF_PROMPT rewritten for the next
+session (M8-n first; A1 only after D95+). Next Task IDs: M8-n (the
+device round, still awaiting Ali's feedback) and A1 (the auth
+backend, gated on the rulings). Next decision D95.

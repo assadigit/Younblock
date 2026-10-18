@@ -249,14 +249,17 @@ against the final artifact.
 - [x] DNS and traffic scope documented accurately (§5 verified vs code) — closed at M7: §5's claims re-checked against the implementation (no analytics code exists; no Younblock-run endpoint; DoH providers user-configurable; logs local) and rendered as the in-app Privacy section (M6)
 - [x] Startup and stop paths tested for leakage/cleanup (M4/M5) — closed at M5/M7: the lifecycle suite (M5) + the -race lane and D82 generation fix (M7)
 - [ ] IPv4/IPv6 and TCP/UDP claims match test results (M4 matrix) — host-level policy tests green; the device matrix rows stay open (doc 06 §4) — now with a concrete closure path: Ali's device testing through the D84 debug release (doc 10 §"Device test circle")
+- [ ] The account gate ships only with its privacy-copy change (opened at A0, 2026-10-18) — not blocking the current circle; it blocks whichever future release first carries the gate: the "no account, no data collection" line in §1, doc 10 §2, the in-app Privacy sheet and README must change in that same release to the drafted copy (docs/auth/05 §6, AUTH-030; D94 ruling 2 — disclosed, never silent)
 - [x] Sensitive logs/configuration minimized and redacted (inherited + spot-check) — closed at M7: the diagnostic report redaction tests inherit green; the report is the only diagnostics surface and ships hostnames-off by default (R21)
 - [x] Dependency/license review re-run at M8 — closed at M8 (D84 session): `go list -deps ./mobile` re-run against the shipped artifact — the same audited set as M7 (gVisor `pkg` netstack subset, golang.org/x/{net,sync,sys,time,exp} + x/mobile, google/btree), all permissive, LICENSEs vendored, the in-app attribution line unchanged
 - [x] Android platform requirements rechecked against primary sources at M3/M8 — closed at M8 (D84 session): the five load-bearing claims re-verified via developer.android.com (VpnService/Builder per-app routing; BIND_VPN_SERVICE "only the system can bind"; package-visibility filtering + the `<queries>` element on API 30+; foreground-service types required targeting API 34+ — the app declares connectedDevice with its permission, verified in the dumped manifest; POST_NOTIFICATIONS as an API 33+ runtime permission). The device-behavior halves (which FGS type behaves best for a VPN in practice, notification behavior on real OEM builds) ride with Ali's device checklist
 - [x] APK signing, version, checksums verified (M8) — closed at M8 for the shipped debug artifact (D84: no signed release exists): apksigner v2-scheme verify OK, debug certificate SHA-256 digest c76bb7c6…8551d recorded; versionName 1.6.6 / versionCode 1, minSdk 26 / target 36, 3 ABIs; APK SHA-256 ccf46a2e…7b64 re-verified on disk and against the uploaded release asset. The release-keystore half is superseded by D84 (deferred until a public release)
 
-The remaining open item is the device-gate row (IPv4/IPv6 and
+The remaining open items are the device-gate row (IPv4/IPv6 and
 TCP/UDP measured on a real device), which now has its closure path:
-Ali's own device testing through the D84 debug release. The known-
+Ali's own device testing through the D84 debug release, and the
+account-gate row, which blocks only the future release that first
+carries the gate (A0, 2026-10-18). The known-
 limitations disclosure obligation is discharged host-side (M6's
 in-app copy + doc 10's limitations section); the device-matrix rows
 that would let the remaining claims carry measured results are the

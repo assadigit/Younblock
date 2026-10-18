@@ -1,4 +1,6 @@
 // nonblock_unix.go — Unix/Android: put a raw fd into non-blocking mode.
+//go:build unix
+
 package mobile
 
 import "syscall"

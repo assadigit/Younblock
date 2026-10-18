@@ -1,13 +1,13 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the M8-m session (2026-10-18, the twelfth
-exchange — an ANALYSIS-ONLY round: the complete gap analysis Ali
-asked for, plus the D94 ruling that opens the account-gate feature
-lane — login authorization with a user database and admin user
-management, design-first, nothing built yet; NO Android change, so
-`v1.6.6-android-debug.6` remains the CURRENT build, and the D93
-close ruling still rides Ali's next rebuilt desktop exes / a future
-debug.7). This document now holds two things: §1 the
+**Status:** updated at the A0 session (2026-10-18 — the account-gate
+spec round: the six-document design pack now exists under `docs/auth/`
+per D94's design-before-code rule, plus one host-side fix — the
+missing `//go:build unix` on `mobile/nonblock_unix.go`, which had kept
+`GOOS=windows go build ./...` from ever compiling since M4; NO
+Android change, so `v1.6.6-android-debug.6` remains the CURRENT build,
+and the D93 close ruling still rides Ali's next rebuilt desktop exes /
+a future debug.7). This document now holds two things: §1 the
 **shipped** debug test-circle releases (`v1.6.6-android-debug.6` is
 the CURRENT build — a regular release in the private repo per D89,
 the same text lives on the GitHub release itself; beneath it:
@@ -21,7 +21,9 @@ limitations. Every claim traces to implementation evidence (docs
 for the release notes' future: when the account gate ships, the
 "no account, no data collection" line in §2's What-it-does-NOT
 section changes with it — disclosed at that release, never silently
-(today nothing of it exists: no login, no server, no database).
+(today nothing of it exists: no login, no server, no database; the
+drafted replacement copy lives in docs/auth/05 §6, and doc 07 §9's
+open row blocks whichever release first carries the gate).
 
 ## 1a. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, the CURRENT build)
 

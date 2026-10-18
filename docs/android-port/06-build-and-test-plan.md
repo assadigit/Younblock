@@ -914,3 +914,56 @@ feature lane (login authorization, a user database, admin user
 management) under the design-before-code rule — the A0 spec round is
 the next session's second workstream, and the feedback loop continues
 in parallel as M8-n. Next decision D95.
+
+### A0 — the account-gate spec round + a baseline defect fixed — 2026-10-18 (docs-only plus a two-line Go fix; no release)
+
+The session opened on the FIFTH sandbox wipe (~/sdk and the repo both
+gone; the worklog missing — recreated with a loss note; the repo
+re-cloned at cf136aa, `core.fileMode false` + `gradlew +x` re-applied).
+No device feedback had arrived (the repo's issues list: zero, all
+states; none in the session messages), so per the no-block rule the
+session ran the A0 design lane. The toolchain was reinstalled per §1's
+pins with the recorded wrinkle (cmdline-tools via the versioned
+`11076708` URL, 153,607,504 B exact): Go 1.27.2, JDK 21.0.12.1+1
+Temurin, sdkmanager 12.0, platform-tools 37.0.1 (adb), platforms
+26+36, build-tools 36.1.0, NDK 28.2.13676358, gomobile/gobind via
+`go install` at x/mobile v0.0.0-20261011034528-197770444867; env.sh +
+android/local.properties rewritten. 3.6 GB free after.
+
+**Baseline sequence on a fresh clone (the D74 order, learned again):**
+the frontend must be built BEFORE judging the Go lanes — `npm ci` →
+svelte-check 0 errors 0 warnings → vite build clean (✓ 3.99 s) → the
+webui dist CLEAN-synced (rm + placeholder restored + cp; the fresh
+clone otherwise fails `go vet ./...` on main.go's `all:frontend/dist`
+embed pattern, and the mobile package's TestWebUILifecycle fails on
+the placeholder index — both the documented source-only-checkout
+state, not regressions).
+
+**A defect the full sweep caught, root-caused and fixed at the source:**
+`GOOS=windows go build ./...` failed in `mobile` —
+`nonblock_unix.go` (born at M4, 9431477) carries no build constraint,
+so on Windows it collides with `nonblock_other.go` (whose `//go:build
+!unix` exists precisely so "go build ./... compiles everywhere" — its
+own comment). The scoped shell builds (root / cmd / internal) always
+compiled — that is what M8-l/M8-m's "the whole shell" records measured;
+the full `./...` sweep had never compiled on Windows since M4. Fix:
+one line, `//go:build unix` added to nonblock_unix.go (+ the blank
+line). Verified on the fixed tree: gofmt clean (touched file only);
+vet clean; go test 18/18 ×2 (three consecutive green passes, zero
+FAIL lines); `GOOS=windows go build ./...` exit 0 for the first time
+since M4. No Android behavior change by construction: every android
+ABI is unix, so the same file compiles as before; nonblock_other.go
+was already excluded on unix. No release (D84: nothing app-facing;
+versionCode stays 5, debug.6 stays Latest).
+
+**A0 delivered (the session's main output):** `docs/auth/` — the
+six-document spec pack (00-start-here with the consolidated six
+questions + recommendations, 01-requirements AUTH-001…031, 02
+-architecture, 03-auth-protocol, 04-admin-and-operations, 05-security
+-review with the drafted privacy copy). Design-first per D94: nothing
+built, no ADR beyond the one grounded in D94 ruling 1 (engine-enforced
+gate — doc 08's ADR-AUTH-0001); the six questions stay OPEN — D95+ in
+DECISIONS.md is reserved for Ali's rulings, and no recommendation was
+recorded as if ruled. Next Task IDs: M8-n (the device round, still
+awaiting Ali's feedback) and A1 (the auth backend) — A1 runs only
+after the rulings. Next decision D95.

@@ -54,6 +54,10 @@ to report back), and the engineering record lives in
 [docs/android-port](docs/android-port/README.md). Successive debug builds
 install over this one.
 
+The design pack for the planned login gate (members-only, D94) lives in
+[docs/auth](docs/auth/00-start-here.md) — design first, nothing built
+until its six open questions carry rulings.
+
 **When a public release happens**, the APK gets signed with your own release
 keystore — created and backed up locally, never committed. The repo ships a
 one-double-click helper for the whole ceremony: `make-release-keystore.bat`

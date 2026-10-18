@@ -3,7 +3,8 @@
 **Status:** Phase 1 complete. ADR-0001/0002/0006/0007 were accepted as
 constraints and are now backed by audit evidence; ADR-0003/0004/0005
 moved from Proposed to **Accepted** on 2026-10-16 with the evidence
-below; ADR-0008…0012 record the new decisions this phase produced.
+below; ADR-0008…0012 record the new decisions this phase produced;
+ADR-AUTH-0001 (2026-10-18) opens the auth lane from D94 ruling 1.
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -205,6 +206,35 @@ circle of friends; Play is out of scope
   distribution scope (doc 07 §8).
 - **Consequence:** Play-specific compliance (FGS declaration review,
   Data Safety forms) is explicitly not blocking for v1.
+
+## ADR-AUTH-0001 — The account gate is engine-enforced (from D94 ruling 1)
+
+- **Status:** Accepted as the gate's architecture (D94, 2026-10-18);
+  elaborated in `docs/auth/02-architecture.md` (A0, 2026-10-18). The
+  implementing A-series re-verifies every seam claim against code
+  before any user-facing copy claims it (D77–D94 rule).
+- **Context:** D94 opens the members-only lane; the gate must hold on
+  every edition and cannot be a UI-layer promise.
+- **Decision:** the gate lives in the engine — `Engine.Start()` refuses
+  a signed-out app with a typed code (`AUTH_REQUIRED`, the
+  `NO_TARGET_APPS` road: the engine's typed-code switch, jsonapi's
+  `errResult`, the facade whitelist) — so the Wails shells, the Android
+  facade and `cmd/core --web` inherit it by construction. Capabilities
+  gain `auth: true` so the shared screen renders one signed-out state
+  on all platforms (the D92 mechanism `keepInTrayOnClose` uses).
+- **Evidence (the seams, verified in source this session):**
+  `internal/engine/platform.go` (Platform, Capabilities, StartGater
+  D77, PlatformRefusalError D81); `engine.go` Start()/connectSequence;
+  `jsonapi.go` typed results; `mobile/mobile.go` code whitelist;
+  doc 04 §6's connect ordering (login precedes consent).
+- **Alternatives rejected:** per-shell gates (drift + a UI-only promise
+  the engine does not back); a VPN-server-style gate (would change the
+  traffic story — D94 ruling 2 forbids it: the gate gates usage, not
+  traffic).
+- **What this ADR does NOT decide:** the six open questions (backend
+  location, account creation, fail-open/closed, token design, password
+  parameters, brute-force form) — they stay OPEN for Ali (docs/auth/00
+  §"The six open questions"); D95+ records the rulings when they land.
 
 ## Decision-change procedure
 

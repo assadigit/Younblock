@@ -24,8 +24,26 @@ every release are on the
   account, no data collection" — after this ships, an account and
   its login check exist, and the copy changes to say so (the
   proxying itself stays local and unchanged: no VPN server, no IP
-  hiding, no added encryption). The architecture spec lands before
-  any of it is built.
+  hiding, no added encryption). The architecture spec has now
+  landed (2026-10-18, A0): the six-document design pack under
+  `docs/auth/`, with six open questions for Ali (backend location;
+  who creates accounts; behavior when the auth server is
+  unreachable; token/session design; password storage; brute-force
+  protection) — each answered by his ruling before any of it is
+  built, and the privacy-copy change ships with the gate, never
+  silently.
+
+### Fixed (host-side, 2026-10-18 — A0 session; no app-facing change, no new build)
+
+- **`GOOS=windows go build ./...` now compiles the whole tree.** A
+  build constraint was missing from `mobile/nonblock_unix.go` since
+  its birth (M4), so on Windows it collided with the non-Unix stub
+  file and the full cross-compile sweep failed — a defect invisible
+  to the shipped apps (every Android ABI is unix; the desktop shell
+  always compiled) but real for the verification gate that claims
+  "compiles everywhere". One line (`//go:build unix`) fixes it; the
+  baseline was re-verified green after (18/18 twice, the Windows
+  sweep exit 0). No release follows (nothing app-facing changed).
 
 ### Changed (the desktop close ruling, M8-l / D93 — unreleased desktop builds)
 
