@@ -1,15 +1,18 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at the M8-l round (2026-10-18, the device-test
-feedback loop's eleventh exchange — a DESKTOP-side ruling between
-device rounds: D93, the close button is a real shutdown by default
-and tray-keeping is the "Keep running in the tray when closed" opt-in;
-no Android code changed, debug.6 stays Latest) — **Phase 2
-host-complete; the test circle is on its FIFTH build,
-published as regular releases in the private repo, and the keystore
-helper survives PowerShell-less PATH machines (D90)**. This file is
-the live handoff; keep the fields in §"Current handoff fields" accurate
-at every session boundary.
+**Status:** Updated at the M8-m round (2026-10-18, the device-test
+feedback loop's twelfth exchange — an ANALYSIS-ONLY round between
+device rounds: the complete gap analysis Ali asked for, delivered
+as a report, plus the D94 ruling that opens the account-gate
+feature lane: login authorization — a verified username/password
+gate with a user database and admin user management, making the
+app members-only; design-first, nothing app-facing changed,
+debug.6 stays Latest) — **Phase 2 host-complete; the test circle
+is on its FIFTH build, published as regular releases in the
+private repo, and the keystore helper survives PowerShell-less
+PATH machines (D90)**. This file is the live handoff; keep the
+fields in §"Current handoff fields" accurate at every session
+boundary.
 
 ## If starting Phase 2 (implementation) — CURRENT
 
@@ -69,26 +72,33 @@ at every session boundary.
 
 ## Current handoff fields
 
-- **Phase completed:** the device-test feedback loop's TENTH
-  exchange (2026-10-18, Task ID M8-k, decision D92) — **the
-  cross-platform UI unification: Ali's uploaded instruction rounds
-  (mobile.zip at the repo root) applied to the ONE shared screen**.
-  Ali reported the mobile UI is not consistent with his Windows/
-  Linux builds; the zip carried the instruction documents those
-  builds follow (round-2's roast + fixes, round-3's data-usage
-  feature spec + usage-screens.png, site-test-plan). Applied to
-  frontend/src (the pro screen every edition embeds — consistency
-  by construction): the Lucide icon set through one file, the
-  top-right 44 px “…” menu button, the sheet's in-header neutral
-  close, 0.80 em timer digit boxes, the ring family capped clear
-  of a bigger brighter hint, ping verdicts, honest -1 speeds, the
-  ChitaCodes credit, the Other-websites section, the 360×640
-  window floored at 320×560 — PLUS the round-3 data usage tracked
-  ONCE in the engine (internal/usage; the Wails bridge and the
-  webui's /api/usage both read it; usage.json holds times and
-  byte totals only, 500 records, 15 s crash autosave). Beneath
-  it: M8-j/D91 (the first device feedback answered), M8-i-b,
-  M8-i-a, M8-h/D90, M8-g/D89, M8-e/D88.
+- **Phase completed:** the device-test feedback loop's TWELFTH
+  exchange (2026-10-18, Task ID M8-m, decision D94) — **the
+  complete gap analysis round (analysis-only, zero code changes)
+  + the ruling that opens the account-gate lane**. Ali asked for
+  a full gap analysis; the report was delivered in chat from two
+  read-only inventory passes (the Go host: every package, the
+  D93 close path, all 287 tests across 18 packages, every
+  deliberate limit — including the connect-path timeout constants
+  that are the slow-video diagnosis candidates; the frontend +
+  Android: the capability matrix, the settings asymmetries, the
+  lane facts) plus a doc baseline and an independent mobile.zip
+  re-verification (100% of every round's instructions applied —
+  the open item is data, VERIFIED_SITES, not code). The verdict:
+  host-complete and green everywhere the sandbox can measure; the
+  real gaps are the open slow-video defect (awaiting the
+  diagnostics report), the largely unrun device test circle
+  (rows 4–8, rotation/TalkBack, the cross-device UI verdict, the
+  data-usage check, the D93 real-Windows check), the dormant
+  desktop release lane (v0.7.6 predates D86–D93 — nine rounds
+  sit under CHANGELOG "Unreleased"), and public-release
+  engineering not started (debug-only signing, no CI — no
+  .github/ at all, no frontend tests, unsigned exe, no update
+  mechanism). At the wrap-up Ali opened the account-gate lane
+  (D94): login authorization — a verified username/password gate
+  with a user database and admin user management, members-only —
+  design-first. Beneath it: M8-l/D93 (the close ruling), M8-k/D92
+  (the UI unification), M8-j/D91, M8-h/D90, M8-g/D89, M8-e/D88.
 - **The project's state now:** the CURRENT test-circle build is
   **v1.6.6-android-debug.6 / versionCode 5** (built at 078e3a5, APK
   34,951,881 B, sha256 bc4b239e…d1fe8, the pinned D85 debug
@@ -107,60 +117,44 @@ at every session boundary.
   release is planned. All the android releases are regular
   releases in the private repo (D89); the spec audit (M0–M8
   host-complete, every remaining ⛔ a device gate) is on record.
-- **Branch and commit:** `main`, the M8-k code commit 078e3a5 (the
-  app changes + D92, pushed BEFORE the release was cut — the full-
-  SHA target_commitish 422s until the commit exists on the remote)
-  plus the M8-k docs commit (see `git log -1` at handoff time);
-  worktree clean after the commits; the release tag
-  `v1.6.6-android-debug.6` points at 078e3a5 and is the repo's
-  Latest; debug.5 → ad02980, debug.4 → cb28507 (helper-only),
-  debug.3 → 2a8b678 (the device-circle APK), debug.2 → 096e8c0,
-  debug.1 → f61bfae (superseded; debug.1's page keeps the D85
-  troubleshooting guide).
-- **Files changed this phase:** the app changes (commit 078e3a5):
-  `frontend/package.json` + lock (lucide-svelte), the shared screen
-  (`frontend/src/App.svelte`, `lib/Timer.svelte`, `lib/DotRings.svelte`,
-  `lib/PowerPill.svelte`, `lib/MenuSheet.svelte`, `lib/backend.ts`,
-  `lib/format.ts`, `lib/types.ts`, the new `lib/icons.ts`, tokens.css),
-  the usage lane (`internal/usage/` new package + tests,
-  `internal/engine/usage.go` new + engine.go/health.go/jsonapi.go
-  wired + the lifecycle tests, `internal/stats` Totals,
-  `internal/webui` the two routes + tests, `ui_bridge.go` +
-  `usage_bridge_test.go`, `engine_adapter.go`, `app.go`, `main.go`
-  the 360×640 window), `android/app/build.gradle.kts` (versionCode
-  4 → 5); plus docs (the follow-up commit): DECISIONS.md (D92),
-  doc 06 (the M8-k record), doc 09, doc 10 (the debug.6 edition),
-  PROGRESS.md, CHANGELOG.md, README, SESSION_HANDOFF_PROMPT.md —
-  plus the GitHub release lane (debug.6 created regular + Latest +
-  APK, byte-exact).
-- **Tests run and actual results:** after the changes, all green:
-  `go vet ./...` clean; `go build ./...` clean; `go test -count=1
-  ./...` **18/18 packages ok, run twice consecutively** (the new
-  tests included: the usage store's save/recover/cap/summary/clear
-  + the no-hostname field rule; the engine's session lifecycle,
-  cancelled-connect, clear-drops-lastSession and
-  persists-across-engines; the bridge's UsageSource fold-in,
-  honest -1, zero-vs-unknown and construction seeding; the webui's
-  usage routes with the explicit-null contract); svelte-check 0/0;
-  vite build clean; the webui dist CLEAN-synced (identical to
-  frontend/dist). Beyond the harness: the rendered app exercised
-  with a browser at 320×560, 356×625 and 360×760 across every
-  state (no overlap, no scrollbars; Keep keeps, Delete empties
-  and drops the Last-session line), and the byte path proven on
-  the REAL binary — a 949,386-byte YouTube page through the
-  engine's own tunnel = session downBytes 980,303 / upBytes
-  1,933, the 80-second record in usage.json after the stop,
-  todayBytes = allTimeBytes = 982,236 in the summary. The build
-  lane: gomobile bind → younblock.aar 25,003,698 B; assembleDebug
-  → app-debug.apk 34,951,881 B, sha256 bc4b239e…d1fe8; aapt2
-  badging: versionCode 5, minSdk 26, targetSdk 36, 3 ABIs;
-  apksigner: the pinned c76bb7c6…8551d debug cert. The release
-  lane live through the API: debug.6 regular + Latest
-  (id 416096215), the APK asset (651728792) served bytes
-  re-downloaded through the API asset endpoint and hashed
-  byte-exact. The standing ⛔ re-confirmed: no /dev/kvm, no
-  device — the UI consistency on Ali's actual devices and the
-  video-start delay both wait for his round.
+  D94 (2026-10-18) opens the account-gate lane on top: login
+  authorization on every edition, backed by a user database and
+  admin user management — nothing built yet; the design lane
+  (A0) comes first, and the feedback loop continues in parallel
+  (M8-n).
+- **Branch and commit:** `main`, the M8-m docs-only commit (the
+  gap-analysis record + D94 — see `git log -1` at handoff time)
+  on top of 9615936 (M8-l, the D93 close ruling); worktree clean
+  after the commit. The release tag `v1.6.6-android-debug.6`
+  points at 078e3a5 (M8-k) and is the repo's Latest; debug.5 →
+  ad02980, debug.4 → cb28507 (helper-only), debug.3 → 2a8b678
+  (the device-circle APK), debug.2 → 096e8c0, debug.1 → f61bfae
+  (superseded; debug.1's page keeps the D85 troubleshooting
+  guide).
+- **Files changed this phase:** documentation only (the M8-m
+  commit): DECISIONS.md (D94 — the account-gate ruling, four
+  rulings), CHANGELOG.md (a Planned section under Unreleased —
+  the members-only announcement, honest about the privacy-copy
+  change it brings), doc 06 (the M8-m record), doc 09 (this
+  update), doc 10 (the status note), PROGRESS.md, and
+  SESSION_HANDOFF_PROMPT.md rewritten for the two-workstream
+  session (the feedback loop as M8-n + the account-gate spec
+  lane as A0). Zero app code, zero frontend, zero Android: the
+  analysis round changed no behavior and cut no release; no
+  release lane ran (nothing app-facing changed — the D84/D89
+  discipline).
+- **Tests run and actual results:** none re-run this round — the
+  tree is byte-identical to the M8-l close (9615936) where the
+  baseline was last verified fully green: `go vet ./...` clean;
+  `go test -count=1 ./...` 18/18 packages ok run twice
+  consecutively; svelte-check 0/0; vite build clean; the webui
+  dist clean-synced; `GOOS=windows` compiling the whole shell.
+  The gap analysis verified structural facts instead: 287 test
+  functions across 18 packages (the "18/18" gate's true extent),
+  zero gofmt drift at HEAD, the dist sync current, and mobile.zip
+  100% instruction compliance. The standing ⛔ re-confirmed: no
+  /dev/kvm, no device — the UI consistency on Ali's actual
+  devices and the video-start delay both wait for his round.
 - **The environment is RESTORED and READY** (2026-10-17, M8-i-a):
   ~/sdk carries Go 1.27.2, the Temurin JDK 21.0.12.1+1 (javac), the
   Android SDK (cmdline-tools 12.0, platform-tools 37.0.1,
@@ -170,49 +164,69 @@ at every session boundary.
   ~/sdk wiped again, reinstall per doc 06 §1 (mind the URL
   wrinkle) — but VERIFY first; do not reinstall over a working
   toolchain.
-- **Current architecture decision / confidence:** D93 (the close
-  button is a real shutdown by default; "Keep running in the tray
-  when closed" is the explicit opt-in — one settings field honored
-  only where a tray exists, surfaced on both screens behind
-  capabilities.tray, no schema migration owed). Confidence: high —
-  pinned by close_test.go against a real engine, compile-checked for
-  GOOS=windows, exercised end-to-end on a real --web engine (the
-  disclosed scratch tray:true lane) with the clean-build negative
-  check. Beneath it: D92 (one UI across every device — the shared
-  screen + engine-tracked usage), D91, D90, D89, D88. Next decision
-  ID: D94.
-- **Blocking questions:** none product-side. The signed-release
-  decision still returns only when a public release is planned —
-  its ceremony is automated and documented (D88/D90) and its
-  keystore exists on Ali's machine. The standing inputs are
-  **Ali's cross-device UI check on debug.6** (does the phone now
-  match his Windows/Linux builds? the Data usage numbers sane?),
-  the still-open **diagnostics report from a slow-video moment**
-  (the debug.5 timing lines name the phase), and the rest of the
-  test circle (rows 4–8, rotation/TalkBack). D93 added one desktop
-  input: Ali rebuilds the Windows exe and walks README's updated
-  manual-check steps 4–5 (close = full stop by default; the opt-in
-  keeps the tray).
-- **Exact next task:** continue the **device-test feedback loop**:
-  ingest Ali's results from v1.6.6-android-debug.6 (Task ID M8-m) —
-  first the UI-consistency verdict across his devices (phone vs
-  the Windows/Linux builds he rebuilt from this tree), the
-  data-usage round (connect, browse, watch "X used" climb,
-  disconnect, Last-session line, menu's Today/This month/All time,
-  Clear with both buttons), then the video-start timing evidence
-  if the delay persists (Menu → Diagnostics → Copy while a video
-  is slow; phone model + Android version; every video or just the
-  first after connecting), then the rest of doc 10's circle
-  (youtube.com per browser, .ir direct, stop paths, battery,
-  network switch). Root-cause what the evidence names (the
-  D77–D92 honesty rules binding as ever), bump `versionCode` and
-  cut `v1.6.6-android-debug.7` through the same release lane — a
+- **Current architecture decision / confidence:** D94 (the account
+  gate: Younblock becomes members-only — a verified username/
+  password gate on every edition, backed by a real authentication
+  backend: a user database, login/verification endpoints, and an
+  admin surface for managing users; design-first, nothing built;
+  the privacy-claim conflict named up front — "no account, no
+  data collection" changes when this ships, disclosed never
+  silently, while the proxying itself stays local and unchanged).
+  Confidence: high as a DIRECTION — the open architecture
+  questions (backend hosting; admin-created vs open signup;
+  fail-open vs fail-closed when the auth server is unreachable;
+  token/session design; password storage; brute-force
+  protection; the login surface on the shared screen) each need
+  Ali's ruling in the A0 design lane before implementation.
+  Beneath it: D93 (the close ruling — shipped in the tree,
+  awaiting Ali's rebuilt-exe check), D92 (one UI across every
+  device), D91, D90, D89, D88. Next decision ID: D95.
+- **Blocking questions:** none blocking the feedback loop. The
+  account-gate lane brings DESIGN questions for Ali (D94 ruling
+  3: where the backend lives; who creates accounts; fail-open vs
+  fail-closed offline; token/session design; password storage;
+  brute-force protection) — they gate the A0 spec, not the device
+  round. The signed-release decision still returns only when a
+  public release is planned — its ceremony is automated and
+  documented (D88/D90) and its keystore exists on Ali's machine.
+  The standing inputs are **Ali's cross-device UI check on
+  debug.6** (does the phone now match his Windows/Linux builds?
+  the Data usage numbers sane?), the still-open **diagnostics
+  report from a slow-video moment** (the debug.5 timing lines
+  name the phase), and the rest of the test circle (rows 4–8,
+  rotation/TalkBack). D93 added one desktop input: Ali rebuilds
+  the Windows exe and walks README's updated manual-check steps
+  4–5 (close = full stop by default; the opt-in keeps the tray).
+- **Exact next task:** TWO workstreams, the feedback loop first.
+  **(1) Task ID M8-n — ingest Ali's results from
+  v1.6.6-android-debug.6:** first the UI-consistency verdict
+  across his devices (phone vs the Windows/Linux builds he
+  rebuilt from this tree), the data-usage round (connect, browse,
+  watch "X used" climb, disconnect, Last-session line, menu's
+  Today/This month/All time, Clear with both buttons), then the
+  video-start timing evidence if the delay persists (Menu →
+  Diagnostics → Copy while a video is slow; phone model + Android
+  version; every video or just the first after connecting), then
+  the rest of doc 10's circle (youtube.com per browser, .ir
+  direct, stop paths, battery, network switch), plus D93's
+  desktop check (the rebuilt exe, README manual-check steps 4–5).
+  Root-cause what the evidence names (the D77–D94 honesty rules
+  binding as ever), bump `versionCode` and cut
+  `v1.6.6-android-debug.7` through the same release lane — a
   REGULAR release (D89) — WHEN an app code change warrants it
-  (remember: push the code commit BEFORE creating the release; the
-  full-SHA target_commitish 422s against an unpushed SHA). The
-  environment is READY (verify with `. ~/sdk/env.sh && go version`
-  first; the FIFTH wipe happened MID-SESSION in M8-j — expect
-  wipes at any boundary and reinstall per doc 06 §1 + the URL
-  wrinkle when they land). Open offer on the table, awaiting Ali's
-  ruling: attaching the APK to every release page (relaxing D84's
+  (remember: push the code commit BEFORE creating the release;
+  the full-SHA target_commitish 422s against an unpushed SHA).
+  **(2) Task ID A0 — the account-gate design lane:** write the
+  spec (audit + architecture + ADRs, the M0–M2 pattern the
+  Android port followed) for the login authorization system D94
+  records: the login page on the shared screen (a signed-out
+  state before the connect control), the auth backend (a user
+  database, login/verification endpoints, admin user management —
+  create, disable, reset, expire), and the six open questions
+  that need Ali's rulings; design ahead of code, nothing built
+  before the spec exists. The environment is READY (verify with
+  `. ~/sdk/env.sh && go version` first; expect wipes at any
+  boundary and reinstall per doc 06 §1 + the URL wrinkle when
+  they land). Open offer on the table, awaiting Ali's ruling:
+  attaching the APK to every release page (relaxing D84's
   no-duplicate discipline) — do NOT do it unilaterally.

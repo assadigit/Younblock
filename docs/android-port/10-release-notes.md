@@ -1,13 +1,13 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at the D93 session (2026-10-18, the device-test
-feedback loop's tenth code round — a DESKTOP-side ruling between
-device rounds: the close button is a real shutdown by default and
-tray-keeping is the "Keep running in the tray when closed" opt-in
-(D93); NO Android change, so `v1.6.6-android-debug.6` remains the
-CURRENT build — Ali's next rebuilt desktop exes carry the ruling,
-and a future debug.7 will embed it whenever an app change next
-warrants a release). This document now holds two things: §1 the
+**Status:** updated at the M8-m session (2026-10-18, the twelfth
+exchange — an ANALYSIS-ONLY round: the complete gap analysis Ali
+asked for, plus the D94 ruling that opens the account-gate feature
+lane — login authorization with a user database and admin user
+management, design-first, nothing built yet; NO Android change, so
+`v1.6.6-android-debug.6` remains the CURRENT build, and the D93
+close ruling still rides Ali's next rebuilt desktop exes / a future
+debug.7). This document now holds two things: §1 the
 **shipped** debug test-circle releases (`v1.6.6-android-debug.6` is
 the CURRENT build — a regular release in the private repo per D89,
 the same text lives on the GitHub release itself; beneath it:
@@ -17,7 +17,11 @@ on Ali's phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D93).
+01–09, DECISIONS.md D1–D94). The D94 announcement is recorded here
+for the release notes' future: when the account gate ships, the
+"no account, no data collection" line in §2's What-it-does-NOT
+section changes with it — disclosed at that release, never silently
+(today nothing of it exists: no login, no server, no database).
 
 ## 1a. v1.6.6-android-debug.6 — one UI on every device + data usage (SHIPPED — a regular release, the CURRENT build)
 

@@ -12,6 +12,21 @@ every release are on the
 
 ## [Unreleased]
 
+### Planned (announced 2026-10-18 — design first, nothing built yet)
+
+- **The app is becoming members-only: a login authorization gate is
+  planned (D94).** Only people with a verified Younblock account
+  (username and password) will be able to use the app, on every
+  edition — Windows, Linux and Android. This brings a login page, a
+  small authentication backend with a user database, and an admin
+  surface for managing accounts. One truthful-claims change comes
+  with it and is being said now: the privacy copy today says "no
+  account, no data collection" — after this ships, an account and
+  its login check exist, and the copy changes to say so (the
+  proxying itself stays local and unchanged: no VPN server, no IP
+  hiding, no added encryption). The architecture spec lands before
+  any of it is built.
+
 ### Changed (the desktop close ruling, M8-l / D93 — unreleased desktop builds)
 
 - **Closing the app's window now stops it completely, by default.**

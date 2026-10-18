@@ -892,3 +892,25 @@ Next Task ID M8-m: ingest the debug.6 device round (the UI
 consistency check across Ali's devices + the still-expected
 diagnostics report for the video-start delay + the D93 desktop
 check). Next decision D94.
+
+### M8-m — the complete gap analysis + the account-gate direction — analysis-only, 2026-10-18 (DECISIONS.md D94)
+
+No build, no code change: the round was a full read-only audit (the
+gap report delivered in chat + the worklog's consolidated records).
+The baseline stands unchanged and green at 9615936 as verified at the
+M8-l close (vet clean, 18/18 packages ×2, svelte-check 0/0, the webui
+dist clean-synced) — not re-run on unchanged bytes. Findings that
+touch this doc's lanes: (1) NO CI exists — no .github/ directory at
+all; the entire verification circle is manual per-session, so a
+GitHub Actions lane (vet / test / svelte-check / dist-sync /
+cross-compile checks) is the top QA gap; (2) the desktop release lane
+is dormant — the last desktop artifacts (v0.7.6) predate D86–D93, nine
+rounds of fixes sit under CHANGELOG "Unreleased"; (3) no frontend unit
+tests exist (svelte-check + the session's manual browser exercises are
+the whole UI defense); (4) mobile.zip compliance re-verified
+independently: 100% of every round's instructions applied, the open
+item is data (VERIFIED_SITES), not code. D94 opens the account-gate
+feature lane (login authorization, a user database, admin user
+management) under the design-before-code rule — the A0 spec round is
+the next session's second workstream, and the feedback loop continues
+in parallel as M8-n. Next decision D95.

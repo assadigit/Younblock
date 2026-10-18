@@ -1980,3 +1980,61 @@ user selected this option in the settings." Three rulings:
    settings.json and back, VLM-checked screenshots of both, and the
    CLEAN rebuild showed the sections hidden (the negative check for
    the capability gate).
+
+**D94 — the account gate opens as the project's next feature lane:
+Younblock becomes members-only, and the design lands before the code
+(Ali's ruling, 2026-10-18).** "Planning to add login authorization for
+this, like a normal VPN app, where users must have been signed up or
+input credible and verified user/password... The objective is to make
+the app more exclusive, so only people who have username password can
+use it. so we need login page etc. plan and design ahead for it's
+backend requirements for example user database, admin managing users
+etc."
+
+1. **The direction is ACCEPTED and recorded before any code exists.**
+   A verified username/password gate in front of the app's usage, on
+   every edition (Windows, Linux, Android — implemented once at the
+   engine level so all three shells inherit it), backed by a real
+   authentication backend: a user database, login/verification
+   endpoints, and an admin surface for managing users (create,
+   disable, reset, expire). The "plan and design ahead" instruction is
+   honored the way this project always has: a spec lane first (the
+   auth lane's audit + architecture + ADRs — the M0–M2 pattern the
+   Android port followed), THEN implementation. Nothing is built
+   before the spec exists and the open questions below carry Ali's
+   rulings.
+
+2. **The privacy-claim conflict is named NOW, not discovered later.**
+   The standing truthful-claims set says "no account, no data
+   collection" and "nothing leaves the device except the routed apps'
+   own traffic and their DNS queries" (doc 07 §1, doc 10 §2, the
+   in-app Privacy sheet, the README). An account gate REQUIRES a
+   remote authentication server, account records, and login traffic
+   from every device that uses the app. Those claims change when this
+   ships — deliberately, disclosed in the changelog, the About/Privacy
+   copy and the release notes, never silently. What does NOT change:
+   the proxying itself stays local (no VPN server, no IP hiding, no
+   added encryption — the account gate gates USAGE, not traffic; the
+   routed data path is untouched by this feature).
+
+3. **The architecture questions the design lane must answer (each
+   needs Ali's ruling before implementation):** where the backend
+   lives (a small self-hosted VPS service vs a managed backend — the
+   repo is deliberately dependency-light, but auth is a new animal);
+   who creates accounts (admin-created only vs open signup with
+   approval — the "exclusive" objective points at admin-controlled);
+   fail-open vs fail-closed when the auth server is unreachable (the
+   recommendation is fail-closed with a bounded offline grace, but
+   the ruling is Ali's); token/session design (opaque server-side
+   sessions vs signed JWTs, expiry, revocation-on-disable); password
+   storage (bcrypt/argon2id, never plaintext, never recoverable);
+   brute-force protection; and the login surface on the shared screen
+   (a signed-out state before the connect control — the same screen
+   on every platform, per D92's one-UI rule).
+
+4. **Sequencing: the feedback loop does not stop.** The account-gate
+   design runs as the SECOND workstream of the next session; the
+   debug.6 device round (the cross-device UI verdict, the data-usage
+   check, the still-open slow-video diagnostics report, the D93
+   Windows check on the rebuilt exe) stays the FIRST input — field
+   evidence keeps flowing while the spec is written.

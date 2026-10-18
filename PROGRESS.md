@@ -2804,3 +2804,39 @@ exe and walks README manual-check steps 4–5. Next Task ID M8-m
 (ingest the debug.6 device round: the cross-device UI verdict, the
 data-usage check, the still-open slow-video diagnostics, the D93
 desktop check); next decision D94.
+
+M8-m (2026-10-18): the complete gap analysis + the wrap-up that opened
+the account-gate lane (D94). Ali asked for "a complete Gap analysis of
+this APP" as a report; the round was analysis-only — zero code changes,
+worktree clean at 9615936. Two read-only inventory passes (the Go host:
+every package, the D93 close path, all 287 tests across 18 packages,
+every deliberate limit — the connect-path timeout constants that are
+the slow-video diagnosis candidates; the frontend + Android: the
+capability matrix, the settings asymmetries, the Android lane facts)
+plus a doc baseline (doc 02's AND-001…028 matrix, doc 05/07/09/10,
+CHANGELOG/PROGRESS/DECISIONS tails) and an independent re-verification
+of mobile.zip: every instruction from every round applied — the one
+open item is data (VERIFIED_SITES empty pending the two-day site
+tests), not code. The gap register delivered in chat: host-complete
+and green everywhere the sandbox can measure; the real gaps are
+(1) the open slow-video defect (awaiting the diagnostics report),
+(2) the largely unrun device test circle (rows 4–8, rotation/TalkBack,
+the cross-device UI verdict, the data-usage check, the D93 real-Windows
+check on the rebuilt exe), (3) the dormant desktop release lane
+(v0.7.6 predates D86–D93 — nine rounds sit under CHANGELOG
+"Unreleased"), and (4) public-release engineering not started
+(debug-only signing, no CI — no .github/ at all, no frontend tests,
+unsigned exe, no update mechanism). At the wrap-up Ali opened the next
+feature lane (D94): login authorization — a verified username/password
+gate with a user database and admin user management, making the app
+members-only; design-first (the spec lane before any code), with the
+privacy-claim conflict named up front ("no account, no data collection"
+cannot survive unchanged — D94 ruling 2) and the feedback loop
+explicitly continuing in parallel (ruling 4). The wrap-up commit:
+DECISIONS.md (D94), CHANGELOG.md (the Planned section under
+Unreleased), doc 06 (the M8-m record), doc 09 (the twelfth exchange +
+handoff fields → M8-n + A0 / D95), PROGRESS.md (this entry), and
+SESSION_HANDOFF_PROMPT.md rewritten for the two-workstream session.
+No release: nothing app-facing changed; debug.6 (versionCode 5) stays
+the repo's Latest. Next Task IDs: M8-n (ingest the debug.6 device
+round) and A0 (the account-gate spec lane). Next decision D95.
