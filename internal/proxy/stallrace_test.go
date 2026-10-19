@@ -138,6 +138,7 @@ func TestStallKillClosesSilentRelayFlow(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: this file pins the M8-v shapes; the raced round is firstrace_test.go's
 		c.IdleTimeout = 5 * time.Second
 		c.StallTimeout = 400 * time.Millisecond
 		c.Resolver = res
@@ -197,6 +198,7 @@ func TestStallKillSparesStreamingDownload(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the M8-v shapes
 		c.IdleTimeout = 5 * time.Second
 		c.StallTimeout = 400 * time.Millisecond
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP(upHost)}}
@@ -235,6 +237,7 @@ func TestStallKillDisabledByConfig(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the M8-v shapes
 		c.IdleTimeout = 800 * time.Millisecond
 		c.StallTimeout = -1
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP(upHost)}}
@@ -278,6 +281,7 @@ func TestStallKillSparesUnroutedHosts(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the M8-v shapes (unrouted guard — the race, like every other processing, never touches it)
 		c.IdleTimeout = 2 * time.Second
 		c.StallTimeout = 400 * time.Millisecond
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP(upHost)}}
@@ -410,6 +414,7 @@ func TestSalvageRaceRedialsInParallel(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the M8-v salvage-race shape (serial attempt 0, then the raced re-dials)
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = staticResolver{ips: []net.IP{
 			net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.2"), net.ParseIP("127.0.0.3"),
@@ -463,6 +468,7 @@ func TestSalvageRaceTerminalIsBounded(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 300 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the M8-v salvage-race shape
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP(upHost)}}
 	})
@@ -506,6 +512,7 @@ func TestSalvageRaceWinnerDeliversByteExact(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the M8-v salvage-race shape
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.2")}}
 	})

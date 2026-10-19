@@ -12,6 +12,42 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-19 — M8-w; shipped in `v1.6.6-android-debug.15`, versionCode 14)
+
+- **The per-video start wait, round four: the whole dial budget now
+  races in parallel from the flow's start, and the health probe asks
+  the DNS servers NOW instead of reading a stale failure memory.**
+  Ali's sixth pasted diagnostics report (the first from the
+  salvage-race + stall-watch build — versionCode 13) proved both of
+  those working (the retry lines batching at the same millisecond,
+  the stall watch killing at exactly the 15 s budget, saves at
+  738–848 ms, the 60-second mid-stream hangs gone) and named the
+  two remaining costs. Two changes (ADR-0021), both the
+  failure-detection/hygiene species, never steering: **(1) the
+  first-dial race** — the report's six terminal `reason=timeout`
+  dones at 5320–5576 ms were the SERIAL FRONT's cost (attempt 0
+  still walked its 2.5 s budget ALONE before the salvage race even
+  launched) while CONCURRENT flows to the SAME hosts answered at
+  72–162 ms in the same seconds — the dirt is per-origin, not
+  per-moment — so a processed host's flow now races its primary
+  origin against `FirstByteRaceDials` (default 2) extra candidates
+  dialed AT THE SAME MOMENT (each on its own rotated start of the
+  answer set, each replaying the client's first record byte-exact
+  through a fresh fragment conn, the same preset per flow — D102),
+  the FIRST origin to speak wins, an all-dead set fails at ~1
+  budget instead of 2, and a raced save logs the new report line
+  `tunnel first-byte raced dials=N` (a clean primary stays quiet —
+  the race costs a healthy flow nothing observable); **(2) the
+  honest dns probe** — the report's dns fail 16 with
+  `DNS_UNREACHABLE` while the video downloaded 6.7 MB was the
+  periodic check reading the 15 s negative cache a momentary DoH
+  blip had written for the very name the app's own flows resolve,
+  so the dns step now clears exactly that entry first
+  (`Resolver.ClearNegative`; a good cached answer stays) and asks
+  what the servers say NOW. Negative `FirstByteRaceDials` restores
+  the previous behavior exactly (serial attempt 0 + the raced
+  salvage re-dials).
+
 ### Fixed (2026-10-19 — M8-v; shipped in `v1.6.6-android-debug.14`, versionCode 13)
 
 - **The per-video start wait, round three: the salvage's re-dials now

@@ -3376,3 +3376,56 @@ first-byte failures still cluster under method=strong). Next: M8-w
 expects the debug.14 report — shell line versionCode 13; the
 "tunnel stall killed" lines and the retry/salvaged-vs-terminal ratio
 are the evidence.
+
+M8-w (2026-10-19, late — the sixth pasted-report round, the first
+from the salvage-race + stall-watch build): the report's shell line
+read versionCode 13 and its log carried that build's own lines, so
+the round was a real fix round. The report proved ADR-0020
+on-device (the retry lines batch at the same millisecond — the
+re-dials race; "tunnel stall killed idle=15059-15315 ms" — the
+watch kills at exactly the 15 s budget; saves at 738-848 ms; the
+60-second mid-stream hangs are GONE) and named the two remaining
+costs: the SERIAL FRONT (six terminal reason=timeout dones at
+5320-5576 ms — attempt 0 walked its 2.5 s budget ALONE before the
+race launched, the two-budget chain — while CONCURRENT flows to the
+SAME hosts answered at 72-162 ms in the same seconds: the dirt is
+per-origin, not per-moment) and the DNS degraded state (dns fail 16
+/ DNS_UNREACHABLE with the network flowing — a dirty-window DoH
+blip negative-cached the probe name and the periodic check read the
+15 s memory instead of asking any server; the M8-r lesson recurring
+on the watchdog path). Shipped v1.6.6-android-debug.15 (versionCode
+14, ADR-0021): the FIRST-DIAL RACE (new knob FirstByteRaceDials=2
+default: the primary plus extra candidates dial in parallel from
+the flow's start, each replaying the client's first record
+byte-exact through a fresh fragment conn onto its rotated start of
+the answer set, first speaker wins, an all-dead set terminals at
+~1 budget instead of 2, new report line "tunnel first-byte raced
+dials=N", a clean primary stays quiet; the client stays frozen for
+the round — the M8-v salvage race's proven semantics; teardown-
+caused deaths never demote, budget/reset deaths demote whenever
+they happen — the M8-o loop; with racing enabled the salvage
+rounds never run) + the honest dns probe (Resolver.ClearNegative
+drops exactly the probe name's negative-cache entry before the
+health lookup; success entries stay; the heal sweep keeps its full
+Reset). Both-ways proof: with the raced round neutered
+TestFirstDialRaceSavesDirtyPrimary and TestFirstDialRaceTerminalIs-
+Bounded FAIL; with the ClearNegative call neutered
+TestSelfTestDNSProbesPastNegativeCache FAILS; with the fixes all
+pass, guards both ways (byte-exactness, the quiet primary, the
+unrouted host, the disabled knob); the M8-v/M8-t/M8-s pins keep
+their shapes with racing disabled in their configs. Baseline green
+(vet, 18/18), compile matrix 4/4 ABIs + arm64 full tree, gomobile
+bind with the raced string verified in libgojni.so in all three
+ABIs; one lane defect caught by the artifact check itself (the
+first assembleDebug packed the STALE libs/younblock.aar — the raced
+string absent from the APK — plus 12 MB of incremental-repack zip
+slack; the re-bind into android/app/libs/ + a CLEAN assembleDebug
+produced the tight artifact); APK 35,233,585 B (SHA-256
+817c5e2f7f553afcfc65cc684abfecb610c39c84ffdd875c0e3c169fc21ef68e),
+apksigner OK (the pinned cert), badging versionCode 14 /
+versionName 1.6.6. D102 stays Ali's ruling, still LIVE (terminals
+still cluster under method=strong). Next: M8-x expects the debug.15
+report — shell line versionCode 14; the "tunnel first-byte raced"
+lines (the save rate) are the candidate count's tuning material,
+the terminal ratio the D102 material, and the dns fail counter the
+degraded-state confirmation.

@@ -906,6 +906,135 @@ closed engine-side (M8-v, the debug.13 report round)
   timeout is untouched (300 s for every relay; the stall watch only
   shortens the BOTH-silent case for processed hosts).
 
+## ADR-0021 — The first-dial race: the whole dial budget is spent in
+PARALLEL from the flow's start (the primary plus FirstByteRaceDials
+extra candidates, first origin to speak wins), and the health probe
+asks the servers NOW (ClearNegative before the dns step) (M8-w, the
+debug.14 report round)
+
+- **Status:** Accepted 2026-10-19 (M8-w — the SIXTH pasted diagnostics
+  report; Ali's "The problem persisted" round, versionCode 13 — the
+  first report from the salvage-race + stall-watch build itself).
+- **Context:** The debug.14 report (shell line `versionCode 13`) proved
+  ADR-0020 on-device: the `tunnel first-byte retry` lines batch at the
+  same millisecond (the re-dials race), the stall watch kills at 15 s
+  (`tunnel stall killed idle=15xxx ms` lines, exactly the budget),
+  saves land at 738-848 ms, and 60-second mid-stream hangs are gone.
+  It also named the two remaining costs with new precision:
+  (1) the SERIAL FRONT — every routed flow still walked attempt 0
+  ALONE through its full 2.5 s budget before the salvage race even
+  launched: six terminal `reason=timeout` dones at 5320-5576 ms (the
+  two-budget chain), 1131-1292 ms reset terminals, and the mixed
+  windows recovering only at salvage time — while CONCURRENT flows to
+  the SAME hosts answered at 72-162 ms in the same seconds (five
+  sub-250 ms first-bytes at 01:09:49-50 right between two timeout
+  terminals). The dirt is per-origin, not per-moment: a wave of
+  sibling flows covers the live set while each individual flow still
+  serializes its own first attempt. (2) The DNS degraded state — dns
+  fail 16 with `last failed check: dns (DNS_UNREACHABLE)` while the
+  network was demonstrably flowing: a dirty-window DoH blip
+  negative-cached www.youtube.com (the very name the app's own flows
+  resolve), and the periodic check read the 15 s negative memory
+  instead of asking any server — the M8-r lesson (the sweep's probe
+  poisoned by its own negative cache) recurring on the watchdog path,
+  where nothing clears it.
+- **Decision (two changes; the first scoped to processed hosts — the
+  D46 scoping, unrouted relays keep the plain shape byte-for-byte; the
+  second in the health package):**
+  1. **The first-dial race.** New knob `FirstByteRaceDials` (default
+     2; 0 in a proxy Config → the default; negative → disabled, the
+     exact M8-v shape: serial attempt 0 + the raced salvage
+     re-dials). A processed host's budgeted flow — when racing is
+     enabled and the replay fits — runs ONE raced round INSTEAD of
+     the serial loop: the primary origin (already dialed by
+     handleTunnel; its dial time is the head start) plus
+     FirstByteRaceDials extra candidates dial at once (candidate k
+     starts at the k-th rotated entry of the fresh answer set, and
+     each candidate's DialHost still walks its whole rotated list
+     with the M8-n stagger, so a blackholed address fails over inside
+     the candidate), each replays the client's first record
+     byte-exact through a fresh fragment conn (the same preset,
+     captured once per flow — D102), and each waits one budget for
+     the first byte. The FIRST origin to speak wins: its first bytes
+     are delivered, the losers are closed and reaped, and a flow the
+     race SAVED (the winner is not the primary) logs the new report
+     line `tunnel first-byte raced dials=N` (Info; a clean primary
+     stays quiet — nothing happened the pre-race shape would
+     report). All dead: the M8-s terminal exactly, at ~1 budget
+     (the round runs in parallel) instead of the M8-v serial-front
+     2x. The client stays FROZEN for the round — the M8-v salvage
+     race's own proven semantics: the pump never starts on this
+     path, bytes beyond the first record wait in the socket buffer
+     and flow to the winner in order through the plain relay. A
+     candidate's death is classified before it demotes (the M8-o
+     loop): a teardown-caused death — the dial ctx aborted by the
+     round's end, or a conn closed under the candidate (the
+     swap-closed primary) — never demotes; a death at the
+     candidate's OWN budget or an origin reset demotes whenever it
+     happens (the origin was silent the whole budget — exactly the
+     M8-o evidence, even after a sibling won). The first record is
+     counted once (the winner's copy is the flow's — the client's
+     own send, not per-candidate), matching the salvage's
+     accounting. With racing enabled the salvage rounds never run
+     (the budget is spent at the start); `FirstByteSalvageDials`
+     keeps its exact meaning when racing is disabled.
+  2. **The honest dns probe.** `Resolver.ClearNegative(host)` (new,
+     on the doh resolver): drops exactly host's negative-cache entry
+     — success entries are untouched (a good cached answer is still
+     good; demoting it would only tax the tunnel path with a
+     re-query). The health package's dns step calls it on the probe
+     name before looking up (optional capability; fakes without it
+     are skipped): a health probe's question is "what do the servers
+     say NOW", not "what failed moments ago". The watchdog and the
+     quick check both run testDNS, so both probe past the memory;
+     the heal sweep keeps its full Reset (M8-r — a sweep is a
+     suspected-network-change event).
+- **Evidence:** internal/proxy/firstrace_test.go (new, six tests) +
+  internal/doh/resolver_test.go + internal/health/selftest_test.go
+  (one new test each), all verified BOTH WAYS: with the raced round
+  neutered (the M8-v shape at HEAD), `TestFirstDialRaceSavesDirtyPrimary`
+  FAILS (no raced line — the salvage's retry+salvaged lines instead,
+  a full budget later) and `TestFirstDialRaceTerminalIsBounded` FAILS
+  (the flow still up at 550 ms — the serial-then-race 2x shape); with
+  the ClearNegative call neutered,
+  `TestSelfTestDNSProbesPastNegativeCache` FAILS (the dns step reads
+  the memory: DNS_UNREACHABLE in 0 ms with the server healthy — the
+  report's exact signature); with the fixes all PASS. The guards pass
+  both ways, as guards must:
+  `TestFirstDialRaceWinnerDeliversByteExact` (the raced winner
+  delivers record + early data byte-exact and the flow stays a
+  working relay), `TestFirstDialRacePrimaryWinsQuietly` (a clean
+  primary wins against slower-but-live extras and NOTHING logs —
+  the race costs a healthy flow nothing observable),
+  `TestFirstDialRaceSparesUnroutedHosts` (D46),
+  `TestFirstDialRaceDisabledByConfig` (negative → the M8-v shape:
+  serial attempt 0, the raced salvage re-dials, their retry/salvaged
+  lines, never the raced line). The M8-v/M8-t/M8-s pins keep their
+  shapes with racing disabled in their configs
+  (stallrace_test.go + firstbyte_test.go — the raced round is
+  firstrace_test.go's). Full baseline green: go vet clean; 18/18
+  packages; the compile matrix 4/4 ABIs + arm64 full tree; gomobile
+  bind with the raced string verified in libgojni.so in all three
+  ABIs; the debug.15 APK artifact-verified (badging versionCode 14,
+  apksigner pinned cert, sha256 in doc 06).
+- **What this ADR does NOT decide:** per-flow METHOD variation — the
+  race re-flips the SAME coin on the SAME preset on every candidate
+  (captured once per flow); whether a flow that exhausts its raced
+  round should be retried once with the NEXT preset in
+  HealSweepOrder stays D102, Ali's ruling, and this report's evidence
+  keeps it LIVE (terminal first-byte failures still cluster under
+  method=strong — six timeouts + a reset batch inside four seconds at
+  01:09:47-51). The raced round's candidate count (2) and the
+  budget (2.5 s) are the next report's tuning material: the raced
+  line's dials=N plus first-byte times say whether the count should
+  grow (an all-dead set still terminaling) or the extras cost more
+  than they save (every raced line a save the primary would have
+  made anyway). The ORIGIN of the per-node silence/reset stays
+  unobservable from the app. The QUIC drop policy stands (ADR-0009;
+  udpDropped=104 this round keeps measuring). The stall watch is
+  untouched (ADR-0020; this report's kills at 15.0-15.3 s idle are
+  the budget firing as designed).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

@@ -147,6 +147,17 @@ func testDNS(ctx context.Context, cfg Config) Step {
 		s.MS = msSince(start)
 		return s
 	}
+	// M8-w (the M8-r sweep lesson extended to the periodic check): the
+	// probe must ask what the servers say NOW, not what the 15 s negative
+	// memory memorized. A dirty-window DoH blip negative-caches this very
+	// name (the app's own flows resolve it), and a check reading that
+	// entry fails instantly as DNS_UNREACHABLE without a single server
+	// being asked — the debug.14 report's degraded state. ClearNegative
+	// drops exactly the negative entry (a good cached answer stays; a
+	// probe hitting it is still an honest "the lookup works").
+	if cn, ok := cfg.Resolver.(interface{ ClearNegative(string) }); ok {
+		cn.ClearNegative(cfg.DNSName)
+	}
 	cctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 	ips, err := cfg.Resolver.Lookup(cctx, cfg.DNSName)

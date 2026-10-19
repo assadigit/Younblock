@@ -421,6 +421,7 @@ func (e *Engine) startListener() error {
 		FirstRecordTimeout:    config.FirstRecordReadTimeout,
 		FirstByteTimeout:      config.FirstByteTimeout,
 		FirstByteSalvageDials: config.FirstByteSalvageDials,
+		FirstByteRaceDials:    config.FirstByteRaceDials,
 		StallTimeout:          config.StallTimeout,
 		IdleTimeout:           idle,
 		MaxHeaderBytes:        config.MaxHeaderBytes,

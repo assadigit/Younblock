@@ -604,3 +604,60 @@ func TestServerFailureLinesCarryEvidence(t *testing.T) {
 		t.Errorf("info lines = %v, want the fallback to name failed=#1 now=#2 in the message", log.infos)
 	}
 }
+
+// TestClearNegativeDropsOnlyNegatives (M8-w, ADR-0021's companion
+// fix): ClearNegative drops a host's NEGATIVE entry so the next lookup
+// asks the servers (the health checks' "what do the servers say NOW"),
+// while a SUCCESS entry is untouched — a good cached answer is still
+// good, and clearing it would only tax the tunnel path with a
+// re-query. The debug.14 report's degraded state (dns fail 16,
+// DNS_UNREACHABLE with the network flowing) was the probe reading the
+// negative memory its own app flows had written moments before.
+func TestClearNegativeDropsOnlyNegatives(t *testing.T) {
+	now := time.Now()
+	f := newFakeDoH(t, func(string) ([]net.IP, uint32) {
+		return []net.IP{net.ParseIP("93.184.216.34")}, 300
+	})
+	cfg := testConfig(f.serverConfig("Fake"))
+	cfg.TLS = f.tlsConfig()
+	cfg.Now = func() time.Time { return now }
+	r := New(cfg)
+
+	// A good answer cached fresh for example.com.
+	if _, err := r.Lookup(context.Background(), "example.com"); err != nil {
+		t.Fatalf("Lookup example.com: %v", err)
+	}
+	goodHits := f.hits.Load()
+
+	// The dirty window: neg.test fails and negative-caches for 15 s.
+	f.fail.Store(true)
+	if _, err := r.Lookup(context.Background(), "neg.test"); err == nil {
+		t.Fatal("expected the blip lookup to fail")
+	}
+	f.fail.Store(false)
+	failHits := f.hits.Load()
+
+	// ClearNegative on the SUCCESS host: no re-query (the entry stands).
+	r.ClearNegative("example.com")
+	if _, err := r.Lookup(context.Background(), "example.com"); err != nil {
+		t.Fatalf("the good entry must keep serving: %v", err)
+	}
+	if got := f.hits.Load(); got != failHits {
+		t.Errorf("ClearNegative must not clear a success entry: server hits %d -> %d", failHits, got)
+	}
+	_ = goodHits
+
+	// ClearNegative on the NEGATIVE host: the next lookup asks the
+	// (now healthy) server instead of reading the memory.
+	r.ClearNegative("neg.test")
+	if _, err := r.Lookup(context.Background(), "neg.test"); err != nil {
+		t.Fatalf("the cleared negative must re-query and succeed: %v", err)
+	}
+	if got := f.hits.Load(); got <= failHits {
+		t.Errorf("the cleared negative must have re-queried the server: hits %d -> %d", failHits, got)
+	}
+
+	// IP literals and empty names stay no-ops (nothing to clear).
+	r.ClearNegative("")
+	r.ClearNegative("127.0.0.1")
+}

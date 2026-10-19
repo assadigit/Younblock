@@ -1650,3 +1650,61 @@ ad5e7; apksigner OK (the pinned c76bb7c6…8551d); badging versionCode
 also verified in the APK's libgojni.so in all three ABIs.
 versionCode 13 (the D84 rule); release lane: v1.6.6-android-debug.14
 with the APK asset named v1.6.6-debug14.apk (D103).
+
+M8-w (2026-10-19, the SIXTH report round — the first from the
+salvage-race + stall-watch build, shell line versionCode 13): the
+report proved ADR-0020 on-device (the retry lines batch at the same
+millisecond — the re-dials race; the stall watch kills at 15 s,
+idle=15xxx ms; saves at 738-848 ms; the 60-second mid-stream hangs
+gone) and named the two remaining costs: the SERIAL FRONT (attempt 0
+still walked its 2.5 s budget ALONE before the race launched — six
+terminal reason=timeout dones at 5320-5576 ms, the two-budget chain,
+while CONCURRENT flows to the same hosts answered at 72-162 ms in the
+same seconds: the dirt is per-origin, not per-moment) and the DNS
+degraded state (dns fail 16, DNS_UNREACHABLE with the network
+flowing — a dirty-window DoH blip negative-cached the probe name and
+the periodic check read the 15 s memory instead of asking any
+server). The round ships ADR-0021: the FIRST-DIAL RACE
+(FirstByteRaceDials=2 default — the primary plus extra candidates
+dial in parallel from the flow's start, the first record replayed
+byte-exact through each, first speaker wins, an all-dead set
+terminals at ~1 budget; new report line "tunnel first-byte raced
+dials=N"; a clean primary stays quiet) + the honest dns probe
+(Resolver.ClearNegative drops exactly the probe name's negative
+entry before the health lookup; success entries stay). Racing is
+scoped to processed hosts (D46); D102 (the next-preset retry) stays
+Ali's ruling with this report's evidence: terminals still cluster
+under method=strong.
+
+Lane evidence: desktop baseline all green (go vet clean, 18/18
+packages ×2 after the changes; the M8-v pins keep their shapes with
+racing disabled in their configs — stallrace_test.go +
+firstbyte_test.go — and the raced round is firstrace_test.go's).
+Both-ways proof: with the raced round neutered (the M8-v shape),
+TestFirstDialRaceSavesDirtyPrimary FAILS (no raced line — the
+salvage's retry+salvaged lines instead) and
+TestFirstDialRaceTerminalIsBounded FAILS (still up at 550 ms — the
+2x serial-then-race shape); with the ClearNegative call neutered,
+TestSelfTestDNSProbesPastNegativeCache FAILS (DNS_UNREACHABLE in
+0 ms with the server healthy — the report's signature); with the
+fixes all PASS; guards pass both ways (byte-exactness, the quiet
+primary, the unrouted host, the disabled knob, negative-entry-only
+clearing). Compile matrix 4/4 ABIs (CGO_ENABLED=0 go build
+./internal/... ./mobile/... per android/arm,arm64,amd64,386) + arm64
+full tree ./... green. Disk managed per the M8-t lesson (go clean
+-cache before the matrix; gradle --stop first). One lane defect
+caught and fixed by the artifact check itself: the first assembleDebug
+packed the STALE libs/younblock.aar (the M8-v AAR — the raced string
+absent from the APK's libgojni.so) and an incremental repack left
+12 MB of zip slack; the re-bind into android/app/libs/ + a CLEAN
+assembleDebug produced the tight artifact. gomobile bind
+(-target=android/arm,android/arm64,android/amd64 -androidapi=26,
+GOFLAGS=-mod=mod) exit 0; younblock.aar 25,165,729 B with the raced
+string verified in libgojni.so in all three ABIs; clean assembleDebug
+BUILD SUCCESSFUL. Artifact: app-debug.apk 35,233,585 B, SHA-256
+817c5e2f7f553afcfc65cc684abfecb610c39c84ffdd875c0e3c169fc21ef68e;
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 14 /
+versionName 1.6.6 / minSdk 26 / targetSdk 36; the raced + stall
+strings also verified in the APK's libgojni.so in all three ABIs.
+versionCode 14 (the D84 rule); release lane: v1.6.6-android-debug.15
+with the APK asset named v1.6.6-debug15.apk (D103).

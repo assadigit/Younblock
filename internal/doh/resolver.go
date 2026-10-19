@@ -238,6 +238,23 @@ func (r *Resolver) Invalidate(host string) {
 	r.cache.invalidate(host)
 }
 
+// ClearNegative drops host's negative-cache entry and nothing else
+// (M8-w, ADR-0021's companion fix — the M8-r sweep lesson extended to
+// the periodic checks). The debug.14 report showed the watchdog's dns
+// step failing as DNS_UNREACHABLE with the network otherwise flowing:
+// a dirty-window DoH blip had negative-cached the probe name (the very
+// name app flows resolve), and the check read the 15 s memory instead
+// of asking any server. A health probe's question is "what do the
+// servers say NOW"; success entries stay (a good cached answer is
+// still good — demoting it would only tax the tunnel path).
+func (r *Resolver) ClearNegative(host string) {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if host == "" || net.ParseIP(host) != nil {
+		return
+	}
+	r.cache.clearNegative(host)
+}
+
 // Reset clears the cache and the sticky server (used when the network
 // changes; file 03, R19).
 func (r *Resolver) Reset() {

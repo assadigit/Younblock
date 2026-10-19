@@ -254,6 +254,24 @@ func (s *Server) logTunnelFirstByteSalvaged(host string, dials int) {
         s.cfg.Logger.Info(msg)
 }
 
+// logTunnelFirstByteRaced records a raced flow whose PRIMARY lost the
+// first-dial race and an extra candidate delivered the first byte
+// (M8-w, ADR-0021): the evidence that racing from the start saved the
+// flow the whole attempt-0 budget + salvage chain — the primary was
+// dirty, the flow never showed the app a retry, and the first byte
+// still landed at the fastest live origin. A clean primary stays quiet
+// (nothing happened the pre-race shape would report).
+func (s *Server) logTunnelFirstByteRaced(host string, dials int) {
+        if s.cfg.Logger == nil {
+                return
+        }
+        msg := fmt.Sprintf("tunnel first-byte raced dials=%d", dials)
+        if s.cfg.LogHostnames {
+                msg += " host=" + host
+        }
+        s.cfg.Logger.Info(msg)
+}
+
 // logTunnelStallKilled records the M8-v stall kill (ADR-0020): a
 // budgeted flow whose relay went silent in BOTH directions for the
 // whole StallTimeout — the debug.13 report's dominant start-lag shape
@@ -644,9 +662,176 @@ func (s *Server) writeReplay(origin net.Conn, replay []byte, firstLen int, isTLS
         return nil
 }
 
+// racedCandidate is one first-dial race candidate's outcome (M8-w,
+// ADR-0021). conn is a speaking origin (nil on death) with its first
+// downstream bytes; canceled marks a death the round's own teardown
+// caused — the dial ctx aborted by the round's end, or a conn closed
+// under the candidate (the swap-closed primary) — never a dirty-origin
+// signal, so it never demotes. A death at the candidate's OWN budget
+// stays natural even after a sibling won: the origin was silent the
+// whole budget, exactly the M8-o evidence.
+type racedCandidate struct {
+        conn     net.Conn
+        first    []byte
+        death    string
+        canceled bool
+}
+
+// raceFirstByte runs one raced first-byte round (M8-w, ADR-0021): the
+// primary origin (already dialed — its natural head start) plus raceN
+// extra candidates compete for the origin's first byte, each replaying
+// the client's buffered bytes byte-exact through a fresh fragment conn
+// onto its own rotated start of the answer set (DialHost still walks
+// the whole list with its stagger, so a blackholed front address fails
+// over inside the candidate). The first origin to speak wins; the
+// losers are closed and reaped (a late natural death still demotes the
+// answer set — one per dead candidate, the M8-o loop — while a death
+// the teardown itself caused never does). The client stays frozen for
+// the round exactly like the M8-v salvage race freezes it: bytes beyond
+// the first record wait in the socket and flow to the winner in order
+// through the plain relay. Returns the winner with its first bytes, or
+// a nil conn with the last natural death's reason when every candidate
+// died.
+//
+// The debug.14 report's evidence this shape answers: attempt 0 still
+// walked its budget ALONE before the M8-v race launched (six timeout
+// terminals at 5320–5576 ms = the two-budget chain, salvage saves only
+// at 738–848 ms) while CONCURRENT flows to the same hosts answered at
+// 72–162 ms in the same seconds — the dirt is per-origin, not
+// per-moment, so spending the dial budget in parallel from t=0 lands a
+// mixed-window flow at its fastest live origin and terminals an
+// all-dead flow at ~1 budget instead of 2.
+func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot []byte, firstLen int, isTLS bool, preset fragment.Preset, fcfg fragment.Config, raceN int) (net.Conn, []byte, string) {
+        // The extras dial the current answer set (cached fresh — the
+        // handleTunnel resolve landed milliseconds ago; a sibling flow's
+        // demotion in between makes this the fresher set, exactly the
+        // M8-o intent). A resolve failure here degenerates the round to
+        // the primary alone rather than failing a flow that already has
+        // a connected origin.
+        var ips []net.IP
+        if resolved, err := s.resolve(host); err == nil {
+                ips = dedupeIPs(resolved)
+        } else {
+                raceN = 0
+        }
+
+        total := raceN + 1
+        results := make(chan racedCandidate, total)
+        stopRound := make(chan struct{})
+        var stopOnce sync.Once
+        endRound := func() { stopOnce.Do(func() { close(stopRound) }) }
+        defer endRound() // both exits — winner and all-dead — reap the rest
+        roundStopped := func() bool {
+                select {
+                case <-stopRound:
+                        return true
+                default:
+                        return false
+                }
+        }
+
+        // launch starts one candidate. pre != nil is the primary (already
+        // dialed; its dial time is the head start the extras must beat).
+        // deathCanceled classifies one death: teardown-caused only when the
+        // round ended AND the error is the teardown's own fingerprint (the
+        // aborted dial ctx or a conn closed under the candidate) — a budget
+        // timeout or an origin reset is natural dirt whenever it happens.
+        deathCanceled := func(err error) bool {
+                if !roundStopped() {
+                        return false
+                }
+                return errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled)
+        }
+        launch := func(pre net.Conn, list []net.IP) {
+                go func(pre net.Conn, list []net.IP) {
+                        conn := pre
+                        if conn == nil {
+                                ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
+                                defer cancel()
+                                // The round's teardown aborts a dial still in
+                                // flight instead of waiting out its budget.
+                                go func() {
+                                        <-stopRound
+                                        cancel()
+                                }()
+                                var derr error
+                                conn, derr = s.cfg.Dialer.DialHost(ctx, "tcp", host, port, list)
+                                if derr != nil {
+                                        results <- racedCandidate{death: "dial", canceled: deathCanceled(derr)}
+                                        return
+                                }
+                        }
+                        if werr := s.writeReplay(conn, snapshot, firstLen, isTLS, preset, fcfg); werr != nil {
+                                conn.Close()
+                                results <- racedCandidate{death: firstByteReason(werr), canceled: deathCanceled(werr)}
+                                return
+                        }
+                        cbuf := getBuf()
+                        conn.SetReadDeadline(time.Now().Add(s.cfg.FirstByteTimeout))
+                        cn, cerr := conn.Read(*cbuf)
+                        conn.SetReadDeadline(time.Time{})
+                        if cn > 0 {
+                                firstDown := append([]byte(nil), (*cbuf)[:cn]...)
+                                putBuf(cbuf)
+                                results <- racedCandidate{conn: conn, first: firstDown}
+                                return
+                        }
+                        putBuf(cbuf)
+                        conn.Close()
+                        results <- racedCandidate{death: firstByteReason(cerr), canceled: deathCanceled(cerr)}
+                }(pre, list)
+        }
+
+        launch(primary, nil)
+        for i := 0; i < raceN; i++ {
+                launch(nil, rotateIPs(ips, i+1))
+        }
+
+        // Collect: the first speaking origin wins; every natural death
+        // demotes (one per dead candidate, the M8-o loop).
+        var winner net.Conn
+        var winnerFirst []byte
+        lastDeath := ""
+        received := 0
+        for received < total && winner == nil {
+                res := <-results
+                received++
+                if res.canceled {
+                        continue // cannot precede a winner; defensive
+                }
+                if res.conn != nil {
+                        winner, winnerFirst = res.conn, res.first
+                        break
+                }
+                lastDeath = res.death
+                s.invalidateDNS(host)
+        }
+        if winner == nil {
+                return nil, nil, lastDeath
+        }
+        // The round ended with a winner: the still-pending candidates are
+        // reaped in the background — a late speaker is closed (it lost),
+        // a late death demotes only when the teardown did not cause it.
+        endRound()
+        pending := total - received
+        go func(pending int) {
+                for i := 0; i < pending; i++ {
+                        res := <-results
+                        if res.conn != nil {
+                                res.conn.Close()
+                                continue
+                        }
+                        if !res.canceled {
+                                s.invalidateDNS(host)
+                        }
+                }
+        }(pending)
+        return winner, winnerFirst, ""
+}
+
 // copyFirstByteBudgeted is the processed-host relay shape (M8-s,
-// ADR-0018; M8-t, ADR-0019; M8-v, ADR-0020): after the first record
-// went upstream, the origin's first byte must arrive within
+// ADR-0018; M8-t, ADR-0019; M8-v, ADR-0020; M8-w, ADR-0021): after the
+// first record went upstream, the origin's first byte must arrive within
 // FirstByteTimeout. A dead origin — the pasted reports' signature: a
 // dial that completes, ~1.7 KB up, then a ~0.5 s reset or silence to
 // the budget — is RETRIED in-flow: the engine closes only the dead
@@ -659,12 +844,19 @@ func (s *Server) writeReplay(origin net.Conn, replay []byte, firstLen int, isTLS
 // 2.5 s budgets walked one after another) and adds the stall watch to
 // the relay phase: both directions silent for StallTimeout closes the
 // flow (the report's five 57-64 s stalls died only at the app's own
-// patience). When the retries run out, the flow fails FAST exactly as
-// at M8-s: both ends closed, the error counted, "tunnel first-byte
-// failed reason=..." in the report, the answer set demoted. Absorbed
-// attempts log "tunnel first-byte retry reason=... attempt=N"; a flow
-// saved by them logs "tunnel first-byte salvaged dials=N". Unrouted
-// relays never enter this shape (the D46 scoping).
+// patience). M8-w spends the whole dial budget racing from the flow's
+// start (FirstByteRaceDials extra candidates against the primary, the
+// first speaker winning — the debug.14 report showed attempt 0 still
+// walking its budget alone before the race launched, so a dead primary
+// cost two budgets and a mixed window recovered only at salvage time
+// while concurrent flows answered in the same seconds). When the
+// retries run out, the flow fails FAST exactly as at M8-s: both ends
+// closed, the error counted, "tunnel first-byte failed reason=..." in
+// the report, the answer set demoted. Absorbed attempts log "tunnel
+// first-byte retry reason=... attempt=N"; a flow saved by them logs
+// "tunnel first-byte salvaged dials=N"; a flow the first-dial race
+// saved logs "tunnel first-byte raced dials=N". Unrouted relays never
+// enter this shape (the D46 scoping).
 //
 // Shape: the pump (pumpClient) reads the client and writes live to the
 // current origin through the swap-able link, so a chatty client is
@@ -672,7 +864,10 @@ func (s *Server) writeReplay(origin net.Conn, replay []byte, firstLen int, isTLS
 // origin's first byte under the deadline. Once the origin speaks, the
 // pump is stopped (its reads are all delivered) and the plain
 // two-goroutine relay takes over byte-for-byte — under the stall
-// watch, which is the only M8-v addition to the relay itself.
+// watch, which is the only M8-v addition to the relay itself. The
+// raced round (M8-w) freezes the client for its duration instead —
+// the M8-v salvage race's own proven semantics: bytes beyond the first
+// record wait in the socket and flow to the winner in order.
 func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, host string, port int, flow *flowMeter, tstart time.Time, onFirst func(), tc *tunnelCloser, first []byte, isTLS bool) {
         link := &originLink{dst: upstream, writeTimeout: s.cfg.FirstByteTimeout}
         defer link.swap(nil) // the final origin closes on every exit path
@@ -686,6 +881,10 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         maxRedial := s.cfg.FirstByteSalvageDials
         if maxRedial < 0 {
                 maxRedial = 0
+        }
+        raceN := s.cfg.FirstByteRaceDials
+        if raceN < 0 {
+                raceN = 0
         }
 
         var pumpStop chan struct{}
@@ -745,6 +944,54 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 <-done
                 close(stallStop)
                 s.logTunnelDone(host, time.Since(tstart), flow)
+        }
+
+        // M8-w (ADR-0021): the first-dial race. With extra candidates
+        // configured (the default), the whole dial budget is spent in
+        // parallel from the flow's start — the primary plus the extras
+        // compete for the first byte, the first speaker wins, and an
+        // all-dead round terminals at ~1 budget (the M8-v shape spent
+        // the first budget serially before its race even launched; the
+        // debug.14 report's terminals at 5320-5576 ms were exactly that
+        // two-budget chain). The client stays frozen for the round (the
+        // salvage race's own proven semantics); the pump never starts on
+        // this path, so the serial loop below is the racing-disabled
+        // shape only.
+        if raceN > 0 && replay.fits() {
+                winner, winnerFirst, lastDeath := s.raceFirstByte(upstream, host, port, replay.bytes(), len(first), isTLS, preset, fcfg, raceN)
+                // The first record went upstream on every candidate; it
+                // counts once (the winner's copy is the flow's).
+                if len(first) > 0 {
+                        s.stats.AddBytesUp(int64(len(first)))
+                        flow.up.Add(int64(len(first)))
+                }
+                if winner == nil {
+                        s.invalidateDNS(host) // terminal: the set connects but never speaks (M8-s)
+                        failFlow(lastDeath)
+                        return
+                }
+                if winner != upstream {
+                        tc.setB(winner)   // Stop's sweep must hit the live origin
+                        link.swap(winner) // closes the primary — it lost
+                }
+                if err := writeFull(client, winnerFirst, s.cfg.IdleTimeout); err != nil {
+                        // The origin spoke but the client is gone: a
+                        // client-side death, not a suspect-origin signal
+                        // (the M8-s branch — no demotion).
+                        link.swap(nil)
+                        tc.closeBoth()
+                        s.countConnError()
+                        s.logTunnelDone(host, time.Since(tstart), flow)
+                        return
+                }
+                s.stats.AddBytesDown(int64(len(winnerFirst)))
+                flow.down.Add(int64(len(winnerFirst)))
+                onFirst()
+                if winner != upstream {
+                        s.logTunnelFirstByteRaced(host, raceN)
+                }
+                relayEntry(winner)
+                return
         }
 
         origin := upstream
@@ -965,7 +1212,6 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 return
         }
 }
-
 
 // copyDir moves bytes one way, counting them globally and on the flow
 // meter; onFirst (when non-nil) fires once, on the first downstream read.

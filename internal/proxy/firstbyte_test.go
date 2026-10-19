@@ -83,6 +83,9 @@ func TestFirstByteTimeoutFailsSilentRoutedTunnelFast(t *testing.T) {
 		// M8-t: this test pins the TERMINAL failure shape; the salvage
 		// (ADR-0019) has its own tests below.
 		c.FirstByteSalvageDials = -1
+		// M8-w: this test pins the M8-s terminal exactly — one origin,
+		// one budget, no raced candidates either.
+		c.FirstByteRaceDials = -1
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = &invalidatingResolver{staticResolver: staticResolver{ips: []net.IP{net.ParseIP(upHost)}}}
 	})
@@ -122,6 +125,7 @@ func TestFirstByteFailureInvalidatesSuspectSet(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.FirstByteTimeout = 250 * time.Millisecond
 		c.FirstByteSalvageDials = -1 // the terminal shape, exactly one attempt
+		c.FirstByteRaceDials = -1    // ...and exactly one origin (the M8-s shape, no raced round)
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = res
 	})
@@ -339,6 +343,7 @@ func TestFirstByteSalvageRecoversDeadOrigin(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the salvage shape (serial attempt 0 + the raced re-dials)
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = res
 	})
@@ -360,6 +365,9 @@ func TestFirstByteSalvageRecoversDeadOrigin(t *testing.T) {
 	// launch at once (attempt=1 and attempt=2 logged together, each
 	// still counted as an absorbed attempt) and the first origin to
 	// speak wins, so this single-answer host sees both dials land.
+	// M8-w: the raced first dial is DISABLED here — this test pins the
+	// M8-v salvage shape (serial attempt 0, then the raced re-dials);
+	// the raced round has its own tests (firstrace_test.go).
 	retries := pollLines(log, "WARN tunnel first-byte retry ", 2, 2*time.Second)
 	if len(retries) < 2 || !strings.Contains(retries[0], "reason=timeout") || !strings.Contains(retries[0], "attempt=1") || !strings.Contains(retries[1], "attempt=2") {
 		t.Fatalf("retry lines wrong: %+v", log.lines("WARN "))
@@ -406,6 +414,7 @@ func TestFirstByteSalvageExhaustsToFailFast(t *testing.T) {
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.Logger = log
 		c.FirstByteTimeout = 150 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the salvage shape (serial attempt 0 + the raced re-dials)
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = res
 	})
@@ -452,6 +461,7 @@ func TestSalvageReplayIsByteExact(t *testing.T) {
 	upHost, upPort, _ := net.SplitHostPort(up)
 	srv, _ := newTestServer(t, func(c *Config) {
 		c.FirstByteTimeout = 250 * time.Millisecond
+		c.FirstByteRaceDials = -1 // M8-w: pin the salvage replay's shape (the salvage round owns the replay)
 		c.IdleTimeout = 5 * time.Second
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP(upHost)}}
 	})
@@ -532,6 +542,7 @@ func TestFirstByteSalvageDisabledByConfig(t *testing.T) {
 		c.FirstByteTimeout = 250 * time.Millisecond
 		c.IdleTimeout = 5 * time.Second
 		c.FirstByteSalvageDials = -1
+		c.FirstByteRaceDials = -1 // M8-w: racing off too — this pins the pure M8-s shape; racing-off-alone is firstrace_test.go's disabled test
 		c.Resolver = staticResolver{ips: []net.IP{net.ParseIP(upHost)}}
 	})
 	conn := rawTunnel(t, srv.Addr(), net.JoinHostPort("www.youtube.com", upPort))

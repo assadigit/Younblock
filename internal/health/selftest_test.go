@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -321,4 +322,95 @@ func (e *testEnv) resolver(t *testing.T) *doh.Resolver {
 		FragmentConfig: fragment.Config{Min: 80, Max: 200, Pause: 0},
 		RNG:            fragment.NewDefaultRNG(),
 	})
+}
+
+// TestSelfTestDNSProbesPastNegativeCache (M8-w, the M8-r sweep lesson
+// extended to the periodic check): a dirty-window DoH blip
+// negative-caches the probe name (the very name the app's flows
+// resolve), and a dns step that reads the 15 s memory fails instantly
+// as DNS_UNREACHABLE without a single server being asked — the
+// debug.14 report's degraded state with the network otherwise flowing.
+// The probe must ask what the servers say NOW: the negative entry is
+// cleared first, so the step passes the moment the network recovers.
+// Pre-fix (no ClearNegative in the probe) this FAILS: the step reads
+// the memory and fails while the server is already healthy.
+func TestSelfTestDNSProbesPastNegativeCache(t *testing.T) {
+	env := newTestEnv(t, map[string]string{"www.youtube.com": "93.184.216.34"}, func(path string) int { return http.StatusNoContent })
+
+	// A DoH server with a fail toggle: fail=true serves 500s (the blip),
+	// fail=false answers A records for any question.
+	var fail atomic.Bool
+	dohLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{env.tlsCert}})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		wire, derr := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(r.URL.Query().Get("dns"))
+		if derr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var p dnsmessage.Parser
+		hdr, perr := p.Start(wire)
+		if perr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		question, qerr := p.Question()
+		if qerr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		v4 := net.ParseIP("93.184.216.34").To4()
+		b := dnsmessage.NewBuilder(nil, dnsmessage.Header{ID: hdr.ID, Response: true, RCode: dnsmessage.RCodeSuccess})
+		b.StartQuestions()
+		b.Question(question)
+		b.StartAnswers()
+		b.AResource(dnsmessage.ResourceHeader{
+			Name: question.Name, Type: dnsmessage.TypeA, Class: dnsmessage.ClassINET, TTL: 300,
+		}, dnsmessage.AResource{A: [4]byte{v4[0], v4[1], v4[2], v4[3]}})
+		msg, _ := b.Finish()
+		w.Header().Set("content-type", "application/dns-message")
+		w.Write(msg)
+	})
+	srv := &http.Server{Handler: mux}
+	go srv.Serve(dohTLS)
+	t.Cleanup(func() { srv.Close(); dohTLS.Close() })
+
+	res := doh.New(doh.Config{
+		Servers: []config.DoHServer{{
+			Name: "ToggleDoH", URL: "https://" + dohTLS.Addr().String() + "/dns-query?dns={dns}",
+			Bootstrap: []string{"127.0.0.1"},
+		}},
+		Timeout:        3 * time.Second,
+		BlockPrivate:   false,
+		TLS:            &tls.Config{RootCAs: env.ca},
+		FragmentPreset: fragment.Balanced,
+		FragmentConfig: fragment.Config{Min: 80, Max: 200, Pause: 0},
+		RNG:            fragment.NewDefaultRNG(),
+	})
+
+	// The dirty window: an app-flow lookup fails and negative-caches the
+	// probe name for the full 15 s.
+	fail.Store(true)
+	if _, err := res.Lookup(context.Background(), config.SelfTestDNSName); err == nil {
+		t.Fatal("expected the blip lookup to fail")
+	}
+
+	// The network recovers — the probe must ask the servers NOW.
+	fail.Store(false)
+	steps := RunSteps(context.Background(), Config{
+		ProxyAddr: env.proxy.Addr(),
+		Resolver:  res,
+		Timeout:   3 * time.Second,
+	}, []string{"dns"}, nil)
+	if len(steps) != 1 || !steps[0].OK {
+		t.Fatalf("the dns probe must probe past the negative cache: %+v", steps)
+	}
 }

@@ -1,29 +1,34 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-v (2026-10-19, later — Ali's FIFTH pasted
-report round, the first from the salvage build itself: the shell line
-reads versionCode 12, and the log carries the salvage's own lines —
-retry attempts absorbed, salvaged dials=1/2 saving flows at
-0.7–1.4 s, errors down to 37/81 ≈ 46 % from 59 %). The report named
-the two remaining start-lag sources and **v1.6.6-android-debug.14
-(versionCode 13) is the CURRENT build** carrying ADR-0020: (1) the
-salvage RACE — the report's 21 terminal reason=timeout dones at
-8014–8227 ms were the SERIAL chain's cost (three 2.5 s budgets walked
-one after another), so the remaining re-dials now launch in parallel
-on the rotated live answer set, the first origin to speak wins, and a
-silent-host terminal costs ~2x the budget, never 3x; (2) the STALL
-WATCH — the report's five video-start flows lived 57–64 s (first
-byte + ~7 KB down, then total silence until the APP's own patience
-killed them all in the same instant, and the retry wave right after
-answered in 60–261 ms), so a processed host's relay that goes silent
-in BOTH directions for StallTimeout (15 s) is now closed engine-side
-— new report line "tunnel stall killed idle=Nms" — and the app
-retries onto a fresh origin in seconds instead of a minute. D102
-(the next-preset retry after exhausted salvages) stays Ali's ruling,
-now LIVE with this report's evidence: terminal first-byte failures
-still cluster under method=strong.)
-Earlier: M8-u (the no-build round — the fourth report ran the
-previous build, versionCode 11, twenty-five minutes after debug.13
+**Status:** updated at M8-w (2026-10-19, late — Ali's SIXTH pasted
+report round, the first from the salvage-race + stall-watch build:
+the shell line reads versionCode 13, and the log carries that
+build's own lines — the retry lines batch at the same millisecond,
+the stall watch kills at exactly the 15 s budget, saves land at
+738–848 ms, and the 60-second mid-stream hangs are GONE). The
+report named the two remaining costs and **v1.6.6-android-debug.15
+(versionCode 14) is the CURRENT build** carrying ADR-0021: (1) the
+FIRST-DIAL RACE — attempt 0 still walked its 2.5 s budget ALONE
+before the salvage race even launched (six terminal reason=timeout
+dones at 5320–5576 ms, the two-budget chain) while CONCURRENT flows
+to the SAME hosts answered at 72–162 ms in the same seconds — the
+dirt is per-origin, not per-moment — so the whole dial budget is
+now spent in parallel from the flow's start: the primary plus
+FirstByteRaceDials=2 extra candidates dial at once, the client's
+first record is replayed byte-exact through each, the first origin
+to speak wins, an all-dead set terminals at ~1 budget instead of
+2, and a raced save logs the new report line "tunnel first-byte
+raced dials=N" (a clean primary stays quiet); (2) the HONEST DNS
+PROBE — the report's dns fail 16 / DNS_UNREACHABLE with the network
+flowing was the periodic check reading the 15 s negative cache its
+own app flows had written, so the dns step now clears exactly that
+entry first (ClearNegative; a good cached answer stays) and asks
+what the servers say NOW. D102 (the next-preset retry) stays Ali's
+ruling, still LIVE: terminals still cluster under method=strong.)
+Earlier: M8-v (ADR-0020, debug.14 — superseded by debug.15: its
+round produced the sixth pasted report, which debug.15 acts on),
+M8-u (the no-build round — the fourth report ran the previous
+build, versionCode 11, twenty-five minutes after debug.13
 shipped; its D103 ruling put the build number in the APK asset
 name), M8-s (ADR-0018, debug.12 — superseded by debug.13), M8-r
 (ADR-0017, debug.11), M8-q/p (the diagnostics surface,
@@ -31,18 +36,19 @@ ADR-0015/0016 + D100/D101), M8-n/M8-o (the stall fixes,
 ADR-0013/0014 + D98/D99), A0/A0-R2/A0-R3 — **the account gate is
 CANCELLED (D97)**, see the closing note below. This document now
 holds two things: §1 the **shipped** debug test-circle releases
-(`v1.6.6-android-debug.14` is the CURRENT build — a regular release
+(`v1.6.6-android-debug.15` is the CURRENT build — a regular release
 in the private repo per D89, the same text lives on the GitHub
-release itself; beneath it: debug.13 the salvage build (superseded
-by debug.14: its round produced the fifth pasted report, which
-debug.14 acts on), debug.12 the first-byte-budget build, debug.11
-the heal-sweep build, debug.10 the diagnostics-port build, debug.9
-the classic-tree diagnostics build, debug.8 the per-video-stall-fix
-build, debug.7 the first-video-fix build, debug.6 the one-UI-
-everywhere + data-usage build, debug.5 the first-device-feedback
-build, debug.4 the helper-fix maintenance release, debug.3 the
-device-circle build whose APK ran on Ali's phone, and debug.2/
-debug.1 superseded and kept as history),
+release itself; beneath it: debug.14 the salvage-race + stall-watch
+build (superseded by debug.15: its round produced the sixth pasted
+report, which debug.15 acts on), debug.13 the salvage build
+(superseded by debug.14), debug.12 the first-byte-budget build,
+debug.11 the heal-sweep build, debug.10 the diagnostics-port
+build, debug.9 the classic-tree diagnostics build, debug.8 the
+per-video-stall-fix build, debug.7 the first-video-fix build,
+debug.6 the one-UI-everywhere + data-usage build, debug.5 the
+first-device-feedback build, debug.4 the helper-fix maintenance
+release, debug.3 the device-circle build whose APK ran on Ali's
+phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
@@ -59,7 +65,66 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.14 — the salvage race + the stall watch: dead origins raced in parallel, stalled relays closed in seconds (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.15 — the first-dial race: the whole dial budget spent in parallel from the flow's start + the honest DNS probe (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 14, built at the M8-w commit, the
+pinned debug certificate — **installs directly over debug.14** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED **v1.6.6-debug15.apk** (D103 — the filename
+itself names the build). This is the round your SIXTH diagnostics
+report built: the first report from the salvage-race + stall-watch
+build itself (your shell line read versionCode 13), it proved both
+of those working and named the two things still costing video
+starts (ADR-0021).
+
+1. **What was wrong (read from YOUR report, not guessed):** the
+   race and the watch both worked — your retry lines batch at the
+   same millisecond, your "tunnel stall killed idle=15xxx ms" lines
+   kill exactly at the 15 s budget, and the 60-second hangs are
+   gone. But two costs remained. First, the SERIAL FRONT: every
+   flow still walked its FIRST origin attempt alone through the
+   full 2.5 s budget before the race even launched — six of your
+   flows died at 5320–5576 ms (the two-budget chain) — while OTHER
+   flows to the SAME hosts, opened in the SAME seconds, answered
+   in 72–162 ms. The dirt is per-ORIGIN, not per-moment: one node
+   in the answer set is dead while its siblings are fine, and each
+   new flow still had to pay its primary's budget before trying
+   them. Second, the DNS degraded state: dns fail 16 with
+   "last failed check: dns (DNS_UNREACHABLE)" while your video was
+   downloading 6.7 MB through the tunnel — a momentary DoH blip
+   negative-cached youtube.com for 15 s, and the periodic health
+   check read that memory instead of asking any server.
+2. **What changed (ADR-0021, host-proven both ways):** two changes.
+   The FIRST-DIAL RACE (unblock-list hosts only): your flow's first
+   origin is now raced against 2 extra candidates DIALED AT THE
+   SAME MOMENT (different addresses from the same answer set), the
+   client's hello is replayed byte-exact to each, and the first
+   origin to answer wins — so a flow whose primary is dirty lands
+   on a live sibling at that sibling's 72–500 ms answer instead of
+   paying the dead one's budget first, and a fully-dead answer set
+   fails at ~one budget (~2.7 s) instead of two (~5.4 s), so your
+   app's own retry — which your report shows recovering in
+   60–261 ms — starts that much sooner. A raced save logs
+   "tunnel first-byte raced dials=N"; a clean primary logs
+   nothing (the race costs a healthy flow nothing). The HONEST DNS
+   PROBE: the health check now clears the probe name's
+   failure-memory entry before probing (a good cached answer
+   stays), so it asks the servers what they say NOW — the degraded
+   state clears itself in one cycle instead of living out the
+   15 s memory. The method on the wire still never changes (D102
+   — retrying a dead flow with the NEXT preset — stays your
+   ruling; this build does not do it).
+3. **What to verify on the phone:** video starts — the raced flows
+   should land at their fastest live origin now. When anything
+   still stalls, menu → Diagnostics (first row) → Copy → paste it
+   here. The NEW line "tunnel first-byte raced dials=N" is this
+   round's primary evidence: every one is a dirty primary your
+   flow never paid a budget for; its count against clean
+   first-bytes and terminals says whether the candidate count (2)
+   should grow or shrink. The dns fail counter — does the
+   degraded state still fire?
+
+## 1a. v1.6.6-android-debug.14 — the salvage race + the stall watch: dead origins raced in parallel, stalled relays closed in seconds (SHIPPED — a regular release, superseded by debug.15: its round produced the sixth pasted report, which debug.15 acts on)
 
 **What this build is:** versionCode 13, built at the M8-v commit, the
 pinned debug certificate — **installs directly over debug.13** in
@@ -909,6 +974,41 @@ remove the Last-session line).**
    resets, ~40 % of conns) — whether a flow that exhausts its raced
    salvages should be retried once with the NEXT preset remains his
    ruling, never unilateral. udpDropped=78 (row 9) keeps measuring.)
+   **THE SIXTH REPORT ARRIVED (2026-10-19, late — M8-w): "The
+   problem persisted" — and it IS the salvage-race + stall-watch
+   build (shell line versionCode 13, the retry lines batching at
+   the same millisecond, the stall lines present). ADR-0020 is
+   PROVEN on-device: "tunnel stall killed idle=15059-15315 ms"
+   kills at exactly the 15 s budget (the 57-64 s mid-stream hangs
+   are GONE — the watch closed every one of this report's silent
+   relays at the budget), the raced re-dials save at 738-848 ms,
+   and the report's error rate (69/124, a dirty window it caught
+   mid-flight) no longer contains a single 60 s done. The report
+   names the two REMAINING costs: (1) the SERIAL FRONT — six
+   terminal reason=timeout dones at 5320-5576 ms (attempt 0 walked
+   its 2.5 s budget ALONE before the race launched: the
+   two-budget chain) and reset terminals at 1131-1292 ms, while
+   CONCURRENT flows to the SAME hosts answered at 72-162 ms in the
+   same seconds (five sub-250 ms first-bytes at 01:09:49-50 right
+   between two timeout terminals) — the dirt is per-origin, not
+   per-moment; (2) the DNS degraded state — dns fail 16 with
+   "last failed check: dns (DNS_UNREACHABLE)" while the network
+   flowed (6.7 MB down): a dirty-window DoH blip negative-cached
+   the probe name and the periodic check read the 15 s memory
+   instead of asking any server (the M8-r lesson recurring on the
+   watchdog path). Fixed in debug.15 (ADR-0021): the FIRST-DIAL
+   RACE (the primary plus FirstByteRaceDials=2 extra candidates
+   dial in parallel from the flow's start, the first record
+   replayed byte-exact through each, first speaker wins, an
+   all-dead set terminals at ~1 budget — new report line "tunnel
+   first-byte raced dials=N", a clean primary stays quiet) + the
+   honest dns probe (ClearNegative before the dns step: the probe
+   asks the servers NOW; success entries stay). The row STAYS OPEN
+   for the debug.15 confirmation with THREE named evidence lines:
+   the "tunnel first-byte raced" lines (the save rate — the
+   candidate count's tuning material), the terminal ratio (the
+   D102 material), and the dns fail counter (does the degraded
+   state still fire?). udpDropped=104 (row 9) keeps measuring.)
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

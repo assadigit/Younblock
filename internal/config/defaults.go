@@ -111,6 +111,33 @@ const FirstByteTimeout = 2500 * time.Millisecond
 // (exactly the M8-s fail-fast behavior).
 const FirstByteSalvageDials = 2
 
+// FirstByteRaceDials — how many EXTRA origin candidates a processed
+// host's flow races in parallel with its primary dial from the very
+// start (M8-w, ADR-0021). The debug.14 report (the first from the
+// salvage-race build) proved M8-v works — the retry lines batch at the
+// same millisecond (the re-dials race), the stall watch kills at 15 s —
+// but named the two costs the serial front still charges: every routed
+// flow still walks attempt 0 ALONE through its full budget before the
+// race even launches, so a dead primary costs the budget + the race
+// (six timeout terminals at 5320–5576 ms = the two-budget chain) and a
+// dirty-but-mixed window only recovers at the salvage's 738–848 ms —
+// while the SAME report's concurrent flows to the same hosts answered
+// at 72–162 ms in the same seconds: the dirt is per-origin, not
+// per-moment. Racing the primary against 2 extra candidates from t=0
+// (distinct origins via the rotated answer set, the same preset per
+// flow — D102 — the client's first record replayed byte-exact through
+// each, first origin to speak wins, losers closed and reaped) spends
+// the same dial budget the salvage would have spent AFTER a death at
+// the moment it can still save the whole chain: a mixed-window flow
+// lands at its fastest live origin (~72–500 ms), and an all-dead flow
+// terminals at ~1 budget (~2.7 s) instead of 2 (~5.3 s) — the app's
+// retry wave, which the report shows recovering at 60–261 ms, starts
+// that much sooner. With racing enabled the salvage rounds never run
+// (the budget is spent at the start); zero in a proxy Config → this
+// default; negative → disabled (the exact M8-v shape: serial attempt 0
+// + the raced salvage re-dials).
+const FirstByteRaceDials = 2
+
 // StallTimeout — how long a processed host's relay may stay silent in
 // BOTH directions before the flow is closed as a mid-stream stall
 // (M8-v, ADR-0020). The debug.13 report gave the per-video start lag

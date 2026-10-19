@@ -70,9 +70,21 @@ type Config struct {
 	// replaying the client's buffered bytes (M8-t, ADR-0019; same host,
 	// same preset — never a method change, which is D102's to rule).
 	// M8-v (ADR-0020): the remaining re-dials are raced in parallel,
-	// not walked serially. Zero → the config default; negative →
-	// disabled (the M8-s fail-fast behavior exactly).
+	// not walked serially. M8-w (ADR-0021): with FirstByteRaceDials
+	// enabled (the default) the dial budget is spent racing from the
+	// flow's start and the salvage rounds never run; this knob keeps
+	// its exact meaning when racing is disabled. Zero → the config
+	// default; negative → disabled (the M8-s fail-fast behavior
+	// exactly).
 	FirstByteSalvageDials int
+	// FirstByteRaceDials is how many EXTRA origin candidates a
+	// processed host's flow races in parallel with its primary dial
+	// from the very start (M8-w, ADR-0021): distinct origins via the
+	// rotated answer set, the client's first record replayed
+	// byte-exact through each, the first origin to speak wins. Zero →
+	// the config default; negative → disabled (the exact M8-v shape:
+	// serial attempt 0 + the raced salvage re-dials).
+	FirstByteRaceDials int
 	// StallTimeout bounds how long a processed host's relay may stay
 	// silent in BOTH directions before the flow is closed as a
 	// mid-stream stall (M8-v, ADR-0020). Zero → the config default;
@@ -137,6 +149,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.FirstByteSalvageDials == 0 {
 		cfg.FirstByteSalvageDials = config.FirstByteSalvageDials
+	}
+	if cfg.FirstByteRaceDials == 0 {
+		cfg.FirstByteRaceDials = config.FirstByteRaceDials
 	}
 	if cfg.StallTimeout == 0 {
 		cfg.StallTimeout = config.StallTimeout

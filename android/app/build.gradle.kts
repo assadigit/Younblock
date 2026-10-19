@@ -20,30 +20,36 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 13: the M8-v build (the debug.13 report round —
-        // the first report from the salvage build itself, shell line
-        // versionCode 12). It proved the salvage on-device (retry lines
-        // absorbing dead attempts, "tunnel first-byte salvaged dials=N"
-        // saving flows at 0.7-1.4 s) and named the two remaining
-        // start-lag sources this build attacks (ADR-0020): (1) the
-        // serial salvage chain — 21 terminal "reason=timeout" dones at
-        // 8014-8227 ms = three 2.5 s budgets walked one after another —
-        // so the remaining re-dials now RACE in parallel (distinct live
-        // origins via the rotated answer set, first speaker wins, a
-        // silent-host terminal costs ~2x the budget, never 3x); (2) the
-        // mid-stream stall — five video-start flows lived 57-64 s
-        // (first byte + ~7 KB down, then total silence) until the APP's
-        // own patience killed them — so the relay now runs under the
-        // stall watch: both directions silent for StallTimeout (15 s)
-        // closes the flow engine-side, the answer set demoted, the app
-        // retries onto a fresh origin in seconds instead of a minute.
-        // New report line: "tunnel stall killed idle=Nms". D102 (the
-        // next-preset retry after exhausted salvages) stays Ali's
-        // ruling, never code.
-        // Installs over debug.13 (same pinned debug certificate — D85).
+        // versionCode 14: the M8-w build (the debug.14 report round —
+        // the first report from the salvage-race + stall-watch build
+        // itself, shell line versionCode 13). It proved ADR-0020
+        // on-device: the retry lines batch at the same millisecond (the
+        // re-dials race), the stall watch kills at 15 s (idle=15xxx ms
+        // lines), saves at 738-848 ms — and it named the two remaining
+        // costs this build attacks (ADR-0021): (1) the SERIAL FRONT —
+        // attempt 0 still walked its 2.5 s budget ALONE before the race
+        // launched (six timeout terminals at 5320-5576 ms = the
+        // two-budget chain) while CONCURRENT flows to the same hosts
+        // answered at 72-162 ms in the same seconds (the dirt is
+        // per-origin, not per-moment) — so the whole dial budget is now
+        // spent racing from the flow's start: FirstByteRaceDials=2
+        // extra candidates dial distinct origins in parallel with the
+        // primary, the client's first record replayed byte-exact
+        // through each, first speaker wins, an all-dead flow terminals
+        // at ~1 budget instead of 2 (new report line: "tunnel
+        // first-byte raced dials=N" — a raced save; a clean primary
+        // stays quiet); (2) the DNS degraded state — dns fail 16 with
+        // DNS_UNREACHABLE while the network flowed: a dirty-window DoH
+        // blip negative-cached the probe name and the periodic check
+        // read the 15 s memory instead of asking any server — so the
+        // health probe now clears exactly the negative entry first
+        // (ClearNegative; a good cached answer stays) and asks what
+        // the servers say NOW. D102 (the next-preset retry) stays
+        // Ali's ruling, never code.
+        // Installs over debug.14 (same pinned debug certificate — D85).
         // The D84 rule: every debug build bumps this. D103: the APK
-        // asset is named v1.6.6-debug14.apk.
-        versionCode = 13
+        // asset is named v1.6.6-debug15.apk.
+        versionCode = 14
         versionName = "1.6.6"
     }
 

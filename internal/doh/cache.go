@@ -100,6 +100,24 @@ func (c *cache) invalidate(host string) {
 	}
 }
 
+// clearNegative drops a NEGATIVE entry for host (M8-w, the M8-r lesson
+// extended to the periodic checks). Success entries are untouched — a
+// good cached answer is still good, and demoting it would only tax the
+// tunnel path with a re-query. The health checks call this before
+// probing: their question is "what do the servers say NOW", and the 15 s
+// negative memory would answer "what failed moments ago" without a
+// single server being asked — the debug.14 report's degraded state
+// (dns fail 16, DNS_UNREACHABLE) was exactly that, the probe name being
+// the very name app flows negative-cache during a dirty-window DoH blip.
+func (c *cache) clearNegative(host string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.m[host]; ok && e.negative != "" {
+		delete(c.m, host)
+		c.removeOrder(host)
+	}
+}
+
 func (c *cache) putSuccess(host string, ips []net.IP, ttl time.Duration) {
 	if ttl < config.DNSCacheMinTTL {
 		ttl = config.DNSCacheMinTTL
