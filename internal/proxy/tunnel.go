@@ -136,7 +136,7 @@ func (c *stampingReadConn) Read(b []byte) (int, error) {
 // next/seek reuse the pre-watch builds had ("videos used to lag only
 // at start; now even going next and back in the same video lags" —
 // Ali, that report).
-func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown, flowDown *atomic.Int64, stop chan struct{}) {
+func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDown, flowDown *atomic.Int64, stop chan struct{}) {
         tick := s.cfg.StallTimeout / 4
         if tick > 500*time.Millisecond {
                 tick = 500 * time.Millisecond
@@ -210,14 +210,14 @@ func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown, flo
                                 // the answer set and the error counter stay
                                 // untouched — the line carries the evidence.
                                 tc.closeBoth()
-                                s.logTunnelStallKilled(host, time.Duration(idle)*time.Millisecond, flowDown.Load(), true)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), true)
                                 return
                         }
                         if idle >= leanLimit {
                                 tc.closeBoth()
                                 s.invalidateDNS(host)
                                 s.countConnError()
-                                s.logTunnelStallKilled(host, time.Duration(idle)*time.Millisecond, flowDown.Load(), false)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), false)
                                 return
                         }
                 }
@@ -250,15 +250,40 @@ type flowMeter struct {
         up, down atomic.Int64
 }
 
+// noteFlow/noteFirstByte/noteFailure/notePlainKill feed the per-host
+// table behind the report's Top-10 section (M8-z, ADR-0027 §8.3.1).
+// The HostTable methods are nil-safe: a nil table (the unit-test
+// configs that do not assert on it) collects nothing.
+func (s *Server) noteFlow(host, class string) { s.cfg.Hosts.NoteFlow(host, class) }
+func (s *Server) noteFirstByte(host, class string, ms int64) {
+        s.cfg.Hosts.NoteFirstByte(host, class, ms)
+}
+func (s *Server) noteFailure(host, class string) { s.cfg.Hosts.NoteFailure(host, class) }
+func (s *Server) notePlainKill(host string)      { s.cfg.Hosts.NotePlainKill(host, "plain") }
+
 // logTunnelUp records one established flow's setup phases: the secure
-// DNS lookup and the origin dial. It lands in the engine's log ring and
-// therefore in the redacted diagnostics report (the ring handler drops
-// attrs, so the values ride in the message itself).
-func (s *Server) logTunnelUp(host string, dnsMS, dialMS int64) {
+// DNS lookup and the origin dial — with the flow's class and the
+// dial's RTT class in the message (M8-z, ADR-0027 §8.2/§8.3.4:
+// class=routed for a budgeted list host, class=plain otherwise —
+// plain-but-fragmented included; rtt-class=near under 200 ms, far at
+// or above, plus the near/far counters). It lands in the engine's log
+// ring and therefore in the redacted diagnostics report (the ring
+// handler drops attrs, so the values ride in the message itself).
+func (s *Server) logTunnelUp(host, class string, dnsMS, dialMS int64) {
+        s.noteFlow(host, class)
+        if dialMS < 200 {
+                s.stats.DialNear()
+        } else {
+                s.stats.DialFar()
+        }
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel up dns=%dms dial=%dms", dnsMS, dialMS)
+        rtt := "far"
+        if dialMS < 200 {
+                rtt = "near"
+        }
+        msg := fmt.Sprintf("tunnel up class=%s rtt-class=%s dns=%dms dial=%dms", class, rtt, dnsMS, dialMS)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -268,11 +293,15 @@ func (s *Server) logTunnelUp(host string, dnsMS, dialMS int64) {
 // logTunnelFirstByte records how long the first origin→client byte took
 // after the tunnel was established (the TLS handshake and the start of
 // the origin's response, both through the fragment path when routed).
-func (s *Server) logTunnelFirstByte(host string, d time.Duration) {
+func (s *Server) logTunnelFirstByte(host, class string, d time.Duration) {
+        s.noteFirstByte(host, class, d.Milliseconds())
+        if d > time.Second {
+                s.stats.FirstByteSlow() // the timeline window's "slow flows" metric (ADR-0027 §8.3.6)
+        }
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel first-byte %dms", d.Milliseconds())
+        msg := fmt.Sprintf("tunnel first-byte class=%s %dms", class, d.Milliseconds())
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -284,11 +313,33 @@ func (s *Server) logTunnelFirstByte(host string, d time.Duration) {
 // so the diagnostics report's log ring (which drops attrs — the M8-r
 // lesson) carries the failure kind. M8-t: this is the TERMINAL failure
 // only — attempts absorbed by a salvage log logTunnelFirstByteRetry.
-func (s *Server) logTunnelFirstByteFailed(host, reason string) {
+func (s *Server) logTunnelFirstByteFailed(host, class, reason string) {
+        s.noteFailure(host, class)
         if s.cfg.Logger == nil {
                 return
         }
-        msg := "tunnel first-byte failed reason=" + reason
+        msg := "tunnel first-byte failed class=" + class + " reason=" + reason
+        if s.cfg.LogHostnames {
+                msg += " host=" + host
+        }
+        s.cfg.Logger.Warn(msg)
+}
+
+// logPlainFirstByteFailed records the plain-relay safety net's close
+// (M8-z, ADR-0024 work item B): a not-budgeted TLS flow whose origin
+// never sent a byte within PlainFirstByteTimeout of the ClientHello.
+// The flow closes without a dead-IP mark (the plain cohort never
+// feeds the penalty box), without a connError (its own counter,
+// plainFirstByteTimeouts, owns the count), and the line rides the
+// ring with class=plain so the next report's Top-10 section can pair
+// it with the host's other rows.
+func (s *Server) logPlainFirstByteFailed(host, reason string) {
+        s.notePlainKill(host)
+        s.stats.PlainFirstByteTimeout()
+        if s.cfg.Logger == nil {
+                return
+        }
+        msg := "tunnel plain first-byte failed class=plain reason=" + reason
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -299,11 +350,11 @@ func (s *Server) logTunnelFirstByteFailed(host, reason string) {
 // the attempt that just died, absorbed inside the flow — the app never
 // sees it. Warn, so the report's log ring keeps it distinct from the
 // terminal failure line.
-func (s *Server) logTunnelFirstByteRetry(host, reason string, attempt int) {
+func (s *Server) logTunnelFirstByteRetry(host, class, reason string, attempt int) {
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel first-byte retry reason=%s attempt=%d", reason, attempt)
+        msg := fmt.Sprintf("tunnel first-byte retry class=%s reason=%s attempt=%d", class, reason, attempt)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -313,11 +364,11 @@ func (s *Server) logTunnelFirstByteRetry(host, reason string, attempt int) {
 // logTunnelFirstByteSalvaged records a flow whose origin answered only
 // after re-dials (M8-t): the evidence a salvage saved a video start the
 // app would otherwise have retried itself.
-func (s *Server) logTunnelFirstByteSalvaged(host string, dials int) {
+func (s *Server) logTunnelFirstByteSalvaged(host, class string, dials int) {
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel first-byte salvaged dials=%d", dials)
+        msg := fmt.Sprintf("tunnel first-byte salvaged class=%s dials=%d", class, dials)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -331,11 +382,11 @@ func (s *Server) logTunnelFirstByteSalvaged(host string, dials int) {
 // dirty, the flow never showed the app a retry, and the first byte
 // still landed at the fastest live origin. A clean primary stays quiet
 // (nothing happened the pre-race shape would report).
-func (s *Server) logTunnelFirstByteRaced(host string, dials int) {
+func (s *Server) logTunnelFirstByteRaced(host, class string, dials int) {
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel first-byte raced dials=%d", dials)
+        msg := fmt.Sprintf("tunnel first-byte raced class=%s dials=%d", class, dials)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -351,7 +402,8 @@ func (s *Server) logTunnelFirstByteRaced(host string, dials int) {
 // tunnel line; the done line that follows carries the flow's totals,
 // and the tier marks which budget fired (the next report's primary
 // tuning evidence).
-func (s *Server) logTunnelStallKilled(host string, idle time.Duration, down int64, rich bool) {
+func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich bool) {
+        s.noteFailure(host, class)
         if s.cfg.Logger == nil {
                 return
         }
@@ -359,8 +411,8 @@ func (s *Server) logTunnelStallKilled(host string, idle time.Duration, down int6
         if rich {
                 tier = "rich"
         }
-        msg := fmt.Sprintf("tunnel stall killed idle=%dms down=%s tier=%s",
-                idle.Milliseconds(), config.FormatBytes(down), tier)
+        msg := fmt.Sprintf("tunnel stall killed class=%s idle=%dms down=%s tier=%s",
+                class, idle.Milliseconds(), config.FormatBytes(down), tier)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -394,24 +446,31 @@ func firstByteReason(err error) string {
 // logTunnelDone records the flow's lifetime and its own byte totals —
 // with first-byte it separates "slow to start" from "slow to transfer"
 // on the very same line pair.
-func (s *Server) logTunnelDone(host string, d time.Duration, m *flowMeter) {
+func (s *Server) logTunnelDone(host, class string, d time.Duration, m *flowMeter) {
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel done dur=%dms up=%s down=%s",
-                d.Milliseconds(), config.FormatBytes(m.up.Load()), config.FormatBytes(m.down.Load()))
+        msg := fmt.Sprintf("tunnel done class=%s dur=%dms up=%s down=%s",
+                class, d.Milliseconds(), config.FormatBytes(m.up.Load()), config.FormatBytes(m.down.Load()))
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
         s.cfg.Logger.Info(msg)
 }
 
-func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, host string, port int, fragmentTLS bool) {
+func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, host string, port int, fragmentTLS, budgeted bool) {
         tstart := time.Now()
         flow := &flowMeter{}
+        // The flow's class (M8-z, ADR-0027 §8.2): routed when the
+        // budgeted machinery owns it, plain otherwise — including the
+        // plain-but-fragmented flows FragmentAllRouted creates.
+        class := "plain"
+        if budgeted {
+                class = "routed"
+        }
         var firstOnce sync.Once
         logFirst := func() {
-                firstOnce.Do(func() { s.logTunnelFirstByte(host, time.Since(tstart)) })
+                firstOnce.Do(func() { s.logTunnelFirstByte(host, class, time.Since(tstart)) })
         }
 
         tcloser := &tunnelCloser{a: client.Conn, b: upstream}
@@ -432,13 +491,17 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
                 return
         }
 
-        // Copy phase. A processed host with a first-byte budget runs the
+        // Copy phase. A budgeted host with a first-byte budget runs the
         // budgeted shape (ADR-0018/0019) — which owns the first record's
         // write, because a salvage re-dial has to replay it; every other
         // tunnel keeps the plain two-goroutine relay, byte-for-byte the
-        // pre-M8-s behavior.
-        if fragmentTLS && s.cfg.FirstByteTimeout > 0 {
-                s.copyFirstByteBudgeted(client, upstream, host, port, flow, tstart, logFirst, tcloser, first, isTLS)
+        // pre-M8-s behavior. M8-z (ADR-0024): the gate is budgetedHost,
+        // no longer fragmentTLS — FragmentAllRouted fragments the plain
+        // cohort too, without dragging it into the expensive machinery
+        // (the budget, salvage, race, dead-IP box and stall watch stay
+        // scoped to the list hosts exactly as before).
+        if budgeted && s.cfg.FirstByteTimeout > 0 {
+                s.copyFirstByteBudgeted(client, upstream, host, port, flow, tstart, logFirst, tcloser, first, isTLS, class)
                 return
         }
         var up io.Writer = upstream
@@ -446,6 +509,24 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
                 preset, fcfg := s.fragmentData()
                 fconn := fragment.NewConn(upstream, preset, fcfg, s.cfg.RNG)
                 up = fconn
+        }
+        // The plain-relay safety net (M8-z, ADR-0024 work item B): a TLS
+        // flow the budgeted machinery does not own still gets ONE
+        // deadline — the origin's first byte must arrive within
+        // PlainFirstByteTimeout of the first record going upstream, or
+        // both sides close and the kill counts. A TLS server always
+        // answers a ClientHello quickly; silence means dead. Non-TLS
+        // flows and post-first-byte silence keep the plain idle
+        // semantics (the idleConn wrapper owns those, and the guard
+        // disarms itself the moment a byte lands).
+        origin := upstream
+        if isTLS && !budgeted && s.cfg.PlainFirstByteTimeout > 0 {
+                guard := &plainGuardConn{Conn: upstream, budget: s.cfg.PlainFirstByteTimeout}
+                guard.onTimeout = func() {
+                        tcloser.closeBoth()
+                        s.logPlainFirstByteFailed(host, "timeout")
+                }
+                origin = guard
         }
         if len(first) > 0 {
                 if _, err := up.Write(first); err != nil {
@@ -455,15 +536,68 @@ func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, h
                 s.stats.AddBytesUp(int64(len(first)))
                 flow.up.Add(int64(len(first)))
         }
-        s.copyPlain(client, upstream, host, flow, tstart, logFirst)
+        s.copyPlain(client, origin, host, class, flow, tstart, logFirst)
+}
+
+// plainGuardConn arms a first-byte deadline on the origin's READ side
+// until the first byte lands (M8-z, ADR-0024 work item B): every Read
+// before the first byte re-arms a PlainFirstByteTimeout read deadline
+// (the idleConn wrapper re-arms its own longer deadline first — the
+// guard's earlier one wins because it is set last), and the first byte
+// disarm hands the connection back to the plain idle semantics. A read
+// that times out while still armed fires onTimeout exactly once — the
+// safety net's close-both-and-count.
+type plainGuardConn struct {
+        net.Conn
+        budget    time.Duration
+        once      sync.Once
+        seen      atomic.Bool
+        onTimeout func()
+}
+
+func (c *plainGuardConn) Read(b []byte) (int, error) {
+        if !c.seen.Load() {
+                // Arm (or re-arm) the first-byte budget for this read.
+                c.Conn.SetReadDeadline(time.Now().Add(c.budget))
+                n, err := c.Conn.Read(b)
+                if n > 0 {
+                        c.seen.Store(true)
+                        // The plain idle semantics own the connection from
+                        // here; the next idleConn Read re-arms its own
+                        // deadline, so nothing needs clearing.
+                        return n, err
+                }
+                if err != nil && isTimeout(err) && !c.seen.Load() {
+                        c.once.Do(c.onTimeout)
+                }
+                return n, err
+        }
+        return c.Conn.Read(b)
+}
+
+// CloseWrite forwards the relay's half-close to the wrapped origin.
+// The guard embeds the net.Conn INTERFACE, so without this method its
+// method set would hide the *net.TCPConn CloseWrite the plain relay's
+// closeWrite call depends on — the client-side half-close would be
+// LOST, the origin would never see EOF, and every guarded flow would
+// hang to the idle timeout instead of unwinding at close (the soak
+// test caught exactly this shape). The fallback mirrors tunstack's
+// closeWrite for origins that cannot half-close.
+func (c *plainGuardConn) CloseWrite() error {
+        if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+                return cw.CloseWrite()
+        }
+        return c.Conn.Close()
 }
 
 // copyPlain is the original relay shape: both directions copy concurrently
 // from the start; the first downstream read fires onFirst (the first-byte
 // line). Every tunnel without a first-byte budget runs this — unrouted
 // relays and budget-disabled runs keep the pre-M8-s behavior exactly.
-func (s *Server) copyPlain(client *bufferedConn, upstream net.Conn, host string, flow *flowMeter, tstart time.Time, onFirst func()) {
-        // Idle-wrapped ends for the copy phase.
+func (s *Server) copyPlain(client *bufferedConn, upstream net.Conn, host, class string, flow *flowMeter, tstart time.Time, onFirst func()) {
+        // Idle-wrapped ends for the copy phase. The upstream end may be
+        // the plain safety net's guard (M8-z): its own first-byte
+        // deadline applies until the first byte, the idle timeout after.
         cIdle := &idleConn{Conn: client, timeout: s.cfg.IdleTimeout}
         uIdle := &idleConn{Conn: upstream, timeout: s.cfg.IdleTimeout}
 
@@ -480,7 +614,7 @@ func (s *Server) copyPlain(client *bufferedConn, upstream net.Conn, host string,
         }()
         <-done
         <-done
-        s.logTunnelDone(host, time.Since(tstart), flow)
+        s.logTunnelDone(host, class, time.Since(tstart), flow)
 }
 
 // firstByteReplayCap bounds the client bytes remembered for a salvage
@@ -964,7 +1098,7 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
 // raced round (M8-w) freezes the client for its duration instead —
 // the M8-v salvage race's own proven semantics: bytes beyond the first
 // record wait in the socket and flow to the winner in order.
-func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, host string, port int, flow *flowMeter, tstart time.Time, onFirst func(), tc *tunnelCloser, first []byte, isTLS bool) {
+func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, host string, port int, flow *flowMeter, tstart time.Time, onFirst func(), tc *tunnelCloser, first []byte, isTLS bool, class string) {
         link := &originLink{dst: upstream, writeTimeout: s.cfg.FirstByteTimeout}
         defer link.swap(nil) // the final origin closes on every exit path
         replay := &replayBuf{}
@@ -1002,8 +1136,8 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 }
                 tc.closeBoth()
                 s.countConnError()
-                s.logTunnelFirstByteFailed(host, reason)
-                s.logTunnelDone(host, time.Since(tstart), flow)
+                s.logTunnelFirstByteFailed(host, class, reason)
+                s.logTunnelDone(host, class, time.Since(tstart), flow)
         }
 
         // relayEntry runs the post-first-byte relay under the stall watch
@@ -1023,7 +1157,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 downSrc := &stampingReadConn{Conn: uIdle, stamp: lastDown}
                 stallStop := make(chan struct{})
                 if s.cfg.StallTimeout > 0 {
-                        go s.watchStall(host, tc, lastUp, lastDown, &flow.down, stallStop)
+                        go s.watchStall(host, class, tc, lastUp, lastDown, &flow.down, stallStop)
                 }
                 done := make(chan struct{}, 2)
                 go func() {
@@ -1039,7 +1173,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 <-done
                 <-done
                 close(stallStop)
-                s.logTunnelDone(host, time.Since(tstart), flow)
+                s.logTunnelDone(host, class, time.Since(tstart), flow)
         }
 
         // M8-w (ADR-0021): the first-dial race. With extra candidates
@@ -1077,14 +1211,14 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         link.swap(nil)
                         tc.closeBoth()
                         s.countConnError()
-                        s.logTunnelDone(host, time.Since(tstart), flow)
+                        s.logTunnelDone(host, class, time.Since(tstart), flow)
                         return
                 }
                 s.stats.AddBytesDown(int64(len(winnerFirst)))
                 flow.down.Add(int64(len(winnerFirst)))
                 onFirst()
                 if winner != upstream {
-                        s.logTunnelFirstByteRaced(host, raceN)
+                        s.logTunnelFirstByteRaced(host, class, raceN)
                 }
                 relayEntry(winner)
                 return
@@ -1134,7 +1268,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                 }
                                 tc.closeBoth()
                                 s.countConnError()
-                                s.logTunnelDone(host, time.Since(tstart), flow)
+                                s.logTunnelDone(host, class, time.Since(tstart), flow)
                                 return
                         }
                         s.stats.AddBytesDown(int64(n))
@@ -1142,14 +1276,14 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         putBuf(buf)
                         onFirst()
                         if redials > 0 {
-                                s.logTunnelFirstByteSalvaged(host, redials)
+                                s.logTunnelFirstByteSalvaged(host, class, redials)
                         }
                         if !stopClientPump(client, pumpStop, pumpDone) {
                                 // Pathological pump stop: never risk a second
                                 // reader — the flow dies here, honestly.
                                 tc.closeBoth()
                                 s.countConnError()
-                                s.logTunnelDone(host, time.Since(tstart), flow)
+                                s.logTunnelDone(host, class, time.Since(tstart), flow)
                                 return
                         }
                         pumpRunning = false
@@ -1186,7 +1320,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 redials = maxRedial
                 s.invalidateDNS(host) // the set that went silent is suspect (the M8-s loop)
                 for attempt := 1; attempt <= raced; attempt++ {
-                        s.logTunnelFirstByteRetry(host, reason, attempt)
+                        s.logTunnelFirstByteRetry(host, class, reason, attempt)
                 }
                 // Close the dead origin first (unblocks a pump write stuck
                 // on it), then stop the pump — the client's bytes during the
@@ -1307,13 +1441,13 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         link.swap(nil)
                         tc.closeBoth()
                         s.countConnError()
-                        s.logTunnelDone(host, time.Since(tstart), flow)
+                        s.logTunnelDone(host, class, time.Since(tstart), flow)
                         return
                 }
                 s.stats.AddBytesDown(int64(len(winnerFirst)))
                 flow.down.Add(int64(len(winnerFirst)))
                 onFirst()
-                s.logTunnelFirstByteSalvaged(host, redials)
+                s.logTunnelFirstByteSalvaged(host, class, redials)
                 relayEntry(winner)
                 return
         }

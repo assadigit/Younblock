@@ -4,7 +4,10 @@
 // each constant with a one-line plain-English comment (file 01, section 4).
 package config
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // ====================== CONFIGURATION (edit here) ======================
 
@@ -38,6 +41,88 @@ const DefaultMethod = MethodAuto
 
 // DoHTimeout — how long to wait for each secure-DNS server before trying the next.
 const DoHTimeout = 3 * time.Second
+
+// DoHHedgeDelay — the stagger between servers in one hedged DoH walk
+// (M8-z, ADR-0025): the sticky/first server is asked at t=0, the next
+// at +DoHHedgeDelay, the third at +2×DoHHedgeDelay, and so on; the
+// first VALID answer wins and cancels the rest, and a server that
+// fails fast triggers the next one immediately. The serial walk this
+// replaces charged a full DoHTimeout (3 s) per silent server — the
+// debug.16 report's cold lookups at 1055–1806 ms were exactly that
+// serial front, and a burst of fresh per-video names paid it at the
+// worst moment (the first video's start). Zero in a doh Config → this
+// default; negative → no hedging (the exact serial M8-y shape).
+const DoHHedgeDelay = 300 * time.Millisecond
+
+// DoHReadIdleTimeout — how long the shared HTTP/2 DoH connection may
+// stay silent before the transport health-check pings it (M8-z,
+// ADR-0025; golang.org/x/net/http2.Transport ReadIdleTimeout). A dead
+// connection is noticed at 15 s + PingTimeout instead of surfacing as
+// a slow failure on the next burst of lookups.
+const DoHReadIdleTimeout = 15 * time.Second
+
+// DoHPingTimeout — how long the health-check ping may take before the
+// DoH connection is replaced (M8-z, ADR-0025; http2.Transport
+// PingTimeout).
+const DoHPingTimeout = 5 * time.Second
+
+// GoogleVideoCodeCap — how many sn-<code> cache-node identifiers the
+// resolver remembers for pre-resolution (M8-z, ADR-0025 §6.4): bounded
+// memory, FIFO eviction past the cap.
+const GoogleVideoCodeCap = 64
+
+// GoogleVideoCodesFile — the file the learned googlevideo sn-<code>
+// list persists to inside the engine's config directory (empty →
+// memory-only). The codes are infrastructure node identifiers, not
+// browsing history (the same code serves every rr variant of a
+// location), and the file lives in the app's private data directory
+// beside settings.json and the usage store — DECISIONS.md's privacy
+// rules (R21 log redaction, D-entries on user data) are about logs and
+// disclosures, not the app's own private state; the ADR records the
+// check.
+const GoogleVideoCodesFile = "googlevideo-codes.txt"
+
+// GoogleVideoPrewarmEvery — how often the learned googlevideo codes
+// are re-resolved in the background while the engine is On (M8-z,
+// ADR-0025 §6.4): rr1…rr5 of each remembered code, at most
+// GoogleVideoPrewarmInflight lookups in flight, so the next fresh
+// per-video hostname often lands on a warm cache entry.
+const GoogleVideoPrewarmEvery = 5 * time.Minute
+
+// GoogleVideoPrewarmInflight — the concurrency cap of the background
+// googlevideo pre-resolution loop (M8-z, ADR-0025 §6.4).
+const GoogleVideoPrewarmInflight = 3
+
+// PlainFirstByteTimeout — how long a NOT-budgeted (class=plain) TLS
+// flow's origin may stay silent after the tunnel wrote the client's
+// first record upstream (M8-z, ADR-0024 work item B): a TLS server
+// always answers a ClientHello quickly, so silence past this budget
+// means the origin is dead or the path is blocked — close both sides
+// and count it (plainFirstByteTimeouts) instead of hanging until the
+// app's ~60 s patience. Flows that already delivered a byte keep the
+// plain idle semantics (IdleTimeout); non-TLS flows never see this
+// budget. Budgeted (YouTube-list) hosts keep the FirstByteTimeout
+// machinery instead — the safety net is exactly for the plain cohort
+// the debug.16 report could not see (a blocked ad/attestation host
+// hung silently with no timeout at all). Zero in a proxy Config →
+// this default; negative → disabled (the exact pre-M8-z plain shape:
+// only the idle timeout).
+const PlainFirstByteTimeout = 8 * time.Second
+
+// DebugTesterBuild is the DEBUG TESTER lane marker (M8-z, ADR-0027
+// §8.1): build-android.sh sets it to "true" via -ldflags -X (go's -X
+// only sets STRING variables — hence the string shape and the
+// IsDebugTesterBuild accessor). Only such a build turns LogHostnames
+// on by default on Android (with the visible "DEBUG BUILD: hostnames
+// included for diagnosis" line in the report); every release build
+// keeps hostnames off (R21) — the empty default is the release value,
+// so an unset flag can never leak names.
+var DebugTesterBuild = ""
+
+// IsDebugTesterBuild reports whether this is the debug-tester lane.
+func IsDebugTesterBuild() bool {
+	return strings.EqualFold(strings.TrimSpace(DebugTesterBuild), "true")
+}
 
 // DNSCacheMinTTL — shortest lifetime an answer is remembered for.
 const DNSCacheMinTTL = 120 * time.Second
@@ -317,6 +402,13 @@ var PrewarmNames = []string{"www.youtube.com", "youtube.com", "i.ytimg.com", "yt
 var HealSweepOrder = []Method{MethodBalanced, MethodStrong, MethodLight, MethodLegacy}
 
 // defaultDoHServers — secure-DNS services tried in order until one answers.
+// M8-z (ADR-0025 §6.3) appends two IP-literal endpoints at the END:
+// dialed by IP with no DNS name in the way; Go's TLS client omits SNI
+// for IP literals, so the ClientHello carries no name for SNI
+// inspection to match, and their certificates carry IP SANs. They are
+// the walk's last resorts — the sticky/first servers keep their
+// position, and the hedged walk reaches these only when the earlier
+// ones stall or fail.
 var defaultDoHServers = []DoHServer{
 	{
 		Name:      "RethinkDNS",
@@ -332,6 +424,16 @@ var defaultDoHServers = []DoHServer{
 		Name:      "Google",
 		URL:       "https://dns.google/dns-query?dns={dns}",
 		Bootstrap: []string{"8.8.8.8", "8.8.4.4"},
+	},
+	{
+		Name:      "Cloudflare IP",
+		URL:       "https://1.1.1.1/dns-query?dns={dns}",
+		Bootstrap: []string{"1.1.1.1"},
+	},
+	{
+		Name:      "Google IP",
+		URL:       "https://8.8.8.8/dns-query?dns={dns}",
+		Bootstrap: []string{"8.8.8.8"},
 	},
 }
 

@@ -28,21 +28,25 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug17.apk` from the repo's
+releasing yet"): download `v1.6.6-debug18.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.17` release (a regular release in this private
+`v1.6.6-android-debug.18` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug17**; it installs over any earlier
+**make sure the filename says debug18**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build attacks the video-START lag with two memories: a DNS
-failure that means "our path to the DNS servers blipped" no longer
-locks a hostname out for 15 seconds (the next retry re-asks the
-servers), and an origin that accepts a connection but never answers
-is remembered as dead for 60 seconds so no new connection gambles on
-it — across videos, since the blackholed cache servers are shared
-between them; the previous build's tiered stall watch is now verified
-on-device: next/back in the same video is instant again).
+this build attacks the FIRST VIDEO'S MINUTE-LONG START: every routed
+app's TLS is now fragmented on Android (before, only the 7 YouTube
+domains were — every other host the app needed crossed plain and, when
+blocked, hung silently to the app's ~60 s patience), silent non-listed
+TLS hosts now close at 8 s and get counted instead of hanging, DoH
+shares ONE warm pinged HTTP/2 connection and hedges its servers
+(300 ms) with two no-SNI IP endpoints as last resorts, the learned
+video-cache hostnames pre-resolve every 5 minutes, and the diagnostics
+report can PROVE it: class= on every tunnel line, a Top-10
+slowest-or-failed hosts section, per-DNS-failure phase lines
+(TCP/TLS/HTTP), a QUIC-fallback timer, and "I pressed play" / "First
+frame" buttons that measure the exact start window).
 Sign in with your
 GitHub account, then sideload it:
 

@@ -20,41 +20,38 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 16: the M8-y build (the EIGHTH pasted report —
-        // the first from the right build, shell line versionCode 15:
-        // both debug.16 signatures present, the raced line and the
-        // tier= stall line, and Ali's own words confirmed ADR-0022 —
-        // "the problem of easily going next and back in same video
-        // instantly is fixed" — while "the original problem (videos
-        // taking time to play) persist"). That report names the start
-        // lag's two remaining sources, both measured: (1) the DNS
-        // negative-cache lockout — dns ok 142 / fail 50 with
-        // doorFailures=50, every resolver failure a dead door dial,
-        // the failure lines pairing at the same millisecond (four
-        // pairs inside 22 ms = instant negative hits, not server
-        // walks): one DoH blip negative-cached a batch of fresh
-        // per-video hostnames and the 15 s TTL killed every retry
-        // wave at the door; ADR-0023's negative re-ask makes a
-        // DNS_UNREACHABLE negative re-ask the servers (singleflight-
-        // collapsed, rate-limited to one walk per second per host —
-        // the window starts at the failure's own walk), so the next
-        // retry after the blip recovers in one walk instead of 15 s
-        // of dead flows. (2) The dead-origin re-gamble — ~17
-        // reason=timeout terminals at 2892-4304 ms plus ~8 resets,
-        // all down=0 B through the raced round, and the SECOND
-        // video's start paying the full discovery cost again (a new
-        // rr hostname, the per-flow dead-IP map dead with its flow,
-        // the authoritative answer returning the same blackholed
-        // cache-node IPs): ADR-0023's origin-IP penalty box marks
-        // every classified first-byte death's IP for 60 s and every
-        // dial list skips the marked IPs (a preference, never a
-        // verdict — an all-penalized list dials in full), so the
-        // knowledge crosses flows AND hostnames. The socks5 door's
-        // DNS line now bakes reason= (the 50 bare lines could not say
-        // why). Installs over debug.16 (same pinned debug certificate
-        // — D85). The D84 rule: every debug build bumps this. D103:
-        // the APK asset is named v1.6.6-debug17.apk.
-        versionCode = 16
+        // versionCode 17: the M8-z build (debug.18 — the cold-start
+        // round per docs/specs/debug18-cold-start.md): fragment EVERY
+        // routed app's TLS on Android (FragmentAllRouted, settings v5,
+        // Android-default-on — the debug.16 evidence's plain cohort:
+        // the ad/attestation hosts the YouTube app needs at first
+        // play, un-fragmented and hanging to the app's ~60 s
+        // patience), the plain-relay 8 s safety net
+        // (plainFirstByteTimeouts + class=plain kill lines — never a
+        // dead-IP mark), the one-warm-connection hedged DoH
+        // (http2.Transport + DialTLSContext over the fragmented
+        // bootstrap dial, ReadIdleTimeout 15 s / PingTimeout 5 s,
+        // WarmProbe at start + re-warm within 1 s of a
+        // connection-shaped failure, the sticky server at t=0 and the
+        // next at +300 ms with fast failures triggering the next
+        // immediately, two no-SNI IP-literal endpoints appended to the
+        // default list, the learned googlevideo sn-<code> codes
+        // pre-resolved rr1..rr5 every 5 minutes and persisted to
+        // googlevideo-codes.txt), the measurable QUIC fallback
+        // (udp443 dropped + the next-TCP-flow elapsed line + v6Dropped;
+        // the ICMP 3/3 reply stays gVisor's, pinned by the M8-j
+        // guard test), and the ADR-0027 diagnostics surface (class=
+        // on every tunnel line, rtt-class=near|far, the Top-10
+        // slowest-or-failed hosts, the plain-relay summary, the DNS
+        // detail with server/phase/latency, the one-shot dead-origin
+        // SNI probe, the MARK timeline with the "I pressed play" /
+        // "First frame" buttons, the DEBUG BUILD hostnames notice —
+        // this lane's -ldflags sets config.DebugTesterBuild=true, a
+        // release build never does). Installs over debug.17 (the same
+        // pinned debug certificate — D85). The D84 rule: every debug
+        // build bumps this. D103: the APK asset is named
+        // v1.6.6-debug18.apk.
+        versionCode = 17
         versionName = "1.6.6"
     }
 

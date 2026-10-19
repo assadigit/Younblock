@@ -29,6 +29,8 @@
     activity: "M22 12h-4l-3 9L9 3l-3 9H2",
     share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13",
     refresh: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5",
+    // M8-z: the timeline mark buttons (Lucide play, same stroke).
+    play: "m6 3 14 9-14 9V3z",
   };
   // Multi-segment paths split on " M" for correct SVG syntax.
   const segments = $derived(

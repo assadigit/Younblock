@@ -51,6 +51,10 @@ export class AndroidBackend implements Backend {
     throw new Error("not built yet");
   }
 
+  mark(): never {
+    throw new Error("not built yet");
+  }
+
   openLogsFolder(): never {
     throw new Error("not built yet");
   }

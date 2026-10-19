@@ -263,6 +263,15 @@ export class MockBackend implements Backend {
     };
   }
 
+  async mark(label: string): Promise<ApiResult> {
+    // The mock records the stamp in memory only (the shape the real
+    // adapter POSTs to /api/mark).
+    this.markLog.push(label);
+    return { error: null };
+  }
+
+  markLog: string[] = [];
+
   async openLogsFolder(): Promise<LogsFolder> {
     return { path: this.info.logDir };
   }

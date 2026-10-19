@@ -269,7 +269,7 @@ func newPhone(t *testing.T, tunSideWire *xWire) *phoneStack {
                 TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
         })
         phoneWire := tunSideWire // crossed: phone reads what tunstack writes
-        ep := newWireEndpoint(phoneWire, 1500)
+        ep := newWireEndpoint(phoneWire, 1500, nil)
         const nicID = 1
         if err := ns.CreateNIC(nicID, ep); err != nil {
                 t.Fatalf("phone NIC: %s", err)

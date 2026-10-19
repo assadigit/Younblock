@@ -42,6 +42,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -92,6 +93,12 @@ type Config struct {
 	HandshakeTimeout time.Duration
 	// Logger may be nil.
 	Logger Logger
+	// LogHostnames allows host names in this stack's diagnostic lines
+	// (M8-z, ADR-0027 §8.2/§7): the udp443 fallback timeline pairs a
+	// QUIC drop with the next TCP flow to the SAME host — the host name
+	// rides that line only when the setting is on (R21; the engine's
+	// facade wires it from the settings snapshot).
+	LogHostnames bool
 }
 
 // Stats is a point-in-time snapshot of the stack counters (diagnostics;
@@ -103,6 +110,10 @@ type Stats struct {
 	DoorFailures     int64
 	DNSQueries       int64
 	UDPDropped       int64
+	// V6Dropped counts the IPv6 packets the wire pump silently discarded
+	// (M8-z, ADR-0027 §8.4/§7: ADR-0010's fail-safe made visible — a
+	// routed app with v6 reachability preferences shows it here).
+	V6Dropped int64
 }
 
 // defaultHandshakeTimeout is the stack's backstop for a caller that
@@ -133,7 +144,20 @@ type Stack struct {
 	doorFail int64
 	dnsCount int64
 	udpDrops int64
+	v6Drops  int64
+
+	// The udp443 fallback timeline (M8-z, ADR-0027 §7): destination IP
+	// (or reversed domain) -> the time of the last UDP/443 drop, so the
+	// NEXT TCP flow to the same host can log the elapsed time — the
+	// QUIC-fallback cost, measured. Bounded, evicting FIFO.
+	udp443Mu    sync.Mutex
+	udp443At    map[string]time.Time
+	udp443Order []string
 }
+
+// udp443TimelineCap bounds the drop-memory (the report only ever reads
+// the next-flow pairs; stale entries beyond the cap are worthless).
+const udp443TimelineCap = 128
 
 // New builds the stack around the wire. Packets flow as soon as the
 // NIC is created (the wire pump starts on attach); call Stop to unwind.
@@ -158,9 +182,10 @@ func New(cfg Config) (*Stack, error) {
 	}
 
 	s := &Stack{
-		cfg:     cfg,
-		dns:     newDNSMapper(cfg.DNSMaxDomains),
-		flowSem: make(chan struct{}, cfg.MaxFlows),
+		cfg:      cfg,
+		dns:      newDNSMapper(cfg.DNSMaxDomains),
+		flowSem:  make(chan struct{}, cfg.MaxFlows),
+		udp443At: make(map[string]time.Time),
 	}
 
 	ns := stack.New(stack.Options{
@@ -168,7 +193,7 @@ func New(cfg Config) (*Stack, error) {
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 	})
 	s.ns = ns
-	s.wire = newWireEndpoint(cfg.Wire, cfg.MTU)
+	s.wire = newWireEndpoint(cfg.Wire, cfg.MTU, &s.v6Drops)
 
 	// Transport handlers BEFORE the NIC (see package doc).
 	tcpFwd := tcp.NewForwarder(ns, 0 /* default rcv wnd */, cfg.MaxFlows, s.handleTCP)
@@ -225,6 +250,7 @@ func (s *Stack) Stats() Stats {
 		DoorFailures:     atomic.LoadInt64(&s.doorFail),
 		DNSQueries:       atomic.LoadInt64(&s.dnsCount),
 		UDPDropped:       atomic.LoadInt64(&s.udpDrops),
+		V6Dropped:        atomic.LoadInt64(&s.v6Drops),
 	}
 }
 
@@ -273,6 +299,19 @@ func (s *Stack) handleTCP(r *tcp.ForwarderRequest) {
 			return
 		}
 		target = domain
+	}
+	// M8-z (ADR-0027 §7): the QUIC fallback's cost, measured — when this
+	// destination saw a UDP/443 drop (a QUIC attempt) and now arrives as
+	// the NEXT TCP flow, log the elapsed time between the two. Host name
+	// only under LogHostnames (R21).
+	if dropAt, ok := s.takeUDP443Drop(dst.String()); ok {
+		if s.cfg.Logger != nil {
+			msg := fmt.Sprintf("udp443 fallback elapsed=%dms", time.Since(dropAt).Milliseconds())
+			if s.cfg.LogHostnames {
+				msg += " host=" + target
+			}
+				s.cfg.Logger.Info(msg)
+			}
 	}
 
 	var wq waiter.Queue
@@ -353,7 +392,31 @@ func closeWrite(w io.Writer) {
 func (s *Stack) handleUDP(r *udp.ForwarderRequest) bool {
 	if r.ID().LocalPort != s.cfg.DNSPort {
 		atomic.AddInt64(&s.udpDrops, 1)
-		return false // not forwarded; the stack may ICMP-unreachable it
+		port := r.ID().LocalPort
+		dst := tcpIPToNet(r.ID().LocalAddress).String()
+		if port == 443 {
+			// M8-z (ADR-0027 §7): the QUIC fast-fail's timeline — the drop
+			// line (no names) plus the drop-time memory the next TCP flow
+			// to the same host turns into an elapsed-time line. The ICMP
+			// port-unreachable itself is gVisor's (return false — pinned by
+			// TestUDP443FastFailICMP, the M8-j guard this keeps).
+			if s.cfg.Logger != nil {
+				s.cfg.Logger.Info("udp443 dropped")
+			}
+			now := time.Now()
+			s.udp443Mu.Lock()
+			if _, ok := s.udp443At[dst]; !ok {
+				for len(s.udp443Order) >= udp443TimelineCap {
+					oldest := s.udp443Order[0]
+					s.udp443Order = s.udp443Order[1:]
+					delete(s.udp443At, oldest)
+				}
+				s.udp443Order = append(s.udp443Order, dst)
+			}
+			s.udp443At[dst] = now
+			s.udp443Mu.Unlock()
+		}
+		return false // not forwarded; the stack ICMP-unreachables it (pinned by test)
 	}
 	var wq waiter.Queue
 	ep, terr := r.CreateEndpoint(&wq)
@@ -383,6 +446,24 @@ func (s *Stack) serveDNS(conn net.Conn) {
 			}
 		}
 	}
+}
+
+// takeUDP443Drop consumes the destination's pending UDP/443 drop time
+// (the NEXT TCP flow logs it; the one-shot memory goes with it).
+func (s *Stack) takeUDP443Drop(dst string) (time.Time, bool) {
+	s.udp443Mu.Lock()
+	defer s.udp443Mu.Unlock()
+	at, ok := s.udp443At[dst]
+	if ok {
+		delete(s.udp443At, dst)
+		for i, d := range s.udp443Order {
+			if d == dst {
+				s.udp443Order = append(s.udp443Order[:i], s.udp443Order[i+1:]...)
+				break
+			}
+		}
+	}
+	return at, ok
 }
 
 // tcpIPToNet converts a tcpip.Address to a net.IP.

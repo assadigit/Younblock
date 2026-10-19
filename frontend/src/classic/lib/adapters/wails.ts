@@ -30,6 +30,7 @@ interface AppBindings {
   AutoFix(): Promise<string>;
   RestoreWindowsProxy(): Promise<string>;
   GetDiagnosticReport(): Promise<string>;
+  Mark(label: string): Promise<string>;
   OpenLogsFolder(): Promise<string>;
   Quit(): Promise<string>;
   GetAppInfo(): Promise<string>;
@@ -169,6 +170,10 @@ export class WailsBackend implements Backend {
 
   async getDiagnosticReport(): Promise<DiagnosticReport> {
     return JSON.parse(await this.bindings.GetDiagnosticReport()) as DiagnosticReport;
+  }
+
+  async mark(label: string): Promise<ApiResult> {
+    return JSON.parse(await this.bindings.Mark(label)) as ApiResult;
   }
 
   async openLogsFolder(): Promise<LogsFolder> {

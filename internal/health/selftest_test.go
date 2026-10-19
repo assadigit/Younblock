@@ -81,7 +81,7 @@ func newTestEnv(t *testing.T, answers map[string]string, statusFor func(path str
 	if err != nil {
 		t.Fatal(err)
 	}
-	dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{leaf}})
+	dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{leaf}, NextProtos: []string{"h2"}})
 	dohMux := http.NewServeMux()
 	dohMux.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
 		wire, err := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(r.URL.Query().Get("dns"))
@@ -344,7 +344,7 @@ func TestSelfTestDNSProbesPastNegativeCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{env.tlsCert}})
+	dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{env.tlsCert}, NextProtos: []string{"h2"}})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
 		if fail.Load() {

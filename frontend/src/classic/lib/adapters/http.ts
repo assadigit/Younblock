@@ -186,6 +186,10 @@ export class HttpBackend implements Backend {
     return this.getJson<DiagnosticReport>("/api/report");
   }
 
+  async mark(label: string): Promise<ApiResult> {
+    return this.postJson<ApiResult>("/api/mark", { label });
+  }
+
   async openLogsFolder(): Promise<LogsFolder> {
     return this.getJson<LogsFolder>("/api/logs");
   }

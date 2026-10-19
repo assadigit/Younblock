@@ -41,9 +41,16 @@ cp -r frontend/dist/. internal/webui/dist/
 
 echo "[2/4] gomobile bind -> android/app/libs/younblock.aar..."
 mkdir -p android/app/libs
+# M8-z (ADR-0027 §8.1): the DEBUG TESTER lane marks itself — only this
+# build turns LogHostnames on by default on Android (with the visible
+# "DEBUG BUILD: hostnames included for diagnosis" report line). A
+# release lane omits the flag and keeps hostnames off (R21); the
+# default in code is the release value, so an unset flag can never
+# leak names.
 GOFLAGS=-mod=mod gomobile bind \
   -target=android/arm,android/arm64,android/amd64 \
   -androidapi=26 \
+  -ldflags="-X github.com/assadigit/Younblock/internal/config.DebugTesterBuild=true" \
   -o android/app/libs/younblock.aar \
   ./mobile
 

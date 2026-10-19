@@ -25,7 +25,22 @@ import (
 // with entries included — are the user's own and stay untouched. The
 // NO_TARGET_APPS door owns what happens at connect, never a
 // restore-to-default.
-const settingsVersion = 4
+//
+// v5 (M8-z, ADR-0024) adds `fragmentAllRouted` — fragment EVERY TLS
+// first record of a routed app's flows, not just the YouTube-list
+// hosts — with a PLATFORM-DEPENDENT default: true on Android (the
+// per-app allow-list means every flow the TUN hands the door belongs
+// to a routed app, and the debug.16 evidence says the un-fragmented
+// plain cohort is where the first video's minute went), false on every
+// desktop (behavior unchanged there — hard constraint 5). The default
+// is applied by LoadFor when it knows the platform: a fresh install
+// (no file) and any pre-v5 file on Android both start fragmented-all;
+// a v5 file records the owner's explicit choice either way. v5 also
+// carries the debug-tester LogHostnames default (ADR-0027 §8.1): ONLY
+// a DebugTesterBuild (the -ldflags -X lane) on Android turns
+// `logDomains` on for the shipped state — a release build never does,
+// and an owner's saved logDomains survives verbatim in every build.
+const settingsVersion = 5
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -54,6 +69,17 @@ type Settings struct {
 	AutoPort         bool   `json:"autoPort"`
 	StartWithWindows bool   `json:"startWithWindows"`
 	ConnectOnLaunch  bool   `json:"connectOnLaunch"`
+	// FragmentAllRouted (M8-z, ADR-0024, schema v5): fragment the first
+	// TLS record of EVERY non-direct-TLD host a routed app sends — not
+	// just the YouTube domain list. Default true on Android (LoadFor
+	// applies it), false on every desktop edition; the budgeted shape
+	// (first-byte budget, salvage, race, dead-IP penalty, tiered stall
+	// kill) stays scoped to the YouTube-list hosts exactly as before —
+	// fragmentation for everything, the expensive machinery only where
+	// it pays. Desktop editions persist the field but the engine wires
+	// it through like any setting; the desktop default (false) keeps
+	// desktop behavior byte-for-byte.
+	FragmentAllRouted bool `json:"fragmentAllRouted"`
 	// KeepInTrayOnClose (D93): closing the window hides into the
 	// system tray instead of quitting — OPT-IN since D93. The shipped
 	// default is false: the close button is a real shutdown, so the
@@ -61,7 +87,8 @@ type Settings struct {
 	// Settings. Every file written before D93 lacks the field, which
 	// loads as exactly that default — the behavior the user demanded,
 	// not a choice the file ever recorded, so no schema-version
-	// migration is owed (settingsVersion stays 4).
+	// migration was owed when it landed (the D93-era file schema stays
+	// as it was; v5 below is owed to FragmentAllRouted alone).
 	KeepInTrayOnClose bool `json:"keepInTrayOnClose"`
 	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
 	// profile, proxy flags) when the engine turns on. Default off.
@@ -287,25 +314,45 @@ func isD86DefaultApps(list []string) bool {
 	return true
 }
 
-// Load reads settings.json from dir. Unknown fields are ignored. A corrupt
-// file is renamed settings.json.bad and defaults are returned; the returned
-// notice explains that in one line. Missing file means defaults.
+// Load reads settings.json from dir with no platform awareness (the
+// desktop editions and the tests): no Android v5 defaults are applied.
+// See LoadFor for the platform-aware variant.
 func Load(dir string) (s Settings, notice string, err error) {
+	return LoadFor(dir, "")
+}
+
+// LoadFor reads settings.json from dir with the loading platform's name
+// ("android" for the mobile facade's engine; anything else — including
+// the empty string the desktop Load passes — is a non-Android build).
+// Unknown fields are ignored. A corrupt file is renamed settings.json.bad
+// and defaults are returned; the returned notice explains that in one
+// line. Missing file means defaults — with the platform's v5 defaults
+// applied (Android: fragmentAllRouted on; a debug-tester build also
+// logs hostnames by default, ADR-0027 §8.1). A pre-v5 file on Android
+// migrates the same way once: the absent field was never a choice the
+// file recorded. A v5 file is the owner's word — fragmentAllRouted and
+// logDomains are read verbatim whatever the build.
+func LoadFor(dir string, platform string) (s Settings, notice string, err error) {
+	android := platform == "android"
 	s = DefaultSettings()
 	path := SettingsPath(dir)
 	data, readErr := os.ReadFile(path)
 	if readErr != nil {
 		if os.IsNotExist(readErr) {
+			applyPlatformDefaults(&s, android)
 			return Normalize(s), "", nil
 		}
+		applyPlatformDefaults(&s, android)
 		return Normalize(s), "", readErr
 	}
 	var loaded Settings
 	if err := json.Unmarshal(data, &loaded); err != nil {
 		bad := path + ".bad"
 		if renameErr := os.Rename(path, bad); renameErr != nil {
+			applyPlatformDefaults(&s, android)
 			return Normalize(s), "", fmt.Errorf("settings file is corrupt (%v) and could not be renamed: %w", err, renameErr)
 		}
+		applyPlatformDefaults(&s, android)
 		return Normalize(s), "settings file was corrupt; it was renamed to settings.json.bad and defaults were restored", nil
 	}
 	if loaded.Version > settingsVersion {
@@ -338,8 +385,35 @@ func Load(dir string) (s Settings, notice string, err error) {
 		} else if loaded.Version == 3 && isD86DefaultApps(loaded.Apps) {
 			loaded.Apps = DefaultApps()
 		}
+		// The v5 migration (M8-z, ADR-0024/0027): only on Android, only
+		// the state no owner ever chose. fragmentAllRouted was absent
+		// from every pre-v5 file, so its false there is the shipped
+		// default, never a decision — Android's default is true.
+		// logDomains EXISTED in v4 files, so it is NOT migrated here:
+		// only a DebugTesterBuild's fresh-install default turns it on
+		// (applyPlatformDefaults on the missing-file path), never a
+		// file that recorded its owner's off.
+		if android && loaded.Version < 5 {
+			loaded.FragmentAllRouted = true
+		}
 	}
 	return Normalize(loaded), "", nil
+}
+
+// applyPlatformDefaults fills the loading platform's shipped defaults
+// for fields a fresh install cannot record (M8-z, ADR-0024/0027):
+// Android starts fragmentAllRouted on; a DebugTesterBuild (the
+// -ldflags lane, never a release) also starts with hostnames in the
+// diagnostic log — the visible "DEBUG BUILD" notice line rides in the
+// report itself. Non-Android platforms keep DefaultSettings verbatim.
+func applyPlatformDefaults(s *Settings, android bool) {
+	if !android {
+		return
+	}
+	s.FragmentAllRouted = true
+	if IsDebugTesterBuild() {
+		s.Advanced.LogDomains = true
+	}
 }
 
 // Save writes settings atomically to settings.json inside dir

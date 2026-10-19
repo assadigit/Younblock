@@ -185,8 +185,38 @@ type Engine struct {
 	// GetState, which takes mu).
 	reportExtra func() string
 
+	// M8-z (ADR-0024/0025/0027): the per-host flow table behind the
+	// report's Top-10 section; the googlevideo prewarm loop's cancel;
+	// the timeline marks; and the dead-origin probe's once-per-run
+	// latch. hostTable is immutable after New (nil-safe consumers).
+	hostTable    *stats.HostTable
+	gvideoCancel context.CancelFunc
+	marks        []Mark      // the last timeline marks (bounded)
+	markSnapshot *markWindow // counters snapshot at the last mark
+	probeDone    bool        // the dead-origin probe ran this run
+	probeLines   []string    // its lines, rendered once per report section
+
 	measuredSleep time.Duration
 	stopWait      sync.WaitGroup
+}
+
+// Mark is one timeline stamp (M8-z, ADR-0027 §8.3.6): the Go facade
+// exposes Mark(label) — the Android diagnostics screen's "I pressed
+// play" and "First frame" buttons — and the report prints the elapsed
+// time between the LAST PAIR plus the failed/slow flows inside that
+// window.
+type Mark struct {
+	Label  string
+	At     time.Time
+	Window *markWindow // the deltas captured when THIS mark landed (nil for the first)
+}
+
+// markWindow snapshots the flow counters at one mark so the next mark
+// can report the window's failures/slowness as deltas.
+type markWindow struct {
+	connErrors    int64
+	plainKills    int64
+	slowFirstByte int64
 }
 
 // New builds an engine: loads settings, opens logs, measures the real sleep
@@ -202,7 +232,11 @@ func New(opts Options) (*Engine, error) {
 		opts.Now = time.Now
 	}
 	dir := opts.Platform.ConfigDir()
-	s, notice, err := config.Load(dir)
+	// M8-z (ADR-0024): the loading platform's name reaches the settings
+	// loader — fragmentAllRouted defaults true on Android, false on
+	// every desktop (config.LoadFor); the debug-tester build's
+	// LogHostnames default rides the same path (ADR-0027 §8.1).
+	s, notice, err := config.LoadFor(dir, opts.Platform.Name())
 	if err != nil {
 		return nil, fmt.Errorf("engine: settings: %w", err)
 	}
@@ -223,14 +257,15 @@ func New(opts Options) (*Engine, error) {
 		return nil, fmt.Errorf("engine: logs: %w", err)
 	}
 	e := &Engine{
-		opts:     opts,
-		platform: opts.Platform,
-		settings: s,
-		logger:   logger,
-		stats:    stats.New(),
-		rng:      fragment.NewDefaultRNG(),
-		phase:    PhaseOff,
-		since:    opts.Now(),
+		opts:      opts,
+		platform:  opts.Platform,
+		settings:  s,
+		logger:    logger,
+		stats:     stats.New(),
+		hostTable: stats.NewHostTable(),
+		rng:       fragment.NewDefaultRNG(),
+		phase:     PhaseOff,
+		since:     opts.Now(),
 	}
 	// The round-3 usage history lives beside settings.json; a failed
 	// open only disables the history (usageOpen logs it).
@@ -279,6 +314,11 @@ func (e *Engine) resolverConfig(servers []config.DoHServer, s config.Settings) d
 		Stats:          e.stats,
 		Now:            e.opts.Now,
 		TLS:            e.opts.ResolverTLS,
+		// M8-z (ADR-0025 §6.3/§6.4): the hedged walk's stagger and the
+		// googlevideo sn-<code> store's file (beside settings.json, in
+		// the app's private directory).
+		HedgeDelay: config.DoHHedgeDelay,
+		CodeStore:  filepath.Join(e.platform.ConfigDir(), config.GoogleVideoCodesFile),
 	}
 }
 
@@ -363,6 +403,122 @@ func (e *Engine) SetReportExtra(f func() string) {
 // Stats exposes the counters for diagnostics.
 func (e *Engine) Stats() *stats.Counters { return e.stats }
 
+// Mark stamps the diagnostics timeline (M8-z, ADR-0027 §8.3.6): the
+// facade exposes it as Mark(label) — the Android diagnostics screen's
+// "I pressed play" and "First frame" buttons call it — and the report
+// prints the elapsed time between the LAST PAIR plus the failed/slow
+// flows inside that window. The line lands in the log ring as
+// "MARK <label>" (timestamps ride the ring's own line prefix), and
+// each mark snapshots the flow counters so the NEXT mark can report
+// the window's deltas exactly.
+func (e *Engine) Mark(label string) {
+	now := e.opts.Now()
+	d := e.stats.Diagnostic()
+	cur := &markWindow{connErrors: d.ConnErrors, plainKills: d.PlainFirstByteTo, slowFirstByte: d.FirstByteSlow}
+	e.mu.Lock()
+	var win markWindow
+	if prev := e.markSnapshot; prev != nil {
+		win = markWindow{
+			connErrors:    cur.connErrors - prev.connErrors,
+			plainKills:    cur.plainKills - prev.plainKills,
+			slowFirstByte: cur.slowFirstByte - prev.slowFirstByte,
+		}
+	}
+	e.marks = append(e.marks, Mark{Label: label, At: now, Window: &win})
+	if len(e.marks) > 8 {
+		e.marks = e.marks[len(e.marks)-8:]
+	}
+	e.markSnapshot = cur
+	e.mu.Unlock()
+	e.logger.Info("MARK " + label)
+}
+
+// timelineMarks returns the bounded mark history (the report reads the
+// last pair).
+func (e *Engine) timelineMarks() []Mark {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]Mark(nil), e.marks...)
+}
+
+// startGvideoLoop runs the DoH warm + the learned-googlevideo
+// pre-resolution while the engine is On (M8-z, ADR-0025 §6.2/§6.4):
+// the shared connection opens NOW (not at the first query), and every
+// GoogleVideoPrewarmEvery the remembered sn-<code> table's rr1..rr5
+// variants re-resolve in the background (at most
+// GoogleVideoPrewarmInflight lookups in flight) so the next fresh
+// per-video hostname often lands on a warm cache entry.
+func (e *Engine) startGvideoLoop() {
+	e.resolver.Load().WarmProbe()
+	ctx, cancel := context.WithCancel(context.Background())
+	e.mu.Lock()
+	old := e.gvideoCancel
+	e.gvideoCancel = cancel
+	e.mu.Unlock()
+	if old != nil {
+		old()
+	}
+	go func() {
+		e.prewarmGvideoCodes(ctx)
+		ticker := time.NewTicker(config.GoogleVideoPrewarmEvery)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				e.prewarmGvideoCodes(ctx)
+			}
+		}
+	}()
+}
+
+// stopGvideoLoop halts the prewarm loop (Stop's path).
+func (e *Engine) stopGvideoLoop() {
+	e.mu.Lock()
+	cancel := e.gvideoCancel
+	e.gvideoCancel = nil
+	e.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// prewarmGvideoCodes resolves rr1..rr5 of every remembered code, at
+// most GoogleVideoPrewarmInflight lookups in flight, each with its own
+// small budget; a resolver swap mid-loop is tolerated (the resolver is
+// read once per pass).
+func (e *Engine) prewarmGvideoCodes(ctx context.Context) {
+	r := e.resolver.Load()
+	codes := r.GvideoCodes()
+	if len(codes) == 0 {
+		return
+	}
+	names := make([]string, 0, len(codes)*5)
+	for _, code := range codes {
+		for i := 1; i <= 5; i++ {
+			names = append(names, fmt.Sprintf("rr%d---%s.googlevideo.com", i, code))
+		}
+	}
+	sem := make(chan struct{}, config.GoogleVideoPrewarmInflight)
+	var wg sync.WaitGroup
+	for _, name := range names {
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(name string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			qctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			r.Lookup(qctx, name) // cache fill; errors are the loop's own business
+		}(name)
+	}
+	wg.Wait()
+}
+
 // Resolver exposes the DoH resolver (for the self-test and diagnostics).
 func (e *Engine) Resolver() *doh.Resolver { return e.resolver.Load() }
 
@@ -429,6 +585,12 @@ func (e *Engine) startListener() error {
 		DeadIPPenalty:         config.DeadIPPenalty,
 		IdleTimeout:           idle,
 		MaxHeaderBytes:        config.MaxHeaderBytes,
+		// M8-z (ADR-0024): the platform-aware setting the doors consult
+		// through fragmentHost, the plain-relay safety net's budget, and
+		// the report's per-host table.
+		FragmentAllRouted:     e.settings.FragmentAllRouted,
+		PlainFirstByteTimeout: config.PlainFirstByteTimeout,
+		Hosts:                 e.hostTable,
 		Resolver:              e.resolver.Load(),
 		Dialer:                e.dialer,
 		DialTimeoutOverall:    config.DialTimeoutOverall,
@@ -511,12 +673,21 @@ func (e *Engine) Stop() error {
 	e.stopStatsLoop()
 	e.stopWatchdog()
 	e.stopNetMon()
+	e.stopGvideoLoop() // M8-z: the prewarm loop dies with the run
 	e.stopListener()
 	if err := e.platform.Detach(); err != nil {
 		e.logger.Warn("detach failed", "reason", errKind(err))
 	}
-	// R21: the in-memory ring is cleared on Stop.
+	// R21: the in-memory ring is cleared on Stop — and the timeline
+	// marks and the dead-origin probe's once-per-run latch with it (the
+	// next run's report starts clean; M8-z).
 	e.logger.Ring.Clear()
+	e.mu.Lock()
+	e.marks = nil
+	e.markSnapshot = nil
+	e.probeDone = false
+	e.probeLines = nil
+	e.mu.Unlock()
 	e.mu.Lock()
 	e.latencyMs = 0 // a live metric; it stops with the proxy
 	e.clearFailLocked()

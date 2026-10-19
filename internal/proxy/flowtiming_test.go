@@ -143,6 +143,9 @@ func TestFlowTimingLines(t *testing.T) {
         if !strings.Contains(ups[0], "dns=") || !strings.Contains(ups[0], "dial=") {
                 t.Fatalf("tunnel up line missing phases: %q", ups[0])
         }
+        if !strings.Contains(ups[0], "class=") || !strings.Contains(ups[0], "rtt-class=") {
+                t.Fatalf("tunnel up line missing the class/rtt-class tags (M8-z): %q", ups[0])
+        }
         if strings.Contains(ups[0], "host=") {
                 t.Fatalf("hostname leaked without LogHostnames: %q", ups[0])
         }
@@ -151,9 +154,17 @@ func TestFlowTimingLines(t *testing.T) {
         if len(fbs) == 0 {
                 t.Fatalf("no 'tunnel first-byte' line logged")
         }
-        fb := strings.TrimSuffix(strings.TrimPrefix(fbs[0], "INFO tunnel first-byte "), "ms")
+        // M8-z: the line now carries class= before the count (ADR-0027
+        // §8.2); the ms value is the last space-separated token.
+        fb := strings.TrimSuffix(fbs[0], "ms")
+        if i := strings.LastIndexByte(fb, ' '); i >= 0 {
+                fb = fb[i+1:]
+        }
         if n, err := strconv.Atoi(fb); err != nil || n < 0 {
                 t.Fatalf("first-byte not a non-negative ms count: %q", fbs[0])
+        }
+        if !strings.Contains(fbs[0], "class=") {
+                t.Fatalf("first-byte line missing the class tag: %q", fbs[0])
         }
 
         dones := log.lines("INFO tunnel done ")

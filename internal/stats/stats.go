@@ -21,6 +21,14 @@ type Counters struct {
 	dnsFail    atomic.Int64
 	panics     atomic.Int64
 
+	// M8-z (ADR-0024 work item B / ADR-0027 §8.3-8.4): the plain-relay
+	// safety net's kill count, the dial RTT classes, and the slow
+	// first-byte count the timeline window reads.
+	plainFirstByteTimeouts atomic.Int64
+	dialNear               atomic.Int64
+	dialFar                atomic.Int64
+	firstByteSlow          atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -58,6 +66,22 @@ func (c *Counters) DnsFail() { c.dnsFail.Add(1) }
 
 // Panic counts a recovered connection panic.
 func (c *Counters) Panic() { c.panics.Add(1) }
+
+// PlainFirstByteTimeout counts one plain-relay TLS flow closed by the
+// 8 s safety net (M8-z, ADR-0024 work item B): the origin never sent a
+// byte after the client's first record.
+func (c *Counters) PlainFirstByteTimeout() { c.plainFirstByteTimeouts.Add(1) }
+
+// DialNear counts an origin dial under 200 ms (ADR-0027 §8.3.4: the
+// rtt-class split of the dial cohort — near vs far cache nodes).
+func (c *Counters) DialNear() { c.dialNear.Add(1) }
+
+// DialFar counts an origin dial of 200 ms or more.
+func (c *Counters) DialFar() { c.dialFar.Add(1) }
+
+// FirstByteSlow counts a first byte slower than 1 s (ADR-0027 §8.3.6:
+// the timeline window's "slow flows" metric).
+func (c *Counters) FirstByteSlow() { c.firstByteSlow.Add(1) }
 
 // Snapshot is the 1-second UI snapshot (JSON shape from file 01, section 10).
 type Snapshot struct {
@@ -103,29 +127,37 @@ func (c *Counters) Sample() Snapshot {
 
 // All is every counter, used by the diagnostic report.
 type All struct {
-	BytesDown  int64     `json:"bytesDown"`
-	BytesUp    int64     `json:"bytesUp"`
-	ConnsTotal int64     `json:"connsTotal"`
-	ConnsLive  int64     `json:"connsLive"`
-	ConnErrors int64     `json:"connErrors"`
-	DnsOK      int64     `json:"dnsOK"`
-	DnsFail    int64     `json:"dnsFail"`
-	Panics     int64     `json:"panics"`
-	StartedAt  time.Time `json:"startedAt"`
+	BytesDown        int64     `json:"bytesDown"`
+	BytesUp          int64     `json:"bytesUp"`
+	ConnsTotal       int64     `json:"connsTotal"`
+	ConnsLive        int64     `json:"connsLive"`
+	ConnErrors       int64     `json:"connErrors"`
+	DnsOK            int64     `json:"dnsOK"`
+	DnsFail          int64     `json:"dnsFail"`
+	Panics           int64     `json:"panics"`
+	PlainFirstByteTo int64     `json:"plainFirstByteTimeouts"`
+	DialNear         int64     `json:"dialNear"`
+	DialFar          int64     `json:"dialFar"`
+	FirstByteSlow    int64     `json:"firstByteSlow"`
+	StartedAt        time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
 func (c *Counters) Diagnostic() All {
 	return All{
-		BytesDown:  c.bytesDown.Load(),
-		BytesUp:    c.bytesUp.Load(),
-		ConnsTotal: c.connsTotal.Load(),
-		ConnsLive:  c.connsLive.Load(),
-		ConnErrors: c.connErrors.Load(),
-		DnsOK:      c.dnsOK.Load(),
-		DnsFail:    c.dnsFail.Load(),
-		Panics:     c.panics.Load(),
-		StartedAt:  c.startedAt,
+		BytesDown:        c.bytesDown.Load(),
+		BytesUp:          c.bytesUp.Load(),
+		ConnsTotal:       c.connsTotal.Load(),
+		ConnsLive:        c.connsLive.Load(),
+		ConnErrors:       c.connErrors.Load(),
+		DnsOK:            c.dnsOK.Load(),
+		DnsFail:          c.dnsFail.Load(),
+		Panics:           c.panics.Load(),
+		PlainFirstByteTo: c.plainFirstByteTimeouts.Load(),
+		DialNear:         c.dialNear.Load(),
+		DialFar:          c.dialFar.Load(),
+		FirstByteSlow:    c.firstByteSlow.Load(),
+		StartedAt:        c.startedAt,
 	}
 }
 

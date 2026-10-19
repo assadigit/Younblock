@@ -128,6 +128,9 @@ export interface Backend {
   autoFix(): Promise<AutoFixResult>;
   restoreWindowsProxy(): Promise<ApiResult>;
   getDiagnosticReport(): Promise<DiagnosticReport>;
+  /** debug.18 (M8-z): stamp the report's timeline ("I pressed play" /
+   *  "First frame"). Fire-and-forget on the UI side. */
+  mark(label: string): Promise<ApiResult>;
   openLogsFolder(): Promise<LogsFolder>;
   quit(): Promise<ApiResult>;
 

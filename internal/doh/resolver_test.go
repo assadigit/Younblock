@@ -30,6 +30,13 @@ type fakeDoH struct {
 }
 
 func newFakeDoH(t *testing.T, answer func(name string) ([]net.IP, uint32)) *fakeDoH {
+	return newFakeDoHCustom(t, answer, nil)
+}
+
+// newFakeDoHCustom builds the fake with an optional hook over the
+// UNSTARTED server (runs before StartTLS — the only point where
+// srv.TLS customizers like GetConfigForClient can be installed).
+func newFakeDoHCustom(t *testing.T, answer func(name string) ([]net.IP, uint32), mutate func(*httptest.Server)) *fakeDoH {
 	t.Helper()
 	f := &fakeDoH{answer: answer}
 	mux := http.NewServeMux()
@@ -106,7 +113,17 @@ func newFakeDoH(t *testing.T, answer func(name string) ([]net.IP, uint32)) *fake
 		w.Header().Set("content-type", "application/dns-message")
 		w.Write(msg)
 	})
-	f.srv = httptest.NewTLSServer(mux)
+	// M8-z (ADR-0025): the resolver now speaks HTTP/2 ONLY (the one
+	// shared connection is the point of the change), so the fake server
+	// must negotiate h2 — httptest only does that with EnableHTTP2 set
+	// before StartTLS.
+	srv := httptest.NewUnstartedServer(mux)
+	srv.EnableHTTP2 = true
+	if mutate != nil {
+		mutate(srv)
+	}
+	srv.StartTLS()
+	f.srv = srv
 	t.Cleanup(f.srv.Close)
 	return f
 }

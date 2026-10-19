@@ -7,13 +7,16 @@ package proxy
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -120,6 +123,30 @@ type Config struct {
 	IdleTimeout    time.Duration
 	MaxHeaderBytes int64
 
+	// FragmentAllRouted (M8-z, ADR-0024 work item A): fragment the
+	// first TLS record of EVERY non-direct-TLD host (class=plain
+	// included), not just the routed domain list. The budgeted shape —
+	// first-byte budget, salvage, race, dead-IP penalty, tiered stall
+	// kill — stays scoped to budgetedHost (the YouTube-list hosts)
+	// exactly as before: fragmentation for everything, the expensive
+	// machinery only where it pays. The engine wires the settings field
+	// (false on desktop — byte-for-byte old behavior; true on Android,
+	// LoadFor's platform default).
+	FragmentAllRouted bool
+	// PlainFirstByteTimeout bounds a NOT-budgeted TLS flow's origin
+	// silence after the first record went upstream (M8-z, ADR-0024
+	// work item B): a TLS server always answers a ClientHello quickly,
+	// so silence past this budget closes both sides and counts
+	// (plainFirstByteTimeouts) instead of hanging until the app's
+	// ~60 s patience — the unseen blocker cohort of the debug.16
+	// evidence. Non-TLS flows and flows that already delivered a byte
+	// keep the plain idle semantics. Zero → the config default;
+	// negative → disabled (the exact pre-M8-z plain shape).
+	PlainFirstByteTimeout time.Duration
+	// Hosts is the per-host flow table behind the report's Top-10
+	// section (M8-z, ADR-0027 §8.3.1); nil = collect nothing.
+	Hosts *stats.HostTable
+
 	Resolver           Resolver
 	Dialer             *netx.Dialer
 	DialTimeoutOverall time.Duration
@@ -199,6 +226,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.DeadIPPenalty == 0 {
 		cfg.DeadIPPenalty = config.DeadIPPenalty
+	}
+	if cfg.PlainFirstByteTimeout == 0 {
+		cfg.PlainFirstByteTimeout = config.PlainFirstByteTimeout
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = config.IdleTimeout
@@ -325,12 +355,60 @@ func (s *Server) pacData() (config.Mode, []string) {
 // never-processed TLDs, which win over every mode AND over the user's
 // domain list — every host under .ir relays untouched, whatever the
 // settings say (D83).
+//
+// M8-z (ADR-0024) splits the single decision into two: routedHost is
+// now exactly budgetedHost — the flows that run the first-byte budget,
+// salvage, race, dead-IP penalty and tiered stall kill. See
+// fragmentHost for the fragmentation decision.
 func (s *Server) routedHost(host string) bool {
 	if config.UnderDirectTLD(host) {
 		return false
 	}
 	mode, domains := s.pacData()
 	return mode == config.ModeAll || MatchAnyDomain(host, domains)
+}
+
+// budgetedHost reports whether host's flows run the budgeted shape
+// (M8-z, ADR-0024): exactly yesterday's routedHost result — the
+// YouTube-list (or mode=all) hosts, never the direct TLDs. The
+// first-byte budget, the salvage/race machinery, the dead-IP penalty
+// box and the tiered stall watch stay scoped to these hosts and to
+// these hosts ONLY, whatever FragmentAllRouted says: fragmentation
+// for everything is cheap and safe; the expensive machinery is not.
+func (s *Server) budgetedHost(host string) bool {
+	return s.routedHost(host)
+}
+
+// fragmentHost reports whether host's first TLS record is fragmented
+// (M8-z, ADR-0024 work item A): not under a direct TLD (D83) AND
+// (FragmentAllRouted OR the routed domain list match). With
+// FragmentAllRouted on (Android's default) every routed app's TLS
+// ClientHello rides fragmented — the ad, attestation and Google-API
+// hosts the YouTube app needs at first play are exactly the cohort
+// the debug.16 report could not see, and SNI inspection kills them
+// un-fragmented. With it off, yesterday's rule byte for byte: the
+// list hosts only.
+func (s *Server) fragmentHost(host string) bool {
+	if config.UnderDirectTLD(host) {
+		return false
+	}
+	if s.cfg.FragmentAllRouted {
+		return true
+	}
+	mode, domains := s.pacData()
+	return mode == config.ModeAll || MatchAnyDomain(host, domains)
+}
+
+// classFor is the tunnel-line class tag (M8-z, ADR-0027 §8.2):
+// "routed" for a budgeted (YouTube-list) host, "plain" for everything
+// else — including the plain-but-fragmented flows FragmentAllRouted
+// creates. The tag rides in the MESSAGE text (the report's log ring
+// drops attrs) so every up/first-byte/done/stall line carries it.
+func (s *Server) classFor(host string) string {
+	if s.budgetedHost(host) {
+		return "routed"
+	}
+	return "plain"
 }
 
 // fragmentData returns the current preset and config.
@@ -510,7 +588,7 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		s.countConnError()
 		return
 	}
-	s.logTunnelUp(host, dnsMS, dialMS)
+	s.logTunnelUp(host, s.classFor(host), dnsMS, dialMS)
 
 	if err := writeFull(client, []byte(statusConnectEstablished), s.cfg.RequestTimeout); err != nil {
 		s.countConnError()
@@ -518,14 +596,18 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		return
 	}
 
-	// Only the routed hosts are fragmented; everything else relays
-	// untouched (the manual system proxy sends every host here — D46),
-	// and the never-processed TLDs stay untouched in every mode, even
-	// when the user's own list names them (.ir — D83).
-	fragmentTLS := s.routedHost(host)
+	// The two decisions (M8-z, ADR-0024): fragmentHost fragments the
+	// first TLS record (FragmentAllRouted extends it to every
+	// non-direct-TLD host — the manual system proxy sends every host
+	// here, D46 — while the never-processed TLDs stay untouched in
+	// every mode, even when the user's own list names them (.ir —
+	// D83)); budgetedHost gates the expensive machinery (exactly the
+	// old routedHost result: the list hosts only).
+	fragmentTLS := s.fragmentHost(host)
+	budgeted := s.budgetedHost(host)
 
 	clientSide := &bufferedConn{Conn: client, prefix: drainBuffered(br)}
-	s.runBidirectionalCopy(clientSide, upstream, host, port, fragmentTLS)
+	s.runBidirectionalCopy(clientSide, upstream, host, port, fragmentTLS, budgeted)
 }
 
 // forwardRequest relays one plain-http request to its origin server like a
@@ -703,6 +785,62 @@ func (s *Server) liveIPs(ips []net.IP) []net.IP {
 		return ips
 	}
 	return out
+}
+
+// PenalizedIPs returns up to n origin IPs currently in the dead-IP
+// penalty box (M8-z, ADR-0027 §8.3.5: the report's one-shot
+// dead-origin probe asks these whether the block is by SNI or by IP —
+// the IPs themselves never reach the report, only the verdicts).
+func (s *Server) PenalizedIPs(n int) []string {
+	if n <= 0 {
+		return nil
+	}
+	now := time.Now()
+	s.deadMu.Lock()
+	defer s.deadMu.Unlock()
+	var out []string
+	for _, ip := range s.deadOrder {
+		if until, ok := s.dead[ip]; ok && until.After(now) {
+			out = append(out, ip)
+			if len(out) >= n {
+				break
+			}
+		}
+	}
+	return out
+}
+
+// ProbeDeadOrigin answers whether one origin IP speaks to a plain
+// ClientHello (M8-z, ADR-0027 §8.3.5): "answered" (the origin — and
+// therefore the path — is alive; the block, if any, is by SNI or
+// deeper), "silent" (blackholed by IP), or "reset" (actively refused).
+// The hello is dialed through the engine's one netx dialer (ADR-0011
+// loop safety: the protect hook applies). sni is the ServerName to
+// send ("" sends none — Go omits the extension for an empty name).
+func (s *Server) ProbeDeadOrigin(ctx context.Context, ip net.IP, sni string) string {
+	conn, err := s.cfg.Dialer.DialHost(ctx, "tcp", ip.String(), 443, []net.IP{ip})
+	if err != nil {
+		return "silent" // not even a TCP answer: the IP's path is dead
+	}
+	defer conn.Close()
+	// The handshake budget is the ctx (the engine gives each probe 2 s);
+	// verification is irrelevant here — only whether bytes come back.
+	tlsCfg := &tls.Config{ServerName: sni, InsecureSkipVerify: true}
+	tc := tls.Client(conn, tlsCfg)
+	err = tc.HandshakeContext(ctx)
+	if err == nil {
+		return "answered"
+	}
+	if isTimeout(err) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+		return "silent"
+	}
+	if strings.Contains(err.Error(), "connection reset") {
+		return "reset"
+	}
+	// Any other handshake failure (certificate verification, alert
+	// after the ServerHello, EOF mid-flight) means the origin SPOKE —
+	// bytes came back within the budget.
+	return "answered"
 }
 
 // register tracks a live tunnel so Stop can force-close it.

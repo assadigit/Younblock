@@ -1,6 +1,12 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-y (2026-10-19, evening — Ali's EIGHTH
+**Status:** updated at M8-z (2026-10-19, night — the debug.18 round,
+the cold-start fix per docs/specs/debug18-cold-start.md: fragment
+EVERY routed app's TLS on Android + the plain-relay 8 s safety net
+(ADR-0024), the one-warm-connection hedged DoH (ADR-0025), the
+measurable QUIC fallback (ADR-0026), and the diagnostics surface that
+can PROVE it all (ADR-0027). Earlier at M8-y (2026-10-19, evening —
+Ali's EIGHTH
 pasted report round; the FIRST from the right build: the shell line
 reads versionCode 15 = the debug.16 build, both of its signatures
 present — the raced line and the tier= stall line — and Ali's own
@@ -14,8 +20,77 @@ fresh per-video hostnames) and the dead-origin re-gamble (~17
 timeout terminals at 2892–4304 ms plus ~8 resets through the raced
 round, the second video's start paying the full discovery cost
 again).
-**v1.6.6-android-debug.17 (versionCode 16) is the CURRENT build**
-carrying ADR-0023, the NEGATIVE RE-ASK + the ORIGIN-IP PENALTY BOX:
+**v1.6.6-android-debug.18 (versionCode 17) is the CURRENT build** —
+the cold-start round. What changed, in plain words:
+
+- **Every routed app's TLS is now fragmented on Android** (a new
+  "fragment all routed" behavior, ON by default on Android only —
+  desktops unchanged). Before, only the 7 YouTube domains got the
+  fragmentation that beats SNI inspection; every OTHER host the
+  YouTube app needs at first play (ads, attestation, Google APIs)
+  crossed un-fragmented and, when blocked, hung silently until the
+  app gave up after about a minute — the suspected cause of the
+  1–2 minute first video. The heavy machinery (budgets, re-dials,
+  races, the dead-IP box) stays scoped to the YouTube-list hosts
+  exactly as before; everything else gets fragmentation plus ONE new
+  safety net: **if a TLS host never answers the hello within 8
+  seconds, the flow is closed and counted** instead of hanging. A
+  ".ir" host is never touched, as always.
+- **DoH shares ONE warm connection and hedges its servers**: the
+  resolver now speaks HTTP/2 over a single connection it opens at
+  Start and keeps alive with pings (a burst of fresh video hostnames
+  used to open one new fragmented TLS handshake EACH — the slow cold
+  lookups), and when a server is slow the next one is asked after
+  300 ms instead of after a full 3 s timeout. Two no-SNI IP-endpoint
+  servers (1.1.1.1, 8.8.8.8 by IP) join the end of the list as last
+  resorts — a ClientHello with no name in it is very hard to match.
+  The video-cache hostnames it learns are pre-resolved every 5
+  minutes so the next video's fresh hostname often hits a warm cache.
+- **The QUIC fallback is measurable**: every UDP/443 drop is logged,
+  and the NEXT TCP flow to the same host logs how long the fallback
+  took; the IPv6 discards are counted.
+- **The report can prove all of it**: every tunnel line now says
+  class=routed or class=plain; a "Top 10 slowest or failed hosts"
+  section names the culprits (this DEBUG build includes host names —
+  the report's first line says so); per-DNS-failure lines say WHICH
+  server and WHICH phase (TCP, TLS or HTTP) failed; a one-shot probe
+  tests whether blocked origins answer a different name; and the
+  diagnostics screen has two new buttons, **"I pressed play"** and
+  **"First frame"**, which stamp the log — the report then measures
+  exactly that window.
+
+**The debug.18 artifact** (built this round, verified before packing):
+`v1.6.6-debug18.apk`, versionCode 17 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
+certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
+over every earlier debug build, D85), APK 55,059,385 B, SHA-256
+`9bb9707613bac71aa8680c2a3b545c2579145851884d9f321005028f92d4ecd5`.
+The gomobile bind ran with the debug-tester ldflags
+(`-X …/internal/config.DebugTesterBuild=true`) and the M8-z
+signatures were verified present in libgojni.so in ALL THREE ABIs
+before gradle (the house ritual): the DEBUG BUILD notice line, the
+plain kill line, the udp443 fallback line, the MARK line, the warm
+line, hedgeWins, and the dead-origin probe.
+
+**Tester checklist for debug.18 (the 5 steps):**
+
+1. Install debug.18 and open the app. Turn it **On**.
+2. Fully close the YouTube app, then open it fresh.
+3. Tap **"I pressed play"** in the Younblock diagnostics screen, then
+   play a **new** video in YouTube.
+4. When the first frame appears, tap **"First frame"**.
+5. Play two more new videos (do not tap the buttons), then open
+   **Diagnostics** and send the whole report.
+
+What to look for: the time between your two taps (the report prints
+it — the target is under 5 s, ideally 1–3 s); the Top-10 list should
+no longer show class=plain hosts hanging for tens of seconds (they
+either work now or die at 8 s and get counted); the dns failure rate
+should be far below the old 26%; and the dns lines now say which
+phase failed.
+
+Earlier at M8-y: **v1.6.6-android-debug.17 (versionCode 16)** carried
+ADR-0023, the NEGATIVE RE-ASK + the ORIGIN-IP PENALTY BOX:
 a DNS_UNREACHABLE negative-cache hit re-asks the servers (through
 the singleflight, rate-limited to one walk per second per host —
 the window starts at the failure's own walk) instead of locking a

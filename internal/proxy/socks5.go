@@ -236,16 +236,21 @@ func (s *Server) serveSocks5(conn net.Conn) {
 		s.countConnError()
 		return
 	}
-	s.logTunnelUp(host, dnsMS, dialMS)
+	s.logTunnelUp(host, s.classFor(host), dnsMS, dialMS)
 
 	s.socks5ReplyAddr(conn, upstream.LocalAddr())
 
-	// The one routed-host decision, shared with the HTTP door: the
-	// mode/list rule minus the never-processed TLDs — a .ir host relays
-	// untouched whatever the mode or list says (D83).
-	fragmentTLS := s.routedHost(host)
+	// The two decisions, shared with the HTTP door (M8-z, ADR-0024):
+	// fragmentHost says whether the first TLS record is fragmented
+	// (FragmentAllRouted fragments every non-direct-TLD host; the
+	// never-processed TLDs — .ir, D83 — stay untouched whatever the
+	// mode, list, or setting says), and budgetedHost says whether the
+	// expensive machinery runs (exactly the old routedHost result: the
+	// YouTube-list hosts only).
+	fragmentTLS := s.fragmentHost(host)
+	budgeted := s.budgetedHost(host)
 	clientSide := &bufferedConn{Conn: conn, prefix: drainBuffered(br)}
-	s.runBidirectionalCopy(clientSide, upstream, host, port, fragmentTLS)
+	s.runBidirectionalCopy(clientSide, upstream, host, port, fragmentTLS, budgeted)
 }
 
 // socks5Greeting reads and answers the method negotiation. It sends the

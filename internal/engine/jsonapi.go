@@ -1,9 +1,12 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -191,6 +194,94 @@ func (e *Engine) GetDiagnosticReportJSON() string {
 	return marshalJSON(map[string]string{"report": e.GetDiagnosticReport()})
 }
 
+// MarkJSON stamps the diagnostics timeline (M8-z, ADR-0027 §8.3.6):
+// the facade's Mark(label) — the "I pressed play" / "First frame"
+// buttons. Any label is accepted (it rides the report and the log ring
+// verbatim, so the tester's own words land in the paste).
+func (e *Engine) MarkJSON(label string) string {
+	e.Mark(label)
+	return errResult("")
+}
+
+// deadOriginProbe runs the one-shot SNI-vs-IP probe (M8-z, ADR-0027
+// §8.3.5) when the engine is On and it has not run this run: for up to
+// two IPs in the dead-IP penalty box, one ClientHello with SNI
+// www.google.com and one with no SNI, each answered within 2 s or
+// classified silent/reset. The verdicts answer whether the block is by
+// SNI (alt name answers, real name silent) or by IP (both silent) —
+// the penalty box's own justification. Only while On (never on a
+// timer); at most once per run; the lines land in the log ring AND the
+// report section.
+func (e *Engine) deadOriginProbe() []string {
+	e.mu.Lock()
+	done := e.probeDone
+	phase := e.phase
+	srv := e.server
+	e.mu.Unlock()
+	if done {
+		if lines := e.probeLinesSnapshot(); len(lines) > 0 {
+			return lines
+		}
+		return []string{"dead-origin probe: already probed this run"}
+	}
+	if srv == nil || (phase != PhaseOn && phase != PhaseDegraded) {
+		return []string{"dead-origin probe: skipped (the engine is not on)"}
+	}
+	e.mu.Lock()
+	e.probeDone = true
+	e.mu.Unlock()
+	ips := srv.PenalizedIPs(2)
+	if len(ips) == 0 {
+		lines := []string{"dead-origin probe: no penalized origin IPs to probe"}
+		e.setProbeLines(lines)
+		return lines
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	type probeResult struct {
+		sni  string
+		kind string
+	}
+	results := make(chan probeResult, len(ips)*2)
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			continue
+		}
+		for _, sni := range []string{"www.google.com", ""} {
+			go func(ip net.IP, sni string) {
+				results <- probeResult{sni: sni, kind: srv.ProbeDeadOrigin(ctx, ip, sni)}
+			}(ip, sni)
+		}
+	}
+	var lines []string
+	for range len(ips) * 2 {
+		r := <-results
+		label := "sni=" + r.sni
+		if r.sni == "" {
+			label = "sni=none"
+		}
+		line := fmt.Sprintf("probe dead-origin %s result=%s", label, r.kind)
+		lines = append(lines, line)
+		e.logger.Info(line)
+	}
+	out := append([]string{"dead-origin probe (one-shot, " + strconv.Itoa(len(ips)) + " penalized IPs):"}, lines...)
+	e.setProbeLines(out)
+	return out
+}
+
+func (e *Engine) setProbeLines(lines []string) {
+	e.mu.Lock()
+	e.probeLines = lines
+	e.mu.Unlock()
+}
+
+func (e *Engine) probeLinesSnapshot() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.probeLines...)
+}
+
 // GetUsageJSON returns the round-3 Data-usage summary the menu renders.
 // A store that could not be opened answers a typed error — the sheet then
 // shows its honest "Could not read the usage history" line and the rest
@@ -221,14 +312,31 @@ func (e *Engine) ClearUsageJSON() string {
 // platform, settings summary (no custom lists), self-test status summary,
 // counters, the embedder's extra section when installed (M8-p), measured
 // sleep and the last 200 log lines.
+//
+// M8-z (ADR-0027 §8.3) adds the debug-build hostname notice, the new
+// counter lines, the Top-10 slowest-or-failed hosts (redacted unless
+// hostnames are logged), the plain-relay summary, the DoH detail
+// (dials/reuse/hedge wins + the recent per-server failures with their
+// phase), the one-shot dead-origin probe (only while On), and the
+// timeline marks the facade's Mark() stamped.
 func (e *Engine) GetDiagnosticReport() string {
 	var b strings.Builder
+	snapshot := e.settingsSnapshot()
+	hostnames := snapshot.Advanced.LogDomains
+	// §8.1: the debug TESTER build starts with hostnames on — the very
+	// FIRST line of the report says so, so the tester knows what they
+	// are pasting. A release build (or a build whose owner turned the
+	// setting off) never prints it and never prints a host name.
+	if config.IsDebugTesterBuild() && hostnames {
+		fmt.Fprintf(&b, "DEBUG BUILD: hostnames included for diagnosis\n")
+	}
 	fmt.Fprintf(&b, "%s %s diagnostic report\n", config.AppName, e.opts.Version)
 	fmt.Fprintf(&b, "platform: %s\n", e.platform.Name())
 	fmt.Fprintf(&b, "generated: %s\n", e.opts.Now().Format(time.RFC3339))
 	s := e.GetState()
 	fmt.Fprintf(&b, "state: %s (detail %q)\n", s.Phase, s.Detail)
-	fmt.Fprintf(&b, "mode: %s method: %s port: %d\n", s.Mode, s.Method, s.Port)
+	fmt.Fprintf(&b, "mode: %s method: %s port: %d fragmentAllRouted=%v\n",
+		s.Mode, s.Method, s.Port, snapshot.FragmentAllRouted)
 	if s.LatencyMs != nil {
 		fmt.Fprintf(&b, "response time: %d ms\n", *s.LatencyMs)
 	}
@@ -241,7 +349,75 @@ func (e *Engine) GetDiagnosticReport() string {
 		d.ConnsTotal, d.ConnsLive, d.ConnErrors, d.Panics)
 	fmt.Fprintf(&b, "counters: dns ok %d, fail %d, up %s, down %s\n",
 		d.DnsOK, d.DnsFail, config.FormatBytes(d.BytesUp), config.FormatBytes(d.BytesDown))
+	// §8.4: the new counters — the plain net's kills, the dial RTT
+	// classes, the slow first-bytes.
+	fmt.Fprintf(&b, "counters: plainFirstByteTimeouts %d, dialNear %d, dialFar %d, slowFirstBytes %d\n",
+		d.PlainFirstByteTo, d.DialNear, d.DialFar, d.FirstByteSlow)
+	// §8.3.3: the DoH transport's own counters (dials opened, reuse,
+	// hedge wins by server number) ride the header too.
+	dohd := e.resolver.Load().Diagnostic()
+	hedgeBy := make([]string, len(dohd.HedgeByServer))
+	for i, w := range dohd.HedgeByServer {
+		hedgeBy[i] = fmt.Sprintf("#%d:%d", i+1, w)
+	}
+	fmt.Fprintf(&b, "doh: dials %d, reuse %d, queries %d, hedgeWins %d",
+		dohd.Dials, dohd.Reuse, dohd.Queries, dohd.HedgeWins)
+	if len(hedgeBy) > 0 {
+		fmt.Fprintf(&b, " (%s)", strings.Join(hedgeBy, " "))
+	}
+	fmt.Fprintf(&b, "\n")
 	fmt.Fprintf(&b, "%s\n", e.lastSelfTestSummary())
+	// §8.3.1: Top 10 slowest or failed hosts — per host (count,
+	// failures, worst time to first byte, class); the host NAME rides
+	// only when hostnames are logged (R21: a release report renders the
+	// same rows redacted, the numbers stay comparable).
+	fmt.Fprintf(&b, "top 10 slowest or failed hosts:\n")
+	for _, row := range e.hostTable.TopSlowest(10) {
+		host := row.Host
+		if !hostnames {
+			host = "<redacted>"
+		}
+		fmt.Fprintf(&b, "  host=%s class=%s flows=%d failures=%d plainKills=%d worstFirstByte=%dms\n",
+			host, row.Class, row.Flows, row.Failures, row.PlainKills, row.WorstFirstByte)
+	}
+	// §8.3.2: the plain-relay summary.
+	plain := e.hostTable.Plain()
+	fmt.Fprintf(&b, "plain-relay: flows=%d firstByteTimeouts=%d worstFirstByte=%dms\n",
+		plain.Flows, d.PlainFirstByteTo, plain.WorstFirstMS)
+	// §8.3.3: the DNS detail — per recent failure, the server number,
+	// the phase that failed (tcp, tls, http, status, parse) and the
+	// latency.
+	if len(dohd.Failures) == 0 {
+		fmt.Fprintf(&b, "dns detail: no server failures recorded\n")
+	} else {
+		fmt.Fprintf(&b, "dns detail (last %d failures):\n", len(dohd.Failures))
+		for _, f := range dohd.Failures {
+			fmt.Fprintf(&b, "  server=#%d phase=%s reason=%s latency=%dms\n", f.Server, f.Phase, f.Reason, f.MS)
+		}
+	}
+	// §8.3.5: the one-shot dead-origin probe — up to 2 penalized IPs,
+	// a ClientHello with SNI www.google.com and one with no SNI, only
+	// while the app is On, never on a timer. The verdict lines also
+	// land in the log ring; the report section renders them once.
+	for _, line := range e.deadOriginProbe() {
+		fmt.Fprintf(&b, "%s\n", line)
+	}
+	// §8.3.6: the timeline marks — the elapsed time between the LAST
+	// PAIR plus the failed/slow flows inside that window.
+	marks := e.timelineMarks()
+	if len(marks) == 0 {
+		fmt.Fprintf(&b, "timeline: no marks (the \"I pressed play\" / \"First frame\" buttons stamp it)\n")
+	} else if len(marks) == 1 {
+		fmt.Fprintf(&b, "timeline: MARK %s (awaiting its pair)\n", marks[0].Label)
+	} else {
+		a, z := marks[len(marks)-2], marks[len(marks)-1]
+		var failed, kills, slow int64
+		if z.Window != nil {
+			failed, kills, slow = z.Window.connErrors, z.Window.plainKills, z.Window.slowFirstByte
+		}
+		fmt.Fprintf(&b, "timeline: MARK %s -> MARK %s elapsed=%dms failedFlows=%d plainKills=%d slowFirstBytes=%d\n",
+			a.Label, z.Label, z.At.Sub(a.At).Milliseconds(), failed, kills, slow)
+	}
 	// The embedder's section (M8-p, ADR-0015): snapshot under the lock,
 	// run OUTSIDE it — the hook is free to touch engine state (GetState
 	// below takes mu again, so holding it here would deadlock).

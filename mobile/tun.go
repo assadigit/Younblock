@@ -125,6 +125,9 @@ func (m *Engine) StartTun(fd int32, mtu int32) string {
 		// own ≤21 s budget).
 		HandshakeTimeout: config.TunHandshakeTimeout,
 		Logger:           m.eng.Logger(),
+		// M8-z (ADR-0027 §7): the udp443 fallback timeline names the
+		// host only under the logDomains setting (R21).
+		LogHostnames: m.eng.Settings().Advanced.LogDomains,
 	})
 	if err != nil {
 		return tunError("STACK")

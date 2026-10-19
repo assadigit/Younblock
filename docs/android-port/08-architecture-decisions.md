@@ -1252,6 +1252,287 @@ debug.16 build's report round — the FIRST report from the right build)
   penalty box's 60 s and the re-ask's 1 s are the next report's tuning
   material.
 
+## ADR-0024 — Fragment every routed app's TLS on Android
+(FragmentAllRouted, platform-defaulted through settings v5) and the
+plain-relay first-byte safety net: a not-budgeted TLS flow whose origin
+never answers the ClientHello closes at 8 s and is counted, never
+hanging to the app's patience (M8-z, the debug.18 build — work items A
+and B of docs/specs/debug18-cold-start.md)
+
+- **Status:** Accepted 2026-10-19 (M8-z — the debug.18 round; the spec
+  is the debug.16 report's H1: the first video's 1–2 minute start,
+  with the plain cohort — every host the YouTube app needs that is not
+  on the 7-domain routed list — un-fragmented and un-budgeted, hanging
+  silently until the app gives up at ~60 s).
+- **Context:** Only `defaultYouTubeDomains`' 7 domains were fragmented
+  and budgeted; every other host crossed `runBidirectionalCopy` →
+  `copyPlain` with no fragmentation, no first-byte budget, no stall
+  kill — only the 300 s idle timeout. A blocked ad/attestation host
+  therefore hung exactly as long as the app's own patience, and the
+  debug.16 report could not even SEE the cohort (no class tag, no
+  counter, no host row).
+- **Decision (two changes, one scope):**
+  1. **FragmentAllRouted (work item A).** A new settings field
+     (schema v5) fragments the first TLS record of EVERY non-direct-TLD
+     host when on. The single `routedHost` decision splits in two:
+     `fragmentHost` (not `.ir` AND (FragmentAllRouted OR the list
+     match)) and `budgetedHost` (exactly yesterday's `routedHost`).
+     The budgeted shape — first-byte budget, salvage, race, dead-IP
+     penalty box, tiered stall kill — stays scoped to `budgetedHost`
+     and to it ONLY: fragmentation for everything (cheap, safe), the
+     expensive machinery where it pays. Platform default through
+     `config.LoadFor(dir, platform)`: true on Android (every flow the
+     per-app TUN hands the door belongs to a routed app — the allow
+     list is the scope), false on every desktop (hard constraint 5:
+     desktop behavior byte-for-byte). A pre-v5 file migrates once on
+     Android (the absent field was the shipped default, never a
+     choice); a v5 file is the owner's word either way.
+  2. **The plain-relay safety net (work item B).** A not-budgeted TLS
+     flow arms ONE deadline: the origin's first byte must arrive
+     within `PlainFirstByteTimeout` (8 s) of the ClientHello going
+     upstream, or both sides close and `plainFirstByteTimeouts`
+     counts it — a TLS server always answers a ClientHello quickly,
+     silence means dead. No dead-IP mark (the plain cohort never feeds
+     the penalty box — the spec's rule), no connError (its own
+     counter), non-TLS flows and post-first-byte silence keep the
+     plain idle semantics. The guard is a read-side wrapper
+     (`plainGuardConn`) that disarms on the first byte — and it
+     FORWARDS CloseWrite: an embedded-interface method set hides the
+     *net.TCPConn half-close the relay's closeWrite depends on, a
+     defect the soak test caught the same day (every guarded flow hung
+     to the idle timeout with the half-close lost; the fix is
+     explicit in the type).
+- **Evidence:** internal/proxy/fragmentall_test.go (new, five tests)
+  and internal/proxy/plainnet_test.go (new, four tests), verified BOTH
+  WAYS: with `fragmentHost` neutered to the M8-y shape,
+  `TestFragmentAllRoutedFragmentsNonListedHost` FAILS (the record
+  arrives in one read — the blocker's exact shape); with the guard's
+  arming stashed, `TestPlainFirstByteTimeoutClosesSilentTLSOrigin`
+  FAILS (the read hangs past the budget on the CLIENT deadline — the
+  on-device hang reproduced in test) while the guards
+  (answered-within-budget untouched, non-TLS keeps idle semantics,
+  disabled knob pins the pre-M8-z shape) pass on both sides. Config:
+  internal/config/settings_v5_test.go (new, five tests) with the
+  migration stashed BOTH WAYS. Full suite green.
+- **What this ADR does NOT decide:** the budgeted machinery's tuning
+  (budgets, tiers, the penalty box) is untouched — ADR-0018 through
+  ADR-0023 own it and their pins stand. `.ir` stays never-processed
+  (D83) in BOTH fragmentHost branches, pinned by test. The desktop
+  default stays off, pinned by test. FragmentAllRouted does not widen
+  http→https redirects or PAC routing — those still follow
+  `routedHost` (the redirect decision is unchanged).
+- **How the next report verifies it:** the Top-10 hosts section's
+  class=plain rows flip from silent hangs to either fast successes
+  (fragmentation fixed them) or counted `plainFirstByteTimeouts` kills
+  with the `tunnel plain first-byte failed class=plain` line — the
+  cohort becomes visible, and the MARK timeline's elapsed time is the
+  number that says whether the minute went away.
+
+## ADR-0025 — DoH over one warm shared HTTP/2 connection with a hedged
+server walk: http2.Transport + DialTLSContext over the fragmented
+bootstrap dial, ReadIdleTimeout/PingTimeout health checks, WarmProbe at
+engine start (re-warm within 1 s of a connection-shaped failure), the
+sticky server asked at t=0 and the next at +300 ms (fast failures
+trigger the next immediately), the two IP-literal no-SNI endpoints
+appended to the default list, and the learned googlevideo sn-<code>
+pre-resolution every 5 minutes (M8-z, work item C)
+
+- **Status:** Accepted 2026-10-19 (M8-z; the spec's H2 — the DoH blips:
+  cold lookups at 1055–1806 ms, one fresh fragmented TLS handshake per
+  concurrent first query, serial 3 s-per-server walks).
+- **Context:** `http.Transport` with `MaxIdleConnsPerHost: 2` raced a
+  burst of fresh per-video names into separate handshakes, had no
+  keep-alive pings, and `askServers` walked servers SERIALLY — a
+  silent first server cost its whole 3 s timeout before the next was
+  even asked, at the worst moment (the first video's start).
+- **Decision:**
+  1. **One shared connection.** `golang.org/x/net/http2.Transport`
+     with a custom `DialTLSContext`: the TCP leg is the old
+     `dialBootstrap` verbatim (bootstrap IPs, netx, the protect hook —
+     ADR-0011 — and the fragment.Conn wrapper, so the DoH ClientHello
+     stays fragmented), then this function owns the TLS handshake
+     with ALPN h2 and ServerName from the server URL's host (Go omits
+     SNI for IP literals — which the two new endpoints RELY on).
+     http2 multiplexes every query over one connection per server
+     address: a burst costs ONE handshake, by construction.
+     ReadIdleTimeout 15 s / PingTimeout 5 s keep the connection
+     health-checked while it lives.
+  2. **Warm and re-warm.** `WarmProbe` opens the connection at engine
+     start (goOn and goDegraded — degraded still serves traffic) and
+     on the 5-minute prewarm cadence; a connection-phase failure
+     schedules a background re-warm within 1 s, debounced to one per
+     5 s (the hedge and the next query's own dial also cover the gap —
+     the re-warm keeps the connection warm for the NEXT flow).
+  3. **The hedged walk.** The sticky server at t=0, the next at
+     +DoHHedgeDelay (300 ms), the third at +600 ms, and so on; a
+     server that FAILS FAST triggers the next launch immediately; the
+     first VALID answer wins and cancels the rest. The per-server 3 s
+     timeout, the sticky update, the singleflight, the cache shapes,
+     serve-stale, the negative cache, the M8-y negative re-ask and the
+     two log lines stand unchanged (the failure line gains `phase=`).
+     A hedge WIN is counted only when the winner was launched while an
+     earlier server was still pending — the serial fallback after a
+     settled failure is not one (pinned by test).
+  4. **The IP-literal endpoints.** Cloudflare `https://1.1.1.1/…` and
+     Google `https://8.8.8.8/…` appended at the END of the default
+     list: dialed by IP, ClientHello with no SNI (nothing for SNI
+     inspection to match), certificates carrying IP SANs. They are the
+     walk's last resorts.
+  5. **The googlevideo pre-resolution.** A resolved
+     `rr<N>---sn-<code>.googlevideo.com` (or `r<N>---…`) remembers the
+     `sn-<code>` (cap 64, FIFO); at start and every 5 minutes the
+     engine resolves `rr1..rr5` of each remembered code in the
+     background (≤3 in flight), so the next fresh per-video hostname
+     often lands on a warm cache entry. The codes persist to
+     `googlevideo-codes.txt` in the app's private config directory:
+     checked against DECISIONS.md's privacy rules — R21 governs LOGS
+     and the report (hostnames off by default), and the D-entries
+     govern disclosures; the app's own private state already carries
+     settings.json and the usage store, and an sn-<code> is an
+     infrastructure node identifier (one code serves every rr variant
+     of a location), not a browsing-history entry. The file is
+     0600, capped, and never leaves the device; the report renders
+     only its COUNT, never the codes.
+  6. **Failure phases.** Dial failures carry `phase=tcp`, handshake
+     failures `phase=tls` (path interference), status/content/parse
+     failures `phase=status|http|parse` (server problem) — the failure
+     line and the report's DNS detail section both carry it.
+- **Evidence:** internal/doh/http2_test.go (new, seven tests),
+  verified BOTH WAYS: with the transport stashed to the per-request
+  `http.Transport` (the M8-y shape), `TestBurstSharesOneConnection`
+  FAILS (10 dials for 10 concurrent names — the measured defect
+  reproduced); with the hedge clock stashed,
+  `TestHedgeSecondServerWinsWhenFirstStalls` FAILS (the answer costs
+  the first server's full timeout, the serial shape).
+  `TestSerialWalkWhenHedgingDisabled` pins the negative knob's exact
+  serial shape on both sides. The existing doh suite (reask, cache,
+  fallback, singleflight, bootstrap failover) passes unchanged — the
+  fake servers now negotiate h2 (httptest EnableHTTP2), the one
+  necessary harness change. Race-detector run on internal/doh: clean.
+- **What this ADR does NOT decide:** the servers' ORDER beyond the two
+  appended endpoints (the sticky logic owns runtime order); no DoH
+  query is ever sent over plaintext (D74 stands); the prewarm loop's
+  cadence (5 min) and width (rr1..rr5) are the next report's tuning
+  material.
+- **How the next report verifies it:** `doh: dials N, reuse M,
+  hedgeWins K` — a cold start with a burst of fresh names shows
+  dials≈1; remaining failures carry `phase=` (tls = path
+  interference, status/parse = server); the prewarm's effect shows as
+  the first video's `tunnel up dns=` dropping to the warm ~130 ms.
+
+## ADR-0026 — UDP/443: the ICMP port-unreachable stays gVisor's (the
+M8-j guard), and the QUIC fallback becomes measurable: the drop is
+logged, the next TCP flow to the same host logs the elapsed time, and
+the v6 discards are counted (M8-z, work item D)
+
+- **Status:** Accepted 2026-10-19 (M8-z; the spec's H3 — "do not rely
+  on gVisor" was a QUESTION, and the answer is: verify, then rely only
+  on what is pinned).
+- **Context:** `handleUDP` returns false for non-DNS ports and relied
+  on gVisor to send the ICMP port-unreachable that breaks QUIC fast;
+  whether it actually did for these spoofed/promiscuous flows was
+  never proven, and the fallback's COST (drop → next TCP flow) was
+  never measured.
+- **Decision:**
+  1. **The ICMP reply stays gVisor's.** The spec's own §7.1 step —
+     "first write a host test that sends a UDP datagram to a non-DNS
+     port through the stack and records whether an ICMP
+     port-unreachable comes back" — already exists as
+     `TestUDP443FastFailICMP` (the M8-j guard, green since debug.8):
+     gVisor DOES send type 3/code 3 quoting the refused datagram for
+     these flows. Per the spec's own rule ("if gVisor already sends
+     it, keep the code and keep the test as a guard") no explicit ICMP
+     writer was added; the guard is the proof.
+  2. **The timeline.** A UDP/443 drop logs `udp443 dropped` (no
+     names) and remembers the destination; the NEXT TCP flow to the
+     same host logs `udp443 fallback elapsed=<ms>` (host only under
+     LogHostnames — R21) — the QUIC fallback's cost, measured on the
+     report. The memory is one-shot per destination, bounded at 128.
+  3. **v6Dropped.** The wire pump's IPv6 discards (ADR-0010's
+     fail-safe) are counted and ride the facade's tun line — the
+     policy made visible instead of silent.
+- **Evidence:** internal/tunstack/udp443_test.go (new, four tests),
+  verified BOTH WAYS (the drop log, the fallback gate and the v6
+  counter stashed → the timeline and v6 tests FAIL; restored → green).
+  The untouched `TestUDP443FastFailICMP` and `TestUDPNon53Dropped`
+  pins stand. `TestV6DropsDoNotDisturbTheIPv4Path` guards that the
+  counting does not perturb the v4 pump.
+- **What this ADR does NOT decide:** no QUIC relay (ADR-0009 stands —
+  UDP is dropped, TCP is the path); IPv6 stays disabled (ADR-0010).
+- **How the next report verifies it:** the `udp443 dropped` /
+  `udp443 fallback elapsed=` pair brackets every QUIC attempt, and
+  `v6Dropped` names any v6 leakage the phone's apps attempt.
+
+## ADR-0027 — The debug.18 diagnostics surface: class= on every tunnel
+line, the debug-tester hostname default (visible notice, release
+hostnames stay off), the Top-10 slowest-or-failed hosts, the
+plain-relay summary, the DNS detail with phases, the dial RTT classes,
+the one-shot dead-origin SNI probe, and the timeline marks ("I pressed
+play" / "First frame") (M8-z, work item E)
+
+- **Status:** Accepted 2026-10-19 (M8-z; the spec's own words: "make
+  the next diagnostics report able to prove why").
+- **Context:** the debug.16 report could name the routed cohort's
+  timings but not the plain cohort's existence, not the DoH failure
+  phase, not the dial-vs-first-byte split's distribution, not the
+  QUIC fallback's cost, and not the wall-clock time from pressing
+  play to the first frame.
+- **Decision:**
+  1. **class= on the message text** (the ring drops attrs — the
+     M8-r lesson, applied to the class): every `tunnel up`,
+     `first-byte`, `first-byte failed`, `retry`, `salvaged`, `raced`,
+     `done`, `stall killed` and the new plain kill line carries
+     `class=routed|plain`; `tunnel up` also carries
+     `rtt-class=near|far` (dial under/over 200 ms) and the near/far
+     counters.
+  2. **The debug-tester hostname default.** ONLY a DebugTesterBuild
+     (the `-ldflags -X` lane in build-android.sh; the default here is
+     the RELEASE value, false) turns LogHostnames on for Android's
+     shipped state, and the report's very first line says so:
+     `DEBUG BUILD: hostnames included for diagnosis`. A release build
+     never prints it and never prints a host name (R21) — pinned by
+     test both ways; an owner's saved logDomains survives verbatim in
+     every build.
+  3. **The new report sections:** Top 10 slowest or failed hosts (per
+     host: flows, failures, plainKills, worstFirstByte, class — from a
+     bounded in-memory table, host names redacted to `<redacted>`
+     unless hostnames are logged); the plain-relay summary; the DNS
+     detail (per recent failure: server number, phase, reason,
+     latency; plus the DoH dials/reuse/hedgeWins-by-server counters);
+     the one-shot dead-origin probe (up to 2 penalized IPs × a
+     ClientHello with SNI www.google.com and one with NO SNI, only
+     while On, never on a timer — `probe dead-origin sni=alt|none
+     result=answered|silent|reset`, no IPs in the report); and the
+     timeline marks (the facade's Mark(label) — the Android
+     diagnostics screen's two buttons — with the last pair's elapsed
+     time and the window's failed/plainKills/slowFirstByte deltas).
+  4. **The counters line:** plainFirstByteTimeouts, dialNear,
+     dialFar, slowFirstBytes ride the header; v6Dropped rides the
+     facade's tun line (the engine cannot see the stack's own
+     discards); doh: dials/reuse/queries/hedgeWins.
+  5. **The buttons.** The Svelte Diagnostics screen gains "I pressed
+     play" and "First frame" — POST /api/mark on the webui (the
+     Android WebView's transport), the Wails binding on desktop, the
+     gomobile `Mark(label)` for the shell. Marks reset with the ring
+     on Stop (R21 hygiene).
+- **Evidence:** internal/engine/report_sections_test.go (new, four
+  tests — every section rendered, the debug notice's both-ways
+  presence/absence, the window's exact counts, the Stop reset),
+  verified both ways (the Top-10 and timeline renders stashed → the
+  section assertions FAIL). The privacy pins
+  (`TestEngineDiagnosticReportRedacted`) stand — the new sections
+  carry no host names or IPs in a release-shaped report.
+  flowtiming_test.go's line-parse assertions updated for the class tag
+  (the format change is the point).
+- **What this ADR does NOT decide:** the report stays plain text, one
+  surface, no remote upload (R20/R21); hostnames never persist (the
+  host table is memory-only, cleared with the process).
+- **How the next report verifies it:** the tester checklist's five
+  steps produce exactly the evidence the spec's §12 asks to read:
+  the MARK pair's elapsed time (the single number that says whether
+  the work succeeded), the class=plain rows in the Top-10, the DNS
+  phase column, and the probe's SNI-vs-IP verdict.
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

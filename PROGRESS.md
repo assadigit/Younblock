@@ -3577,3 +3577,129 @@ installed); the re-ask lines count the lockouts absorbed, the dns
 fail counter should collapse from 50, the baked reasons name the
 failing DoH leg, and the terminal cohort (was 17+8) is the penalty
 box's tuning material.
+
+## M8-z — the cold-start round (ADR-0024/0025/0026/0027, debug.18, versionCode 17)
+
+Date: 2026-10-19 (Asia/Tehran), night. Input: Ali's spec
+`docs/specs/debug18-cold-start.md` (saved into the repo as instructed)
+— the debug.16 evidence named the plain cohort (only 7 domains
+fragmented; every other host plain-relayed with NO timeout but the
+300 s idle), the DoH burst shape (one handshake per concurrent fresh
+name, serial 3 s server walks), and the unmeasured QUIC fallback.
+
+What was done, in the spec's §9 order (A, B, E, C, D):
+
+- **A (ADR-0024)**: settings schema v5 + `fragmentAllRouted`
+  (platform-default through `config.LoadFor(dir, platform)`: true on
+  Android, false on desktop; a pre-v5 file migrates once on Android,
+  a v5 file is the owner's word). `Server.fragmentHost` /
+  `Server.budgetedHost` split; both doors pass fragment+budgeted into
+  `runBidirectionalCopy`; the budgeted gate is `budgetedHost &&
+  FirstByteTimeout > 0`. fragmentall_test.go (5 tests) +
+  settings_v5_test.go (5 tests), both ways (fragmentHost neutered →
+  the fragmentation test FAILS with one read).
+- **B**: `plainGuardConn` — a read-side wrapper arming
+  PlainFirstByteTimeout=8 s until the origin's first byte, closing
+  both sides + counting + the `tunnel plain first-byte failed
+  class=plain reason=timeout` line on timeout; no dead-IP mark, no
+  connError. plainnet_test.go (4 tests), both ways. **The soak test
+  caught a real defect the same day: the guard's embedded-interface
+  method set hid CloseWrite — the client half-close was lost and
+  every guarded flow hung to the idle timeout. Fixed by forwarding
+  CloseWrite explicitly (the ADR documents it).**
+- **E (ADR-0027)**: class= + rtt-class= on every tunnel line;
+  stats.HostTable (cap 256, least-recent eviction, memory-only) +
+  Top-10 report section (host names redacted unless logDomains);
+  plain-relay summary; DNS detail with phases (phaseError: tcp/tls
+  from the dial, status/http/parse from queryOne); DoH counters
+  (dials/reuse/hedgeWins by server); the one-shot dead-origin probe
+  (proxy.PenalizedIPs + ProbeDeadOrigin, while On only, no IPs in
+  the report); `Engine.Mark(label)` + MarkJSON + gomobile Mark +
+  POST /api/mark (webui) + the Wails binding + the Diagnostics
+  screen's "I pressed play"/"First frame" buttons + the timeline
+  section with the last pair's elapsed and window deltas;
+  `DEBUG BUILD: hostnames included for diagnosis` as the report's
+  first line when config.DebugTesterBuild && hostnames (the debug
+  lane sets the flag via -ldflags in build-android.sh; the code
+  default is the release value, false); marks/probe reset on Stop.
+  report_sections_test.go (4 tests), both ways.
+- **C (ADR-0025)**: `http2.Transport` with `DialTLSContext`
+  (dialServer = the old dialBootstrap TCP+fragment leg; the TLS
+  handshake here: ServerName from the server URL's host, ALPN h2,
+  cfg.TLS as the test seam); ReadIdleTimeout 15 s / PingTimeout 5 s;
+  hedged `askServers` (sticky at t=0, next at +DoHHedgeDelay=300 ms,
+  fast failures trigger the next launch immediately, first valid
+  answer wins, cancelled losers stay quiet; a hedge win = the winner
+  was launched while an earlier server was still pending — the
+  serial fallback after a settled failure is not one, pinned by
+  test); WarmProbe at goOn/goDegraded + on the 5-minute cadence +
+  re-warm within 1 s of a tcp/tls-phase failure (5 s debounce);
+  googleVideoCode learning (rr/r→sn-<code>, cap 64, persisted to
+  `googlevideo-codes.txt` — the DECISIONS.md privacy check is in the
+  ADR: R21 governs logs/report, the file is private app state like
+  settings.json and the usage store, and the report renders only its
+  count); engine 5-minute prewarm loop (rr1..rr5, ≤3 in flight).
+  http2_test.go (7 tests), both ways (per-request transport stash →
+  the burst test FAILS with 10 dials; hedge-clock stash → the hedge
+  test FAILS at the full timeout). The doh/engine/health/mobile/
+  proxy test fakes now negotiate h2 (httptest EnableHTTP2 /
+  NextProtos) — the one necessary harness change.
+- **D (ADR-0026)**: the ICMP 3/3 reply stays gVisor's — the spec's
+  §7.1 "write the host test first" step already exists as
+  TestUDP443FastFailICMP (M8-j, green), so per the spec's own rule no
+  explicit writer was added; ADDED: `udp443 dropped` line, the
+  next-TCP-flow `udp443 fallback elapsed=` line (host only under
+  LogHostnames, one-shot memory capped at 128), and `v6Dropped`
+  counted at the wire pump (rides the facade's tun line).
+  udp443_test.go (4 tests), both ways.
+- **Version**: mobile facade `Version: "1.6.6-debug.18"` (the report
+  header and appinfo name the round); gradle versionCode 17 with the
+  round's comment block; build-android.sh passes
+  `-ldflags="-X …/internal/config.DebugTesterBuild=true"` on the bind
+  (the debug-tester lane's mark — a release lane omits it).
+- **Baseline and verification**: full `go test ./...` green (18
+  packages + mobile — after building the frontend bundle this
+  source-only checkout lacked). Race detector: internal/doh CLEAN,
+  internal/engine, internal/tunstack, internal/stats CLEAN; internal/
+  proxy clean of data races — its full-package -race run flakes the
+  PRE-EXISTING stall-timing tests in this slow sandbox, verified
+  IDENTICAL at HEAD (git stash -u → same failures), and those tests
+  pass under -race when not competing with the 5000-tunnel soak for
+  CPU. go vet ./... clean. gofmt: tab files normalized; the space-
+  convention files (tunnel.go, flowtiming_test.go, settings_test.go,
+  health_test.go) kept in their exact expand(gofmt) shape (verified
+  by diff against HEAD before and after).
+- The build lane and the APK artifact are recorded in the release
+  notes (doc 10) and the next section.
+
+### The debug.18 build lane record
+
+Environment built this round (user-space, no system changes): Temurin
+JDK 17.0.20.1+1 (~/.local), Android cmdline-tools + platform-tools +
+platforms;android-26 + platforms;android-36 + build-tools;36.1.0 +
+NDK 29.0.14206865 (~//android-sdk), gomobile@latest + gomobile init.
+One lane defect found and fixed at the source: `go tool -X` only sets
+STRING variables — `config.DebugTesterBuild` was a bool, so the bind
+failed with "cannot set with -X"; the flag is now a string lane
+marker ("true" from the debug lane's ldflags, "" the release default)
+with an `IsDebugTesterBuild()` accessor, and the tests follow the
+string shape.
+
+Steps: frontend `npm ci && npm run build` → bundle copied into
+internal/webui/dist (a source-only checkout starts without it — the
+mobile lifecycle tests need it) → `gomobile bind` (3 ABIs, min API 26,
+the debug-tester ldflags) → the M8-z strings verified in libgojni.so
+per ABI BEFORE gradle → CLEAN `./gradlew assembleDebug` (AGP 9.2.0
+downloaded build-tools 36.0.0 itself; licenses pre-accepted). Result:
+app-debug.apk 55,059,385 B, SHA-256
+9bb9707613bac71aa8680c2a3b545c2579145851884d9f321005028f92d4ecd5,
+apksigner OK on the pinned debug certificate (c76bb7c6…8551d), badging
+versionCode 17 / versionName 1.6.6 / minSdk 26 / targetSdk 36. The
+named asset is android/release/v1.6.6-debug18.apk (D103).
+
+Final verification: `go vet ./...` clean; `go test ./...` 18 packages
+ok, 0 failures. Race detector: doh/engine/tunstack/stats CLEAN;
+proxy: zero data races, with the pre-existing sub-second stall-timing
+tests flaking under full-suite -race load in this CPU-starved sandbox
+EXACTLY as they do at HEAD (verified by `git stash -u` → identical
+failures); they pass under -race when not competing with the soak.

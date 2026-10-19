@@ -252,6 +252,10 @@ func (a *App) RestoreWindowsProxy() string { return a.eng.RestoreWindowsProxyJSO
 // GetDiagnosticReport returns the redacted diagnostic report.
 func (a *App) GetDiagnosticReport() string { return a.eng.GetDiagnosticReportJSON() }
 
+// Mark stamps the diagnostics timeline (M8-z, ADR-0027 §8.3.6): the
+// "I pressed play" / "First frame" buttons on the diagnostics screen.
+func (a *App) Mark(label string) string { return a.eng.MarkJSON(label) }
+
 // GetUsage returns the round-3 Data-usage summary (the menu's top
 // section). Mirrors engine/jsonapi.go exactly, like every method here.
 func (a *App) GetUsage() string { return a.eng.GetUsageJSON() }

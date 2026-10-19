@@ -533,7 +533,10 @@ func newLocalNet(t *testing.T) *localNet {
         if err != nil {
                 t.Fatal(err)
         }
-        dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{leaf}})
+        // M8-z (ADR-0025): the resolver speaks HTTP/2 ONLY now (the one
+        // shared connection is the change), so the fake DoH listener
+        // must negotiate h2 via ALPN.
+        dohTLS := tls.NewListener(dohLn, &tls.Config{Certificates: []tls.Certificate{leaf}, NextProtos: []string{"h2"}})
         dohMux := http.NewServeMux()
         dohMux.HandleFunc("/dns-query", func(w http.ResponseWriter, r *http.Request) {
                 if n := env.dohReqs.Add(1); n <= env.dohFailFirst.Load() {

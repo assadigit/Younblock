@@ -131,7 +131,10 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
 		Protect:   protect,
 		Notify:    notify,
 	})
-	opts := engine.Options{Platform: plat}
+	// M8-z (debug.18, versionCode 17): the report header names the exact
+	// debug round — versionName stays 1.6.6 across rounds, the -debug.NN
+	// suffix is what a pasted report maps to its release.
+	opts := engine.Options{Platform: plat, Version: "1.6.6-debug.18"}
 	if mutate != nil {
 		mutate(&opts)
 	}
@@ -178,6 +181,13 @@ func (m *Engine) AutoFix() string { return m.eng.AutoFixJSON() }
 // GetDiagnosticReport returns the redacted report JSON.
 func (m *Engine) GetDiagnosticReport() string { return m.eng.GetDiagnosticReportJSON() }
 
+// Mark stamps the diagnostics timeline (M8-z, ADR-0027 §8.3.6): the
+// shell-side entry the WebView's diagnostics screen reaches through
+// the webui route (the "I pressed play" / "First frame" buttons). The
+// line lands in the log ring and the report prints the elapsed time
+// between the last pair plus the failed/slow flows inside that window.
+func (m *Engine) Mark(label string) { m.eng.Mark(label) }
+
 // GetAppInfo returns app metadata JSON (version, platform, capabilities,
 // config/log paths).
 func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
@@ -213,9 +223,11 @@ func (m *Engine) diagnosticsExtra() string {
 		b.WriteString("tun: inactive\n")
 	} else {
 		st := t.stack.Stats()
-		fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d\n",
+		// M8-z (ADR-0027 §8.4): v6Dropped rides the tun line — the
+		// engine-side counters cannot see the stack's own discards.
+		fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d v6Dropped=%d\n",
 			st.FlowsOpened, st.FlowsRSTUnmapped, st.FlowsOverCap,
-			st.DoorFailures, st.DNSQueries, st.UDPDropped)
+			st.DoorFailures, st.DNSQueries, st.UDPDropped, st.V6Dropped)
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }

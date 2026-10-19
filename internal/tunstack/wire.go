@@ -24,6 +24,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -39,16 +40,21 @@ const outboundQueueLen = 1 << 10
 type wireEndpoint struct {
 	*channel.Endpoint
 
-	rw  io.ReadWriteCloser
+	rw io.ReadWriteCloser
 	mtu uint32
+	// v6Drops counts the IPv6 packets discarded at the pump (M8-z,
+	// ADR-0027 §8.4/§7: ADR-0010's fail-safe, made countable — the
+	// report's v6Dropped counter reads it through the Stack).
+	v6Drops *int64
 
 	once sync.Once
 	wg   sync.WaitGroup
 }
 
 // newWireEndpoint wraps rw (one IP packet per Read/Write) as a link
-// endpoint with the given MTU.
-func newWireEndpoint(rw io.ReadWriteCloser, mtu uint32) *wireEndpoint {
+// endpoint with the given MTU. v6Drops (may be nil) receives the v6
+// discard count.
+func newWireEndpoint(rw io.ReadWriteCloser, mtu uint32, v6Drops *int64) *wireEndpoint {
 	if mtu == 0 {
 		mtu = 1500
 	}
@@ -56,6 +62,7 @@ func newWireEndpoint(rw io.ReadWriteCloser, mtu uint32) *wireEndpoint {
 		Endpoint: channel.New(outboundQueueLen, mtu, ""),
 		rw:       rw,
 		mtu:      mtu,
+		v6Drops:  v6Drops,
 	}
 }
 
@@ -95,7 +102,12 @@ func (e *wireEndpoint) dispatchLoop(cancel context.CancelFunc) {
 		case header.IPv4Version:
 		case header.IPv6Version:
 			// Deliberately not injected: this stack is IPv4-only
-			// (ADR-0010 — v6 flows blackhole in the TUN, no leak).
+			// (ADR-0010 — v6 flows blackhole in the TUN, no leak). M8-z
+			// (ADR-0027 §8.4): the discard is COUNTED now — the report's
+			// v6Dropped counter makes the policy visible instead of silent.
+			if e.v6Drops != nil {
+				atomic.AddInt64(e.v6Drops, 1)
+			}
 			continue
 		default:
 			continue

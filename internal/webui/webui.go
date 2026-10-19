@@ -173,6 +173,20 @@ func (s *Server) handler() http.Handler {
 	s.get(m, "/api/report", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, s.eng.GetDiagnosticReportJSON())
 	})
+	// M8-z (ADR-0027 §8.3.6): the timeline mark — the diagnostics
+	// screen's "I pressed play" / "First frame" buttons POST here with
+	// {"label":"…"}. Any label is accepted; it rides the report and the
+	// log ring verbatim.
+	s.post(m, "/api/mark", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Label string `json:"label"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, `{"error":"UNKNOWN"}`)
+			return
+		}
+		writeJSON(w, http.StatusOK, s.eng.MarkJSON(body.Label))
+	})
 	// Round-3: the Data-usage document for the menu's top section —
 	// the same payload the Wails binding calls GetUsage for. The
 	// Android WebView and the Linux web edition both read it here.

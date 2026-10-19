@@ -12,6 +12,43 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-19 — M8-z; shipped in `v1.6.6-android-debug.18`, versionCode 17)
+
+- **The FIRST video after opening the app takes 1–2 minutes (the
+  cold-start round, per `docs/specs/debug18-cold-start.md`): the
+  plain cohort gets fragmentation and a safety net, DoH gets one warm
+  shared connection and a hedged server walk, the QUIC fallback gets
+  measured, and the diagnostics report can finally PROVE all of it.**
+  (1) **FragmentAllRouted (ADR-0024)**: on Android (only — desktops
+  unchanged, hard rule) the first TLS record of EVERY routed app's
+  non-`.ir` host is fragmented now, not just the 7 YouTube domains —
+  the ad/attestation hosts the YouTube app needs at first play were
+  the un-fragmented, silently-hanging suspects; the budgeted
+  machinery stays scoped to the list hosts exactly as before, and a
+  **new 8-second safety net** closes a silent non-listed TLS origin
+  and counts it (`plainFirstByteTimeouts`) instead of hanging to the
+  app's ~60 s patience. (2) **DoH (ADR-0025)**: one warm, pinged
+  HTTP/2 connection shared by every query (a burst of fresh
+  per-video names used to open one fragmented TLS handshake EACH),
+  opened at Start and re-warmed within 1 s of a connection-shaped
+  failure; the server walk is hedged (the next server at +300 ms, a
+  fast failure triggers it immediately, first valid answer wins);
+  two no-SNI IP-literal endpoints (1.1.1.1, 8.8.8.8 by IP) appended
+  as last resorts; learned googlevideo cache-node codes are
+  pre-resolved (rr1..rr5) every 5 minutes. (3) **UDP/443
+  (ADR-0026)**: the ICMP port-unreachable stays gVisor's (pinned by
+  the M8-j test) while the drop is now logged and the NEXT TCP flow
+  to the same host logs the fallback's elapsed time; IPv6 discards
+  are counted (`v6Dropped`). (4) **Diagnostics (ADR-0027)**:
+  `class=routed|plain` and `rtt-class=near|far` on every tunnel
+  line; a "Top 10 slowest or failed hosts" section; a plain-relay
+  summary; per-DNS-failure server + phase (TCP/TLS/HTTP) + latency;
+  a one-shot dead-origin SNI-vs-IP probe; and **"I pressed play" /
+  "First frame" buttons** that stamp the timeline — the report
+  prints that window's elapsed time and its failed/slow flows. This
+  DEBUG build includes hostnames in the report (the first line says
+  so); a release build never does.
+
 ### Fixed (2026-10-19 — M8-y; shipped in `v1.6.6-android-debug.17`, versionCode 16)
 
 - **Videos take time to START playing: the eighth report (the first

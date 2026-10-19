@@ -77,7 +77,7 @@ func fakeDoHServer(t *testing.T, cert tls.Certificate, answers map[string]string
 	if err != nil {
 		t.Fatal(err)
 	}
-	tlsLn := tls.NewListener(rawLn, &tls.Config{Certificates: []tls.Certificate{cert}})
+	tlsLn := tls.NewListener(rawLn, &tls.Config{Certificates: []tls.Certificate{cert}, NextProtos: []string{"h2"}})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go srv.Serve(tlsLn)
 	t.Cleanup(func() {

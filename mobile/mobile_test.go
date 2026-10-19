@@ -134,7 +134,7 @@ func httpsServer(t *testing.T, cert tls.Certificate, handler http.Handler) int {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { rawLn.Close() })
-	tlsLn := tls.NewListener(rawLn, &tls.Config{Certificates: []tls.Certificate{cert}})
+	tlsLn := tls.NewListener(rawLn, &tls.Config{Certificates: []tls.Certificate{cert}, NextProtos: []string{"h2"}})
 	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	go srv.Serve(tlsLn)
 	t.Cleanup(func() { srv.Close() })

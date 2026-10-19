@@ -37,13 +37,24 @@ func TestDefaultsMatchSpec(t *testing.T) {
         if DialTimeoutPerIP != 5*1e9 || DialTimeoutOverall != 12*1e9 {
                 t.Errorf("dial timeouts = %v/%v, want 5s/12s", DialTimeoutPerIP, DialTimeoutOverall)
         }
-        if len(s.Advanced.DoHServers) != 3 {
-                t.Fatalf("default DoH servers = %d, want 3", len(s.Advanced.DoHServers))
+        // M8-z (ADR-0025 §6.3): 5 servers — the three named services plus
+        // the two IP-literal no-SNI endpoints appended at the END (the
+        // hedged walk's last resorts).
+        if len(s.Advanced.DoHServers) != 5 {
+                t.Fatalf("default DoH servers = %d, want 5", len(s.Advanced.DoHServers))
         }
         if s.Advanced.DoHServers[0].Name != "RethinkDNS" ||
                 s.Advanced.DoHServers[0].URL != "https://sky.rethinkdns.com/?dns={dns}" ||
                 s.Advanced.DoHServers[0].Bootstrap[0] != "172.67.162.27" {
                 t.Errorf("primary DoH server = %+v, want RethinkDNS with bootstrap 172.67.162.27", s.Advanced.DoHServers[0])
+        }
+        if s.Advanced.DoHServers[3].URL != "https://1.1.1.1/dns-query?dns={dns}" ||
+                s.Advanced.DoHServers[3].Bootstrap[0] != "1.1.1.1" {
+                t.Errorf("IP-literal Cloudflare endpoint = %+v, want https://1.1.1.1/dns-query?dns={dns}", s.Advanced.DoHServers[3])
+        }
+        if s.Advanced.DoHServers[4].URL != "https://8.8.8.8/dns-query?dns={dns}" ||
+                s.Advanced.DoHServers[4].Bootstrap[0] != "8.8.8.8" {
+                t.Errorf("IP-literal Google endpoint = %+v, want https://8.8.8.8/dns-query?dns={dns}", s.Advanced.DoHServers[4])
         }
         want := []string{"youtube.com", "youtu.be", "googlevideo.com", "ytimg.com", "ggpht.com",
                 "youtube-nocookie.com", "youtubei.googleapis.com"}

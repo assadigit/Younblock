@@ -70,6 +70,24 @@
     const ok = shareText(report);
     onToast(ok ? copy.diagnostics.shared : copy.diagnostics.shareFailed);
   }
+
+  // debug.18 (M8-z, ADR-0027 §8.3.6): the timeline stamps. "I pressed
+  // play" goes right before starting a new video; "First frame" when
+  // the picture appears — the report then carries the elapsed time
+  // between the pair and the failed/slow flows inside that window (the
+  // single number that says whether the round's work succeeded).
+  let marked = $state(false);
+  async function onMark(label: string) {
+    try {
+      await backend.mark(label);
+      marked = true;
+      onToast(copy.diagnostics.marked);
+      window.setTimeout(() => (marked = false), 2000);
+    } catch {
+      // A failed stamp must not block the tester's flow; the report is
+      // still copyable.
+    }
+  }
 </script>
 
 <section class="view" aria-label={copy.diagnostics.title}>
@@ -109,6 +127,17 @@
         </button>
       </div>
       <p class="hint">{copy.diagnostics.logDomainsHint}</p>
+      <div class="actions" role="group" aria-label={copy.diagnostics.markPlay}>
+        <button type="button" class="secondary" onclick={() => onMark(copy.diagnostics.markPlay)} data-marked={marked}>
+          <Icon name="play" size={16} />
+          <span>{copy.diagnostics.markPlay}</span>
+        </button>
+        <button type="button" class="secondary" onclick={() => onMark(copy.diagnostics.markFirstFrame)} data-marked={marked}>
+          <Icon name="check" size={16} />
+          <span>{copy.diagnostics.markFirstFrame}</span>
+        </button>
+      </div>
+      <p class="hint">{copy.diagnostics.markHint}</p>
     </div>
 
     <div class="card report-card">
