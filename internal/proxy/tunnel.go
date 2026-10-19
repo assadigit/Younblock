@@ -5,6 +5,7 @@ import (
         "errors"
         "fmt"
         "io"
+        "math"
         "net"
         "strings"
         "sync"
@@ -105,17 +106,37 @@ func (c *stampingReadConn) Read(b []byte) (int, error) {
 }
 
 // watchStall closes the flow when BOTH relay directions have been
-// silent for the whole StallTimeout (M8-v, ADR-0020). The debug.13
-// report's stall cohort — first byte plus ~7 KB down, then total
-// silence until the app's ~60 s patience — gets a bounded engine-side
-// death instead: both ends closed (the app's read errors NOW, so its
-// retry lands on a fresh origin with its own budget + salvage in
-// seconds), the answer set demoted like every other dead-origin signal
-// (the M8-o loop), the error counted, the stall line logged for the
-// next report. One-direction silence never fires: a pure download
-// (client silent) and a pure upload (origin silent) are healthy relay
-// shapes, and only a whole-flow stall is dead.
-func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown *atomic.Int64, stop chan struct{}) {
+// silent for the whole effective stall budget (M8-v, ADR-0020; M8-x,
+// ADR-0022 tiers it). The debug.13 report's stall cohort — first byte
+// plus ~7 KB down, then total silence until the app's ~60 s patience —
+// gets a bounded engine-side death instead: both ends closed (the
+// app's read errors NOW, so its retry lands on a fresh origin with
+// its own budget + salvage in seconds), the answer set demoted like
+// every other dead-origin signal (the M8-o loop), the error counted,
+// the stall line logged for the next report. One-direction silence
+// never fires: a pure download (client silent) and a pure upload
+// (origin silent) are healthy relay shapes, and only a whole-flow
+// stall is dead.
+//
+// M8-x (ADR-0022): the LEAN tier keeps exactly those semantics, for
+// flows that never proved themselves — first byte plus headers, never
+// woke, silent to the budget. A flow that HAS proved itself —
+// StallRichBytes or more delivered down, or one idle gap already
+// survived and closed by fresh activity (the pacing proof: the player
+// buffers, goes quiet, then asks for the next range on the SAME
+// pooled connection) — escalates to the rich budget and, when that
+// finally fires, dies QUIETLY: no demotion (an origin that just
+// carried megabytes of payload is the opposite of suspect), no error
+// count (the close is hygiene, not a dead-origin signal), tier=rich
+// on the line. The debug.14 build's second report (versionCode 13,
+// 2026-10-19T11:43Z) is the evidence: thirteen kills in ~70 s of
+// log, every one a connection that had already carried real data —
+// 2.1 MB, 1.6 MB, 723.6 KB, 633.7 KB, 162.6 KB down — murdered at
+// exactly the 15 s lean budget mid-pacing, and with them the instant
+// next/seek reuse the pre-watch builds had ("videos used to lag only
+// at start; now even going next and back in the same video lags" —
+// Ali, that report).
+func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown, flowDown *atomic.Int64, stop chan struct{}) {
         tick := s.cfg.StallTimeout / 4
         if tick > 500*time.Millisecond {
                 tick = 500 * time.Millisecond
@@ -123,7 +144,34 @@ func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown *ato
         if tick < 50*time.Millisecond {
                 tick = 50 * time.Millisecond
         }
-        limit := s.cfg.StallTimeout.Milliseconds()
+        leanLimit := s.cfg.StallTimeout.Milliseconds()
+        // Escalation is armed only by a STRICTLY richer budget: zero,
+        // negative (or merely equal) StallRichTimeout leaves every
+        // flow on the exact M8-v semantics — lean budget, demotion,
+        // error count.
+        escalate := s.cfg.StallRichTimeout > s.cfg.StallTimeout
+        richLimit := leanLimit
+        if escalate {
+                richLimit = s.cfg.StallRichTimeout.Milliseconds()
+        }
+        richBytes := s.cfg.StallRichBytes
+        if richBytes < 0 {
+                richBytes = math.MaxInt64 // negative: bytes never escalate — only a survived gap can
+        }
+        // The wake gap: an activity gap this wide that CLOSED — bytes
+        // flowed again after it — proves the flow paces and escalates
+        // the budget like real payload does. A fifth of the lean
+        // budget (3 s at the default) sits past handshake chatter and
+        // inside every real inter-request gap.
+        wakeGap := leanLimit / 5
+        if wakeGap < 50 {
+                wakeGap = 50
+        }
+        woke := false
+        prevNewest := lastUp.Load()
+        if d := lastDown.Load(); d > prevNewest {
+                prevNewest = d
+        }
         t := time.NewTicker(tick)
         defer t.Stop()
         for {
@@ -132,22 +180,44 @@ func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown *ato
                         return
                 case <-t.C:
                         now := time.Now().UnixMilli()
-                        up, down := lastUp.Load(), lastDown.Load()
+                        up, downStamp := lastUp.Load(), lastDown.Load()
                         // The NEWEST stamp decides: the stall fires only when
                         // BOTH directions have been silent the whole budget —
                         // now minus the younger activity clock. (The min would
                         // fire on a pure download whose client never writes;
                         // exactly the shape the watch must spare.)
                         newest := up
-                        if down > newest {
-                                newest = down
+                        if downStamp > newest {
+                                newest = downStamp
+                        }
+                        if newest != prevNewest {
+                                // Fresh activity since the last tick. When it
+                                // closed a gap at least wakeGap wide, the flow
+                                // has woken once — the pacing proof.
+                                if newest-prevNewest >= wakeGap {
+                                        woke = true
+                                }
+                                prevNewest = newest
                         }
                         idle := now - newest
-                        if idle >= limit {
+                        rich := escalate && (woke || flowDown.Load() >= richBytes)
+                        if rich {
+                                if idle < richLimit {
+                                        continue
+                                }
+                                // Hygiene close, not a dead-origin signal: the
+                                // flow proved itself (payload or pacing), so
+                                // the answer set and the error counter stay
+                                // untouched — the line carries the evidence.
+                                tc.closeBoth()
+                                s.logTunnelStallKilled(host, time.Duration(idle)*time.Millisecond, flowDown.Load(), true)
+                                return
+                        }
+                        if idle >= leanLimit {
                                 tc.closeBoth()
                                 s.invalidateDNS(host)
                                 s.countConnError()
-                                s.logTunnelStallKilled(host, time.Duration(idle)*time.Millisecond)
+                                s.logTunnelStallKilled(host, time.Duration(idle)*time.Millisecond, flowDown.Load(), false)
                                 return
                         }
                 }
@@ -272,18 +342,25 @@ func (s *Server) logTunnelFirstByteRaced(host string, dials int) {
         s.cfg.Logger.Info(msg)
 }
 
-// logTunnelStallKilled records the M8-v stall kill (ADR-0020): a
-// budgeted flow whose relay went silent in BOTH directions for the
-// whole StallTimeout — the debug.13 report's dominant start-lag shape
-// (five video-start flows stalled mid-stream at ~7 KB down until the
-// app's own ~60 s patience killed them). The line rides in the
-// report's ring like every other tunnel line; the done line that
-// follows carries the flow's totals.
-func (s *Server) logTunnelStallKilled(host string, idle time.Duration) {
+// logTunnelStallKilled records the stall kill (M8-v, ADR-0020; M8-x,
+// ADR-0022): a budgeted flow whose relay went silent in BOTH
+// directions for the whole effective budget — the debug.13 report's
+// dead cohort (first byte plus ~7 KB, then silence to the app's ~60 s
+// patience) on the lean tier, a proven flow's hygiene close on the
+// rich tier. The line rides in the report's ring like every other
+// tunnel line; the done line that follows carries the flow's totals,
+// and the tier marks which budget fired (the next report's primary
+// tuning evidence).
+func (s *Server) logTunnelStallKilled(host string, idle time.Duration, down int64, rich bool) {
         if s.cfg.Logger == nil {
                 return
         }
-        msg := fmt.Sprintf("tunnel stall killed idle=%dms", idle.Milliseconds())
+        tier := "lean"
+        if rich {
+                tier = "rich"
+        }
+        msg := fmt.Sprintf("tunnel stall killed idle=%dms down=%s tier=%s",
+                idle.Milliseconds(), config.FormatBytes(down), tier)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -830,7 +907,8 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
 }
 
 // copyFirstByteBudgeted is the processed-host relay shape (M8-s,
-// ADR-0018; M8-t, ADR-0019; M8-v, ADR-0020; M8-w, ADR-0021): after the
+// ADR-0018; M8-t, ADR-0019; M8-v, ADR-0020; M8-w, ADR-0021; M8-x,
+// ADR-0022): after the
 // first record went upstream, the origin's first byte must arrive within
 // FirstByteTimeout. A dead origin — the pasted reports' signature: a
 // dial that completes, ~1.7 KB up, then a ~0.5 s reset or silence to
@@ -844,7 +922,10 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
 // 2.5 s budgets walked one after another) and adds the stall watch to
 // the relay phase: both directions silent for StallTimeout closes the
 // flow (the report's five 57-64 s stalls died only at the app's own
-// patience). M8-w spends the whole dial budget racing from the flow's
+// patience); M8-x tiers that watch — a flow that proved itself
+// (payload delivered, or one idle gap survived) is closed only at
+// StallRichTimeout, quietly: no demotion, no error count.
+// M8-w spends the whole dial budget racing from the flow's
 // start (FirstByteRaceDials extra candidates against the primary, the
 // first speaker winning — the debug.14 report showed attempt 0 still
 // walking its budget alone before the race launched, so a dead primary
@@ -927,7 +1008,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 downSrc := &stampingReadConn{Conn: uIdle, stamp: lastDown}
                 stallStop := make(chan struct{})
                 if s.cfg.StallTimeout > 0 {
-                        go s.watchStall(host, tc, lastUp, lastDown, stallStop)
+                        go s.watchStall(host, tc, lastUp, lastDown, &flow.down, stallStop)
                 }
                 done := make(chan struct{}, 2)
                 go func() {

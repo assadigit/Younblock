@@ -12,6 +12,37 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-19 — M8-x; shipped in `v1.6.6-android-debug.16`, versionCode 15)
+
+- **"Going next and back in the same video" lags: the stall watch was
+  murdering the player's pooled video connections — it is now
+  tiered, and a proven connection is only closed at 90 s, quietly.**
+  Ali's seventh report (still versionCode 13 — the phone never ran
+  debug.15) named the regression in his own words ("videos used to
+  have lag for starting to play, but after that you could easily go
+  next instantly; now even going next and back in the same video
+  lags a lot"), and its log carried the proof: thirteen
+  `tunnel stall killed idle=15xxx ms` lines in ~70 s, every one a
+  connection that had already carried real data (2.1 MB, 1.6 MB,
+  723.6 KB, 633.7 KB, 162.6 KB down). The player reuses pooled
+  connections — buffer, quiet past 15 s, next range on the SAME
+  connection — and the M8-v 15 s both-directions-idle watch kept
+  closing them mid-quiet, so every next/seek re-dialed through a
+  ~50 % dirty path (errors 70/122 ≈ 57 %), and each kill also
+  demoted a proven-good origin and counted an error. The tiered
+  watch (ADR-0022): a flow that proved itself — ≥ 32 KB delivered
+  down (real payload), or one ≥ 3 s quiet gap that closed with new
+  data (the pacing rhythm; the dead-origin cohort never woke, which
+  is what separates the two shapes that overlap in bytes) — is
+  closed only at `StallRichTimeout` = 90 s and QUIETLY (no demotion,
+  no error count); the lean tier keeps the exact fast 15 s death for
+  the never-proved shape. The stall report line now reads
+  `tunnel stall killed idle=Nms down=N tier=rich|lean`. The build
+  also carries the never-run debug.15 cargo unchanged: the
+  first-dial race (`tunnel first-byte raced dials=N`) and the honest
+  DNS probe (ClearNegative — this report's method line had flipped
+  to balanced after one DNS false-failure fired the heal sweep).
+
 ### Fixed (2026-10-19 — M8-w; shipped in `v1.6.6-android-debug.15`, versionCode 14)
 
 - **The per-video start wait, round four: the whole dial budget now

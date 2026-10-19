@@ -1,46 +1,53 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-w (2026-10-19, late — Ali's SIXTH pasted
-report round, the first from the salvage-race + stall-watch build:
-the shell line reads versionCode 13, and the log carries that
-build's own lines — the retry lines batch at the same millisecond,
-the stall watch kills at exactly the 15 s budget, saves land at
-738–848 ms, and the 60-second mid-stream hangs are GONE). The
-report named the two remaining costs and **v1.6.6-android-debug.15
-(versionCode 14) is the CURRENT build** carrying ADR-0021: (1) the
-FIRST-DIAL RACE — attempt 0 still walked its 2.5 s budget ALONE
-before the salvage race even launched (six terminal reason=timeout
-dones at 5320–5576 ms, the two-budget chain) while CONCURRENT flows
-to the SAME hosts answered at 72–162 ms in the same seconds — the
-dirt is per-origin, not per-moment — so the whole dial budget is
-now spent in parallel from the flow's start: the primary plus
-FirstByteRaceDials=2 extra candidates dial at once, the client's
-first record is replayed byte-exact through each, the first origin
-to speak wins, an all-dead set terminals at ~1 budget instead of
-2, and a raced save logs the new report line "tunnel first-byte
-raced dials=N" (a clean primary stays quiet); (2) the HONEST DNS
-PROBE — the report's dns fail 16 / DNS_UNREACHABLE with the network
-flowing was the periodic check reading the 15 s negative cache its
-own app flows had written, so the dns step now clears exactly that
-entry first (ClearNegative; a good cached answer stays) and asks
-what the servers say NOW. D102 (the next-preset retry) stays Ali's
-ruling, still LIVE: terminals still cluster under method=strong.)
-Earlier: M8-v (ADR-0020, debug.14 — superseded by debug.15: its
-round produced the sixth pasted report, which debug.15 acts on),
-M8-u (the no-build round — the fourth report ran the previous
-build, versionCode 11, twenty-five minutes after debug.13
-shipped; its D103 ruling put the build number in the APK asset
-name), M8-s (ADR-0018, debug.12 — superseded by debug.13), M8-r
-(ADR-0017, debug.11), M8-q/p (the diagnostics surface,
-ADR-0015/0016 + D100/D101), M8-n/M8-o (the stall fixes,
-ADR-0013/0014 + D98/D99), A0/A0-R2/A0-R3 — **the account gate is
-CANCELLED (D97)**, see the closing note below. This document now
-holds two things: §1 the **shipped** debug test-circle releases
-(`v1.6.6-android-debug.15` is the CURRENT build — a regular release
-in the private repo per D89, the same text lives on the GitHub
-release itself; beneath it: debug.14 the salvage-race + stall-watch
-build (superseded by debug.15: its round produced the sixth pasted
-report, which debug.15 acts on), debug.13 the salvage build
+**Status:** updated at M8-x (2026-10-19, later still — Ali's SEVENTH
+pasted report round; the shell line STILL reads versionCode 13 — the
+device never ran debug.15). Ali's own words named the M8-v stall
+watch's regression: "videos used to have lag for starting to play,
+but after that you could easily go next (watch next few minutes)
+instantly without buffer, but now even going next and back in the
+same video lags a lot" — and the report's log is the smoking gun:
+thirteen `tunnel stall killed idle=15xxx ms` lines in ~70 s, every
+one a connection that had ALREADY carried real data (2.1 MB, 1.6 MB,
+723.6 KB, 633.7 KB, 162.6 KB down...) murdered at exactly the lean
+15 s budget mid-pacing — the player's pooled video connections were
+being closed out from under the app, so every next/seek re-dialed
+from scratch through a ~50 % dirty dial path (errors 70/122 ≈ 57 %).
+**v1.6.6-android-debug.16 (versionCode 15) is the CURRENT build**
+carrying ADR-0022, the TIERED STALL WATCH: a flow that proved itself
+— ≥ StallRichBytes=32 KB delivered down, or one idle gap ≥ 3 s
+survived and closed by fresh activity (the pacing proof) — is closed
+only at StallRichTimeout=90 s and QUIETLY (no answer-set demotion, no
+error count; the stall line now carries "down=N tier=rich|lean"),
+while the lean tier keeps the exact M8-v death (demotion + error +
+the fast 15 s close) for the never-proved shape: first byte plus
+headers, never woke, silent to the budget — the debug.13 dead
+cohort. The build ALSO carries debug.15's never-run cargo unchanged:
+the first-dial race (ADR-0021 — "tunnel first-byte raced dials=N")
+and the honest DNS probe (ClearNegative) — the next report must
+carry BOTH signatures. The report's method line flipped to balanced
+(the heal sweep settling after DNS false-failures — ClearNegative
+attacks the cause); D102 (the method policy) stays Ali's ruling.)
+Earlier: M8-w (ADR-0021, debug.15 — superseded by debug.16, which
+carries it forward UNVERIFIED: the seventh report's shell line still
+read versionCode 13), M8-v (ADR-0020, debug.14 — superseded: its
+round produced the sixth pasted report AND its build produced the
+seventh, which debug.16 acts on), M8-u (the no-build round — the
+fourth report ran the previous build, versionCode 11; its D103
+ruling put the build number in the APK asset name), M8-s (ADR-0018,
+debug.12 — superseded by debug.13), M8-r (ADR-0017, debug.11),
+M8-q/p (the diagnostics surface, ADR-0015/0016 + D100/D101),
+M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/D99), A0/A0-R2/A0-R3
+— **the account gate is CANCELLED (D97)**, see the closing note
+below. This document now holds two things: §1 the **shipped** debug
+test-circle releases (`v1.6.6-android-debug.16` is the CURRENT
+build — a regular release in the private repo per D89, the same text
+lives on the GitHub release itself; beneath it: debug.15 the
+first-dial-race build (superseded by debug.16, which carries it
+forward unverified — the seventh report's shell line still read
+versionCode 13), debug.14 the salvage-race + stall-watch build
+(superseded by debug.16: its build produced the seventh pasted
+report, which debug.16 acts on), debug.13 the salvage build
 (superseded by debug.14), debug.12 the first-byte-budget build,
 debug.11 the heal-sweep build, debug.10 the diagnostics-port
 build, debug.9 the classic-tree diagnostics build, debug.8 the
@@ -52,7 +59,7 @@ phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D101, of which D97 cancels the gate D94 had
+01–09, DECISIONS.md D1–D103, of which D97 cancels the gate D94 had
 announced, D98 rules the APK asset onto every release page, D99 names
 it with the version, D100 is the diagnostics-surface ruling, and D101
 is the variant rule: a surface ships in the variant the edition
@@ -65,7 +72,67 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.15 — the first-dial race: the whole dial budget spent in parallel from the flow's start + the honest DNS probe (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.16 — the tiered stall watch: the pooled video connections stop being murdered at 15 s + (carried forward) the first-dial race and the honest DNS probe (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 15, built at the M8-x commit, the
+pinned debug certificate — **installs directly over debug.14 or
+debug.15** in place; settings and usage history survive. The APK asset
+on the release page is NAMED **v1.6.6-debug16.apk** (D103 — the
+filename itself names the build). **First: your seventh report's
+shell line still read versionCode 13 — the phone was still running
+debug.14; the filename you download must say debug16.** This round
+acted on your own words: "videos used to have lag for starting to
+play, but after that you could easily go next (watch next few
+minutes) instantly without buffer, but now even going next and back
+in the same video lags a lot."
+
+1. **What was wrong (read from YOUR report, not guessed):** the M8-v
+   stall watch — built to kill dead origins fast — was murdering the
+   connections your player REUSES. Your log shows thirteen
+   "tunnel stall killed idle=15xxx ms" lines in ~70 seconds, and
+   every one of them had already carried real video data: 2.1 MB,
+   1.6 MB, 723.6 KB, 633.7 KB, 162.6 KB downloaded on that very
+   connection. The player paces its video connections — buffer a
+   stretch, go quiet (often past 15 s), then ask for the next range
+   ON THE SAME CONNECTION — that reuse is exactly what made "next"
+   instant in the older builds. The 15 s idle watch kept killing
+   them mid-quiet, so every next/seek had to dial a fresh connection
+   through a ~50 % dirty path (your report's first-byte failures:
+   resets at ~1.2 s, timeouts at ~5.4 s; errors 70/122 ≈ 57 %). And
+   each kill also demoted a proven-good origin and counted an error —
+   the watch was punishing the very servers that had just delivered
+   your video.
+2. **What changed (ADR-0022, host-proven both ways):** the watch now
+   has TWO tiers. A flow that has PROVEN itself — 32 KB or more
+   delivered down (real payload, past any handshake+headers), or one
+   quiet gap of 3 s or more that ended with new data flowing (the
+   pacing rhythm itself) — is only ever closed at 90 s of total
+   silence, and that close is quiet: no origin demotion, no error
+   count. The lean tier keeps the exact old death for the shape it
+   was built for (first byte plus a few KB, never woke, silent):
+   closed at 15 s, demoted, counted. The stall line now reads
+   "tunnel stall killed idle=Nms down=N tier=rich|lean" so the next
+   report shows exactly which tier fired. This build ALSO carries
+   everything from debug.15, which your report never ran: the
+   first-dial race (a flow's first origin raced against 2 extra
+   candidates dialed at the same moment — the first to answer wins,
+   so a dirty primary costs no budget) and the honest DNS probe (the
+   health check asks the servers what they say NOW instead of reading
+   a stale failure memory — your report's method line had flipped to
+   balanced after one such false failure fired the heal sweep).
+3. **What to verify on the phone:** going next and back in the same
+   video — it should be instant again (that is the whole point of
+   this build). Video starts should ALSO improve from the carried
+   first-dial race. When anything still stalls: menu → Diagnostics
+   (first row) → Copy → paste it here. The evidence lines this
+   round: "tier=rich" kills should be rare and harmless, "tier=lean"
+   kills should be the dead-origin cohort only, "tunnel first-byte
+   raced dials=N" lines say the race is saving dirty primaries, and
+   the dns fail counter says whether the degraded state still fires.
+   And check the shell line says **versionCode 15** before anything
+   else — a 13 means the old APK is still installed.
+
+## 1a. v1.6.6-android-debug.15 — the first-dial race: the whole dial budget spent in parallel from the flow's start + the honest DNS probe (SHIPPED — a regular release, superseded by debug.16, which carries it forward UNVERIFIED: the seventh report's shell line still read versionCode 13 — the device never ran it)
 
 **What this build is:** versionCode 14, built at the M8-w commit, the
 pinned debug certificate — **installs directly over debug.14** in
@@ -1009,6 +1076,43 @@ remove the Last-session line).**
    candidate count's tuning material), the terminal ratio (the
    D102 material), and the dns fail counter (does the degraded
    state still fire?). udpDropped=104 (row 9) keeps measuring.)
+   **THE SEVENTH REPORT ARRIVED (2026-10-19, later still — M8-x):
+   "I think the problem is WORSE now, because videos used to have
+   lag for starting to play, but after that you could easily go
+   next (watch next few minutes) instantly without buffer, but now
+   even going next and back in the same video lags a lot" — and
+   the shell line STILL read versionCode 13: the phone NEVER RAN
+   debug.15 (the D103 accident class proven real; the wrong-build
+   guard this time is the filename itself: download
+   v1.6.6-debug16.apk). The report's log is the M8-v stall watch's
+   smoking gun and the first user-visible REGRESSION of the loop:
+   thirteen "tunnel stall killed idle=15xxx ms" lines in ~70 s,
+   every one a connection that had ALREADY carried real data —
+   dur=17264 ms down=2.1 MB, dur=16756 ms down=1.6 MB, 723.6 KB,
+   633.7 KB, 162.6 KB, plus 20.9/23.4/9.2/7.4/5.3/4.4/3.6/2.8 KB —
+   the player's POOLED video connections (buffer, quiet past 15 s,
+   next range on the SAME connection) murdered at exactly the lean
+   budget mid-pacing, each kill ALSO demoting a proven-good answer
+   set and counting an error (errors 70/122 ≈ 57 %; a fresh dial
+   cost reset ~1.2 s / timeout ~5.4 s — the pre-watch builds'
+   instant next/seek was exactly the pooled reuse the watch was
+   killing). Fixed in debug.16 (ADR-0022, the TIERED STALL WATCH):
+   a flow that proved itself — ≥ StallRichBytes=32 KB delivered
+   down, or one ≥ 3 s quiet gap that closed with fresh data (the
+   pacing proof; the shapes overlap in bytes but differ in RHYTHM:
+   the debug.13 dead cohort never woke) — is closed only at
+   StallRichTimeout=90 s and QUIETLY (no demotion, no error count;
+   the stall line now carries "down=N tier=rich|lean"), while the
+   lean tier keeps the exact M8-v death for the never-proved shape.
+   The build carries debug.15's never-run cargo forward unchanged.
+   The row STAYS OPEN for the debug.16 confirmation with FOUR named
+   evidence lines: the tier= split on the stall lines (rich kills
+   rare and harmless, lean kills the dead cohort only), the raced
+   lines (the save rate), the terminal ratio (the D102 material —
+   now clustered under balanced too: the sweep dragged the method
+   after DNS false-failures), and the dns fail counter. And the
+   FIRST check of all: the shell line reads versionCode 15 —
+   anything else is the install, not the fix.)
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

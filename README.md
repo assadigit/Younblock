@@ -28,18 +28,20 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug15.apk` from the repo's
+releasing yet"): download `v1.6.6-debug16.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.15` release (a regular release in this private
+`v1.6.6-android-debug.16` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
-build number, D103, so the downloaded file always names its build;
-it installs over any earlier debug build in place; its notes explain
-the current test circle — this build is the first-dial race + the
-honest DNS probe: a flow's first origin is raced against extra
-candidates dialed at the same moment so the fastest live origin wins
-without paying a dead one's budget first, and the health check asks
-the DNS servers what they say now instead of reading a stale
-failure memory).
+build number, D103, so the downloaded file always names its build —
+**make sure the filename says debug16**; it installs over any earlier
+debug build in place; its notes explain the current test circle —
+this build is the tiered stall watch: a connection that has already
+delivered real video data, or that has paced (gone quiet and come
+back), is no longer closed at 15 s of idle — that murder was forcing
+every "next" to re-dial from scratch — it is only closed at 90 s and
+quietly, while dead origins still die fast; it also carries the
+previous build's first-dial race and honest DNS probe, which no
+report has run yet).
 Sign in with your
 GitHub account, then sideload it:
 

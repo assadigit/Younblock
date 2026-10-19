@@ -3429,3 +3429,87 @@ report — shell line versionCode 14; the "tunnel first-byte raced"
 lines (the save rate) are the candidate count's tuning material,
 the terminal ratio the D102 material, and the dns fail counter the
 degraded-state confirmation.
+
+## M8-x — the tiered stall watch (ADR-0022): the pooled video
+connections stop being murdered at 15 s (2026-10-19, later still;
+shipped as `v1.6.6-android-debug.16`, versionCode 15, asset
+v1.6.6-debug16.apk)
+
+Ali's seventh pasted report opened with the words that named the
+regression himself: "I think the problem is worse now, because
+videos used to have lag for starting to play, but after that you
+could easily go next (watch next few minutes) instantly without
+buffer, but now even going next and back in the same video lags a
+lot." The shell line still read versionCode 13 — the debug.14 build
+again; the device never ran debug.15 (the D103 accident class is
+real: the wrong-build guard this time is the filename itself). The
+report's log is the M8-v stall watch's smoking gun: thirteen
+"tunnel stall killed idle=15xxx ms" lines in ~70 s, every one a
+connection that had ALREADY carried real data — dur=17264 ms
+down=2.1 MB, dur=16756 ms down=1.6 MB, 723.6 KB, 633.7 KB,
+162.6 KB, plus 20.9/23.4/9.2/7.4/5.3/4.4/3.6/2.8 KB — murdered at
+exactly the lean 15 s budget mid-pacing. The player POOLS its video
+connections (buffer, quiet past 15 s, next range on the SAME
+connection); killing them forced every next/seek through a fresh
+~50 % dirty dial (reset terminals ~1.2 s, timeout terminals
+~5.4 s; errors 70/122 ≈ 57 %), and each kill ALSO demoted a
+proven-good answer set and counted an error — the watch was
+poisoning the very origins that had just delivered megabytes. The
+method line flipped to balanced (the heal sweep settling after DNS
+false-failures — M8-w's ClearNegative attacks the cause); dns
+ok 176 / fail 4 (down from 16).
+
+ADR-0022 (doc 08) tiers the watch, scoped exactly as M8-v
+(processed hosts only, D46): a flow PROVES itself by payload
+(flow.down ≥ StallRichBytes, default 32 KB — past handshake +
+headers into real payload; the murdered cohort started at 162.6 KB,
+the debug.13 dead cohort topped out ~7 KB with one 121 KB outlier)
+or by pacing (the watch observes an activity gap ≥ StallTimeout/5
+= 3 s that CLOSED — fresh bytes flowed after it; the shapes overlap
+in bytes but differ in RHYTHM: the dead cohort never woke). A
+proved flow's budget escalates to StallRichTimeout (default 90 s —
+well past every real pacing gap, well under the 300 s idle
+timeout) and its close is QUIET: both ends closed, NO demotion, NO
+error count (hygiene, not a dead-origin signal). The lean tier
+keeps the exact M8-v death (demotion + error + the fast 15 s
+close) for the never-proved shape. The stall line now carries
+"down=N tier=rich|lean" (the prefix stable — the next report's
+primary tuning evidence). Knobs StallRichTimeout (negative or ≤
+StallTimeout → no escalation, the exact M8-v shape) and
+StallRichBytes (negative → only a survived gap escalates) wired
+through Config normalization + the engine.
+
+Proof: stalltier_test.go (4 new tests) BOTH WAYS — with the
+tiering stashed, TestStallRichFlowSurvivesLeanBudget FAILS (the
+payload flow closed at the 400 ms lean budget — the regression
+reproduced in test) and TestStallWakeEscalatesBudget FAILS (the
+pacing flow closed at lean right after its second flight); the
+lean guards fail pre-fix on the new line format only (behavior
+identical both ways); with the fix 4/4 new + 4/4 untouched M8-v
+pins PASS. Environment wiped a seventh time and restored per doc 06
+§1 (Go 1.27.2, Temurin JDK 21.0.12.1 with javac at ~/sdk/jdk — the
+system JRE lacked it, cmdline-tools 12.0 via the versioned URL,
+platform-tools 37.0.1, platforms 26+36, build-tools 36.1.0, NDK
+28.2.13676358, gomobile/gobind at the pinned x/mobile). Baselines:
+vet clean; 18/18 ×2; Windows exit 0; matrix 4/4 + arm64 full
+tree; svelte-check 0/0; vite build + dist sync (one tracked
+placeholder.txt deleted by an rsync --delete — restored; the lane's
+own script copies without --delete). Android lane: versionCode 15
+with the full round comment; go clean -cache first; gomobile bind
+INTO android/app/libs/younblock.aar (25,178,137 B, the tier=
+string verified in libgojni.so in all three ABIs BEFORE gradle —
+the M8-w lesson); ./gradlew --stop + CLEAN assembleDebug. APK
+35,235,345 B (SHA-256
+e107e337245b89e048e7025e1a6daaab083a9da170d8660f98b55874bdddac5f),
+apksigner OK (the pinned cert), badging versionCode 15 /
+versionName 1.6.6 / minSdk 26 / targetSdk 36; the tier= + raced +
+stall strings verified in the APK's libgojni.so in all three ABIs.
+The build carries debug.15's never-run cargo unchanged (the
+first-dial race + the honest dns probe) — the next report must
+carry BOTH signatures. D102 stays Ali's ruling, still LIVE
+(terminals cluster under strong AND balanced now). Next: M8-y
+expects the debug.16 report — shell line versionCode 15 FIRST
+(anything else means the old APK is still installed); the tier=
+split on the stall lines is the tuning material, the raced lines
+the save rate, the dns fail counter the degraded-state
+confirmation.

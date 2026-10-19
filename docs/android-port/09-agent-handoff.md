@@ -1,33 +1,39 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at M8-w (2026-10-19, late — **Ali's SIXTH pasted
-report round: "The problem persisted" + a report generated
-2026-10-19T01:10:10Z whose "android shell: 1.6.6 (versionCode 13)"
-line names debug.14 — the salvage-race + stall-watch build — the
-FIRST report from that build itself. The report PROVED ADR-0020
-on-device: the "tunnel first-byte retry" lines batch at the same
-millisecond (the re-dials race as designed), "tunnel stall killed
-idle=15059-15315 ms" lines kill exactly at the 15 s budget (the
-60-second mid-stream hangs are gone), saves land at 738-848 ms —
-and it named the two remaining costs with new precision: (1) the
-SERIAL FRONT — six terminal reason=timeout dones at 5320-5576 ms
-(attempt 0 still walked its 2.5 s budget ALONE before the race
-launched) while CONCURRENT flows to the SAME hosts answered at
-72-162 ms in the same seconds (the dirt is per-origin, not
-per-moment); (2) the DNS degraded state — dns fail 16 with
-DNS_UNREACHABLE while the network flowed (a dirty-window DoH blip
-negative-cached the probe name; the periodic check read the 15 s
-memory). The round shipped ADR-0021 (the first-dial race + the
-honest dns probe) as v1.6.6-android-debug.15, versionCode 14,
-asset v1.6.6-debug15.apk.**
-Earlier: M8-v (ADR-0020, the salvage race + the stall watch,
-debug.14), M8-u (D103, the no-build round), M8-t (ADR-0019, the
-salvage re-dial, debug.13), M8-s (ADR-0018, the first-byte budget,
-debug.12), M8-r (ADR-0017, the sweep probes from zero, debug.11),
-M8-q/p (the diagnostics surface, ADR-0015/0016 + D100/D101),
-M8-o/n (the stall fixes, ADR-0014/0013 + D99/D98), A0 rounds —
-**the account gate is CANCELLED (D97), nothing of it was ever
-built.** This file is the live handoff; keep the fields in
+**Status:** Updated at M8-x (2026-10-19, later still — **Ali's SEVENTH
+pasted report round: "I think the problem is worse now, because
+videos used to have lag for starting to play, but after that you
+could easily go next (watch next few minutes) instantly without
+buffer, but now even going next and back in the same video lags a
+lot" + a report generated 2026-10-19T11:43:34Z whose "android
+shell: 1.6.6 (versionCode 13)" line STILL names debug.14 — the
+device never ran debug.15. The report's log is the M8-v stall
+watch's smoking gun: thirteen "tunnel stall killed idle=15xxx ms"
+lines in ~70 s, every one a connection that had ALREADY carried
+real data (dur=17264 down=2.1 MB, dur=16756 down=1.6 MB, 723.6 KB,
+633.7 KB, 162.6 KB, plus 20.9/23.4/9.2/7.4/5.3/4.4/3.6/2.8 KB) —
+the player's POOLED video connections murdered at exactly the
+lean 15 s budget mid-pacing, each kill also demoting a proven-good
+answer set and counting an error (errors 70/122 ≈ 57 %; the same
+log shows a fresh dial's cost: reset terminals ~1.2 s, timeout
+terminals ~5.4 s). The method line flipped to balanced (the heal
+sweep settling after DNS false-failures — the M8-w ClearNegative
+attacks the cause). The round shipped ADR-0022 (the tiered stall
+watch: rich = ≥32 KB payload or one survived ≥3 s idle gap →
+closed only at 90 s, quietly — no demotion, no error; lean keeps
+the exact M8-v death; the stall line now carries "down=N
+tier=rich|lean") as v1.6.6-android-debug.16, versionCode 15, asset
+v1.6.6-debug16.apk — carrying debug.15's never-run cargo (the
+first-dial race + the honest dns probe) forward.**
+Earlier: M8-w (ADR-0021, the first-dial race + honest dns probe,
+debug.15 — never run on-device), M8-v (ADR-0020, the salvage race +
+the stall watch, debug.14), M8-u (D103, the no-build round), M8-t
+(ADR-0019, the salvage re-dial, debug.13), M8-s (ADR-0018, the
+first-byte budget, debug.12), M8-r (ADR-0017, the sweep probes from
+zero, debug.11), M8-q/p (the diagnostics surface, ADR-0015/0016 +
+D100/D101), M8-o/n (the stall fixes, ADR-0014/0013 + D99/D98), A0
+rounds — **the account gate is CANCELLED (D97), nothing of it was
+ever built.** This file is the live handoff; keep the fields in
 §"Current handoff fields" accurate at every session boundary.
 
 ## If starting Phase 2 (implementation) — CURRENT
@@ -88,115 +94,110 @@ built.** This file is the live handoff; keep the fields in
 
 ## Current handoff fields
 
-- **Phase completed:** M8-w (2026-10-19, late — the TWENTIETH
-  feedback-loop exchange; the SIXTH pasted-report round, the first
-  from the salvage-race + stall-watch build). Ali's input: "The
-  problem persisted" + a report whose "android shell: 1.6.6
-  (versionCode 13)" line names debug.14, and whose log carries that
-  build's own lines. The report PROVED ADR-0020 on-device (the retry
-  lines batch at the same millisecond — the re-dials race; "tunnel
-  stall killed idle=15059-15315 ms" — the watch kills at exactly the
-  15 s budget; saves at 738-848 ms; the 60-second hangs are gone)
-  and named the two remaining costs: (1) the SERIAL FRONT — six
-  terminal reason=timeout dones at 5320-5576 ms (the two-budget
-  chain: attempt 0 walked its budget ALONE, then the race) and reset
-  terminals at 1131-1292 ms, while CONCURRENT flows to the SAME
-  hosts answered at 72-162 ms in the same seconds (five sub-250 ms
-  first-bytes right between two timeout terminals — the dirt is
-  per-origin, not per-moment); (2) the DNS degraded state — dns
-  fail 16 / DNS_UNREACHABLE with the network flowing: the periodic
-  check read the 15 s negative cache its own app flows had written.
-  Counters otherwise healthy: 124 conns / 69 errors (≈56 %, the
-  dirty window this report caught), rstUnmapped=0, doorFailures=0,
-  udpDropped=104.
-- **What this round shipped — v1.6.6-android-debug.15, versionCode
-  14, ADR-0021 (doc 08), the CURRENT build:** (1) the FIRST-DIAL
-  RACE — new knob FirstByteRaceDials (default 2; 0 → default,
-  negative → disabled, the exact M8-v shape): a processed host's
-  budgeted flow races its primary origin against 2 extra candidates
-  FROM THE FLOW'S START (each candidate dials its rotated start of
-  the fresh answer set, replays the client's first record
-  byte-exact through a fresh fragment conn — the same preset, once
-  per flow, D102 — and waits one budget; the primary's dial time is
-  its head start), the FIRST origin to speak wins, the losers are
-  closed and reaped, an all-dead set terminals at ~1 budget instead
-  of the M8-v 2x, and a flow the race SAVED logs the new report
-  line "tunnel first-byte raced dials=N" (a clean primary stays
-  quiet — the race costs a healthy flow nothing observable); the
-  client stays frozen for the round (the M8-v salvage race's own
-  proven semantics — bytes beyond the first record wait in the
-  socket and flow to the winner in order); a candidate's death is
-  classified before it demotes (teardown-caused deaths never demote;
-  a budget-timeout or reset demotes whenever it happens — the M8-o
-  loop); with racing enabled the salvage rounds never run (the
-  budget is spent at the start). (2) The HONEST DNS PROBE —
-  Resolver.ClearNegative drops exactly the probe name's
-  negative-cache entry before the health lookup (success entries
-  stay; optional capability; the heal sweep keeps its full Reset) —
-  the watchdog's dns step now asks what the servers say NOW instead
-  of reading the 15 s memory (the debug.14 degraded state's
-  signature: DNS_UNREACHABLE in 0 ms). Both-ways proof: with the
-  raced round neutered, TestFirstDialRaceSavesDirtyPrimary and
-  TestFirstDialRaceTerminalIsBounded FAIL; with the ClearNegative
-  call neutered, TestSelfTestDNSProbesPastNegativeCache FAILS; with
-  the fixes all PASS; guards pass both ways (byte-exactness, the
-  quiet primary, the unrouted host, the disabled knob). Lane
-  evidence: baseline green (vet, 18/18), compile matrix 4/4 + arm64
-  full tree, gomobile bind with the raced string in all three ABIs;
-  one lane defect caught by the artifact check itself (the first
-  assembleDebug packed the STALE libs/younblock.aar — the raced
-  string absent from the APK — plus 12 MB of incremental-repack zip
-  slack; the re-bind into android/app/libs/ + a CLEAN assembleDebug
-  produced the tight artifact); APK 35,233,585 B, SHA-256
-  817c5e2f7f553afcfc65cc684abfecb610c39c84ffdd875c0e3c169fc21ef68e,
+- **Phase completed:** M8-x (2026-10-19, later still — the TWENTY-FIRST
+  feedback-loop exchange; the SEVENTH pasted-report round). Ali's
+  input: "I think the problem is worse now, because videos used to
+  have lag for starting to play, but after that you could easily go
+  next (watch next few minutes) instantly without buffer, but now
+  even going next and back in the same video lags a lot" + a report
+  generated 2026-10-19T11:43:34Z whose "android shell: 1.6.6
+  (versionCode 13)" line STILL names debug.14 — the device never ran
+  debug.15. The report's log root-caused the regression exactly:
+  thirteen "tunnel stall killed idle=15xxx ms" lines in ~70 s, every
+  one a connection that had ALREADY carried real data (2.1 MB,
+  1.6 MB, 723.6 KB, 633.7 KB, 162.6 KB, plus 20.9/23.4/9.2/7.4/
+  5.3/4.4/3.6/2.8 KB) — the player's POOLED video connections
+  (buffer, quiet past 15 s, next range on the SAME connection)
+  murdered at exactly the lean M8-v budget mid-pacing, each kill
+  ALSO demoting a proven-good answer set and counting an error
+  (errors 70/122 ≈ 57 %; fresh dials cost reset ~1.2 s / timeout
+  ~5.4 s). Counters otherwise: dns ok 176 / fail 4 (down from
+  16 — the sixth report's ClearNegative target), rstUnmapped=0,
+  doorFailures=0, udpDropped=73, method balanced (was auto→strong:
+  the heal sweep settled after DNS false-failures).
+- **What this round shipped — v1.6.6-android-debug.16, versionCode
+  15, ADR-0022 (doc 08), the CURRENT build:** the TIERED STALL
+  WATCH. A flow PROVES itself in either of two ways — payload
+  (flow.down ≥ StallRichBytes, default 32 KB: past handshake +
+  headers into real payload; the murdered cohort started at 162.6 KB,
+  the debug.13 dead cohort topped out ~7 KB) — or pacing (the watch
+  observes an activity gap ≥ StallTimeout/5 = 3 s that CLOSED: fresh
+  bytes flowed after it — the pooled-connection rhythm; the shapes
+  overlap in bytes but differ in RHYTHM: the dead cohort never woke).
+  A proved flow's stall budget escalates to StallRichTimeout
+  (default 90 s — well past every real pacing gap, well under the
+  300 s idle timeout) and its close is QUIET: both ends closed but
+  NO answer-set demotion (an origin that just carried megabytes is
+  the opposite of suspect) and NO error count. The LEAN tier keeps
+  the exact M8-v semantics (demotion + error + the fast 15 s close)
+  for the never-proved shape. The stall line is now "tunnel stall
+  killed idle=Nms down=N tier=rich|lean" (the prefix stable — the
+  next report's primary tuning evidence). Knobs StallRichTimeout
+  (negative or ≤ StallTimeout → no escalation, the exact M8-v
+  shape) and StallRichBytes (negative → only a survived gap
+  escalates), wired through Config normalization + the engine.
+  The build carries debug.15's never-run cargo UNCHANGED: the
+  first-dial race (ADR-0021) and the honest dns probe
+  (ClearNegative) — the next report must carry BOTH signatures
+  (raced lines + tier lines). Both-ways proof: with the tiering
+  stashed, TestStallRichFlowSurvivesLeanBudget FAILS (the payload
+  flow closed at the lean budget — the regression reproduced in
+  test) and TestStallWakeEscalatesBudget FAILS (the pacing flow
+  closed at lean right after its second flight); the lean guards
+  fail only on the new line format pre-fix (behavior identical both
+  ways); with the fix 4/4 new + 4/4 M8-v pins PASS. Lane evidence:
+  baseline green (vet, 18/18 ×2, Windows exit 0, matrix 4/4 + arm64
+  full tree), gomobile bind with the tier= string verified in
+  libgojni.so in all three ABIs BEFORE gradle, CLEAN assembleDebug;
+  APK 35,235,345 B, SHA-256
+  e107e337245b89e048e7025e1a6daaab083a9da170d8660f98b55874bdddac5f,
   apksigner OK (the pinned c76bb7c6...8551d), badging versionCode
-  14 / versionName 1.6.6 / minSdk 26 / targetSdk 36; the raced +
-  stall strings verified in the APK's libgojni.so in all three ABIs.
-- **Current architecture decision / confidence:** ADR-0021 (doc
-  08) — the first-dial race + the honest dns probe, extending the
-  ADR-0018/0019/0020 species (failure detection, hygiene, bounded
-  recovery; never steering — the preset is still captured once per
-  flow and NEVER varies, on every candidate). Live ADRs:
-  ADR-0001..0021. The auth lane stays CLOSED (D97).
+  15 / versionName 1.6.6 / minSdk 26 / targetSdk 36; the tier= +
+  raced + stall strings verified in the APK's libgojni.so in all
+  three ABIs.
+- **Current architecture decision / confidence:** ADR-0022 (doc
+  08) — the tiered stall watch, extending the ADR-0018..0021 species
+  (failure detection, hygiene, bounded recovery; never steering).
+  Live ADRs: ADR-0001..0022. The auth lane stays CLOSED (D97).
 - **Blocking questions:** none blocking the loop. The standing
-  input is **Ali's debug.15 round** — the report whose shell line
-  reads **versionCode 14** (a versionCode 13 report means the old
-  APK is still installed: the D103 filename v1.6.6-debug15.apk
-  makes the right build self-identifying): (a) video starts — do
-  they open in seconds now? (b) the NEW evidence line "tunnel
-  first-byte raced dials=N" is the round's primary material: every
-  raced line is a dirty primary the flow never paid a budget for;
-  the raced-line count vs clean first-bytes vs terminals says
-  whether the candidate count (2) should grow or shrink; (c) the
-  dns fail count — does the degraded state still fire (it should
-  now clear itself in one probe cycle)? (d) the D102 question for
-  Ali himself, still LIVE: terminal first-byte failures still
-  cluster under method=strong — should a flow that exhausts its
-  raced round be retried once with the NEXT preset in
-  HealSweepOrder (per-flow method variation)? His ruling, never
-  unilateral. Plus the older circle rows (the cross-device UI
+  input is **Ali's debug.16 round** — the report whose shell line
+  reads **versionCode 15** (13 or 14 means the old APK is still
+  installed: the D103 filename v1.6.6-debug16.apk makes the right
+  build self-identifying — this round's report proved the accident
+  class is REAL): (a) going next and back in the same video —
+  instant again? (that is this build's whole point); (b) the stall
+  lines' tier split — "tier=rich" kills should be rare and harmless,
+  "tier=lean" kills the dead-origin cohort only (their counts tune
+  32 KB / 90 s / the wake gap); (c) the "tunnel first-byte raced
+  dials=N" lines (debug.15's never-run race — the save rate is the
+  candidate count's tuning material); (d) the dns fail count and the
+  method line (does the degraded state still fire; did the sweep
+  stop dragging the method); (e) the D102 question for Ali himself,
+  still LIVE: terminal first-byte failures cluster under both strong
+  and balanced now — should a flow that exhausts its raced round be
+  retried once with the NEXT preset in HealSweepOrder? His ruling,
+  never unilateral. Plus the older circle rows (the cross-device UI
   verdict on debug.6, rows 4-8, rotation/TalkBack, the data-usage
   round, D93's desktop check).
 - **Exact next task:** ONE workstream — the feedback loop. **Task
-  ID M8-x — ingest Ali's results from v1.6.6-android-debug.15 (the
-  versionCode 14 build)**: the pasted diagnostics report FIRST —
-  verify the "android shell:" line names versionCode 14 (a
-  versionCode 13 report means the install never happened: ask
-  which FILENAME was downloaded — the D103 name
-  v1.6.6-debug15.apk makes the wrong build self-identifying); then
-  read the "tunnel first-byte raced" lines (the save rate — the
-  candidate count's tuning material), the terminal ratios (the
-  D102 material) and the dur= dones to name the remaining waiting
-  phase; root-cause from the evidence; fix at the correct layer;
-  keep the D77-D103 honesty rules binding (D101: any new
-  user-facing surface ships in the variant(s) the affected
+  ID M8-y — ingest Ali's results from v1.6.6-android-debug.16 (the
+  versionCode 15 build)**: the pasted diagnostics report FIRST —
+  verify the "android shell:" line names versionCode 15 (13 or 14
+  means the install never happened: ask which FILENAME was
+  downloaded — the D103 name v1.6.6-debug16.apk makes the wrong
+  build self-identifying); then read the tier= split on the stall
+  lines (the tuning material), the raced lines (the save rate), the
+  terminal ratios (the D102 material) and the dur= dones to name
+  the remaining waiting phase; root-cause from the evidence; fix at
+  the correct layer; keep the D77-D103 honesty rules binding (D101:
+  any new user-facing surface ships in the variant(s) the affected
   editions bake, verified through the real webui server). Bump
-  `versionCode` and cut `v1.6.6-android-debug.16` through the same
+  `versionCode` and cut `v1.6.6-android-debug.17` through the same
   regular-release lane (D89) WHEN an app code change warrants it —
   D98: every release page carries the debug APK asset; D103
   (amending D99): the asset is NAMED v<versionName>-debug<N>.apk,
-  N = the tag's build sequence (debug.16's asset is
-  v1.6.6-debug16.apk) — push the code commit BEFORE creating the
+  N = the tag's build sequence (debug.17's asset is
+  v1.6.6-debug17.apk) — push the code commit BEFORE creating the
   release (the full-SHA target_commitish 422s against an unpushed
   SHA). The auth Task IDs (A1/A2/A3) stay retired (D97). The
   dormant alternatives when no feedback arrives: the desktop

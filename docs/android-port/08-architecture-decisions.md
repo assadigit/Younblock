@@ -1035,6 +1035,101 @@ debug.14 report round)
   untouched (ADR-0020; this report's kills at 15.0-15.3 s idle are
   the budget firing as designed).
 
+## ADR-0022 — The tiered stall watch: a flow that proved itself (payload
+delivered, or one idle gap survived and closed by fresh activity) is
+closed only at StallRichTimeout=90 s and QUIETLY (no demotion, no error
+count); the lean tier keeps the exact M8-v semantics for never-proved
+flows (M8-x, the debug.14 build's second report round)
+
+- **Status:** Accepted 2026-10-19 (M8-x — Ali's SEVENTH pasted
+  diagnostics report; the shell line still reads versionCode 13 — the
+  debug.14 build: the device never ran debug.15).
+- **Context:** Ali's own words named the M8-v watch's regression:
+  "videos used to have lag for starting to play, but after that you
+  could easily go next (watch next few minutes) instantly without
+  buffer, but now even going next and back in the same video lags a
+  lot." The report's log is the smoking gun: thirteen
+  `tunnel stall killed idle=15xxx ms` lines in ~70 s of log, every one
+  a connection that had ALREADY carried real data — dur=17264 ms
+  down=2.1 MB, dur=16756 ms down=1.6 MB, dur=39241 ms down=723.6 KB,
+  dur=32268 ms down=633.7 KB, dur=21739 ms down=162.6 KB, plus
+  20.9/23.4/9.2/7.4/5.3/4.4/3.6/2.8 KB flows — murdered at exactly the
+  lean 15 s budget mid-pacing. YouTube's player POOLS its video
+  connections: buffer a stretch, go quiet (often past 15 s), then ask
+  for the next range ON THE SAME CONNECTION — the exact reuse that
+  made "next" instant in the pre-watch builds. Killing the pooled
+  connections forced every next/seek through a fresh dial, and the
+  same report shows what a fresh dial costs on that network: ~50 %
+  first-byte failure (reason=reset terminals at ~1.2 s, reason=timeout
+  at ~5.4 s; errors 70/122 ≈ 57 %). Worse, every kill DEMOTED a
+  proven-good answer set (the M8-o loop extended to stalls by M8-v)
+  and counted an error — the watch was poisoning the very origins
+  that had just delivered megabytes. The M8-v dead cohort (the shape
+  the watch was built for: first byte plus ~7 KB, then silence to the
+  app's 60 s patience) and the murdered cohort OVERLAP in bytes
+  (a 7.4 KB flow killed here; 6.6-7.7 KB flows dead there) — no byte
+  threshold alone separates them; the two shapes differ in RHYTHM:
+  the dead cohort never woke, the pooled cohort paces.
+- **Decision (the stall watch grows a second tier; scoped exactly as
+  M8-v — processed hosts only, the D46 scoping; unrouted relays
+  untouched):**
+  1. **The escalation.** A flow PROVES itself in either of two ways:
+     payload — `flow.down >= StallRichBytes` (default 32 KB: past a
+     TLS handshake plus response headers and into real payload; the
+     murdered cohort started at 162.6 KB, the dead cohort topped out
+     at ~7 KB with one 121 KB outlier) — or pacing — the watch
+     observes an activity gap ≥ StallTimeout/5 (3 s at the default)
+     that CLOSED (fresh bytes flowed after it): the flow has woken
+     once, the pooled-connection rhythm. A proved flow's stall budget
+     escalates to `StallRichTimeout` (default 90 s: well past every
+     real pacing gap at playback, well under the 300 s idle timeout —
+     the zombie stays bounded).
+  2. **The quiet close.** When the rich budget finally fires, the
+     close is HYGIENE, not a dead-origin signal: both ends closed (as
+     before) but NO answer-set demotion (an origin that just carried
+     megabytes is the opposite of suspect) and NO error count (the
+     report's error ratio stops counting pool evictions). The lean
+     tier keeps the exact M8-v semantics: demotion + error count +
+     the fast 15 s close for the never-proved shape.
+  3. **The line.** `tunnel stall killed idle=Nms down=N tier=rich|lean`
+     — the prefix stable, the tier and the flow's down-bytes appended:
+     the next report's primary tuning evidence (kill counts by tier
+     say whether 32 KB / 90 s / the wake gap are set right).
+  4. **Knobs.** `StallRichTimeout` (0 in a proxy Config → the
+     default; negative or ≤ StallTimeout → no escalation, every flow
+     keeps the exact M8-v semantics) and `StallRichBytes` (0 → the
+     default; negative → never escalate on bytes — only a survived
+     gap escalates). Both wired through proxy Config normalization
+     and the engine, like every M8 knob.
+- **Evidence:** internal/proxy/stalltier_test.go (new, four tests)
+  verified BOTH WAYS: with the tiering stashed (the M8-v watch at
+  HEAD), `TestStallRichFlowSurvivesLeanBudget` FAILS (the payload
+  flow closed at the 400 ms lean budget — the report's regression
+  reproduced in test) and `TestStallWakeEscalatesBudget` FAILS (the
+  pacing flow closed at the lean budget right after its second
+  flight); `TestStallLeanKillStaysLoud` and
+  `TestStallRichEscalationDisabledByConfig` pin the unchanged lean
+  behavior (their pre-fix failures are the new tier= line format
+  only — the close/demote/count behavior is identical both ways);
+  with the fix all four PASS alongside the four untouched M8-v pins
+  (stallrace_test.go). Full baseline green: vet clean; 18/18 packages
+  ×2; Windows exit 0; the compile matrix 4/4 ABIs + arm64 full tree;
+  gomobile bind with the tier= string verified in libgojni.so in all
+  three ABIs; the debug.16 APK artifact-verified (badging versionCode
+  15, apksigner pinned cert, sha256 in doc 06).
+- **What this ADR does NOT decide:** the stall watch stays scoped to
+  processed hosts (D46); QUIC stays dropped (ADR-0009; udpDropped=73
+  this round keeps measuring). The report never ran debug.15, so the
+  first-dial race (ADR-0021) and the honest dns probe remain
+  UNVERIFIED on-device — this build carries them unchanged and the
+  next report must carry BOTH signatures (raced lines + tier lines).
+  The method flip in the report (method: balanced where the sixth
+  report said auto→strong) is the heal sweep settling on the first
+  passing method after DNS false-failures fired it — ADR-0021's
+  ClearNegative attacks the cause; the method policy itself stays
+  D102, Ali's. The rich tier's numbers (32 KB / 90 s / the wake gap
+  at StallTimeout/5) are the next report's tuning material.
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

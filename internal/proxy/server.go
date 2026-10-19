@@ -89,7 +89,20 @@ type Config struct {
 	// silent in BOTH directions before the flow is closed as a
 	// mid-stream stall (M8-v, ADR-0020). Zero → the config default;
 	// negative → disabled (the M8-u behavior exactly).
-	StallTimeout   time.Duration
+	StallTimeout time.Duration
+	// StallRichTimeout is the escalated stall budget for a flow that
+	// has proven itself alive — ≥ StallRichBytes delivered down, or
+	// one idle gap survived and closed by fresh activity (M8-x,
+	// ADR-0022). A rich-tier close is quiet: no demotion, no error
+	// count, tier=rich on the stall line. Zero → the config default;
+	// negative (or ≤ StallTimeout) → no escalation — the exact M8-v
+	// semantics for every flow.
+	StallRichTimeout time.Duration
+	// StallRichBytes is the flow's delivered-down byte count that
+	// escalates the stall budget to StallRichTimeout (M8-x, ADR-0022).
+	// Zero → the config default; negative → never escalate on bytes
+	// (only a survived idle gap escalates).
+	StallRichBytes int64
 	IdleTimeout    time.Duration
 	MaxHeaderBytes int64
 
@@ -155,6 +168,12 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.StallTimeout == 0 {
 		cfg.StallTimeout = config.StallTimeout
+	}
+	if cfg.StallRichTimeout == 0 {
+		cfg.StallRichTimeout = config.StallRichTimeout
+	}
+	if cfg.StallRichBytes == 0 {
+		cfg.StallRichBytes = config.StallRichBytes
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = config.IdleTimeout

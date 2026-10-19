@@ -1708,3 +1708,50 @@ versionName 1.6.6 / minSdk 26 / targetSdk 36; the raced + stall
 strings also verified in the APK's libgojni.so in all three ABIs.
 versionCode 14 (the D84 rule); release lane: v1.6.6-android-debug.15
 with the APK asset named v1.6.6-debug15.apk (D103).
+
+M8-x record (2026-10-19, later still — the seventh pasted-report
+round, the second from the debug.14 build: the report's shell line
+STILL read versionCode 13, so the device never ran debug.15 — the
+D103 accident class proven real): the environment was found wiped a
+SEVENTH time (~/sdk and ~/go absent; the repo INTACT and clean at
+2a0423b; JDK 21.0.12.1+1 present system-wide; android/app/libs and
+frontend/node_modules survived). Restored per §1's pins: Go 1.27.2
+(~/sdk/go), Temurin JDK 21.0.12.1+1 WITH javac (~/sdk/jdk — the
+system JRE lacked it; one bind died on "javac not found" before the
+PATH carried ~/sdk/jdk/bin), cmdline-tools 12.0 via the versioned
+11076708 URL, platform-tools 37.0.1, platforms 26+36, build-tools
+36.1.0, NDK 28.2.13676358, gomobile/gobind via `go install` at the
+pinned x/mobile; env.sh + local.properties rewritten. Desktop
+baseline GREEN before the fix: go vet clean; `go test -count=1
+./...` 18/18 ×2 (proxy 35.4 s); svelte-check 0/0; vite build clean
+with frontend/dist → internal/webui/dist re-synced (one tracked
+placeholder.txt deleted by an rsync --delete — restored; the lane's
+own script copies WITHOUT --delete, the recorded procedure); the
+compile matrix 4/4 ABIs + arm64 full tree; GOOS=windows exit 0.
+ADR-0022 implemented (the tiered stall watch — doc 08): watchStall
+takes the flow's down counter, escalates the budget to
+StallRichTimeout when the flow proved itself (payload ≥
+StallRichBytes, or a ≥ StallTimeout/5 activity gap that closed —
+the pacing proof), rich closes are QUIET (no demotion, no error
+count) and log "tunnel stall killed idle=Nms down=N tier=rich";
+the lean tier keeps the exact M8-v semantics (tier=lean); knobs
+StallRichTimeout/StallRichBytes wired through proxy Config
+normalization + engine. NEW stalltier_test.go (4 tests) proven
+BOTH WAYS (git stash push -- internal/proxy/tunnel.go: the two
+escalation tests FAIL with the M8-v watch — the payload flow
+closed at the 400 ms lean budget, the regression reproduced in
+test; the two lean guards fail on the new line format only —
+behavior identical both ways); the four M8-v pins untouched and
+passing. Android lane: versionCode 14 → 15 with the full round
+comment; `go clean -cache` before the bind (disk); gomobile bind
+INTO android/app/libs/younblock.aar (25,178,137 B — the tier=
+string verified in libgojni.so in all three ABIs BEFORE gradle);
+`./gradlew --stop` + CLEAN assembleDebug BUILD SUCCESSFUL (1m45s).
+Artifact: app-debug.apk 35,235,345 B, SHA-256
+e107e337245b89e048e7025e1a6daaab083a9da170d8660f98b55874bdddac5f;
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 15 /
+versionName 1.6.6 / minSdk 26 / targetSdk 36; the tier= + raced +
+stall strings verified in the APK's libgojni.so in all three ABIs.
+Release lane: v1.6.6-android-debug.16 with the APK asset named
+v1.6.6-debug16.apk (D103). The standing ⛔ unchanged (no /dev/kvm,
+no device). Next Task ID: M8-y. Next decision: D102 (Ali's).

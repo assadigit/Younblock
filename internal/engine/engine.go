@@ -423,6 +423,8 @@ func (e *Engine) startListener() error {
 		FirstByteSalvageDials: config.FirstByteSalvageDials,
 		FirstByteRaceDials:    config.FirstByteRaceDials,
 		StallTimeout:          config.StallTimeout,
+		StallRichTimeout:      config.StallRichTimeout,
+		StallRichBytes:        config.StallRichBytes,
 		IdleTimeout:           idle,
 		MaxHeaderBytes:        config.MaxHeaderBytes,
 		Resolver:              e.resolver.Load(),

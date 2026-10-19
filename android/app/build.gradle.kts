@@ -20,36 +20,39 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 14: the M8-w build (the debug.14 report round —
-        // the first report from the salvage-race + stall-watch build
-        // itself, shell line versionCode 13). It proved ADR-0020
-        // on-device: the retry lines batch at the same millisecond (the
-        // re-dials race), the stall watch kills at 15 s (idle=15xxx ms
-        // lines), saves at 738-848 ms — and it named the two remaining
-        // costs this build attacks (ADR-0021): (1) the SERIAL FRONT —
-        // attempt 0 still walked its 2.5 s budget ALONE before the race
-        // launched (six timeout terminals at 5320-5576 ms = the
-        // two-budget chain) while CONCURRENT flows to the same hosts
-        // answered at 72-162 ms in the same seconds (the dirt is
-        // per-origin, not per-moment) — so the whole dial budget is now
-        // spent racing from the flow's start: FirstByteRaceDials=2
-        // extra candidates dial distinct origins in parallel with the
-        // primary, the client's first record replayed byte-exact
-        // through each, first speaker wins, an all-dead flow terminals
-        // at ~1 budget instead of 2 (new report line: "tunnel
-        // first-byte raced dials=N" — a raced save; a clean primary
-        // stays quiet); (2) the DNS degraded state — dns fail 16 with
-        // DNS_UNREACHABLE while the network flowed: a dirty-window DoH
-        // blip negative-cached the probe name and the periodic check
-        // read the 15 s memory instead of asking any server — so the
-        // health probe now clears exactly the negative entry first
-        // (ClearNegative; a good cached answer stays) and asks what
-        // the servers say NOW. D102 (the next-preset retry) stays
-        // Ali's ruling, never code.
-        // Installs over debug.14 (same pinned debug certificate — D85).
+        // versionCode 15: the M8-x build (the seventh pasted report —
+        // still shell line versionCode 13, the debug.14 build: the
+        // user's own words named the M8-v stall watch's regression:
+        // "videos used to have lag for starting to play, but after
+        // that you could easily go next instantly; now even going next
+        // and back in the same video lags a lot"). The report's log is
+        // the smoking gun: thirteen "tunnel stall killed
+        // idle=15xxx ms" lines in ~70 s, every one a connection that
+        // had ALREADY carried real data — 2.1 MB, 1.6 MB, 723.6 KB,
+        // 633.7 KB, 162.6 KB down — murdered at exactly the lean 15 s
+        // budget mid-pacing: the player's pooled video connections
+        // (buffer, quiet, next range on the SAME connection) were
+        // being closed out from under the app, so every next/seek
+        // re-dialed from scratch through a ~50 % dirty dial path.
+        // ADR-0022 tiers the watch: a flow that proved itself —
+        // StallRichBytes=32 KB delivered down, or one idle gap
+        // survived and closed by fresh activity (the pacing proof,
+        // gap >= StallTimeout/5) — escalates to StallRichTimeout=90 s
+        // and dies QUIETLY when it finally fires: no answer-set
+        // demotion (the origin just carried megabytes), no error
+        // count (hygiene, not a dead-origin signal), the stall line
+        // carrying "down=N tier=rich" for the next report. The LEAN
+        // tier keeps the exact M8-v semantics for the debug.13 dead
+        // cohort: first byte plus headers, never woke, silent to the
+        // 15 s budget — closed LOUD (demotion + error + tier=lean).
+        // This build also carries the M8-w first-dial race +
+        // ClearNegative DNS probe (versionCode 14, v1.6.6-debug15.apk)
+        // that the report never exercised — the shell line proves the
+        // device was still on the debug.14 build. D102 stays Ali's.
+        // Installs over debug.15 (same pinned debug certificate — D85).
         // The D84 rule: every debug build bumps this. D103: the APK
-        // asset is named v1.6.6-debug15.apk.
-        versionCode = 14
+        // asset is named v1.6.6-debug16.apk.
+        versionCode = 15
         versionName = "1.6.6"
     }
 

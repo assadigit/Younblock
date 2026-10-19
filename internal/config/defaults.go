@@ -161,6 +161,40 @@ const FirstByteRaceDials = 2
 // of the hosts this app processes (the D46 scoping).
 const StallTimeout = 15 * time.Second
 
+// StallRichTimeout — the escalated stall budget for a flow that has
+// PROVEN itself (M8-x, ADR-0022). The debug.14 build's second report
+// (versionCode 13, 2026-10-19T11:43Z) named the M8-v watch's own
+// cost: thirteen stall kills in ~70 s of log, every one a connection
+// that had ALREADY carried real data — 2.1 MB, 1.6 MB, 723.6 KB,
+// 633.7 KB, 162.6 KB down — closed at exactly the 15 s budget while
+// the app idled it between segment fetches. The player paces its
+// pooled video connections: buffer, quiet for tens of seconds, next
+// range ON THE SAME CONNECTION — the exact reuse that made "next"
+// instant in the pre-watch builds ("videos used to lag only at
+// start; now even going next and back in the same video lags" —
+// Ali, that report). A flow that has delivered StallRichBytes down,
+// or survived one idle gap and woken (the pacing proof), is closed
+// only at this budget and QUIETLY: no answer-set demotion (the
+// origin just carried the goods — the opposite of suspect), no error
+// count (hygiene, not a dead-origin signal), tier=rich on the stall
+// line. The lean tier keeps the exact M8-v semantics for the dead
+// cohort's shape: first byte plus headers, never woke, silent to the
+// 15 s budget. 90 s bounds the zombie — well past every real pacing
+// gap at playback, well under the 300 s idle timeout. Zero in a
+// proxy Config → this default; negative (or ≤ StallTimeout) → no
+// escalation, every flow keeps the exact M8-v budget and semantics.
+const StallRichTimeout = 90 * time.Second
+
+// StallRichBytes — the flow's delivered-down byte count that
+// escalates its stall budget to StallRichTimeout (M8-x, ADR-0022):
+// past a TLS handshake plus response headers and into real payload.
+// The evidence brackets it — the debug.14 build's murdered cohort
+// started at 162.6 KB down, the debug.13 report's dead cohort topped
+// out at ~7 KB (one 121 KB outlier) — and 32 KB sits between them.
+// Zero in a proxy Config → this default; negative → bytes never
+// escalate (only a survived idle gap escalates).
+const StallRichBytes = 32 * 1024
+
 // IdleTimeout — quiet connections are closed after this long (refreshed by activity).
 const IdleTimeout = 300 * time.Second
 
