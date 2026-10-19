@@ -65,7 +65,7 @@ targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
 certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
 over every earlier debug build, D85), APK 55,059,385 B, SHA-256
 `9bb9707613bac71aa8680c2a3b545c2579145851884d9f321005028f92d4ecd5`.
-The gomobile bind ran with the debug-tester ldflags
+Built from commit 8b108e5c02b823c4b48fd6d51deec1b8723b39f4. The gomobile bind ran with the debug-tester ldflags
 (`-X …/internal/config.DebugTesterBuild=true`) and the M8-z
 signatures were verified present in libgojni.so in ALL THREE ABIs
 before gradle (the house ritual): the DEBUG BUILD notice line, the
