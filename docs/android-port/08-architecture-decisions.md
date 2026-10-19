@@ -780,6 +780,132 @@ FirstByteTimeout retuned 8 s → 2.5 s from that report's tuning evidence
   value beyond 2.5 s of evidence: the next report's retry/salvaged
   line ratios are the tuning material.
 
+## ADR-0020 — The salvage race + the stall watch: the remaining salvage
+re-dials run in PARALLEL (first origin to speak wins), and a processed
+host's relay that goes silent in BOTH directions for StallTimeout is
+closed engine-side (M8-v, the debug.13 report round)
+
+- **Status:** Accepted 2026-10-19 (M8-v — the FIFTH pasted diagnostics
+  report; Ali's "The problem persists" round, versionCode 12 — the
+  first report from the salvage build itself).
+- **Context:** The debug.13 report (shell line `versionCode 12`) proved
+  the salvage on-device exactly as designed — `tunnel first-byte
+  retry reason=… attempt=N` lines absorbing dead attempts the app never
+  saw, `tunnel first-byte salvaged dials=N` lines saving flows at
+  0.7-1.4 s (errors down to 37/81 ≈ 46 % from 67/114 ≈ 59 %) — and it
+  named the two remaining start-lag sources with new precision:
+  (1) the SERIAL salvage chain's cost — 21 terminal
+  `reason=timeout` dones at 8014-8227 ms = three 2.5 s budgets plus
+  dials walked one after another, plus 11 terminal `reason=reset`
+  dones at 0.6-1.9 s; every terminal flow is one app retry wave away
+  from a fresh origin; (2) the mid-stream stall — five video-start
+  flows (done in the same instant at 00:18:17.2) lived 57290-64620 ms
+  with up=2.4-5.0 KB and down=6.6-7.7 KB (one 121.1 KB): first byte
+  plus ~7 KB down, then TOTAL silence until the APP's own ~60 s
+  patience killed them all — and the retry wave right after answered
+  in 60-261 ms first-byte. Nothing before M8-v looked past the first
+  byte: the budget owns the handshake, the salvage stops at the first
+  byte, and the idle timeout is 300 s, so the engine held the dead
+  flows open through the whole minute. The video start this report
+  measured: ~65 s from the first wave to playing.
+- **Decision (two engine changes, both scoped to processed hosts —
+  the D46 scoping, unrouted relays keep the plain shape
+  byte-for-byte):**
+  1. **The salvage race.** When attempt 0 dies at first byte, the
+     engine no longer walks the remaining `FirstByteSalvageDials`
+     re-dials one budget at a time — it RACES them: it re-resolves,
+     excludes the flow's dead IPs, dedupes, and dials every remaining
+     candidate at once (candidate k starts at the k-th rotated entry
+     of the live set, and each candidate's DialHost still walks its
+     whole rotated list with the M8-n stagger, so a blackholed address
+     fails over inside the candidate), replays the buffered client
+     bytes byte-exact through each, and waits one budget per candidate
+     for the first byte. The FIRST origin to speak wins: its first
+     bytes are delivered, `tunnel first-byte salvaged dials=N` logs
+     the save (N = the re-dials launched), the losers are closed and
+     reaped in the background (a late winner's conn closed, a late
+     death still demoted — one demotion per dead attempt, the M8-o
+     loop preserved). All dead: the M8-s terminal exactly, with the
+     last death's reason. The retry lines keep their format and their
+     count semantics (one `attempt=N` line per launched candidate).
+     Wall time: a silent-host terminal costs ~2x the budget (attempt
+     0 + the race), never the serial chain's 3x; a save lands at the
+     fastest live origin's answer, not after every slower predecessor
+     died. The total attempt count is UNCHANGED (1 + 2 default), so
+     the same-IP transient-reset recovery the serial chain had on
+     single-answer hosts is preserved (round-robin repeats the list);
+     the dial budget per candidate stays DialTimeoutOverall. The
+     client's bytes during the race wait in the socket buffer (the
+     pump is stopped) and flow to the winner in order, right after
+     the replay it already holds.
+  2. **The stall watch.** New knob `StallTimeout` (default 15 s; 0 in
+     a proxy Config → the default; negative → disabled, the M8-u
+     behavior exactly). The budgeted flow's relay phase runs under a
+     watchdog: each direction's read side stamps an activity clock
+     (the copy loops' only activity signal; the idle ends keep the
+     plain IdleTimeout), and when BOTH clocks are older than
+     StallTimeout the flow is closed engine-side — both ends (the
+     app's read errors NOW, so its retry lands on a fresh origin with
+     its own budget + salvage in seconds, not a minute), the answer
+     set demoted (the M8-o loop extends to mid-stream stalls), the
+     error counted, and a new report line
+     `tunnel stall killed idle=Nms` (Warn, reason-in-message). One
+     direction flowing always refreshes the watch: a pure download
+     (client silent, origin streaming) and a pure upload (origin
+     silent, client streaming) are healthy relay shapes and are never
+     killed — only a whole-flow stall is dead. The false-positive
+     case is a keepalive idle > StallTimeout: the kill costs the app
+     one reconnect (~hundreds of ms, invisible), the same death it
+     already accepts from NATs; the true-positive case buys back
+     ~45 s of the ~60 s the report measured. The watch is a
+     per-budgeted-flow goroutine with a ticker (min
+     StallTimeout/4, 50-500 ms) over atomic stamps — no lock shared
+     with the copy loops, stopped when the relay ends.
+- **Evidence:** internal/proxy/stallrace_test.go (new) +
+  firstbyte_test.go updated to the raced shape, all verified BOTH
+  WAYS: with tunnel.go stashed (the M8-t serial shape at HEAD),
+  `TestStallKillClosesSilentRelayFlow` FAILS (the flow hangs to the
+  idle timeout, no stall line),
+  `TestSalvageRaceRedialsInParallel` FAILS (the two re-dials land a
+  full budget apart — three loopback origins, accept-timestamped),
+  `TestSalvageRaceTerminalIsBounded` FAILS (the close arrives at
+  3x the budget, not ~2x), and the updated
+  `TestFirstByteSalvageRecoversDeadOrigin` FAILS (one retry line,
+  dials=1, 2 accepts — the serial shape); with the fix all PASS. The
+  guards pass both ways, as guards must:
+  `TestStallKillSparesStreamingDownload` (a pure download streams
+  across many stall budgets and is never killed — this guard caught
+  an inverted-stamp bug during the round: the watch must measure
+  silence from the NEWEST activity clock, not the oldest, or a
+  download whose client never writes dies mid-stream),
+  `TestStallKillDisabledByConfig` (negative → the M8-u behavior),
+  `TestStallKillSparesUnroutedHosts` (D46),
+  `TestSalvageRaceWinnerDeliversByteExact` (the raced winner delivers
+  record + early data byte-exact and the flow stays a working
+  relay), and the untouched M8-s/M8-t pins
+  (`TestFirstByteSalvageExhaustsToFailFast` still 3 dials / 3
+  demotions / the terminal signature; `TestSalvageReplayIsByteExact`
+  unchanged). Full baseline green: go vet clean; 18/18 packages ×2;
+  GOOS=windows exit 0; the compile matrix 4/4 ABIs + arm64 full
+  tree; gomobile bind with the new strings verified in libgojni.so
+  in all three ABIs; the debug.14 APK artifact-verified (badging
+  versionCode 13, apksigner pinned cert, sha256 in doc 06).
+- **What this ADR does NOT decide:** per-flow METHOD variation — the
+  race re-flips the SAME coin on the SAME preset (captured once per
+  flow); whether a flow that exhausts its raced salvages should be
+  retried once with the NEXT preset in HealSweepOrder stays D102,
+  Ali's ruling, and this report's evidence makes it LIVE: terminal
+  first-byte failures still cluster under method=strong (21 timeouts
+  + 11 resets, ~40 % of conns). The ORIGIN of the per-node
+  silence/reset stays unobservable from the app (no third guess).
+  The stall budget's value beyond 15 s of reasoning: the next
+  report's `tunnel stall killed idle=…` lines are the tuning material
+  (too many kills on flows that were fine → raise; none while starts
+  still stall → the stall is elsewhere). The QUIC drop policy stands
+  (ADR-0009; udpDropped=78 this round keeps measuring). The idle
+  timeout is untouched (300 s for every relay; the stall watch only
+  shortens the BOTH-silent case for processed hosts).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

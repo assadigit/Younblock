@@ -94,105 +94,102 @@ ever built.** This file is the live handoff; keep the fields in
 
 ## Current handoff fields
 
-- **Phase completed:** M8-u (2026-10-19, early — the EIGHTEENTH
-  feedback-loop exchange; the FOURTH pasted-report round, a NO-BUILD
-  round). Ali's input: "The problem persists" + a fourth diagnostics
-  report generated 23:41:37 UTC — but its "android shell: 1.6.6
-  (versionCode 11)" line names the PREVIOUS build (debug.12), the
-  one debug.13 replaces. Identity proven three ways (the
-  PackageManager-read shell line; 21 reason=timeout dones at
-  8054–8070 ms — impossible on the 2.5 s budget; zero retry/salvaged
-  lines), plus the clock: debug.13 published 23:16:28 UTC, the
-  report generated 23:41:37 UTC — the phone never received the fix.
-  The report is the third report's signature measured again: 21
-  timeouts + 17 resets at 64–527 ms, 67 errors / 114 conns, ~24
-  healthy first-bytes at 58–548 ms, DNS ok 118 / fail 0,
-  udpDropped=107, first video-data responses ~80 s into the window.
-- **What this round did (no app change — D84: no versionCode bump,
-  no release cut):** (1) debug.13 re-verified end-to-end: the
-  release asset re-downloaded through the API and hash-matched
-  (SHA-256 18b4ea648b0aa02d7eebf84f2dc596d13894093a1469dfc4f111ddc
-  5b286b518, 35,130,385 B); the embedded engine checked to carry
-  BOTH salvage lines ("tunnel first-byte retry", "tunnel first-byte
-  salvaged") in libgojni.so in all three ABIs (arm64-v8a,
-  armeabi-v7a, x86_64); Latest confirmed via /releases/latest; the
-  HEAD knobs re-read (FirstByteTimeout 2.5 s, FirstByteSalvageDials
-  2). (2) The reply + the preview page (src/app/page.tsx in the
-  Next.js surface) walk Ali through the install: open the
-  v1.6.6-android-debug.13 release page and download
-  v1.6.6-debug13.apk — the filename itself names the build now
-  (D103, Ali's ruling this round; if the filename says anything
-  else, it is the wrong build); install over debug.12 in place
-  (same pinned certificate, higher versionCode — settings and usage
-  survive), reconnect, then verify the report header reads
-  versionCode 12. (3) If a stall remains: menu → Diagnostics → Copy
-  → paste — the retry/salvaged line ratios against terminal
-  first-byte failed lines are the next round's evidence.
-- **The M8-t carryover (unchanged, still the CURRENT build):**
-  v1.6.6-android-debug.13, versionCode 12, ADR-0019 —
-  FirstByteTimeout 8 s → 2.5 s + the salvage re-dial (a dead
-  first-byte origin re-dialed INSIDE the same flow: same host, SAME
-  preset captured once per flow, the client's buffered bytes
-  replayed byte-exact through a fresh fragment conn, dead-IP
-  exclusion on the re-resolve, up to FirstByteSalvageDials=2
-  re-dials, the app never sees the failure). Both-ways proof at
-  internal/proxy/firstbyte_test.go (recovers / exhausts-to-the-M8-s-
-  terminal / byte-exact replay, each FAILING with the salvage
-  stashed; two guards pass both ways). APK 35,130,385 B, apksigner
-  OK (the pinned c76bb7c6...8551d), badging versionCode 12 /
-  versionName 1.6.6 / minSdk 26 / targetSdk 36.
-- **Current architecture decision / confidence:** ADR-0019 (doc 08),
-  unchanged — the salvage re-dial + the budget retune, the
-  failure-detection/hygiene/bounded-recovery species, never steering
-  (the preset is captured once per flow and NEVER varies). What
-  remains OPEN: the per-node silence's ORIGIN (ISP-side,
-  unobservable — no third guess), the METHOD question (D102 below),
-  and now the INSTALL question — the fourth report proved the fix
-  can ship while the phone still runs the old build, so every future
-  report's FIRST check is its shell line. The auth lane stays CLOSED
-  (D97). Live ADRs: ADR-0001..0019. Next decision ID: **D102 (still
-  reserved for Ali — the method question, SHARPENED: the salvage
-  re-flips the same coin up to twice more per flow; if terminal
-  first-byte failures still cluster under one method in the actual
-  debug.13 report, the NEXT-preset retry is his ruling to make)**.
-- **Blocking questions:** none blocking the loop. The standing input
-  is **Ali's ACTUAL debug.13 round** — the report whose shell line
-  reads versionCode 12 (a versionCode 11 report means the old APK is
-  still installed and the round is the install again): (a) video
-  starts should open in seconds — the dead-origin coin flips now
-  happen inside the flow; (b) at any remaining stall, menu →
-  Diagnostics (the first row) → Copy → paste — the expected NEW
-  evidence is "tunnel first-byte retry reason=… attempt=N" lines
-  (absorbed dead attempts), "tunnel first-byte salvaged dials=N"
-  lines (flows the salvage saved), and their ratio against the
-  terminal "first-byte failed" lines; (c) the D102 question for Ali
-  himself, sharpened: should a flow that exhausts its salvages under
-  one preset be retried once with the NEXT preset in HealSweepOrder
-  (per-flow method variation)? His ruling, never unilateral. Plus
-  the older circle rows (the cross-device UI verdict on debug.6,
-  rows 4-8, rotation/TalkBack, the data-usage round, D93's desktop
-  check).
-- **Exact next task:** ONE workstream — the feedback loop. **Task ID
-  M8-v — ingest Ali's results from v1.6.6-android-debug.13 (the
-  versionCode 12 build)**: the pasted diagnostics report FIRST —
-  verify the "android shell:" line names versionCode 12 (a
-  versionCode 11 report means the install failed again: the round is
-  the install, exactly as M8-u was — ask which FILENAME was
-  downloaded: the D103 names (v1.6.6-debug13.apk) make the wrong
-  build self-identifying); then
-  read the retry/salvaged/failed line ratios + the dur= dones + the
-  tun: line to name the waiting phase; root-cause from the evidence;
-  fix at the correct layer; keep the D77-D101 honesty rules binding
-  (D101: any new user-facing surface ships in the variant(s) the
-  affected editions bake, verified through the real webui server).
-  Bump `versionCode` and cut `v1.6.6-android-debug.14` through the
-  same regular-release lane (D89) WHEN an app code change warrants
-  it — D98: every release page carries the debug APK asset; D103
-  (amending D99): the asset is NAMED v<versionName>-debug<N>.apk,
-  N = the tag's build sequence (debug.14's asset is
-  v1.6.6-debug14.apk) — push the code commit
-  BEFORE creating the release (the full-SHA target_commitish 422s
-  against an unpushed SHA). The auth Task IDs (A1/A2/A3) stay
+- **Phase completed:** M8-v (2026-10-19, later — the NINETEENTH
+  feedback-loop exchange; the FIFTH pasted-report round, the first
+  from the salvage build itself). Ali's input: "The problem
+  persists" + a report whose "android shell: 1.6.6 (versionCode
+  12)" line names debug.13 — the salvage build — and whose log
+  carries the salvage's own lines. The report PROVED the salvage
+  on-device (retry lines absorbing dead attempts, "tunnel
+  first-byte salvaged dials=1/2" saving flows at 0.7–1.4 s, errors
+  37/81 ≈ 46 % from 67/114 ≈ 59 %) and named the two remaining
+  start-lag sources: (1) the SERIAL salvage chain — 21 terminal
+  reason=timeout dones at 8014–8227 ms = three 2.5 s budgets walked
+  one after another, + 11 terminal resets at 0.6–1.9 s; (2) the
+  mid-stream stall — five video-start flows done in the same
+  instant at 00:18:17.2, dur=57290–64620 ms, up=2.4–5.0 KB,
+  down=6.6–7.7 KB (one 121.1 KB): first byte plus ~7 KB, then total
+  silence until the app's own ~60 s patience killed them; the retry
+  wave right after answered in 60–261 ms (the video took ~65 s to
+  start). Counters otherwise healthy: DNS ok 150 / fail 0,
+  rstUnmapped=0, doorFailures=0, udpDropped=78.
+- **What this round shipped — v1.6.6-android-debug.14, versionCode
+  13, ADR-0020 (doc 08), the CURRENT build:** (1) the salvage RACE
+  — when attempt 0 dies at first byte, the remaining re-dials
+  launch IN PARALLEL (re-resolve, dead-IP exclusion, dedupe,
+  rotated lists so candidates start on distinct live origins; each
+  candidate's DialHost keeps the M8-n stagger failover), the FIRST
+  origin to speak wins (bytes delivered, losers closed and reaped,
+  one demotion per dead attempt preserved), and a silent-host
+  terminal costs ~2x the budget (attempt 0 + the race), never the
+  serial chain's 3x; the total attempt count is unchanged (1 + 2);
+  the client's bytes during the race wait in the socket buffer and
+  flow to the winner in order. (2) The STALL WATCH — new knob
+  StallTimeout (default 15 s; 0 → default, negative → disabled):
+  a budgeted flow's relay that goes silent in BOTH directions for
+  the budget is closed engine-side (both ends so the app's read
+  errors NOW, the answer set demoted, the error counted, new report
+  line "tunnel stall killed idle=Nms"); one-direction silence
+  never fires (a pure download or upload is healthy); unrouted
+  relays keep the plain shape byte-for-byte (D46). Both-ways
+  proof: with tunnel.go stashed, TestStallKillClosesSilentRelayFlow,
+  TestSalvageRaceRedialsInParallel, TestSalvageRaceTerminalIsBounded
+  and the updated TestFirstByteSalvageRecoversDeadOrigin all FAIL;
+  with the fix all 16 first-byte/salvage/stall tests PASS; guards
+  pass both ways (the streaming-download guard caught an
+  inverted-stamp bug mid-round — the watch measures from the NEWEST
+  activity clock). Lane evidence: baseline green (vet, 18/18 ×2,
+  GOOS=windows), compile matrix 4/4 + arm64 full tree, gomobile
+  bind with the stall string in all three ABIs, clean assembleDebug;
+  APK 35,182,673 B, SHA-256 154d40355bee702fcc751ead595688b5732abe
+  b44cf186913dddbc5a99cad5e7, apksigner OK (the pinned
+  c76bb7c6...8551d), badging versionCode 13 / versionName 1.6.6 /
+  minSdk 26 / targetSdk 36; the stall string also verified in the
+  APK's libgojni.so in all three ABIs.
+- **Current architecture decision / confidence:** ADR-0020 (doc
+  08) — the salvage race + the stall watch, extending the
+  ADR-0018/0019 species (failure detection, hygiene, bounded
+  recovery; never steering — the preset is still captured once per
+  flow and NEVER varies). Live ADRs: ADR-0001..0020. The auth lane
+  stays CLOSED (D97).
+- **Blocking questions:** none blocking the loop. The standing
+  input is **Ali's debug.14 round** — the report whose shell line
+  reads **versionCode 13** (a versionCode 12 report means the old
+  APK is still installed: the D103 filename v1.6.6-debug14.apk
+  makes the right build self-identifying): (a) video starts —
+  do they open in seconds now? (b) at any remaining stall: menu →
+  Diagnostics (the first row) → Copy → paste — the NEW evidence
+  lines are "tunnel stall killed idle=Nms" (how many fire, and
+  whether starts still stall when they do not — the stall budget's
+  tuning material) plus the retry/salvaged-vs-terminal ratio (the
+  D102 material); (c) the D102 question for Ali himself, now LIVE:
+  terminal first-byte failures still cluster under method=strong
+  (21 timeouts + 11 resets, ~40 % of conns) — should a flow that
+  exhausts its RACED salvages be retried once with the NEXT preset
+  in HealSweepOrder (per-flow method variation)? His ruling, never
+  unilateral. Plus the older circle rows (the cross-device UI
+  verdict on debug.6, rows 4-8, rotation/TalkBack, the data-usage
+  round, D93's desktop check).
+- **Exact next task:** ONE workstream — the feedback loop. **Task
+  ID M8-w — ingest Ali's results from v1.6.6-android-debug.14 (the
+  versionCode 13 build)**: the pasted diagnostics report FIRST —
+  verify the "android shell:" line names versionCode 13 (a
+  versionCode 12 report means the install never happened: ask
+  which FILENAME was downloaded — the D103 name
+  v1.6.6-debug14.apk makes the wrong build self-identifying); then
+  read the "tunnel stall killed" lines, the retry/salvaged/failed
+  ratios and the dur= dones to name the remaining waiting phase;
+  root-cause from the evidence; fix at the correct layer; keep the
+  D77-D103 honesty rules binding (D101: any new user-facing surface
+  ships in the variant(s) the affected editions bake, verified
+  through the real webui server). Bump `versionCode` and cut
+  `v1.6.6-android-debug.15` through the same regular-release lane
+  (D89) WHEN an app code change warrants it — D98: every release
+  page carries the debug APK asset; D103 (amending D99): the asset
+  is NAMED v<versionName>-debug<N>.apk, N = the tag's build
+  sequence (debug.15's asset is v1.6.6-debug15.apk) — push the code
+  commit BEFORE creating the release (the full-SHA target_commitish
+  422s against an unpushed SHA). The auth Task IDs (A1/A2/A3) stay
   retired (D97). The dormant alternatives when no feedback arrives:
   the desktop release lane or public-release engineering — ask Ali
   which, do not guess.

@@ -111,6 +111,29 @@ const FirstByteTimeout = 2500 * time.Millisecond
 // (exactly the M8-s fail-fast behavior).
 const FirstByteSalvageDials = 2
 
+// StallTimeout — how long a processed host's relay may stay silent in
+// BOTH directions before the flow is closed as a mid-stream stall
+// (M8-v, ADR-0020). The debug.13 report gave the per-video start lag
+// its remaining shape: the salvage absorbed what a re-dial could fix
+// (retry lines + salvaged dials=1/2 lines on-device), but five
+// video-start flows lived 57–64 s — first byte plus ~7 KB down, then
+// total silence — until the APP's own ~60 s patience killed them all
+// in the same instant, and the retry wave right after answered in
+// 60–261 ms. Nothing before M8-v looked past the first byte: the
+// budget owns the handshake, the salvage stops at the first byte, and
+// the idle timeout is 300 s, so the engine held the dead flows open
+// through the whole minute. A both-directions stall is dead — no relay
+// shape the app needs is silent both ways for long (a pure download
+// streams down, a pure upload streams up) — so the watch closes both
+// ends at the stall budget and the app retries onto a fresh origin
+// (with its own budget + salvage) in seconds instead of a minute. One
+// direction flowing always refreshes the watch. Zero in a proxy
+// Config → this default; negative → disabled (the M8-u behavior
+// exactly). Unrouted relays keep the plain idle semantics — the watch,
+// like the budget and the salvage before it, is part of the processing
+// of the hosts this app processes (the D46 scoping).
+const StallTimeout = 15 * time.Second
+
 // IdleTimeout — quiet connections are closed after this long (refreshed by activity).
 const IdleTimeout = 300 * time.Second
 

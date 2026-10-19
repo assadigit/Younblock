@@ -20,28 +20,30 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 12: the M8-t build (the debug.12 report round). The
-        // third pasted diagnostic report proved the M8-s budget on-device
-        // ("tunnel first-byte failed reason=timeout" dones at ~8.3 s —
-        // the tuning evidence ADR-0018 asked for) and named the
-        // remaining per-video start lag: waves where roughly half the
-        // flows die at first byte (origin resets at ~0.5 s, the rest
-        // silent to the budget) while the app re-opens wave after wave.
-        // This build retunes FirstByteTimeout 8 s -> 2.5 s (every
-        // budget-killed flow was 100% silent; healthy routed origins
-        // answer in 420-508 ms, one 2399 ms outlier) and adds the
-        // salvage re-dial (ADR-0019): a dead first-byte origin is
-        // re-dialed INSIDE the same flow — same host, same preset, the
-        // client's buffered bytes replayed byte-exact — up to 2 times,
-        // so the app never sees the failure and its serial retry chain
-        // collapses into bounded in-engine attempts (per-flow preset
-        // variation stays D102, Ali's ruling, never code). New report
-        // lines: "tunnel first-byte retry reason=… attempt=N" and
-        // "tunnel first-byte salvaged dials=N".
-        // Installs over debug.12 (same pinned debug certificate — D85).
-        // The D84 rule: every debug build bumps this. D99: the APK asset
-        // carries the version name (v1.6.6-debug.apk).
-        versionCode = 12
+        // versionCode 13: the M8-v build (the debug.13 report round —
+        // the first report from the salvage build itself, shell line
+        // versionCode 12). It proved the salvage on-device (retry lines
+        // absorbing dead attempts, "tunnel first-byte salvaged dials=N"
+        // saving flows at 0.7-1.4 s) and named the two remaining
+        // start-lag sources this build attacks (ADR-0020): (1) the
+        // serial salvage chain — 21 terminal "reason=timeout" dones at
+        // 8014-8227 ms = three 2.5 s budgets walked one after another —
+        // so the remaining re-dials now RACE in parallel (distinct live
+        // origins via the rotated answer set, first speaker wins, a
+        // silent-host terminal costs ~2x the budget, never 3x); (2) the
+        // mid-stream stall — five video-start flows lived 57-64 s
+        // (first byte + ~7 KB down, then total silence) until the APP's
+        // own patience killed them — so the relay now runs under the
+        // stall watch: both directions silent for StallTimeout (15 s)
+        // closes the flow engine-side, the answer set demoted, the app
+        // retries onto a fresh origin in seconds instead of a minute.
+        // New report line: "tunnel stall killed idle=Nms". D102 (the
+        // next-preset retry after exhausted salvages) stays Ali's
+        // ruling, never code.
+        // Installs over debug.13 (same pinned debug certificate — D85).
+        // The D84 rule: every debug build bumps this. D103: the APK
+        // asset is named v1.6.6-debug14.apk.
+        versionCode = 13
         versionName = "1.6.6"
     }
 

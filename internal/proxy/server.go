@@ -69,11 +69,17 @@ type Config struct {
 	// dead first-byte origin is re-dialed inside the same flow,
 	// replaying the client's buffered bytes (M8-t, ADR-0019; same host,
 	// same preset — never a method change, which is D102's to rule).
-	// Zero → the config default; negative → disabled (the M8-s
-	// fail-fast behavior exactly).
+	// M8-v (ADR-0020): the remaining re-dials are raced in parallel,
+	// not walked serially. Zero → the config default; negative →
+	// disabled (the M8-s fail-fast behavior exactly).
 	FirstByteSalvageDials int
-	IdleTimeout           time.Duration
-	MaxHeaderBytes        int64
+	// StallTimeout bounds how long a processed host's relay may stay
+	// silent in BOTH directions before the flow is closed as a
+	// mid-stream stall (M8-v, ADR-0020). Zero → the config default;
+	// negative → disabled (the M8-u behavior exactly).
+	StallTimeout   time.Duration
+	IdleTimeout    time.Duration
+	MaxHeaderBytes int64
 
 	Resolver           Resolver
 	Dialer             *netx.Dialer
@@ -131,6 +137,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.FirstByteSalvageDials == 0 {
 		cfg.FirstByteSalvageDials = config.FirstByteSalvageDials
+	}
+	if cfg.StallTimeout == 0 {
+		cfg.StallTimeout = config.StallTimeout
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = config.IdleTimeout

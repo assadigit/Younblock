@@ -1605,3 +1605,48 @@ historical names — they predate the rule, and Android refuses
 same-signature versionCode downgrades, so the silent wrong-build
 install cannot happen through them. No app change: versionCode
 stays 12, debug.13 stays the CURRENT build, no release cut.
+M8-v (2026-10-19, the FIFTH report round — the first from the salvage
+build itself, shell line versionCode 12): the report proved the
+salvage on-device (retry lines absorbing dead attempts, salvaged
+dials=1/2 saving flows at 0.7-1.4 s, errors 37/81 ≈ 46 % from 59 %)
+and named the two remaining start-lag sources: the SERIAL salvage
+chain (21 terminal reason=timeout dones at 8014-8227 ms = three
+2.5 s budgets walked one after another, + 11 terminal resets at
+0.6-1.9 s) and the mid-stream stall (five video-start flows done in
+the same instant at 00:18:17.2, dur=57290-64620 ms, up=2.4-5.0 KB
+down=6.6-7.7 KB one 121.1 KB — first byte plus ~7 KB, then total
+silence until the APP's own ~60 s patience killed them; the retry
+wave right after answered in 60-261 ms). The round ships ADR-0020:
+the salvage RACE (the remaining re-dials launch in parallel on the
+rotated live set, first speaker wins, terminal ~2x the budget never
+3x) + the stall watch (StallTimeout 15 s default, both-directions
+silence closes the flow engine-side, new report line
+"tunnel stall killed idle=Nms"). Both scoped to processed hosts
+(D46); D102 (the next-preset retry) stays Ali's ruling with this
+report's evidence: terminal first-byte failures still cluster under
+method=strong.
+
+Lane evidence: desktop baseline in the D74 order all green (npm ci,
+svelte-check 0/0, vite build, CLEAN-sync dist, go vet clean, 18/18
+packages ×2, GOOS=windows exit 0). Both-ways proof: with tunnel.go
+stashed (the M8-t serial shape), TestStallKillClosesSilentRelayFlow,
+TestSalvageRaceRedialsInParallel, TestSalvageRaceTerminalIsBounded
+and the updated TestFirstByteSalvageRecoversDeadOrigin all FAIL
+exactly as designed; with the fix all 16 first-byte/salvage/stall
+tests PASS; guards pass both ways (the streaming-download guard
+caught an inverted-stamp bug mid-round — the watch must measure from
+the NEWEST activity clock). Full suite 18/18 ×2 again after the fix.
+Compile matrix 4/4 ABIs (CGO_ENABLED=0 ./internal/... ./mobile/...
+per android/arm,arm64,amd64,386) + arm64 full tree ./... green.
+Disk managed per the M8-t lesson (go clean -cache before the bind;
+2.9 GB free at the bind, gradle --stop first). gomobile bind
+(-target=android/arm,android/arm64,android/amd64 -androidapi=26,
+GOFLAGS=-mod=mod) exit 0; younblock.aar 25,157,947 B with the stall
+string verified in libgojni.so in all three ABIs; clean assembleDebug
+BUILD SUCCESSFUL (44 s). Artifact: app-debug.apk 35,182,673 B,
+SHA-256 154d40355bee702fcc751ead595688b5732abeb44cf186913dddbc5a99c
+ad5e7; apksigner OK (the pinned c76bb7c6…8551d); badging versionCode
+13 / versionName 1.6.6 / minSdk 26 / targetSdk 36; the stall string
+also verified in the APK's libgojni.so in all three ABIs.
+versionCode 13 (the D84 rule); release lane: v1.6.6-android-debug.14
+with the APK asset named v1.6.6-debug14.apk (D103).

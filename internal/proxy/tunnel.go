@@ -87,6 +87,73 @@ func (c *idleConn) Write(b []byte) (int, error) {
         return n, err
 }
 
+// stampingReadConn stamps a per-direction activity clock on every read
+// that returns bytes — the relay loops' only activity signal for the
+// stall watch (M8-v, ADR-0020). It wraps the idle end (never the write
+// side), so the idle semantics stay exactly the plain shape's.
+type stampingReadConn struct {
+        net.Conn
+        stamp *atomic.Int64
+}
+
+func (c *stampingReadConn) Read(b []byte) (int, error) {
+        n, err := c.Conn.Read(b)
+        if n > 0 {
+                c.stamp.Store(time.Now().UnixMilli())
+        }
+        return n, err
+}
+
+// watchStall closes the flow when BOTH relay directions have been
+// silent for the whole StallTimeout (M8-v, ADR-0020). The debug.13
+// report's stall cohort — first byte plus ~7 KB down, then total
+// silence until the app's ~60 s patience — gets a bounded engine-side
+// death instead: both ends closed (the app's read errors NOW, so its
+// retry lands on a fresh origin with its own budget + salvage in
+// seconds), the answer set demoted like every other dead-origin signal
+// (the M8-o loop), the error counted, the stall line logged for the
+// next report. One-direction silence never fires: a pure download
+// (client silent) and a pure upload (origin silent) are healthy relay
+// shapes, and only a whole-flow stall is dead.
+func (s *Server) watchStall(host string, tc *tunnelCloser, lastUp, lastDown *atomic.Int64, stop chan struct{}) {
+        tick := s.cfg.StallTimeout / 4
+        if tick > 500*time.Millisecond {
+                tick = 500 * time.Millisecond
+        }
+        if tick < 50*time.Millisecond {
+                tick = 50 * time.Millisecond
+        }
+        limit := s.cfg.StallTimeout.Milliseconds()
+        t := time.NewTicker(tick)
+        defer t.Stop()
+        for {
+                select {
+                case <-stop:
+                        return
+                case <-t.C:
+                        now := time.Now().UnixMilli()
+                        up, down := lastUp.Load(), lastDown.Load()
+                        // The NEWEST stamp decides: the stall fires only when
+                        // BOTH directions have been silent the whole budget —
+                        // now minus the younger activity clock. (The min would
+                        // fire on a pure download whose client never writes;
+                        // exactly the shape the watch must spare.)
+                        newest := up
+                        if down > newest {
+                                newest = down
+                        }
+                        idle := now - newest
+                        if idle >= limit {
+                                tc.closeBoth()
+                                s.invalidateDNS(host)
+                                s.countConnError()
+                                s.logTunnelStallKilled(host, time.Duration(idle)*time.Millisecond)
+                                return
+                        }
+                }
+        }
+}
+
 // bufPool pools the 32 KB copy buffers (file 01, section 7 step 5).
 var bufPool = sync.Pool{
         New: func() any {
@@ -185,6 +252,24 @@ func (s *Server) logTunnelFirstByteSalvaged(host string, dials int) {
                 msg += " host=" + host
         }
         s.cfg.Logger.Info(msg)
+}
+
+// logTunnelStallKilled records the M8-v stall kill (ADR-0020): a
+// budgeted flow whose relay went silent in BOTH directions for the
+// whole StallTimeout — the debug.13 report's dominant start-lag shape
+// (five video-start flows stalled mid-stream at ~7 KB down until the
+// app's own ~60 s patience killed them). The line rides in the
+// report's ring like every other tunnel line; the done line that
+// follows carries the flow's totals.
+func (s *Server) logTunnelStallKilled(host string, idle time.Duration) {
+        if s.cfg.Logger == nil {
+                return
+        }
+        msg := fmt.Sprintf("tunnel stall killed idle=%dms", idle.Milliseconds())
+        if s.cfg.LogHostnames {
+                msg += " host=" + host
+        }
+        s.cfg.Logger.Warn(msg)
 }
 
 // firstByteReason reduces a first-read error to a short, hostless reason
@@ -419,6 +504,44 @@ func excludeDead(ips []net.IP, dead map[string]bool) []net.IP {
         return out
 }
 
+// dedupeIPs drops duplicate addresses, preserving order (M8-v: a
+// salvage race wants its candidates on DISTINCT origins whenever the
+// answer set has them).
+func dedupeIPs(ips []net.IP) []net.IP {
+        if len(ips) < 2 {
+                return ips
+        }
+        seen := make(map[string]bool, len(ips))
+        out := make([]net.IP, 0, len(ips))
+        for _, ip := range ips {
+                k := ip.String()
+                if !seen[k] {
+                        seen[k] = true
+                        out = append(out, ip)
+                }
+        }
+        return out
+}
+
+// rotateIPs returns ips rotated by k places (M8-v): the salvage race's
+// candidate k starts at ips[k], and DialHost still walks the whole
+// rotated list with its stagger — every candidate keeps the serial
+// re-dial's failover while the candidates together cover the live set
+// in one budget's wall time.
+func rotateIPs(ips []net.IP, k int) []net.IP {
+        if len(ips) < 2 {
+                return ips
+        }
+        r := k % len(ips)
+        if r == 0 {
+                return ips
+        }
+        out := make([]net.IP, 0, len(ips))
+        out = append(out, ips[r:]...)
+        out = append(out, ips[:r]...)
+        return out
+}
+
 // pumpClient is the budgeted flow's ONE client reader while it runs:
 // it tees phase-A client bytes into the replay buffer and writes
 // everything live to the current origin through the link — a chatty
@@ -522,28 +645,34 @@ func (s *Server) writeReplay(origin net.Conn, replay []byte, firstLen int, isTLS
 }
 
 // copyFirstByteBudgeted is the processed-host relay shape (M8-s,
-// ADR-0018; M8-t, ADR-0019): after the first record went upstream, the
-// origin's first byte must arrive within FirstByteTimeout. A dead
-// origin — the pasted reports' signature: a dial that completes, ~1.7
-// KB up, then a ~0.5 s reset or silence to the budget — is first
-// RETRIED in-flow: the engine closes only the dead origin, demotes the
-// answer set (the M8-o loop), re-dials the same host with the same
-// preset and replays the buffered client bytes, up to
-// FirstByteSalvageDials times, so the app never sees the failure and
-// its own serial retry waves collapse into bounded in-engine attempts.
-// When the retries run out (or a re-dial cannot connect), the flow
-// fails FAST exactly as at M8-s: both ends closed, the error counted,
-// "tunnel first-byte failed reason=..." in the report, the answer set
-// demoted. Absorbed attempts log "tunnel first-byte retry reason=...
-// attempt=N"; a flow saved by them logs "tunnel first-byte salvaged
-// dials=N". Unrouted relays never enter this shape (the D46 scoping).
+// ADR-0018; M8-t, ADR-0019; M8-v, ADR-0020): after the first record
+// went upstream, the origin's first byte must arrive within
+// FirstByteTimeout. A dead origin — the pasted reports' signature: a
+// dial that completes, ~1.7 KB up, then a ~0.5 s reset or silence to
+// the budget — is RETRIED in-flow: the engine closes only the dead
+// origin, demotes the answer set (the M8-o loop), re-dials the same
+// host with the same preset and replays the buffered client bytes, so
+// the app never sees the failure and its own serial retry waves
+// collapse into bounded in-engine attempts. M8-v races the remaining
+// re-dials in parallel (the debug.13 report's terminal failures were
+// the serial chain's cost: 21 timeout dones at 8014-8227 ms = three
+// 2.5 s budgets walked one after another) and adds the stall watch to
+// the relay phase: both directions silent for StallTimeout closes the
+// flow (the report's five 57-64 s stalls died only at the app's own
+// patience). When the retries run out, the flow fails FAST exactly as
+// at M8-s: both ends closed, the error counted, "tunnel first-byte
+// failed reason=..." in the report, the answer set demoted. Absorbed
+// attempts log "tunnel first-byte retry reason=... attempt=N"; a flow
+// saved by them logs "tunnel first-byte salvaged dials=N". Unrouted
+// relays never enter this shape (the D46 scoping).
 //
 // Shape: the pump (pumpClient) reads the client and writes live to the
 // current origin through the swap-able link, so a chatty client is
 // never blocked behind the budget; the main goroutine reads the
 // origin's first byte under the deadline. Once the origin speaks, the
 // pump is stopped (its reads are all delivered) and the plain
-// two-goroutine relay takes over byte-for-byte.
+// two-goroutine relay takes over byte-for-byte — under the stall
+// watch, which is the only M8-v addition to the relay itself.
 func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, host string, port int, flow *flowMeter, tstart time.Time, onFirst func(), tc *tunnelCloser, first []byte, isTLS bool) {
         link := &originLink{dst: upstream, writeTimeout: s.cfg.FirstByteTimeout}
         defer link.swap(nil) // the final origin closes on every exit path
@@ -579,6 +708,42 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 tc.closeBoth()
                 s.countConnError()
                 s.logTunnelFirstByteFailed(host, reason)
+                s.logTunnelDone(host, time.Since(tstart), flow)
+        }
+
+        // relayEntry runs the post-first-byte relay under the stall watch
+        // (M8-v, ADR-0020) — the plain two-goroutine shape byte-for-byte,
+        // plus the both-directions-silence clock. The stamps live on the
+        // READ side of each direction (the copy loops' only activity
+        // signal); the idle ends keep the plain shape's IdleTimeout.
+        relayEntry := func(origin net.Conn) {
+                cIdle := &idleConn{Conn: client, timeout: s.cfg.IdleTimeout}
+                uIdle := &idleConn{Conn: origin, timeout: s.cfg.IdleTimeout}
+                nowMS := time.Now().UnixMilli()
+                lastUp := &atomic.Int64{}
+                lastDown := &atomic.Int64{}
+                lastUp.Store(nowMS)
+                lastDown.Store(nowMS)
+                upSrc := &stampingReadConn{Conn: cIdle, stamp: lastUp}
+                downSrc := &stampingReadConn{Conn: uIdle, stamp: lastDown}
+                stallStop := make(chan struct{})
+                if s.cfg.StallTimeout > 0 {
+                        go s.watchStall(host, tc, lastUp, lastDown, stallStop)
+                }
+                done := make(chan struct{}, 2)
+                go func() {
+                        s.copyDir(upSrc, uIdle, true, flow, nil) // client -> origin counts as up
+                        closeWrite(origin)
+                        done <- struct{}{}
+                }()
+                go func() {
+                        s.copyDir(downSrc, cIdle, false, flow, nil) // origin -> client counts as down
+                        closeWrite(client.Conn)
+                        done <- struct{}{}
+                }()
+                <-done
+                <-done
+                close(stallStop)
                 s.logTunnelDone(host, time.Since(tstart), flow)
         }
 
@@ -645,22 +810,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                 return
                         }
                         pumpRunning = false
-                        cIdle := &idleConn{Conn: client, timeout: s.cfg.IdleTimeout}
-                        uIdle := &idleConn{Conn: origin, timeout: s.cfg.IdleTimeout}
-                        done := make(chan struct{}, 2)
-                        go func() {
-                                s.copyDir(cIdle, uIdle, true, flow, nil) // client -> origin counts as up
-                                closeWrite(origin)
-                                done <- struct{}{}
-                        }()
-                        go func() {
-                                s.copyDir(uIdle, cIdle, false, flow, nil) // origin -> client counts as down
-                                closeWrite(client.Conn)
-                                done <- struct{}{}
-                        }()
-                        <-done
-                        <-done
-                        s.logTunnelDone(host, time.Since(tstart), flow)
+                        relayEntry(origin)
                         return
                 }
                 putBuf(buf)
@@ -668,42 +818,150 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // Dead origin (n == 0, rerr != nil): reset, closed, or the
                 // budget's timeout. Salvage while attempts and replay remain.
                 reason := firstByteReason(rerr)
-                if redials < maxRedial && replay.fits() {
-                        redials++
-                        s.invalidateDNS(host) // the set that went silent is suspect (the M8-s loop)
-                        s.logTunnelFirstByteRetry(host, reason, redials)
-                        if ip := remoteIP(origin); ip != "" {
-                                deadIPs[ip] = true
-                        }
-                        // Close the dead origin first (unblocks a pump write
-                        // stuck on it), then stop the pump, then re-resolve
-                        // and re-dial the same host.
-                        link.swap(nil)
-                        if !stopClientPump(client, pumpStop, pumpDone) {
-                                failFlow(reason)
-                                return
-                        }
-                        pumpRunning = false
-                        origin = nil
-                        ips, rerr2 := s.resolve(host)
-                        if rerr2 == nil {
-                                ips = excludeDead(ips, deadIPs)
-                                ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
-                                org2, derr := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, ips)
-                                cancel()
-                                if derr == nil {
-                                        origin = org2
-                                        tc.setB(org2)
-                                        link.swap(org2)
-                                        continue // the loop top replays onto the fresh origin
-                                }
-                        }
-                        s.invalidateDNS(host) // the re-dial's set failed to connect too (the M8-o rule)
+                if redials >= maxRedial || !replay.fits() {
+                        s.invalidateDNS(host) // terminal: the set connects but never speaks (M8-s)
+                        failFlow(reason)
+                        return
+                }
+                // M8-v (ADR-0020): the remaining salvage re-dials are RACED
+                // in parallel, not walked serially. The debug.13 report's
+                // terminal failures were the serial chain's cost — 21
+                // timeout dones at 8014-8227 ms, three 2.5 s budgets plus
+                // dials, every one an app retry wave away from a fresh
+                // origin. Raced, the same attempts cover the live answer set
+                // in ONE budget's wall time: candidates dial distinct
+                // origins immediately (the flow's dead IPs excluded, the
+                // lists rotated so every candidate starts elsewhere), the
+                // first origin to speak wins, the losers are closed and
+                // reaped, and a silent-host terminal costs ~2x the budget
+                // (attempt 0 + the race), never 3x.
+                if ip := remoteIP(origin); ip != "" {
+                        deadIPs[ip] = true
+                }
+                raced := maxRedial - redials
+                redials = maxRedial
+                s.invalidateDNS(host) // the set that went silent is suspect (the M8-s loop)
+                for attempt := 1; attempt <= raced; attempt++ {
+                        s.logTunnelFirstByteRetry(host, reason, attempt)
+                }
+                // Close the dead origin first (unblocks a pump write stuck
+                // on it), then stop the pump — the client's bytes during the
+                // race wait in the socket buffer and flow to the winner in
+                // order, right after the replay it already holds.
+                link.swap(nil)
+                if !stopClientPump(client, pumpStop, pumpDone) {
+                        failFlow(reason)
+                        return
+                }
+                pumpRunning = false
+                origin = nil
+                ips, rerr2 := s.resolve(host)
+                if rerr2 != nil {
+                        s.invalidateDNS(host) // the re-dial's set failed to resolve too (the M8-o rule)
                         failFlow("dial")
                         return
                 }
-                s.invalidateDNS(host) // terminal: the set connects but never speaks (M8-s)
-                failFlow(reason)
+                ips = dedupeIPs(excludeDead(ips, deadIPs))
+                snapshot := replay.bytes()
+
+                // The candidates. Each dials its rotated start of the live
+                // set (DialHost walks the whole list with its stagger, so a
+                // blackholed address still fails over inside the candidate),
+                // replays the buffered client bytes byte-exact through a
+                // fresh fragment conn, and waits one budget for the first
+                // byte. First speaker wins.
+                type salvageResult struct {
+                        conn  net.Conn
+                        first []byte
+                        death string
+                }
+                results := make(chan salvageResult, raced)
+                for i := 0; i < raced; i++ {
+                        list := rotateIPs(ips, i)
+                        go func(list []net.IP) {
+                                ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
+                                defer cancel()
+                                conn, derr := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, list)
+                                if derr != nil {
+                                        results <- salvageResult{death: "dial"}
+                                        return
+                                }
+                                if werr := s.writeReplay(conn, snapshot, len(first), isTLS, preset, fcfg); werr != nil {
+                                        conn.Close()
+                                        results <- salvageResult{death: firstByteReason(werr)}
+                                        return
+                                }
+                                cbuf := getBuf()
+                                conn.SetReadDeadline(time.Now().Add(s.cfg.FirstByteTimeout))
+                                cn, cerr := conn.Read(*cbuf)
+                                conn.SetReadDeadline(time.Time{})
+                                if cn > 0 {
+                                        firstDown := append([]byte(nil), (*cbuf)[:cn]...)
+                                        putBuf(cbuf)
+                                        results <- salvageResult{conn: conn, first: firstDown}
+                                        return
+                                }
+                                putBuf(cbuf)
+                                conn.Close()
+                                results <- salvageResult{death: firstByteReason(cerr)}
+                        }(list)
+                }
+
+                // Collect: the first speaking origin wins; the still-pending
+                // candidates are reaped in the background (their conns
+                // closed, their late deaths still demoted — one per dead
+                // attempt, the M8-o loop).
+                var winner net.Conn
+                var winnerFirst []byte
+                deaths := 0
+                lastDeath := reason
+                for {
+                        res := <-results
+                        if res.conn != nil {
+                                winner = res.conn
+                                winnerFirst = res.first
+                                break
+                        }
+                        deaths++
+                        lastDeath = res.death
+                        s.invalidateDNS(host)
+                        if deaths == raced {
+                                failFlow(lastDeath)
+                                return
+                        }
+                }
+                go func(pending int) {
+                        for i := 0; i < pending; i++ {
+                                res := <-results
+                                if res.conn != nil {
+                                        res.conn.Close()
+                                } else {
+                                        s.invalidateDNS(host)
+                                }
+                        }
+                }(raced - deaths - 1)
+                origin = winner
+                tc.setB(winner)
+                link.swap(winner)
+                // The winner spoke: deliver its first bytes, log the save,
+                // and enter the relay (the pump is already stopped — the
+                // race stopped it — so the client's buffered bytes flow to
+                // the winner through the plain copy).
+                if err := writeFull(client, winnerFirst, s.cfg.IdleTimeout); err != nil {
+                        // The origin spoke but the client is gone: a
+                        // client-side death, not a suspect-origin signal
+                        // (the M8-s branch — no demotion).
+                        link.swap(nil)
+                        tc.closeBoth()
+                        s.countConnError()
+                        s.logTunnelDone(host, time.Since(tstart), flow)
+                        return
+                }
+                s.stats.AddBytesDown(int64(len(winnerFirst)))
+                flow.down.Add(int64(len(winnerFirst)))
+                onFirst()
+                s.logTunnelFirstByteSalvaged(host, redials)
+                relayEntry(winner)
                 return
         }
 }

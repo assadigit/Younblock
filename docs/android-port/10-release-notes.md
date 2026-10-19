@@ -1,45 +1,48 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-u (2026-10-19, early — Ali's FOURTH pasted
-report round, a NO-BUILD round: "The problem persists" arrived
-again, but the report names itself versionCode 11 — the PREVIOUS
-build — though it was generated at 23:41:37 UTC, twenty-five minutes
-AFTER v1.6.6-android-debug.13 shipped (23:16:28 UTC). The identity
-is authoritative (read from PackageManager at runtime) and the log
-confirms it: 21 reason=timeout dones at 8054–8070 ms (the old 8 s
-budget; the 2.5 s build cannot produce an 8 s death) and zero
-retry/salvaged lines. Zero salvage-build evidence — the report is
-the third report's signature measured again (21 timeouts + 17
-resets, 67 errors / 114 conns, healthy first-bytes 58–548 ms — all
-inside the new budget, DNS ok 118 / fail 0, udpDropped=107).
-**v1.6.6-android-debug.13 stays the CURRENT build** — re-verified
-this session: the release asset re-downloaded through the API and
-hash-matched, the salvage lines present in libgojni.so in all three
-ABIs, Latest confirmed. D103 landed the same session (Ali's
-ruling: "add debug13 in the apk's name") — every D99-era APK asset
-renamed in place (v1.6.6-debug8.apk … v1.6.6-debug13.apk, bytes
-unchanged), so the downloaded FILE itself names its build: the
-accident class this round found is closed. The stall row stays OPEN
-for the ACTUAL debug.13 report — whose first check is the shell
-line reading versionCode 12.)
-Earlier: M8-s (ADR-0018, debug.12 — superseded by debug.13: its
-round produced the third pasted report, which debug.13 acts on),
-M8-r (ADR-0017, debug.11), M8-q/p (the diagnostics surface,
+**Status:** updated at M8-v (2026-10-19, later — Ali's FIFTH pasted
+report round, the first from the salvage build itself: the shell line
+reads versionCode 12, and the log carries the salvage's own lines —
+retry attempts absorbed, salvaged dials=1/2 saving flows at
+0.7–1.4 s, errors down to 37/81 ≈ 46 % from 59 %). The report named
+the two remaining start-lag sources and **v1.6.6-android-debug.14
+(versionCode 13) is the CURRENT build** carrying ADR-0020: (1) the
+salvage RACE — the report's 21 terminal reason=timeout dones at
+8014–8227 ms were the SERIAL chain's cost (three 2.5 s budgets walked
+one after another), so the remaining re-dials now launch in parallel
+on the rotated live answer set, the first origin to speak wins, and a
+silent-host terminal costs ~2x the budget, never 3x; (2) the STALL
+WATCH — the report's five video-start flows lived 57–64 s (first
+byte + ~7 KB down, then total silence until the APP's own patience
+killed them all in the same instant, and the retry wave right after
+answered in 60–261 ms), so a processed host's relay that goes silent
+in BOTH directions for StallTimeout (15 s) is now closed engine-side
+— new report line "tunnel stall killed idle=Nms" — and the app
+retries onto a fresh origin in seconds instead of a minute. D102
+(the next-preset retry after exhausted salvages) stays Ali's ruling,
+now LIVE with this report's evidence: terminal first-byte failures
+still cluster under method=strong.)
+Earlier: M8-u (the no-build round — the fourth report ran the
+previous build, versionCode 11, twenty-five minutes after debug.13
+shipped; its D103 ruling put the build number in the APK asset
+name), M8-s (ADR-0018, debug.12 — superseded by debug.13), M8-r
+(ADR-0017, debug.11), M8-q/p (the diagnostics surface,
 ADR-0015/0016 + D100/D101), M8-n/M8-o (the stall fixes,
 ADR-0013/0014 + D98/D99), A0/A0-R2/A0-R3 — **the account gate is
 CANCELLED (D97)**, see the closing note below. This document now
 holds two things: §1 the **shipped** debug test-circle releases
-(`v1.6.6-android-debug.13` is the CURRENT build — a regular release
+(`v1.6.6-android-debug.14` is the CURRENT build — a regular release
 in the private repo per D89, the same text lives on the GitHub
-release itself; beneath it: debug.12 the first-byte-budget build
-(superseded by debug.13: its round produced the third pasted report,
-which debug.13 acts on), debug.11 the heal-sweep build, debug.10 the
-diagnostics-port build, debug.9 the classic-tree diagnostics build,
-debug.8 the per-video-stall-fix build, debug.7 the first-video-fix
-build, debug.6 the one-UI-everywhere + data-usage build, debug.5 the
-first-device-feedback build, debug.4 the helper-fix maintenance
-release, debug.3 the device-circle build whose APK ran on Ali's
-phone, and debug.2/debug.1 superseded and kept as history),
+release itself; beneath it: debug.13 the salvage build (superseded
+by debug.14: its round produced the fifth pasted report, which
+debug.14 acts on), debug.12 the first-byte-budget build, debug.11
+the heal-sweep build, debug.10 the diagnostics-port build, debug.9
+the classic-tree diagnostics build, debug.8 the per-video-stall-fix
+build, debug.7 the first-video-fix build, debug.6 the one-UI-
+everywhere + data-usage build, debug.5 the first-device-feedback
+build, debug.4 the helper-fix maintenance release, debug.3 the
+device-circle build whose APK ran on Ali's phone, and debug.2/
+debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
@@ -56,7 +59,56 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.13 — the salvage re-dial: a dead first-byte origin is retried inside the flow (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.14 — the salvage race + the stall watch: dead origins raced in parallel, stalled relays closed in seconds (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 13, built at the M8-v commit, the
+pinned debug certificate — **installs directly over debug.13** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED **v1.6.6-debug14.apk** (D103 — the filename
+itself names the build). This is the round your FIFTH diagnostics
+report built: the first report from the salvage build itself (your
+shell line read versionCode 12), it proved the salvage working and
+named the two things still costing video starts (ADR-0020).
+
+1. **What was wrong (read from YOUR report, not guessed):** the
+   salvage worked — your log shows "tunnel first-byte retry …
+   attempt=N" lines absorbing dead attempts and "tunnel first-byte
+   salvaged dials=N" saving flows at ~0.7–1.4 s. But two costs
+   remained. First, the salvage walked its re-dials ONE AT A TIME:
+   21 flows died at 8014–8227 ms — three 2.5 s budgets plus dials,
+   serial — before the app could even retry. Second, and bigger:
+   five of your video-start connections got their first byte plus
+   ~7 KB, then went COMPLETELY silent — and lived 57–64 SECONDS
+   until the YouTube app itself gave up on them (they all closed in
+   the same instant); the retry right after answered in 60–261 ms.
+   The engine had nothing that watched past the first byte, so it
+   held those dead flows open through your app's whole minute of
+   patience.
+2. **What changed (ADR-0020, host-proven both ways):** two engine
+   changes, both only for the unblock list's hosts. The salvage
+   RACE: when the first origin dies at first byte, the engine now
+   dials ALL its remaining re-dial candidates AT ONCE (different
+   live addresses, the dead ones excluded), and the first origin to
+   answer wins — a flow that would have died at ~8 s now dies at
+   ~5 s worst case, and a save lands at the fastest live origin's
+   answer. The STALL WATCH: once a flow is relaying, if BOTH
+   directions go silent for 15 seconds the engine closes the flow
+   itself (a new report line "tunnel stall killed idle=Nms"), so
+   your app retries onto a fresh origin in seconds instead of
+   waiting a minute — a download that keeps streaming is never
+   touched, and neither is any site off the unblock list. The
+   method on the wire still never changes (D102 — retrying a dead
+   flow with the NEXT preset — stays your ruling; this build does
+   not do it).
+3. **What to verify on the phone:** video starts. When anything
+   still stalls, menu → Diagnostics (first row) → Copy → paste it
+   here. The NEW line that tells the stall story is "tunnel stall
+   killed idle=Nms" — how many fire, and whether starts still stall
+   when they do not, is the tuning evidence for the next round. The
+   ratio of "retry/salvaged" lines to terminal "first-byte failed"
+   lines is the D102 material.
+
+## 1a. v1.6.6-android-debug.13 — the salvage re-dial: a dead first-byte origin is retried inside the flow (SHIPPED — a regular release, superseded by debug.14: its round produced the fifth pasted report, which debug.14 acts on)
 
 **What this build is:** versionCode 12, built at the M8-t commit, the
 pinned debug certificate — **installs directly over debug.12** in
@@ -825,6 +877,38 @@ remove the Last-session line).**
    first check: the shell line reads versionCode 12; the APK filename
    itself now names the build (D103): download v1.6.6-debug13.apk —
    if the filename says anything else, it is the wrong build.)
+   **THE FIFTH REPORT ARRIVED (2026-10-19, later — M8-v): "The
+   problem persists" — and this time it IS the salvage build (shell
+   line versionCode 12, retry/salvaged lines present in the log).
+   The salvage is PROVEN on-device: retry lines absorbing dead
+   attempts the app never saw, "tunnel first-byte salvaged dials=N"
+   saving flows at 0.7–1.4 s, errors down to 37/81 ≈ 46 % (from 59 %).
+   The report names the two REMAINING start-lag sources: (1) the
+   serial salvage chain — 21 terminal reason=timeout dones at
+   8014–8227 ms = three 2.5 s budgets plus dials walked one after
+   another (+ 11 terminal resets at 0.6–1.9 s); (2) the mid-stream
+   stall — five video-start flows done in the same instant at
+   00:18:17.2, dur=57290–64620 ms, up=2.4–5.0 KB, down=6.6–7.7 KB
+   (one 121.1 KB): first byte plus ~7 KB, then TOTAL silence until
+   the app's own ~60 s patience killed them all — and the retry
+   wave right after answered in 60–261 ms first-byte (the video
+   took ~65 s to start). Fixed in debug.14 (ADR-0020): the salvage
+   RACE (all remaining re-dials launched in parallel on the rotated
+   live set, first speaker wins, a silent-host terminal costs ~2x
+   the budget, never 3x) + the stall watch (both directions silent
+   for StallTimeout=15 s closes the flow engine-side, the answer set
+   demoted, new report line "tunnel stall killed idle=Nms", so the
+   app retries onto a fresh origin in seconds instead of a minute;
+   one-direction silence — a pure download or upload — never fires).
+   The row STAYS OPEN for the debug.14 confirmation with TWO named
+   evidence lines: the "tunnel stall killed" lines (how many fire,
+   and whether starts still stall when they do not) and the
+   retry/salvaged-vs-terminal ratio. The D102 question for Ali is
+   now LIVE with this report's evidence: terminal first-byte
+   failures STILL cluster under method=strong (21 timeouts + 11
+   resets, ~40 % of conns) — whether a flow that exhausts its raced
+   salvages should be retried once with the NEXT preset remains his
+   ruling, never unilateral. udpDropped=78 (row 9) keeps measuring.)
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

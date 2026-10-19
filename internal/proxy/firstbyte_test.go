@@ -356,24 +356,29 @@ func TestFirstByteSalvageRecoversDeadOrigin(t *testing.T) {
 	if string(got) != string(record) {
 		t.Fatal("echo mismatch through the salvaged flow")
 	}
-	retries := pollLines(log, "WARN tunnel first-byte retry ", 1, 2*time.Second)
-	if len(retries) == 0 || !strings.Contains(retries[0], "reason=timeout") || !strings.Contains(retries[0], "attempt=1") {
-		t.Fatalf("retry line wrong: %+v", log.lines("WARN "))
+	// M8-v (ADR-0020): the salvage RACES its remaining re-dials — both
+	// launch at once (attempt=1 and attempt=2 logged together, each
+	// still counted as an absorbed attempt) and the first origin to
+	// speak wins, so this single-answer host sees both dials land.
+	retries := pollLines(log, "WARN tunnel first-byte retry ", 2, 2*time.Second)
+	if len(retries) < 2 || !strings.Contains(retries[0], "reason=timeout") || !strings.Contains(retries[0], "attempt=1") || !strings.Contains(retries[1], "attempt=2") {
+		t.Fatalf("retry lines wrong: %+v", log.lines("WARN "))
 	}
 	salvaged := pollLines(log, "INFO tunnel first-byte salvaged ", 1, 2*time.Second)
-	if len(salvaged) == 0 || !strings.Contains(salvaged[0], "dials=1") {
+	if len(salvaged) == 0 || !strings.Contains(salvaged[0], "dials=2") {
 		t.Fatalf("salvaged line missing: %+v", log.lines("INFO tunnel first-byte"))
 	}
 	if fails := log.lines("WARN tunnel first-byte failed "); len(fails) != 0 {
 		t.Fatalf("a salvaged flow must not log a terminal failure: %q", fails[0])
 	}
-	// Exactly two origin dials: the dead one plus the salvage.
+	// Exactly three origin dials: the dead one plus the two raced
+	// salvage candidates.
 	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && accepts() < 2 {
+	for time.Now().Before(deadline) && accepts() < 3 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if n := accepts(); n != 2 {
-		t.Fatalf("origin dials = %d, want exactly 2", n)
+	if n := accepts(); n != 3 {
+		t.Fatalf("origin dials = %d, want exactly 3 (1 dead + 2 raced)", n)
 	}
 	// The app never saw the failure: the flow is still a working relay.
 	if _, err := conn.Write(record); err != nil {

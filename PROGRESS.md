@@ -3340,3 +3340,39 @@ v<versionName>-debug<N>.apk, N = the release tag's build sequence.
 The downloaded file now names its own build — the accident class
 the fourth-report round found is closed. No app change; versionCode
 stays 12; debug.13 stays CURRENT.
+M8-v (2026-10-19, later — the fifth pasted-report round, the first
+from the salvage build itself): the report's shell line read
+versionCode 12 and its log carried the salvage's own lines, so the
+round was a real fix round. The report proved the salvage on-device
+(retry attempts absorbed, salvaged dials=1/2 saving flows at
+0.7-1.4 s, errors 37/81 ≈ 46 % from 59 %) and named the two
+remaining start-lag sources: the SERIAL salvage chain (21 terminal
+reason=timeout dones at 8014-8227 ms = three 2.5 s budgets walked
+one after another, + 11 terminal resets) and the mid-stream stall
+(five video-start flows done in the same instant at 00:18:17.2,
+dur=57290-64620 ms, first byte + ~7 KB down then total silence
+until the app's own ~60 s patience killed them; the retry wave
+right after answered in 60-261 ms — the video took ~65 s to start).
+Shipped v1.6.6-android-debug.14 (versionCode 13, ADR-0020): the
+salvage RACE (all remaining re-dials launched in parallel on the
+rotated live answer set, first speaker wins, a silent-host terminal
+costs ~2x the budget never 3x, the attempt count and preset policy
+unchanged) + the stall watch (StallTimeout 15 s default: a
+budgeted-flow relay silent in BOTH directions is closed engine-side,
+answer set demoted, new report line "tunnel stall killed idle=Nms";
+one-direction silence never fires; unrouted relays keep the plain
+shape — D46). Both-ways proof: with tunnel.go stashed the stall
+test, both race tests and the updated salvage test FAIL; with the
+fix all 16 first-byte/salvage/stall tests pass, guards both ways
+(the streaming-download guard caught an inverted-stamp bug mid-round
+— the watch measures from the NEWEST activity clock). Baseline
+green (vet, 18/18 ×2, GOOS=windows), compile matrix 4/4 ABIs +
+arm64 full tree, gomobile bind with the stall string verified in
+libgojni.so in all three ABIs, clean assembleDebug; APK 35,182,673 B
+(SHA-256 154d40355bee702fcc751ead595688b5732abeb44cf186913dddbc5a9
+9cad5e7), apksigner OK (the pinned cert), badging versionCode 13 /
+versionName 1.6.6. D102 stays Ali's ruling, now LIVE (terminal
+first-byte failures still cluster under method=strong). Next: M8-w
+expects the debug.14 report — shell line versionCode 13; the
+"tunnel stall killed" lines and the retry/salvaged-vs-terminal ratio
+are the evidence.

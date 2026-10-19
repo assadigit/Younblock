@@ -12,6 +12,51 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-19 — M8-v; shipped in `v1.6.6-android-debug.14`, versionCode 13)
+
+- **The per-video start wait, round three: the salvage's re-dials now
+  RACE in parallel, and a relay that stalls mid-stream is closed in
+  seconds instead of the app's minute.** Ali's fifth pasted
+  diagnostics report (the first from the salvage build itself —
+  versionCode 12) proved the salvage on-device (retry lines
+  absorbing dead attempts, `tunnel first-byte salvaged dials=N`
+  saving flows at 0.7–1.4 s, errors down to 37/81 ≈ 46 % from 59 %)
+  and named the two remaining start-lag sources. Two changes
+  (ADR-0020), both the failure-detection/hygiene species, never
+  steering: **(1) the salvage race** — the report's 21 terminal
+  `reason=timeout` dones at 8014–8227 ms were the SERIAL chain's
+  cost (three 2.5 s budgets walked one after another, + 11 terminal
+  resets at 0.6–1.9 s), so when the first origin dies at first byte
+  the engine now dials ALL its remaining re-dial candidates AT ONCE
+  (the live answer set re-resolved, the flow's dead IPs excluded,
+  the lists rotated so candidates start on distinct origins), and
+  the FIRST origin to speak wins — a silent-host terminal costs ~2x
+  the budget (attempt 0 + the race), never 3x, and a save lands at
+  the fastest live origin's answer; **(2) the stall watch** — the
+  report's five video-start flows lived 57–64 s (first byte plus
+  ~7 KB down, then total silence) until the APP's own ~60 s
+  patience killed them all in the same instant, and the retry wave
+  right after answered in 60–261 ms, so a processed host's relay
+  that goes silent in BOTH directions for the new `StallTimeout`
+  (default 15 s; negative disables, restoring the previous
+  behavior) is now closed engine-side — both ends, the answer set
+  demoted (the M8-o loop), the error counted, and a new report line
+  `tunnel stall killed idle=Nms` — so the app retries onto a fresh
+  origin (with its own budget + salvage) in seconds instead of a
+  minute; one-direction silence never fires (a pure download or
+  upload is a healthy relay shape), and unrouted relays keep the
+  plain shape byte-for-byte (D46). Both-ways proven: with the
+  engine change stashed, the stall test, the two race tests and the
+  updated salvage test all FAIL exactly as designed; with it, all
+  sixteen first-byte/salvage/stall tests PASS and the guards pass
+  both ways (the streaming-download guard caught an inverted-stamp
+  bug mid-round: the watch must measure silence from the NEWEST
+  activity clock, or a download whose client never writes dies
+  mid-stream). D102 (retrying an exhausted-salvage flow with the
+  NEXT preset) stays Ali's ruling — this report's evidence makes it
+  live: terminal first-byte failures still cluster under
+  method=strong.
+
 ### Fixed (2026-10-18/19 — M8-t; shipped in `v1.6.6-android-debug.13`, versionCode 12)
 
 - **The per-video start wait, round two: dead first-byte origins are
