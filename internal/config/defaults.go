@@ -54,6 +54,28 @@ const DNSCacheNegativeTTL = 15 * time.Second
 // DNSCacheMaxEntries — the DNS cache never grows past this many names.
 const DNSCacheMaxEntries = 2000
 
+// DNSCacheNegativeReask — how often a host whose negative-cache entry
+// says DNS_UNREACHABLE may RE-ASK the servers instead of failing
+// instantly (M8-y, ADR-0023). The debug.16 report (the first from the
+// right build, versionCode 15) measured the lockout this bounds: dns ok
+// 142 / fail 50 with doorFailures=50 — every resolver failure a dead
+// door dial — and the failure lines PAIRED at the same millisecond
+// (four pairs inside 22 ms), the signature of instant negative-cache
+// hits, not server walks (a walk is seconds). One DoH blip
+// negative-caches a batch of fresh per-video hostnames (rr*.googlevideo
+// names are per-video: no success entry to serve stale), and for the
+// negative's whole 15 s TTL every retry wave dies at the door in
+// milliseconds — the blip's tail became the 50 dead flows. A
+// DNS_UNREACHABLE negative is evidence about the RESOLVER'S OWN PATH,
+// not a verdict about the name, so a hit now re-asks the servers
+// (through the singleflight — concurrent flows collapse into one walk);
+// the next retry after the blip lands its answer in one walk (~0.5–1.5
+// s) instead of dying for the rest of the TTL. This knob is the re-ask
+// rate limit per host: at most one walk per window during a real
+// outage. Zero → this default; negative → disabled (the exact M8-w
+// shape: the negative answers until its TTL expires).
+const DNSCacheNegativeReask = 1 * time.Second
+
 // DialTimeoutPerIP — longest a single connection attempt to a site's address may take.
 const DialTimeoutPerIP = 5 * time.Second
 
@@ -137,6 +159,30 @@ const FirstByteSalvageDials = 2
 // default; negative → disabled (the exact M8-v shape: serial attempt 0
 // + the raced salvage re-dials).
 const FirstByteRaceDials = 2
+
+// DeadIPPenalty — how long an origin IP that connected but never spoke
+// (the classified first-byte death: a reset at the hello write, or
+// silence to the budget) is SKIPPED when building dial lists (M8-y,
+// ADR-0023). The debug.16 report measured the re-gamble this ends: ~17
+// reason=timeout terminals at 2892–4304 ms plus ~8 reason=reset at
+// ~0.6 s, all down=0 B through the raced round — and the second video's
+// start (a NEW rr*.googlevideo hostname) paid the full discovery cost
+// AGAIN five terminals deep, because the dead-IP knowledge died with
+// each flow while the authoritative DNS answer kept returning the same
+// blackholed cache-node IPs. The censor's blackhole is per ORIGIN IP
+// (cache nodes shared across rr hostnames), so the penalty outlives the
+// flow and crosses hostnames: every classified first-byte death marks
+// its origin IP for this long, and every dial list (both doors, the
+// raced round's extras, the salvage candidates) skips the marked IPs.
+// The box is a preference, never a verdict: a list the filter would
+// empty dials in FULL (an all-penalized set gambles exactly as before,
+// never an instant fail). NOT marked: stall kills (mid-stream deaths
+// are not first-byte evidence — ADR-0022's tiering owns those),
+// client-side deaths, teardown-canceled deaths, and dial failures
+// (no single-IP evidence). Zero in a proxy Config → this default;
+// negative → disabled (the exact M8-x shape: every flow re-gambles the
+// whole answer set).
+const DeadIPPenalty = 60 * time.Second
 
 // StallTimeout — how long a processed host's relay may stay silent in
 // BOTH directions before the flow is closed as a mid-stream stall

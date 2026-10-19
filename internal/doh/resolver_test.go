@@ -321,6 +321,14 @@ func TestCacheTTLClampAndStaleServing(t *testing.T) {
 	}
 }
 
+// TestCacheNegativeTTL — the negative entry's contract after M8-y
+// (ADR-0023). A DNS_UNREACHABLE negative is a PATH failure, not a name
+// verdict: inside the re-ask window it answers instantly (bounded
+// probing), and past the window the next lookup RE-ASKS the servers —
+// a recovered blip lands its answer in one walk instead of locking the
+// host out for the negative's whole 15 s TTL (the debug.16 report's 50
+// door failures were exactly that lockout's tail). Server-verdict
+// negatives keep the full-TTL instant fail (see reask_test.go).
 func TestCacheNegativeTTL(t *testing.T) {
 	now := time.Now()
 	f := newFakeDoH(t, func(string) ([]net.IP, uint32) {
@@ -335,19 +343,26 @@ func TestCacheNegativeTTL(t *testing.T) {
 		t.Fatal("expected failure")
 	}
 	hitsAfterFailure := f.hits.Load()
-	// Within 15 s the negative cache answers without touching the server.
-	now = now.Add(5 * time.Second)
+	// Inside the re-ask window (1 s) the negative answers without
+	// touching the server — the rate limit holds the probing line.
+	now = now.Add(500 * time.Millisecond)
 	f.fail.Store(false)
 	if _, err := r.Lookup(context.Background(), "example.com"); err == nil {
-		t.Fatal("negative cache should still fail within 15s")
+		t.Fatal("inside the re-ask window the negative must still answer")
 	}
 	if got := f.hits.Load(); got != hitsAfterFailure {
-		t.Errorf("server was hit during negative window: %d vs %d", got, hitsAfterFailure)
+		t.Errorf("server was hit inside the re-ask window: %d vs %d", got, hitsAfterFailure)
 	}
-	// After 15 s the retry reaches the (now healthy) server.
-	now = now.Add(11 * time.Second)
+	// Past the window the negative no longer kills the flow: the
+	// lookup re-asks the (now healthy) server and SUCCEEDS — the
+	// blip recovery, one walk after the blip instead of 15 s of
+	// dead door dials.
+	now = now.Add(2 * time.Second)
 	if _, err := r.Lookup(context.Background(), "example.com"); err != nil {
-		t.Fatalf("expected success after negative TTL: %v", err)
+		t.Fatalf("the re-ask must recover the blip: %v", err)
+	}
+	if got := f.hits.Load(); got != hitsAfterFailure+1 {
+		t.Errorf("server hits = %d, want exactly one re-ask walk", got)
 	}
 }
 

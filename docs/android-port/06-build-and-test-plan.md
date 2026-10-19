@@ -1755,3 +1755,76 @@ stall strings verified in the APK's libgojni.so in all three ABIs.
 Release lane: v1.6.6-android-debug.16 with the APK asset named
 v1.6.6-debug16.apk (D103). The standing ⛔ unchanged (no /dev/kvm,
 no device). Next Task ID: M8-y. Next decision: D102 (Ali's).
+
+M8-y record (2026-10-19, evening — the EIGHTH pasted-report round,
+the FIRST from the right build: the shell line reads versionCode 15
+= the debug.16 build, carrying both prior signatures — the raced line
+`first-byte raced dials=2` and the `tier=lean` stall lines — and
+Ali's words closed ADR-0022: "the problem of easily going next and
+back in same video instantly is fixed"; what remains is "the original
+problem (videos taking time to play) persist"). The report measured
+the start lag's two remaining sources: the DNS negative-cache lockout
+(dns ok 142 / fail 50, doorFailures=50, the failure lines pairing at
+the same millisecond — instant ErrRecentlyFailed hits, one DoH blip's
+tail amplified through the 15 s TTL on fresh per-video hostnames) and
+the dead-origin re-gamble (~17 timeout terminals at 2892–4304 ms + ~8
+resets through the raced round; the SECOND video's start paying the
+full discovery cost again — the per-flow dead-IP map dying with each
+flow while the authoritative answer returns the same blackholed
+cache-node IPs; udpDropped=99 is the M8-j QUIC fast-fail working, no
+action). ADR-0023 implemented (doc 08): (1) the negative re-ask — a
+DNS_UNREACHABLE negative re-asks the servers through the singleflight,
+rate-limited per host to one walk per DNSCacheNegativeReask=1 s with
+the failure's own walk counting as the window's first probe; new line
+`dns negative re-ask (path failure, not a name verdict)`; knob wired
+through doh.Config + engine; server-verdict negatives keep the instant
+fail. (2) The origin-IP penalty box — every classified first-byte
+death (writeReplay failure or read death, natural only) marks its
+origin IP for DeadIPPenalty=60 s; every dial list (both doors, the
+raced extras, the salvage candidates, the plain-http forward) filters
+the marked IPs, an all-penalized list dialing in full; NOT marked:
+stall kills, client-side deaths, teardown-canceled deaths, dial
+failures; knob wired through proxy.Config + engine. (3) The socks5
+door's DNS line now bakes reason= into the message (the 50 bare
+lines of the report could not say why). Files: internal/doh/resolver.
+go (Config.NegativeReask + reaskOK/noteReask + the Lookup branch),
+internal/doh/reask_test.go (NEW, 4 tests) + resolver_test.go
+(TestCacheNegativeTTL rewritten to the new contract — the old pin WAS
+the lockout), internal/proxy/server.go (Config.DeadIPPenalty +
+markDeadIP/liveIPs + the handleTunnel/forwardRequest filters),
+internal/proxy/tunnel.go (the marking on raced/salvage/serial deaths
++ the race/salvage list filters; space-convention preserved),
+internal/proxy/socks5.go (the baked reason + the door's filter),
+internal/proxy/deadip_test.go (NEW, 4 tests), internal/config/
+defaults.go (the two knobs with their evidence), internal/engine/
+engine.go (both knobs wired). Both-ways proofs executed and recorded:
+the re-ask neutered → TestNegativeReaskRecoversAfterBlip FAILS with
+the report's exact signature ("lookup failed recently:
+DNS_UNREACHABLE"), TestNegativeReaskRateLimited FAILS, the rewritten
+TestCacheNegativeTTL FAILS at its recovery assertion (guards pass);
+tunnel.go marking stashed → TestDeadIPPreferenceSparesTheNextFlow
+FAILS (flow 2 EOF on the corpse), TestRacedDeathsMarkTheIP FAILS
+(corpse accepts 5 ≠ 3) (guards pass). Baseline GREEN: go vet clean;
+18/18 ×2; GOOS=windows exit 0; the compile matrix 4/4 ABIs
+(CGO_ENABLED=1 + the NDK clang per arch — the plain CGO_ENABLED=0
+form links only arm64's internal linker on this Go) + arm64 full
+tree. The environment SURVIVED this round (no wipe — the eighth;
+~/sdk intact, env.sh at ~/sdk/env.sh; one detour: the Edit tool's
+fuzzy whitespace matching had mixed spaces into the tab-convention
+files — caught by gofmt -l against HEAD, fixed with gofmt -w on the
+touched tab files; tunnel.go's space convention verified untouched).
+Android lane: versionCode 15 → 16 with the full round comment; `go
+clean -cache` first; gomobile bind INTO android/app/libs/younblock.aar
+(25,191,761 B — the `dns negative re-ask` and
+`socks5 dns lookup failed reason=` strings verified in libgojni.so in
+all three ABIs BEFORE gradle); `./gradlew --stop` + CLEAN
+assembleDebug BUILD SUCCESSFUL (46s). Artifact: app-debug.apk
+35,279,565 B, SHA-256
+f40d03a09a896a6ea3cfcad4e081ba36e3e62430e55b23b69640b4a9f6577018;
+apksigner OK (the pinned c76bb7c6…8551d); badging versionCode 16 /
+versionName 1.6.6 / minSdk 26 / targetSdk 36; the re-ask string
+verified in the APK's libgojni.so in all three ABIs. Release lane:
+v1.6.6-android-debug.17 with the APK asset named v1.6.6-debug17.apk
+(D103). The standing ⛔ unchanged (no /dev/kvm, no device). Next Task
+ID: M8-z. Next decision: D102 (Ali's — LIVE with evidence under both
+strong and balanced).

@@ -20,39 +20,41 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 15: the M8-x build (the seventh pasted report —
-        // still shell line versionCode 13, the debug.14 build: the
-        // user's own words named the M8-v stall watch's regression:
-        // "videos used to have lag for starting to play, but after
-        // that you could easily go next instantly; now even going next
-        // and back in the same video lags a lot"). The report's log is
-        // the smoking gun: thirteen "tunnel stall killed
-        // idle=15xxx ms" lines in ~70 s, every one a connection that
-        // had ALREADY carried real data — 2.1 MB, 1.6 MB, 723.6 KB,
-        // 633.7 KB, 162.6 KB down — murdered at exactly the lean 15 s
-        // budget mid-pacing: the player's pooled video connections
-        // (buffer, quiet, next range on the SAME connection) were
-        // being closed out from under the app, so every next/seek
-        // re-dialed from scratch through a ~50 % dirty dial path.
-        // ADR-0022 tiers the watch: a flow that proved itself —
-        // StallRichBytes=32 KB delivered down, or one idle gap
-        // survived and closed by fresh activity (the pacing proof,
-        // gap >= StallTimeout/5) — escalates to StallRichTimeout=90 s
-        // and dies QUIETLY when it finally fires: no answer-set
-        // demotion (the origin just carried megabytes), no error
-        // count (hygiene, not a dead-origin signal), the stall line
-        // carrying "down=N tier=rich" for the next report. The LEAN
-        // tier keeps the exact M8-v semantics for the debug.13 dead
-        // cohort: first byte plus headers, never woke, silent to the
-        // 15 s budget — closed LOUD (demotion + error + tier=lean).
-        // This build also carries the M8-w first-dial race +
-        // ClearNegative DNS probe (versionCode 14, v1.6.6-debug15.apk)
-        // that the report never exercised — the shell line proves the
-        // device was still on the debug.14 build. D102 stays Ali's.
-        // Installs over debug.15 (same pinned debug certificate — D85).
-        // The D84 rule: every debug build bumps this. D103: the APK
-        // asset is named v1.6.6-debug16.apk.
-        versionCode = 15
+        // versionCode 16: the M8-y build (the EIGHTH pasted report —
+        // the first from the right build, shell line versionCode 15:
+        // both debug.16 signatures present, the raced line and the
+        // tier= stall line, and Ali's own words confirmed ADR-0022 —
+        // "the problem of easily going next and back in same video
+        // instantly is fixed" — while "the original problem (videos
+        // taking time to play) persist"). That report names the start
+        // lag's two remaining sources, both measured: (1) the DNS
+        // negative-cache lockout — dns ok 142 / fail 50 with
+        // doorFailures=50, every resolver failure a dead door dial,
+        // the failure lines pairing at the same millisecond (four
+        // pairs inside 22 ms = instant negative hits, not server
+        // walks): one DoH blip negative-cached a batch of fresh
+        // per-video hostnames and the 15 s TTL killed every retry
+        // wave at the door; ADR-0023's negative re-ask makes a
+        // DNS_UNREACHABLE negative re-ask the servers (singleflight-
+        // collapsed, rate-limited to one walk per second per host —
+        // the window starts at the failure's own walk), so the next
+        // retry after the blip recovers in one walk instead of 15 s
+        // of dead flows. (2) The dead-origin re-gamble — ~17
+        // reason=timeout terminals at 2892-4304 ms plus ~8 resets,
+        // all down=0 B through the raced round, and the SECOND
+        // video's start paying the full discovery cost again (a new
+        // rr hostname, the per-flow dead-IP map dead with its flow,
+        // the authoritative answer returning the same blackholed
+        // cache-node IPs): ADR-0023's origin-IP penalty box marks
+        // every classified first-byte death's IP for 60 s and every
+        // dial list skips the marked IPs (a preference, never a
+        // verdict — an all-penalized list dials in full), so the
+        // knowledge crosses flows AND hostnames. The socks5 door's
+        // DNS line now bakes reason= (the 50 bare lines could not say
+        // why). Installs over debug.16 (same pinned debug certificate
+        // — D85). The D84 rule: every debug build bumps this. D103:
+        // the APK asset is named v1.6.6-debug17.apk.
+        versionCode = 16
         versionName = "1.6.6"
     }
 

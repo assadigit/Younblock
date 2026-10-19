@@ -12,6 +12,53 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-19 — M8-y; shipped in `v1.6.6-android-debug.17`, versionCode 16)
+
+- **Videos take time to START playing: the eighth report (the first
+  from the right build, versionCode 15) measured the two remaining
+  sources, and both are memory failures — the fix gives the engine
+  two memories.** The report first CLOSED the previous round in
+  Ali's own words ("the problem of easily going next and back in
+  same video instantly is fixed" — the tiered stall watch verified
+  on-device) and then named what remains. (1) The DNS negative-cache
+  lockout: `dns ok 142 / fail 50` with `doorFailures=50` — every
+  resolver failure killed a connection at the door, and the failure
+  lines PAIRED at the same millisecond (four pairs inside 22 ms),
+  the signature of the negative cache answering instantly rather
+  than the servers being asked. One momentary DoH blip
+  negative-cached a batch of the video's fresh per-video hostnames,
+  and for the negative's whole 15 s TTL every retry wave died at the
+  door in milliseconds. The NEGATIVE RE-ASK (ADR-0023): a
+  `DNS_UNREACHABLE` negative is evidence about the resolver's own
+  path, not a verdict about the name — such a hit now re-asks the
+  servers (concurrent retries collapse into one walk through the
+  singleflight), rate-limited to one walk per second per host with
+  the failure's own walk counting as the window's first probe, so
+  every negative hit is either instant or a genuinely fresh walk and
+  a recovered blip costs one round-trip instead of 15 seconds of
+  dead connections. Server-verdict negatives (hijack/NXDOMAIN
+  shapes) keep the instant fail. New report line: `dns negative
+  re-ask (path failure, not a name verdict)`. (2) The dead-origin
+  re-gamble: ~17 `reason=timeout` terminals at 2892–4304 ms plus ~8
+  resets, all through the raced round, and the SECOND video's start
+  paid the full discovery cost again — the dead-IP knowledge was
+  per-flow (it died with each connection) while the authoritative
+  DNS answer kept returning the same blackholed cache-node IPs, and
+  each video's cache hostname is a NEW name. The ORIGIN-IP PENALTY
+  BOX (ADR-0023): every classified first-byte death (the origin
+  connected, or reset at the hello write, and never spoke) marks its
+  IP for 60 seconds; every dial list — both doors, the raced
+  candidates, the salvage re-dials — skips the marked IPs, and the
+  knowledge crosses flows AND hostnames (the blackhole is per cache
+  node, shared between videos). A preference, never a verdict: a
+  list the filter would empty dials in full. Not marked: stall
+  kills, client-side deaths, teardown-canceled deaths, dial
+  failures. Also: the SOCKS5 door's DNS failure line now carries
+  `reason=` in the message itself (the 50 bare lines of the report
+  could not say why). Knobs: `DNSCacheNegativeReask` (1 s default;
+  negative → the old behavior) and `DeadIPPenalty` (60 s default;
+  negative → the old behavior).
+
 ### Fixed (2026-10-19 — M8-x; shipped in `v1.6.6-android-debug.16`, versionCode 15)
 
 - **"Going next and back in the same video" lags: the stall watch was

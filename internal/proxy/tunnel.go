@@ -752,6 +752,13 @@ type racedCandidate struct {
         first    []byte
         death    string
         canceled bool
+        // deadIP is the candidate's origin IP when its death is the
+        // classified first-byte shape (the origin connected, or reset at
+        // the hello write, and never spoke) — the penalty-box evidence
+        // (M8-y, ADR-0023). Empty for dial deaths (no single-IP
+        // evidence) and for every death (canceled or not) the
+        // candidate's own conn does not witness.
+        deadIP string
 }
 
 // raceFirstByte runs one raced first-byte round (M8-w, ADR-0021): the
@@ -787,7 +794,7 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
         // a connected origin.
         var ips []net.IP
         if resolved, err := s.resolve(host); err == nil {
-                ips = dedupeIPs(resolved)
+                ips = s.liveIPs(dedupeIPs(resolved)) // the penalty box prefers live origins (M8-y, ADR-0023)
         } else {
                 raceN = 0
         }
@@ -839,8 +846,9 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                                 }
                         }
                         if werr := s.writeReplay(conn, snapshot, firstLen, isTLS, preset, fcfg); werr != nil {
+                                deadIP := remoteIP(conn)
                                 conn.Close()
-                                results <- racedCandidate{death: firstByteReason(werr), canceled: deathCanceled(werr)}
+                                results <- racedCandidate{death: firstByteReason(werr), canceled: deathCanceled(werr), deadIP: deadIP}
                                 return
                         }
                         cbuf := getBuf()
@@ -854,8 +862,9 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                                 return
                         }
                         putBuf(cbuf)
+                        deadIP := remoteIP(conn)
                         conn.Close()
-                        results <- racedCandidate{death: firstByteReason(cerr), canceled: deathCanceled(cerr)}
+                        results <- racedCandidate{death: firstByteReason(cerr), canceled: deathCanceled(cerr), deadIP: deadIP}
                 }(pre, list)
         }
 
@@ -881,6 +890,9 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                         break
                 }
                 lastDeath = res.death
+                if res.deadIP != "" {
+                        s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
+                }
                 s.invalidateDNS(host)
         }
         if winner == nil {
@@ -899,6 +911,9 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                                 continue
                         }
                         if !res.canceled {
+                                if res.deadIP != "" {
+                                        s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
+                                }
                                 s.invalidateDNS(host)
                         }
                 }
@@ -1146,6 +1161,10 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // Dead origin (n == 0, rerr != nil): reset, closed, or the
                 // budget's timeout. Salvage while attempts and replay remain.
                 reason := firstByteReason(rerr)
+                if ip := remoteIP(origin); ip != "" {
+                        deadIPs[ip] = true
+                        s.markDeadIP(ip) // the penalty box (M8-y, ADR-0023): the knowledge outlives the flow — terminal deaths mark too
+                }
                 if redials >= maxRedial || !replay.fits() {
                         s.invalidateDNS(host) // terminal: the set connects but never speaks (M8-s)
                         failFlow(reason)
@@ -1163,9 +1182,6 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // first origin to speak wins, the losers are closed and
                 // reaped, and a silent-host terminal costs ~2x the budget
                 // (attempt 0 + the race), never 3x.
-                if ip := remoteIP(origin); ip != "" {
-                        deadIPs[ip] = true
-                }
                 raced := maxRedial - redials
                 redials = maxRedial
                 s.invalidateDNS(host) // the set that went silent is suspect (the M8-s loop)
@@ -1189,7 +1205,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         failFlow("dial")
                         return
                 }
-                ips = dedupeIPs(excludeDead(ips, deadIPs))
+                ips = s.liveIPs(dedupeIPs(excludeDead(ips, deadIPs))) // the box adds its cross-flow memory (M8-y, ADR-0023)
                 snapshot := replay.bytes()
 
                 // The candidates. Each dials its rotated start of the live
@@ -1199,9 +1215,10 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // fresh fragment conn, and waits one budget for the first
                 // byte. First speaker wins.
                 type salvageResult struct {
-                        conn  net.Conn
-                        first []byte
-                        death string
+                        conn   net.Conn
+                        first  []byte
+                        death  string
+                        deadIP string // the penalty-box evidence (M8-y, ADR-0023)
                 }
                 results := make(chan salvageResult, raced)
                 for i := 0; i < raced; i++ {
@@ -1215,8 +1232,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                         return
                                 }
                                 if werr := s.writeReplay(conn, snapshot, len(first), isTLS, preset, fcfg); werr != nil {
+                                        deadIP := remoteIP(conn)
                                         conn.Close()
-                                        results <- salvageResult{death: firstByteReason(werr)}
+                                        results <- salvageResult{death: firstByteReason(werr), deadIP: deadIP}
                                         return
                                 }
                                 cbuf := getBuf()
@@ -1230,8 +1248,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                         return
                                 }
                                 putBuf(cbuf)
+                                deadIP := remoteIP(conn)
                                 conn.Close()
-                                results <- salvageResult{death: firstByteReason(cerr)}
+                                results <- salvageResult{death: firstByteReason(cerr), deadIP: deadIP}
                         }(list)
                 }
 
@@ -1252,6 +1271,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         }
                         deaths++
                         lastDeath = res.death
+                        if res.deadIP != "" {
+                                s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
+                        }
                         s.invalidateDNS(host)
                         if deaths == raced {
                                 failFlow(lastDeath)
@@ -1264,6 +1286,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                 if res.conn != nil {
                                         res.conn.Close()
                                 } else {
+                                        if res.deadIP != "" {
+                                                s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
+                                        }
                                         s.invalidateDNS(host)
                                 }
                         }

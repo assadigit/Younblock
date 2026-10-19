@@ -3513,3 +3513,67 @@ expects the debug.16 report — shell line versionCode 15 FIRST
 split on the stall lines is the tuning material, the raced lines
 the save rate, the dns fail counter the degraded-state
 confirmation.
+
+## M8-y — the negative re-ask + the origin-IP penalty box (ADR-0023): the start lag's two memory failures fixed
+
+Ali's EIGHTH pasted report (2026-10-19T12:53:37Z) — the first from
+the right build: the shell line reads versionCode 15, the debug.16
+build, carrying both prior signatures (the raced line and the tier=
+stall lines) — closed ADR-0022 in his own words ("The original
+problem (videos taking time to play) persist, but the problem of
+easily going next and back in same video instantly is fixed") and
+measured what remains. Two sources, both memory failures:
+
+1. **The DNS negative-cache lockout** — dns ok 142 / fail 50,
+   doorFailures=50: every resolver failure a dead door dial, the
+   failure lines pairing at the same millisecond (four pairs inside
+   22 ms — instant ErrRecentlyFailed hits, not server walks). One
+   DoH blip negative-cached a batch of fresh per-video hostnames and
+   the 15 s TTL killed every retry wave at the door.
+2. **The dead-origin re-gamble** — ~17 timeout terminals at
+   2892–4304 ms + ~8 resets through the raced round; the second
+   video's start (a NEW rr hostname) paid the full discovery cost
+   again because the dead-IP knowledge died with each flow while the
+   authoritative answer returned the same blackholed cache-node IPs.
+
+ADR-0023 (doc 08) gives the engine two memories: the NEGATIVE RE-ASK
+(a DNS_UNREACHABLE negative re-asks the servers through the
+singleflight, rate-limited to one walk per DNSCacheNegativeReask=1 s
+per host, the failure's own walk counting as the window's first
+probe; server-verdict negatives keep the instant fail; new line
+"dns negative re-ask (path failure, not a name verdict)") and the
+ORIGIN-IP PENALTY BOX (every classified first-byte death marks its
+IP for DeadIPPenalty=60 s; every dial list skips the marked IPs; a
+preference never a verdict — an all-penalized list dials in full;
+not marked: stall kills, client-side deaths, teardown-canceled
+deaths, dial failures; the knowledge crosses flows AND hostnames).
+Plus the baked reason on the socks5 door's DNS line (the report's 50
+bare lines could not say why). udpDropped=99 is the M8-j QUIC
+fast-fail working — no action.
+
+Files: internal/doh/resolver.go, internal/doh/reask_test.go (NEW),
+internal/doh/resolver_test.go (TestCacheNegativeTTL rewritten — the
+old pin WAS the lockout), internal/proxy/server.go,
+internal/proxy/tunnel.go, internal/proxy/socks5.go,
+internal/proxy/deadip_test.go (NEW), internal/config/defaults.go,
+internal/engine/engine.go. Both-ways proofs executed: the re-ask
+neutered → TestNegativeReaskRecoversAfterBlip FAILS with the
+report's exact signature ("lookup failed recently:
+DNS_UNREACHABLE"); the marking stashed →
+TestDeadIPPreferenceSparesTheNextFlow FAILS (flow 2 EOF on the
+corpse) and TestRacedDeathsMarkTheIP FAILS (corpse accepts 5 ≠ 3);
+all guards pass both ways. Baseline green: vet, 18/18 ×2, Windows
+exit 0, matrix 4/4 ABIs (CGO+NDK) + arm64 full tree. The
+environment survived this round (no eighth wipe; one detour: the
+Edit tool's fuzzy whitespace matching mixed spaces into the
+tab-convention files — caught by gofmt -l against HEAD, gofmt -w on
+the touched tab files; tunnel.go's space convention verified
+untouched). Shipped as v1.6.6-android-debug.17, versionCode 16,
+asset v1.6.6-debug17.apk (D103), APK 35,279,565 B, SHA-256
+f40d03a09a896a6ea3cfcad4e081ba36e3e62430e55b23b69640b4a9f6577018,
+the pinned debug certificate. The next report expects the shell
+line versionCode 16 FIRST (anything else means the old APK is still
+installed); the re-ask lines count the lockouts absorbed, the dns
+fail counter should collapse from 50, the baked reasons name the
+failing DoH leg, and the terminal cohort (was 17+8) is the penalty
+box's tuning material.

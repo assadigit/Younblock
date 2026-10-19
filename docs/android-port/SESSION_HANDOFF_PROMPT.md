@@ -1,4 +1,4 @@
-# Prompt — Continue Younblock: the device-test feedback loop (M8-y — the debug.16 round: the report WITH tier= lines AND raced lines, shell line versionCode 15)
+# Prompt — Continue Younblock: the device-test feedback loop (M8-z — the debug.17 round: the report WITH re-ask lines AND baked dns reasons, shell line versionCode 16)
 
 You are resuming a long-running, multi-session engineering project — not
 starting fresh. Read this prompt fully, then act.
@@ -7,75 +7,70 @@ Repository: <https://github.com/assadigit/Younblock> (private; the
 working clone carries the credential in its `origin` remote URL; the
 session prompt carries a fresh token if push is rejected).
 
-## Where the project stands (verified at the M8-x close, 2026-10-19)
+## Where the project stands (verified at the M8-y close, 2026-10-19)
 
-- **THE SEVENTH PASTED REPORT ARRIVED and it was STILL the debug.14
-  build (versionCode 13) — the device NEVER RAN debug.15.** The D103
-  accident class is real: before reading any log line, check the
-  "android shell:" line; 13 or 14 means the old APK is still
-  installed and the round is the INSTALL again, not a fix. Ali's
-  words named the M8-v stall watch's regression himself: "videos
-  used to have lag for starting to play, but after that you could
-  easily go next (watch next few minutes) instantly without buffer,
-  but now even going next and back in the same video lags a lot."
-  The report's log is the smoking gun: thirteen
-  `tunnel stall killed idle=15xxx ms` lines in ~70 s, every one a
-  connection that had ALREADY carried real data (dur=17264 ms
-  down=2.1 MB, dur=16756 ms down=1.6 MB, 723.6 KB, 633.7 KB,
-  162.6 KB, plus 20.9/23.4/9.2/7.4/5.3/4.4/3.6/2.8 KB) — the
-  player's POOLED video connections (buffer, quiet past 15 s, next
-  range on the SAME connection) murdered at exactly the lean budget
-  mid-pacing, each kill ALSO demoting a proven-good answer set and
-  counting an error (errors 70/122 ≈ 57 %; a fresh dial there cost
-  reset ~1.2 s / timeout ~5.4 s). The method line flipped to
-  balanced (the heal sweep settling after DNS false-failures);
-  dns ok 176 / fail 4; rstUnmapped=0, doorFailures=0,
-  udpDropped=73.
-- **`v1.6.6-android-debug.16` (versionCode 15, Latest, the APK asset
-  named v1.6.6-debug16.apk — D103) ships the fix the report drove
-  (ADR-0022, doc 08): the TIERED STALL WATCH.** A flow PROVES itself
-  by payload (`flow.down >= StallRichBytes`, default 32 KB — past a
-  handshake + headers into real payload; the murdered cohort started
-  at 162.6 KB, the debug.13 dead cohort topped out ~7 KB with one
-  121 KB outlier) or by pacing (the watch observes an activity gap ≥
-  StallTimeout/5 = 3 s that CLOSED — fresh bytes flowed after it;
-  the shapes overlap in bytes but differ in RHYTHM: the dead cohort
-  never woke). A proved flow's budget escalates to
-  `StallRichTimeout` (default 90 s — well past every real pacing
-  gap, well under the 300 s idle timeout) and its close is QUIET:
-  both ends closed, NO answer-set demotion, NO error count
-  (hygiene, not a dead-origin signal). The LEAN tier keeps the exact
-  M8-v semantics (demotion + error + the fast 15 s close) for the
-  never-proved shape. The stall line is now `tunnel stall killed
-  idle=Nms down=N tier=rich|lean` (the prefix stable). Knobs:
-  `StallRichTimeout` (0 → default; negative or ≤ StallTimeout → no
-  escalation, the exact M8-v shape), `StallRichBytes` (0 → default;
-  negative → only a survived gap escalates). Both-ways proof: with
-  the tiering stashed, `TestStallRichFlowSurvivesLeanBudget` FAILS
-  (the payload flow closed at the lean budget — the regression
-  reproduced in test) and `TestStallWakeEscalatesBudget` FAILS (the
-  pacing flow closed at lean right after its second flight); the
-  lean guards fail pre-fix on the new line format only; the four
-  M8-v pins (stallrace_test.go) untouched and passing.
-- **The build ALSO carries debug.15's never-run cargo UNCHANGED —
-  the next report must carry BOTH signatures:** the first-dial race
-  (ADR-0021: `tunnel first-byte raced dials=N` — the primary raced
-  against FirstByteRaceDials=2 extra candidates from the flow's
-  start, first speaker wins, an all-dead set terminals at ~1
-  budget) and the honest dns probe (ClearNegative before the health
-  lookup — the watchdog asks the servers NOW).
+- **THE EIGHTH PASTED REPORT ARRIVED and it was the FIRST from the
+  right build: the shell line reads versionCode 15 (the debug.16
+  build), both prior signatures present (the raced line
+  `tunnel first-byte raced dials=2` and the `tier=lean` stall
+  lines) — and Ali's own words CLOSED ADR-0022: "The original
+  problem (videos taking time to play) persist, but the problem of
+  easily going next and back in same video instantly is fixed."**
+  The tiered stall watch is verified on-device. The report then
+  measured the start lag's two remaining sources, both memory
+  failures: (1) the DNS negative-cache lockout — dns ok 142 /
+  fail 50 with doorFailures=50, every resolver failure a dead door
+  dial, the failure lines pairing at the same millisecond (four
+  pairs inside 22 ms — instant negative hits, not walks): one DoH
+  blip's tail amplified through the 15 s TTL on fresh per-video
+  hostnames; (2) the dead-origin re-gamble — ~17 timeout terminals
+  at 2892–4304 ms + ~8 resets through the raced round, the SECOND
+  video's start paying the full discovery cost again (a new rr
+  hostname; the per-flow dead-IP map dying with each flow).
+  udpDropped=99 is the M8-j QUIC fast-fail working — not a
+  contributor.
+- **`v1.6.6-android-debug.17` (versionCode 16, Latest, the APK asset
+  named v1.6.6-debug17.apk — D103) ships the fix the report drove
+  (ADR-0023, doc 08): the NEGATIVE RE-ASK + the ORIGIN-IP PENALTY
+  BOX + the baked socks5 reason.** (1) A DNS_UNREACHABLE
+  negative-cache hit is evidence about the resolver's OWN PATH, not
+  a verdict about the name — it now re-asks the servers through the
+  singleflight, rate-limited to one WALK per
+  `DNSCacheNegativeReask` = 1 s per host, and the walk that WROTE
+  the negative counts as the window's first probe (every negative
+  hit is instant or a genuinely fresh walk, never a redundant one);
+  server-verdict negatives (BLOCKED_ANSWER / no usable answer) keep
+  the instant fail; new line "dns negative re-ask (path failure,
+  not a name verdict)". (2) Every classified first-byte death (the
+  origin connected or reset at the hello write and never spoke;
+  writeReplay failure or read death, natural only) marks its origin
+  IP for `DeadIPPenalty` = 60 s; every dial list (both doors, the
+  raced extras, the salvage candidates, the plain-http forward)
+  skips the marked IPs — a preference, never a verdict (an
+  all-penalized list dials in full); NOT marked: stall kills,
+  client-side deaths, teardown-canceled deaths, dial failures; the
+  knowledge crosses flows AND hostnames (the blackhole is per
+  cache-node IP, shared across rr names). (3) The socks5 door's DNS
+  failure line now carries reason= in the message. Both-ways
+  proofs: the re-ask neutered → TestNegativeReaskRecoversAfterBlip
+  FAILS with the report's exact signature ("lookup failed recently:
+  DNS_UNREACHABLE") and TestNegativeReaskRateLimited FAILS (the
+  rewritten TestCacheNegativeTTL too — the old pin WAS the
+  lockout); the marking stashed → TestDeadIPPreferenceSparesTheNextFlow
+  FAILS (flow 2 EOF on the corpse) and TestRacedDeathsMarkTheIP
+  FAILS (corpse accepts 5 ≠ 3); all guards pass both ways.
 - **The method-policy question is LIVE for Ali (D102, his ruling,
   NOT our code):** terminal first-byte failures clustered under
-  method=strong in the sixth report and under balanced in the
-  seventh (the sweep dragged it after DNS false-failures); should a
-  flow that exhausts its raced round be retried once with the NEXT
-  preset in HealSweepOrder (per-flow method variation)? No steering
-  or policy change without his ruling.
-- **D102 stays reserved for Ali's rulings** (none landed in M8-x);
+  method=strong in the sixth report, under balanced in the seventh,
+  and under strong again in the eighth; should a flow that exhausts
+  its raced round be retried once with the NEXT preset in
+  HealSweepOrder (per-flow method variation)? No steering or
+  policy change without his ruling.
+- **D102 stays reserved for Ali's rulings** (none landed in M8-y);
   D94-D103 are spent. The account-gate lane stays CLOSED (D97).
 - **The rest of the device test circle is unchanged and largely
   unrun** (doc 10 §"Device test circle"): the cross-device UI verdict
-  on debug.6, rows 4-8, row 9's device half (udpDropped=73 this
+  on debug.6, rows 4-8, row 9's device half (udpDropped=99 this
   report; the QUIC path already fast-fails via ICMP
   port-unreachable, so it is not a startup-lag contributor),
   rotation/TalkBack, the data-usage round, D93's desktop check.
@@ -85,41 +80,39 @@ session prompt carries a fresh token if push is rejected).
   §"Current handoff fields". If anything disagrees with the
   repository, **the repository wins** — report the discrepancy.
 
-## The session's ONE workstream — the device-test feedback loop (Task ID M8-y)
+## The session's ONE workstream — the device-test feedback loop (Task ID M8-z)
 
-For each issue Ali reports from `v1.6.6-android-debug.16` (device
+For each issue Ali reports from `v1.6.6-android-debug.17` (device
 side) or his rebuilt desktop exe:
 
 - **FIRST: the pasted diagnostics report.** If he pasted one: verify
-  the "android shell:" line names **versionCode 15**. (The standing
-  doctrine, PROVEN by the seventh report: a versionCode 13 or 14
-  report means the old APK is still installed — the round is the
-  INSTALL again, not a fix. The D103 names make the wrong build
-  self-identifying: the correct file is v1.6.6-debug16.apk; if the
-  filename says anything else, it is the wrong build. Install over
-  debug.14/15 in place — same pinned certificate, higher
-  versionCode, settings and usage survive — then reconnect and
-  confirm the report header reads versionCode 15.) Then read it in
-  this order: (a) **the tier= split on the `tunnel stall killed`
-  lines** — the round's primary material: `tier=rich` kills should
-  be rare and harmless (90 s hygiene closes), `tier=lean` kills the
-  dead-origin cohort only; their counts tune 32 KB / 90 s / the
-  wake gap, and a rich cohort that is still large means the pacing
-  gaps run longer than 90 s; (b) the **`tunnel first-byte raced
-  dials=N`** lines (debug.15's never-run race): every raced line is
-  a dirty primary the flow never paid a budget for; the raced count
-  vs clean first-bytes vs terminals says whether the candidate
-  count (2) should grow or shrink; (c) the terminal
-  **`first-byte failed`** dones — they should cluster at ~2.7 s
-  (one budget + dials); their ratio is the D102 material; (d) the
-  dns fail counter and the method line — did the degraded state
-  stop firing, did the sweep stop dragging the method; (e) the
+  the "android shell:" line names **versionCode 16**. (The standing
+  doctrine, PROVEN twice: a versionCode 13/14/15 report means the
+  old APK is still installed — the round is the INSTALL again, not
+  a fix. The D103 names make the wrong build self-identifying: the
+  correct file is v1.6.6-debug17.apk; if the filename says anything
+  else, it is the wrong build. Install over debug.16 in place —
+  same pinned certificate, higher versionCode, settings and usage
+  survive — then reconnect and confirm the report header reads
+  versionCode 16.) Then read it in this order: (a) **the "dns
+  negative re-ask (path failure, not a name verdict)" lines** —
+  each one is a 15-second lockout absorbed; their count vs the dns
+  fail counter (was 50) is the fix's direct measure; (b) the
+  **"socks5 dns lookup failed reason=…"** lines — the reason is
+  finally visible and names which failure kind still kills door
+  flows (timeout vs reset vs network on which leg); (c) the
+  **first-byte terminal cohort** (was 17 timeouts + 8 resets):
+  with the penalty box the count should collapse — the remaining
+  terminals are the all-penalized fallbacks and the tuning
+  material for DeadIPPenalty's 60 s; (d) the **video-start rhythm**
+  (Ali's own verdict: the first video after connecting, the second
+  right after it — the second used to pay the full discovery cost
+  again); (e) the raced save rate, the tier= split, the
   `tunnel up dns=… dial=…` lines and the tun: line
-  (flows/udpDropped/doorFailures); and above all Ali's own verdict:
-  **is going next and back in the same video instant again?** (that
-  is this build's whole point). Root-cause from the evidence; fix at
-  the correct layer (engine/facade/Kotlin/WebView); keep the
-  D77-D103 honesty rules binding.
+  (flows/udpDropped/doorFailures); and above all Ali's own verdict
+  on video STARTS. Root-cause from the evidence; fix at the correct
+  layer (engine/facade/Kotlin/WebView); keep the D77-D103 honesty
+  rules binding.
 - **Also surface/collect Ali's ruling on the D102 method question**
   (doc 10 row 3 + doc 09 handoff carry its exact wording): whether a
   flow that exhausts its raced round under one preset should be
@@ -134,8 +127,8 @@ side) or his rebuilt desktop exe:
   rule) and cut the next debug release — a REGULAR release in the
   private repo, never flagged prerelease (D89), **carrying the debug
   APK asset per D98, NAMED v<versionName>-debug<N>.apk per D103
-  (amending D99; N = the tag's build sequence — debug.17's asset
-  is v1.6.6-debug17.apk)** —
+  (amending D99; N = the tag's build sequence — debug.18's asset
+  is v1.6.6-debug18.apk)** —
   through the release lane (push the code commit BEFORE creating the
   release; upload the APK, verify via the API, record size + digest)
   WHEN a code change warrants it. Full lane before release: desktop
@@ -165,27 +158,26 @@ side) or his rebuilt desktop exe:
 
 1. Read `/home/z/my-project/worklog.md` — the shared agent worklog.
    Append your own entry (Task ID + the standard template) when you
-   finish; never overwrite. The feedback-round Task IDs run M8-x,
-   M8-y, … The next decision number is D102 — reserved for Ali's
+   finish; never overwrite. The feedback-round Task IDs run M8-y,
+   M8-z, … The next decision number is D102 — reserved for Ali's
    rulings; record his rulings there BEFORE any code.
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
-   debug.16 edition + §"Device test circle" — row 3 is the stall row
-   with the seventh-report record and the murdered-pool evidence),
-   doc 06 (the M8-c…M8-x records), doc 08 + `DECISIONS.md` (D1-D103;
-   read D97, D98, D99, D100, D101, D103 in full; **ADR-0022 is the
-   M8-x decision; ADR-0021 the M8-w one it carries forward
-   unverified**),
+   debug.17 edition + §"Device test circle"), doc 06 (the
+   M8-c…M8-y records), doc 08 + `DECISIONS.md` (D1-D103;
+   read D97, D98, D99, D100, D101, D103 in full; **ADR-0023 is the
+   M8-y decision; ADR-0022 the M8-x one it builds on — now verified
+   on-device by Ali's words**),
    and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
-   `git status -sb`, `git log --oneline -3` (expect the M8-x commit
-   on top — the tiered stall watch + ADR-0022, over 2a0423b, the
-   M8-w first-dial race). Preserve any
+   `git status -sb`, `git log --oneline -3` (expect the M8-y commit
+   on top — the negative re-ask + the penalty box + ADR-0023, over
+   aebaa69, the M8-x tiered stall watch). Preserve any
    uncommitted work. If push is rejected (credential rotated), the
    session prompt carries a fresh token.
-4. Check whether Ali's debug.16 device feedback has arrived. If a
+4. Check whether Ali's debug.17 device feedback has arrived. If a
    pasted diagnostics report is present: the feedback loop above,
    the report first — and the "android shell:" line FIRST of all
-   (13 or 14 = the old APK still installed). If not: say so plainly
+   (15 = the old APK still installed). If not: say so plainly
    and put the honest alternatives to Ali.
 5. Make the desktop baseline GREEN before writing any code, in the
    D74 ORDER: `cd frontend && npm ci`; `npx svelte-check` (0/0);
@@ -280,8 +272,8 @@ If the sandbox was wiped (repo / toolchain / Go missing):
 Report, briefly and with evidence: (1) environment — intact or
 recovered, and how you know; (2) repo state — branch, HEAD,
 cleanliness; (3) baseline results; (4) whether Ali's DEVICE feedback
-from debug.16 has arrived — if a diagnostics report was pasted, quote
-its "android shell:" line (the build identity — 13 or 14 means the
+from debug.17 has arrived — if a diagnostics report was pasted, quote
+its "android shell:" line (the build identity — 15 means the
 old APK is still installed and the round is the install) and name the
 FIRST issue you will address from its evidence; if only prose
 arrived, ask for the report instead of guessing; (5) confirmation

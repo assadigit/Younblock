@@ -257,13 +257,14 @@ against the final artifact.
 
 The remaining open item is the device-gate row (IPv4/IPv6 and
 TCP/UDP measured on a real device), which now has its closure path:
-Ali's own device testing through the debug releases — as of M8-x
-(2026-10-19) the test-circle build is `v1.6.6-android-debug.16`
-(versionCode 15, the tiered stall watch — ADR-0022 — carrying
-debug.15's never-run first-dial race + honest dns probe forward),
-D98 puts the debug APK on every release page, and D103 (amending
-D99) names the asset with the version AND build number
-(v1.6.6-debug16.apk). (The
+Ali's own device testing through the debug releases — as of M8-y
+(2026-10-19, evening) the test-circle build is
+`v1.6.6-android-debug.17` (versionCode 16, the negative re-ask +
+origin-IP penalty box — ADR-0023 — verified on-device one round
+after debug.16 fixed the in-video regression, ADR-0022's tiered
+stall watch now confirmed by Ali's own words), D98 puts the debug
+APK on every release page, and D103 (amending D99) names the asset
+with the version AND build number (v1.6.6-debug17.apk). (The
 account-gate row closed as CANCELLED at A0-R3 — D97, 2026-10-18: the
 gate will never ship.) The known-
 limitations disclosure obligation is discharged host-side (M6's

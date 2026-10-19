@@ -103,6 +103,20 @@ type Config struct {
 	// Zero → the config default; negative → never escalate on bytes
 	// (only a survived idle gap escalates).
 	StallRichBytes int64
+	// DeadIPPenalty is how long an origin IP that connected but never
+	// spoke (the classified first-byte death: a reset at the hello
+	// write, or silence to the budget) is skipped when building dial
+	// lists (M8-y, ADR-0023). The debug.16 report measured the
+	// re-gamble: ~17 timeout terminals at 2892–4304 ms plus ~8 resets,
+	// all through the raced round, and the SECOND video's start (a new
+	// rr hostname) paying the full discovery cost again — the per-flow
+	// dead-IP map died with its flow while the authoritative answer
+	// kept returning the same blackholed cache-node IPs. The penalty
+	// outlives the flow and crosses hostnames (the blackhole is per
+	// origin IP); the box is a preference, never a verdict — a list the
+	// filter would empty dials in full. Zero → the config default;
+	// negative → disabled (the exact M8-x shape).
+	DeadIPPenalty  time.Duration
 	IdleTimeout    time.Duration
 	MaxHeaderBytes int64
 
@@ -137,6 +151,14 @@ type Server struct {
 	socksPort int
 
 	active int32
+
+	// The origin-IP penalty box (M8-y, ADR-0023): origin IP →
+	// penalized until. Written by the classified first-byte deaths (the
+	// origin connected and never spoke), read when every dial list is
+	// built; bounded FIFO, guarded by deadMu.
+	deadMu    sync.Mutex
+	dead      map[string]time.Time
+	deadOrder []string
 }
 
 // Start binds the listener (with the AutoPort fallback) and serves until
@@ -174,6 +196,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.StallRichBytes == 0 {
 		cfg.StallRichBytes = config.StallRichBytes
+	}
+	if cfg.DeadIPPenalty == 0 {
+		cfg.DeadIPPenalty = config.DeadIPPenalty
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = config.IdleTimeout
@@ -465,6 +490,7 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 		s.countConnError()
 		return
 	}
+	ips = s.liveIPs(ips) // the penalty box prefers live origins (M8-y, ADR-0023)
 
 	tDial := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
@@ -529,6 +555,7 @@ func (s *Server) forwardRequest(client net.Conn, br *bufio.Reader, req *http.Req
 		s.countConnError()
 		return
 	}
+	ips = s.liveIPs(ips) // the penalty box prefers live origins (M8-y, ADR-0023)
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
 	upstream, err := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, ips)
 	cancel()
@@ -614,6 +641,68 @@ func (s *Server) invalidateDNS(host string) {
 	if inv, ok := s.resolverData().(interface{ Invalidate(string) }); ok {
 		inv.Invalidate(host)
 	}
+}
+
+// deadIPBoxMax bounds the origin-IP penalty box (M8-y, ADR-0023) —
+// far above any one session's distinct dead cache nodes, small enough
+// to scan trivially.
+const deadIPBoxMax = 512
+
+// markDeadIP penalizes one origin IP for DeadIPPenalty (M8-y,
+// ADR-0023): the origin connected (or reset at the hello write) and
+// never spoke — the classified first-byte death, the pasted reports'
+// dead-origin signature. The censor's blackhole is per ORIGIN IP (cache
+// nodes shared across rr hostnames), so the knowledge outlives the
+// flow and crosses hostnames: the next video's fresh rr name resolving
+// to the same blackholed node skips it on sight. Stall kills,
+// client-side deaths, teardown-canceled deaths and dial failures never
+// mark (no single-IP first-byte evidence). No-op when the knob is
+// disabled.
+func (s *Server) markDeadIP(ip string) {
+	if s.cfg.DeadIPPenalty <= 0 || ip == "" {
+		return
+	}
+	until := time.Now().Add(s.cfg.DeadIPPenalty)
+	s.deadMu.Lock()
+	defer s.deadMu.Unlock()
+	if s.dead == nil {
+		s.dead = make(map[string]time.Time)
+	}
+	if _, ok := s.dead[ip]; !ok {
+		for len(s.dead) >= deadIPBoxMax && len(s.deadOrder) > 0 {
+			oldest := s.deadOrder[0]
+			s.deadOrder = s.deadOrder[1:]
+			delete(s.dead, oldest)
+		}
+		s.deadOrder = append(s.deadOrder, ip)
+	}
+	s.dead[ip] = until
+}
+
+// liveIPs filters penalized origin IPs out of a dial list (M8-y,
+// ADR-0023). The box is a preference, never a verdict: a list the
+// filter would EMPTY returns unchanged — an all-penalized set gambles
+// in full exactly as before, never an instant fail. Single-IP lists
+// return untouched (nothing to prefer). No-op when the knob is
+// disabled.
+func (s *Server) liveIPs(ips []net.IP) []net.IP {
+	if s.cfg.DeadIPPenalty <= 0 || len(ips) < 2 {
+		return ips
+	}
+	s.deadMu.Lock()
+	now := time.Now()
+	out := make([]net.IP, 0, len(ips))
+	for _, ip := range ips {
+		if until, ok := s.dead[ip.String()]; ok && now.Before(until) {
+			continue
+		}
+		out = append(out, ip)
+	}
+	s.deadMu.Unlock()
+	if len(out) == 0 {
+		return ips
+	}
+	return out
 }
 
 // register tracks a live tunnel so Stop can force-close it.

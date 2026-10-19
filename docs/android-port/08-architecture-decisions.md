@@ -1130,6 +1130,128 @@ flows (M8-x, the debug.14 build's second report round)
   D102, Ali's. The rich tier's numbers (32 KB / 90 s / the wake gap
   at StallTimeout/5) are the next report's tuning material.
 
+## ADR-0023 — The DNS negative re-ask and the origin-IP penalty box: a
+DNS_UNREACHABLE negative re-asks the servers (rate-limited, singleflight-
+collapsed) instead of locking a host out for the TTL; a classified
+first-byte death marks its origin IP for DeadIPPenalty=60 s and every dial
+list skips the marked IPs (a preference, never a verdict) (M8-y, the
+debug.16 build's report round — the FIRST report from the right build)
+
+- **Status:** Accepted 2026-10-19 (M8-y — Ali's EIGHTH pasted
+  diagnostics report; the shell line finally reads versionCode 15, the
+  debug.16 build, and it carries BOTH prior signatures: the raced line
+  and the tier= stall line).
+- **Context:** Ali's own words closed ADR-0022 and named what remains:
+  "The original problem (videos taking time to play) persist, but the
+  problem of easily going next and back in same video instantly is
+  fixed." The report measures the start lag's two remaining sources:
+  **(1) The DNS negative-cache lockout** — `dns ok 142, fail 50` with
+  `doorFailures=50`: every resolver failure is a dead door dial (the
+  flow dies at `socks5 dns lookup failed` → `tunstack: door dial
+  failed`, and the app retries into the same wall). The failure lines
+  PAIR at the same millisecond (four pairs inside 22 ms at
+  12:52:18.680–.702, then .090/.094, .624/.630, .007/.011, .115/.118,
+  .220/.223, .056/.061) — the signature of instant negative-cache
+  hits, not server walks (a walk is 3 servers × up to 3 s; these land
+  in 3–4 ms). One real DoH blip negative-caches a batch of fresh
+  per-video hostnames (the `rr*.googlevideo.com` names are per-video:
+  never resolved before, so no success entry exists to serve stale),
+  and for the negative's whole 15 s TTL every retry wave dies at the
+  door in milliseconds — the blip's tail became the 50 dead flows,
+  with the interleaved `tunnel up dns=1413ms` successes being the
+  negatives expiring and the re-asks landing. Also: the socks5 door's
+  DNS failure line was BARE (the reason an attr the log ring drops —
+  the M8-r lesson the HTTP door learned but the SOCKS door never did).
+  **(2) The dead-origin re-gamble** — ~17 `reason=timeout` terminals
+  at dur=2892–4304 ms plus ~8 `reason=reset` at ~0.6 s, all down=0 B
+  through the raced round (both candidates dead). Each terminal
+  demotes the answer set; the next flow's resolve re-queries DoH
+  (0.5–1.8 s, itself failure-prone); the AUTHORITATIVE answer returns
+  the same blackholed IPs; the race gambles again. The dead-IP
+  knowledge was per-flow only (the `deadIPs` map in
+  copyFirstByteBudgeted died with its flow, and the raced round
+  recorded none), and each video's rr hostname is NEW — the second
+  video's start (12:53:11–24) paid the full discovery cost again, five
+  terminals deep before its first video bytes (dur=4450 ms,
+  down=2.8 MB). The blackhole is per ORIGIN IP (cache nodes shared
+  across rr hostnames), so the knowledge should outlive the flow and
+  cross hostnames. (udpDropped=99 is the M8-j QUIC fast-fail doing its
+  job — each drop answered with ICMP port-unreachable; no action.)
+- **Decision (two fixes, both scoped to the measured defects):**
+  1. **The negative re-ask (doh).** A negative-cache hit whose code is
+     `DNS_UNREACHABLE` no longer fails instantly: that code is
+     evidence about the RESOLVER'S OWN PATH (all servers unreachable /
+     network error / bad status), not a verdict about the name. The
+     hit re-asks the servers through the existing singleflight
+     (concurrent flows of a retry wave collapse into one walk),
+     rate-limited per host to one WALK per `DNSCacheNegativeReask`
+     (default 1 s) — and the walk that WROTE the negative counts as
+     the window's first probe, so every negative hit is either instant
+     (the window is warm — the flow fails fast, the app retries) or a
+     genuinely fresh walk, never a redundant one seconds after a
+     failure. On failure the negative re-caches (fresh 15 s) and the
+     flow gets the real error; on success the answer overwrites the
+     negative and the flow proceeds. Server-verdict negatives
+     (`DNS_BLOCKED_ANSWER`, `no usable answer` — the servers SPOKE:
+     hijack/NXDOMAIN shapes) keep the instant fail: re-asking a
+     verdict is pointless. One new log line, `dns negative re-ask
+     (path failure, not a name verdict)` — its count in the next
+     report IS the evidence of lockouts absorbed. Knob
+     `DNSCacheNegativeReask` (0 in a doh Config → the default;
+     negative → disabled, the exact M8-w shape).
+  2. **The origin-IP penalty box (proxy).** A server-level dead-origin
+     memory: every classified first-byte death — the origin connected
+     (or reset at the hello write) and never spoke; a writeReplay
+     failure or a read death, natural only (teardown-canceled deaths
+     and dial failures carry no single-IP evidence) — marks its origin
+     IP for `DeadIPPenalty` (default 60 s). Every origin dial list
+     (the HTTP door, the SOCKS5 door, the raced round's extras, the
+     salvage candidates, the plain-http forward) is filtered through
+     the box before DialHost. The box is a preference, never a
+     verdict: a list the filter would EMPTY dials in full (an
+     all-penalized set gambles exactly as before, never an instant
+     fail). NOT marked: stall kills (mid-stream deaths are not
+     first-byte evidence — ADR-0022's tiering owns those),
+     client-side deaths, teardown-canceled deaths, dial failures.
+     Bounded (512 IPs, FIFO). Knob `DeadIPPenalty` (0 in a proxy
+     Config → the default; negative → disabled, the exact M8-x shape).
+  3. **The baked reason (socks5).** The door's DNS failure line
+     carries `reason=` in the message — parity with the HTTP door's
+     M8-r fix. The next report says WHY the door lookups fail instead
+     of 50 bare lines.
+- **Evidence:** internal/doh/reask_test.go (new, four tests) and
+  internal/proxy/deadip_test.go (new, four tests), verified BOTH WAYS.
+  With the re-ask neutered (the M8-w shape),
+  `TestNegativeReaskRecoversAfterBlip` FAILS with the report's exact
+  signature ("lookup failed recently: DNS_UNREACHABLE" — the lockout
+  reproduced in test), `TestNegativeReaskRateLimited` FAILS (no second
+  walk), and the rewritten `TestCacheNegativeTTL` FAILS at its
+  recovery assertion (the old test pinned the harmful behavior itself:
+  a healthy server still failing at +5 s); the guards
+  (`TestNegativeReaskDisabledByConfig`,
+  `TestNegativeServerVerdictsDontReask`) pass on both sides. With
+  tunnel.go's marking stashed (the M8-x shape),
+  `TestDeadIPPreferenceSparesTheNextFlow` FAILS (flow 2 dies on the
+  corpse — EOF, the re-gamble reproduced) and
+  `TestRacedDeathsMarkTheIP` FAILS (corpse accepts 5 ≠ 3 — flow 2's
+  primary and an extra hit the corpse again); the guards
+  (`TestDeadIPAllPenalizedStillDials`, `TestDeadIPPenaltyDisabledByConfig`)
+  pass on both sides. Full baseline green: vet clean; 18/18 packages
+  ×2; Windows exit 0; the compile matrix 4/4 ABIs (CGO+NDK) + arm64
+  full tree; gomobile bind with the re-ask and reason strings verified
+  in libgojni.so in all three ABIs; the debug.17 APK artifact-verified
+  (badging versionCode 16, apksigner pinned cert, sha256 in doc 06).
+- **What this ADR does NOT decide:** the DoH server walk stays
+  serial-with-sticky (the report's slow-but-successful lookups —
+  128–1806 ms — are tolerable once failures stop cascading; racing
+  the servers triples DoH traffic for marginal gain — revisit only if
+  the next report's re-ask lines show walks still dominating). The
+  negative TTL stays 15 s (the re-ask makes it a floor between probes,
+  not a lockout). QUIC stays dropped (ADR-0009; the M8-j ICMP
+  fast-fail is pinned by test and measuring, udpDropped=99). The
+  penalty box's 60 s and the re-ask's 1 s are the next report's tuning
+  material.
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

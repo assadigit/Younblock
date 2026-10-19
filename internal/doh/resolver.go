@@ -77,6 +77,17 @@ type Config struct {
 	}
 	// Now is the clock (tests inject a fake).
 	Now func() time.Time
+	// NegativeReask is how often a host whose negative-cache entry says
+	// DNS_UNREACHABLE may RE-ASK the servers instead of failing
+	// instantly (M8-y, ADR-0023): that code is evidence about the
+	// resolver's own path, not a verdict about the name, so a hit
+	// re-asks through the singleflight — at most one walk per window per
+	// host (bounded probing during a real outage; the blip shape recovers
+	// in one walk instead of dying for the negative's whole TTL).
+	// Server-verdict negatives (DNS_BLOCKED_ANSWER, no usable answer)
+	// never re-ask. Zero → the config default; negative → disabled (the
+	// exact M8-w shape).
+	NegativeReask time.Duration
 }
 
 // Resolver answers lookups from cache, singleflighted server queries, or stale
@@ -92,6 +103,12 @@ type Resolver struct {
 	mu       sync.Mutex   // guards server URL host map construction
 	hosts    map[string]int
 
+	// The negative re-ask rate limiter (M8-y, ADR-0023): host → unix ms
+	// of the last re-ask, bounded FIFO like the cache itself.
+	reaskMu    sync.Mutex
+	reask      map[string]int64
+	reaskOrder []string
+
 	fragMu     sync.Mutex
 	fragPreset fragment.Preset
 	fragConfig fragment.Config
@@ -104,10 +121,17 @@ func New(cfg Config) *Resolver {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = config.DoHTimeout
 	}
+	if cfg.NegativeReask == 0 {
+		cfg.NegativeReask = config.DNSCacheNegativeReask
+	}
+	if cfg.NegativeReask < 0 {
+		cfg.NegativeReask = 0
+	}
 	if len(cfg.Servers) == 0 {
 		cfg.Servers = config.Defaults()
 	}
 	r := &Resolver{cfg: cfg, cache: newCache(config.DNSCacheMaxEntries, cfg.Now),
+		reask:      make(map[string]int64),
 		fragPreset: cfg.FragmentPreset, fragConfig: cfg.FragmentConfig}
 	transport := &http.Transport{
 		// Explicitly no proxy: DoH never loops through our own proxy port (R5).
@@ -148,6 +172,25 @@ func (r *Resolver) Lookup(ctx context.Context, host string) ([]net.IP, error) {
 		}
 		return res.ips, nil
 	case stateNegative:
+		// M8-y (ADR-0023): a DNS_UNREACHABLE negative is evidence about
+		// the RESOLVER'S OWN PATH (all servers unreachable / network /
+		// bad status), not a verdict about the name — the debug.16
+		// report measured the lockout it caused at the door: 50 dead
+		// flows, the failure lines pairing at the same millisecond, one
+		// DoH blip's tail amplified through the 15 s TTL. Such a hit
+		// re-asks the servers (rate-limited below, singleflight-collapsed)
+		// instead of failing instantly; server-verdict negatives keep the
+		// instant fail — the servers SPOKE, re-asking a verdict is
+		// pointless.
+		if res.code == ErrUnreachable.Error() && r.reaskOK(host) {
+			if r.cfg.Logger != nil {
+				// The count of these lines in the next report IS the
+				// evidence: lockouts the re-ask absorbed (M8-r's lesson:
+				// the ring drops attrs, so the message carries it all).
+				r.cfg.Logger.Warn("dns negative re-ask (path failure, not a name verdict)")
+			}
+			break // fall through to the singleflight ask below
+		}
 		if r.cfg.Stats != nil {
 			r.cfg.Stats.DnsFail()
 		}
@@ -176,6 +219,12 @@ func (r *Resolver) Lookup(ctx context.Context, host string) ([]net.IP, error) {
 			return stale.ips, nil
 		}
 		r.cache.putNegative(host, codeFor(err))
+		// M8-y (ADR-0023): the walk that wrote a DNS_UNREACHABLE negative
+		// IS this window's probe — a negative hit inside the window fails
+		// fast instead of walking again seconds after a failure.
+		if codeFor(err) == ErrUnreachable.Error() {
+			r.noteReask(host)
+		}
 		return nil, err
 	})
 	if err != nil {
@@ -253,6 +302,59 @@ func (r *Resolver) ClearNegative(host string) {
 		return
 	}
 	r.cache.clearNegative(host)
+}
+
+// now is the resolver's clock (the injected test clock or the real one).
+func (r *Resolver) now() time.Time {
+	if r.cfg.Now != nil {
+		return r.cfg.Now()
+	}
+	return time.Now()
+}
+
+// reaskOK reports whether host may re-ask the servers right now, and
+// records the attempt when it may (M8-y, ADR-0023). The rate limit
+// bounds probing to one WALK per NegativeReask window per host — the
+// walk that WROTE the negative counts as the window's probe (noteReask
+// at putNegative time), so every negative hit is either instant (the
+// window is still warm — the flow fails fast and the app retries) or a
+// genuinely fresh walk, never a redundant one seconds after a failure.
+// The singleflight in Lookup coalesces a retry wave's concurrent
+// re-asks into that one walk. The map is bounded FIFO, the same shape
+// as the cache's own ordering.
+func (r *Resolver) reaskOK(host string) bool {
+	if r.cfg.NegativeReask <= 0 {
+		return false
+	}
+	nowMS := r.now().UnixMilli()
+	r.reaskMu.Lock()
+	defer r.reaskMu.Unlock()
+	if last, ok := r.reask[host]; ok && nowMS-last < r.cfg.NegativeReask.Milliseconds() {
+		return false
+	}
+	r.noteReaskLocked(host, nowMS)
+	return true
+}
+
+// noteReask records one probe time for host (M8-y, ADR-0023); the walk
+// that writes a DNS_UNREACHABLE negative calls it so the window starts
+// at the failure, not at the first negative hit.
+func (r *Resolver) noteReask(host string) {
+	r.reaskMu.Lock()
+	defer r.reaskMu.Unlock()
+	r.noteReaskLocked(host, r.now().UnixMilli())
+}
+
+func (r *Resolver) noteReaskLocked(host string, nowMS int64) {
+	if _, ok := r.reask[host]; !ok {
+		for len(r.reask) >= 1024 && len(r.reaskOrder) > 0 {
+			oldest := r.reaskOrder[0]
+			r.reaskOrder = r.reaskOrder[1:]
+			delete(r.reask, oldest)
+		}
+		r.reaskOrder = append(r.reaskOrder, host)
+	}
+	r.reask[host] = nowMS
 }
 
 // Reset clears the cache and the sticky server (used when the network

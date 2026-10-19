@@ -1,52 +1,58 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-x (2026-10-19, later still — Ali's SEVENTH
-pasted report round; the shell line STILL reads versionCode 13 — the
-device never ran debug.15). Ali's own words named the M8-v stall
-watch's regression: "videos used to have lag for starting to play,
-but after that you could easily go next (watch next few minutes)
-instantly without buffer, but now even going next and back in the
-same video lags a lot" — and the report's log is the smoking gun:
-thirteen `tunnel stall killed idle=15xxx ms` lines in ~70 s, every
-one a connection that had ALREADY carried real data (2.1 MB, 1.6 MB,
-723.6 KB, 633.7 KB, 162.6 KB down...) murdered at exactly the lean
-15 s budget mid-pacing — the player's pooled video connections were
-being closed out from under the app, so every next/seek re-dialed
-from scratch through a ~50 % dirty dial path (errors 70/122 ≈ 57 %).
-**v1.6.6-android-debug.16 (versionCode 15) is the CURRENT build**
-carrying ADR-0022, the TIERED STALL WATCH: a flow that proved itself
-— ≥ StallRichBytes=32 KB delivered down, or one idle gap ≥ 3 s
-survived and closed by fresh activity (the pacing proof) — is closed
-only at StallRichTimeout=90 s and QUIETLY (no answer-set demotion, no
-error count; the stall line now carries "down=N tier=rich|lean"),
-while the lean tier keeps the exact M8-v death (demotion + error +
-the fast 15 s close) for the never-proved shape: first byte plus
-headers, never woke, silent to the budget — the debug.13 dead
-cohort. The build ALSO carries debug.15's never-run cargo unchanged:
-the first-dial race (ADR-0021 — "tunnel first-byte raced dials=N")
-and the honest DNS probe (ClearNegative) — the next report must
-carry BOTH signatures. The report's method line flipped to balanced
-(the heal sweep settling after DNS false-failures — ClearNegative
-attacks the cause); D102 (the method policy) stays Ali's ruling.)
-Earlier: M8-w (ADR-0021, debug.15 — superseded by debug.16, which
-carries it forward UNVERIFIED: the seventh report's shell line still
-read versionCode 13), M8-v (ADR-0020, debug.14 — superseded: its
-round produced the sixth pasted report AND its build produced the
-seventh, which debug.16 acts on), M8-u (the no-build round — the
+**Status:** updated at M8-y (2026-10-19, evening — Ali's EIGHTH
+pasted report round; the FIRST from the right build: the shell line
+reads versionCode 15 = the debug.16 build, both of its signatures
+present — the raced line and the tier= stall line — and Ali's own
+words closed ADR-0022: "The original problem (videos taking time to
+play) persist, but the problem of easily going next and back in same
+video instantly is fixed"). The report measures the start lag's two
+remaining sources: the DNS negative-cache lockout (dns ok 142 /
+fail 50 with doorFailures=50, the failure lines pairing at the same
+millisecond — one DoH blip's tail amplified through the 15 s TTL on
+fresh per-video hostnames) and the dead-origin re-gamble (~17
+timeout terminals at 2892–4304 ms plus ~8 resets through the raced
+round, the second video's start paying the full discovery cost
+again).
+**v1.6.6-android-debug.17 (versionCode 16) is the CURRENT build**
+carrying ADR-0023, the NEGATIVE RE-ASK + the ORIGIN-IP PENALTY BOX:
+a DNS_UNREACHABLE negative-cache hit re-asks the servers (through
+the singleflight, rate-limited to one walk per second per host —
+the window starts at the failure's own walk) instead of locking a
+host out for the negative's whole 15 s TTL, and every classified
+first-byte death (the origin connected and never spoke) marks its
+IP for 60 s, every dial list skipping the marked IPs (a preference,
+never a verdict — an all-penalized list dials in full), so the
+dead-origin knowledge crosses flows AND hostnames; the socks5 door's
+DNS failure line now carries reason= in the message. The evidence
+lines for the next report: "dns negative re-ask (path failure, not
+a name verdict)", "socks5 dns lookup failed reason=…", the dns
+fail counter (should drop far below 50/192), and the terminal
+cohort's shape.)
+Earlier: M8-x (ADR-0022, debug.16 — superseded by debug.17: its
+round produced the eighth pasted report, which debug.17 acts on;
+its own fix VERIFIED on-device by Ali's words), M8-w (ADR-0021,
+debug.15 — superseded: debug.16 carried it forward and the eighth
+report proves it ran — "first-byte raced dials=2"), M8-v
+(ADR-0020, debug.14 — superseded), M8-u (the no-build round — the
 fourth report ran the previous build, versionCode 11; its D103
-ruling put the build number in the APK asset name), M8-s (ADR-0018,
-debug.12 — superseded by debug.13), M8-r (ADR-0017, debug.11),
-M8-q/p (the diagnostics surface, ADR-0015/0016 + D100/D101),
-M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/D99), A0/A0-R2/A0-R3
+ruling put the build number in the APK asset name), M8-s
+(ADR-0018, debug.12 — superseded by debug.13), M8-r (ADR-0017,
+debug.11), M8-q/p (the diagnostics surface, ADR-0015/0016 +
+D100/D101), M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/D99),
+A0/A0-R2/A0-R3
 — **the account gate is CANCELLED (D97)**, see the closing note
 below. This document now holds two things: §1 the **shipped** debug
-test-circle releases (`v1.6.6-android-debug.16` is the CURRENT
+test-circle releases (`v1.6.6-android-debug.17` is the CURRENT
 build — a regular release in the private repo per D89, the same text
-lives on the GitHub release itself; beneath it: debug.15 the
-first-dial-race build (superseded by debug.16, which carries it
-forward unverified — the seventh report's shell line still read
-versionCode 13), debug.14 the salvage-race + stall-watch build
-(superseded by debug.16: its build produced the seventh pasted
+lives on the GitHub release itself; beneath it: debug.16 the
+tiered-stall-watch build (superseded by debug.17: its round produced
+the eighth pasted report, which debug.17 acts on — and its own fix
+VERIFIED on-device by Ali's words), debug.15 the
+first-dial-race build (superseded by debug.16, which carried it
+forward and the eighth report proves it ran), debug.14 the
+salvage-race + stall-watch build
+(superseded by debug.15: its build produced the seventh pasted
 report, which debug.16 acts on), debug.13 the salvage build
 (superseded by debug.14), debug.12 the first-byte-budget build,
 debug.11 the heal-sweep build, debug.10 the diagnostics-port
@@ -72,7 +78,68 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.16 — the tiered stall watch: the pooled video connections stop being murdered at 15 s + (carried forward) the first-dial race and the honest DNS probe (SHIPPED — a regular release, the CURRENT build)
+## 1. v1.6.6-android-debug.17 — the negative re-ask + the origin-IP penalty box: DNS blips stop locking hosts out and dead origins stop being re-gambled (SHIPPED — a regular release, the CURRENT build)
+
+**What this build is:** versionCode 16, built at the M8-y commit, the
+pinned debug certificate — **installs directly over debug.16** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED **v1.6.6-debug17.apk** (D103 — the filename
+itself names the build). This is the round your EIGHTH diagnostics
+report built — the first report from the right build (your shell
+line read versionCode 15, and it carried both prior signatures: the
+raced line and the tier= stall line). Your words closed the previous
+round — next/back in the same video is instant again — and named
+what remains: videos still take time to START playing (ADR-0023).
+
+1. **What was wrong (read from YOUR report, not guessed):** two
+   things, both measured. First, the DNS LOCKOUT: your report shows
+   dns ok 142 / fail 50, and every one of those 50 failures killed a
+   connection at the door (doorFailures=50). The failure lines pair
+   at the same millisecond — four pairs inside 22 ms — which is the
+   signature of the negative cache answering instantly, not the
+   servers actually being asked (a real ask takes seconds). One
+   momentary DoH blip negative-cached a batch of your video's fresh
+   hostnames, and for the next 15 seconds EVERY retry for those names
+died instantly at the door — the blip's one-off failure became 50
+   dead connections and a multi-second start. Second, the DEAD-ORIGIN
+   RE-GAMBLE: ~17 of your flows died at exactly the 2.5 s first-byte
+   budget (plus ~8 at ~0.6 s resets), every one through the raced
+   round — both origin candidates were blackholed. Each death demoted
+   the answer set, the next flow re-asked DNS, got the SAME blackholed
+   addresses back (the official DNS doesn't know about the censor),
+   and gambled again — and your SECOND video paid the whole discovery
+   cost AGAIN because its cache hostname is a NEW name (the dead-IP
+   knowledge used to die with each connection).
+2. **What changed (ADR-0023, host-proven both ways):** two memories
+   added. The NEGATIVE RE-ASK: when a cached DNS failure means "our
+   path to the DNS servers failed" (not "this name is bad"), the
+   next lookup RE-ASKS the servers instead of reading the 15-second
+   failure memory — rate-limited to one real ask per second per name
+   (your retry waves collapse into that one ask), so a recovered blip
+   costs one round-trip instead of 15 seconds of dead connections.
+   The ORIGIN-IP PENALTY BOX: when an origin connects but never
+   answers (your 2.5 s timeouts and 0.6 s resets), its address is
+   remembered as dead for 60 seconds and every new connection skips
+   it — across flows AND across hostnames (the blackholed cache
+   servers are shared between your videos' hostnames, so your second
+   video starts on the addresses the first video already proved
+   live). If every address of a set is remembered-dead, the engine
+   still tries them all (the memory is a preference, never a
+   refusal). Also: the door's DNS failure line now says WHY it
+   failed, in the line itself.
+3. **What to verify on the phone:** video STARTS — the first video
+   after connecting, and the second one right after it (that one used
+   to pay the full discovery cost again). When anything still stalls:
+   menu → Diagnostics (first row) → Copy → paste it here. The evidence
+   lines this round: "dns negative re-ask (path failure, not a name
+   verdict)" (each one is a lockout absorbed), "socks5 dns lookup
+   failed reason=…" (the reason finally visible), the dns fail
+   counter (your report had 50 — it should collapse to the handful of
+   real server walks), and the first-byte terminal count (17+8 last
+   time). And check the shell line says **versionCode 16** before
+   anything else — a 15 means the old APK is still installed.
+
+## 1a. v1.6.6-android-debug.16 — the tiered stall watch: the pooled video connections stop being murdered at 15 s + (carried forward) the first-dial race and the honest DNS probe (SHIPPED — a regular release, superseded by debug.17: its round produced the eighth pasted report, which debug.17 acts on — and its own fix VERIFIED on-device, Ali's words: next/back in the same video is instant again)
 
 **What this build is:** versionCode 15, built at the M8-x commit, the
 pinned debug certificate — **installs directly over debug.14 or

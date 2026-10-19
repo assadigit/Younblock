@@ -206,12 +206,18 @@ func (s *Server) serveSocks5(conn net.Conn) {
 	dnsMS := time.Since(tDNS).Milliseconds()
 	if err != nil {
 		if s.cfg.Logger != nil {
-			s.cfg.Logger.Warn("socks5 dns lookup failed", "reason", errKind(err))
+			// The reason rides in the message (M8-y, the M8-r lesson the
+			// HTTP door already learned: the log ring that feeds the
+			// diagnostic report drops attrs — the debug.16 report showed
+			// 50 bare "socks5 dns lookup failed" lines that could not say
+			// why the door lookups failed).
+			s.cfg.Logger.Warn("socks5 dns lookup failed reason=" + errKind(err))
 		}
 		s.socks5Reply(conn, socks5RepHostUnreachable)
 		s.countConnError()
 		return
 	}
+	ips = s.liveIPs(ips) // the penalty box prefers live origins (M8-y, ADR-0023)
 	tDial := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
 	upstream, err := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, ips)

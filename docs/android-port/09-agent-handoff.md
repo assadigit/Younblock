@@ -1,32 +1,29 @@
 # 09 — Agent Handoff and Starting Checklist
 
-**Status:** Updated at M8-x (2026-10-19, later still — **Ali's SEVENTH
-pasted report round: "I think the problem is worse now, because
-videos used to have lag for starting to play, but after that you
-could easily go next (watch next few minutes) instantly without
-buffer, but now even going next and back in the same video lags a
-lot" + a report generated 2026-10-19T11:43:34Z whose "android
-shell: 1.6.6 (versionCode 13)" line STILL names debug.14 — the
-device never ran debug.15. The report's log is the M8-v stall
-watch's smoking gun: thirteen "tunnel stall killed idle=15xxx ms"
-lines in ~70 s, every one a connection that had ALREADY carried
-real data (dur=17264 down=2.1 MB, dur=16756 down=1.6 MB, 723.6 KB,
-633.7 KB, 162.6 KB, plus 20.9/23.4/9.2/7.4/5.3/4.4/3.6/2.8 KB) —
-the player's POOLED video connections murdered at exactly the
-lean 15 s budget mid-pacing, each kill also demoting a proven-good
-answer set and counting an error (errors 70/122 ≈ 57 %; the same
-log shows a fresh dial's cost: reset terminals ~1.2 s, timeout
-terminals ~5.4 s). The method line flipped to balanced (the heal
-sweep settling after DNS false-failures — the M8-w ClearNegative
-attacks the cause). The round shipped ADR-0022 (the tiered stall
-watch: rich = ≥32 KB payload or one survived ≥3 s idle gap →
-closed only at 90 s, quietly — no demotion, no error; lean keeps
-the exact M8-v death; the stall line now carries "down=N
-tier=rich|lean") as v1.6.6-android-debug.16, versionCode 15, asset
-v1.6.6-debug16.apk — carrying debug.15's never-run cargo (the
-first-dial race + the honest dns probe) forward.**
-Earlier: M8-w (ADR-0021, the first-dial race + honest dns probe,
-debug.15 — never run on-device), M8-v (ADR-0020, the salvage race +
+**Status:** Updated at M8-y (2026-10-19, evening — **Ali's EIGHTH
+pasted report round, the FIRST from the right build: the shell line
+reads versionCode 15 = the debug.16 build, both prior signatures
+present (the raced line and the tier= stall line), and Ali's own
+words closed ADR-0022: "The original problem (videos taking time
+to play) persist, but the problem of easily going next and back in
+same video instantly is fixed"**. The report measures the start
+lag's two remaining sources: (1) the DNS negative-cache lockout —
+dns ok 142 / fail 50 with doorFailures=50, every resolver failure a
+dead door dial, the failure lines pairing at the same millisecond
+(four pairs inside 22 ms = instant negative hits, not walks): one
+DoH blip's tail amplified through the 15 s TTL on fresh per-video
+hostnames; (2) the dead-origin re-gamble — ~17 timeout terminals at
+2892–4304 ms + ~8 resets, all through the raced round, the SECOND
+video's start paying the full discovery cost again (a new rr
+hostname; the per-flow dead-IP map dying with each flow; udpDropped=
+99 is the M8-j QUIC fast-fail working). The round shipped ADR-0023
+(the negative re-ask + the origin-IP penalty box + the baked socks5
+reason) as v1.6.6-android-debug.17, versionCode 16, asset
+v1.6.6-debug17.apk.**
+Earlier: M8-x (ADR-0022, the tiered stall watch, debug.16 — its fix
+VERIFIED on-device by the eighth report's words), M8-w (ADR-0021,
+the first-dial race + honest dns probe, debug.15 — proven run by the
+eighth report's raced lines), M8-v (ADR-0020, the salvage race +
 the stall watch, debug.14), M8-u (D103, the no-build round), M8-t
 (ADR-0019, the salvage re-dial, debug.13), M8-s (ADR-0018, the
 first-byte budget, debug.12), M8-r (ADR-0017, the sweep probes from
@@ -94,110 +91,108 @@ ever built.** This file is the live handoff; keep the fields in
 
 ## Current handoff fields
 
-- **Phase completed:** M8-x (2026-10-19, later still — the TWENTY-FIRST
-  feedback-loop exchange; the SEVENTH pasted-report round). Ali's
-  input: "I think the problem is worse now, because videos used to
-  have lag for starting to play, but after that you could easily go
-  next (watch next few minutes) instantly without buffer, but now
-  even going next and back in the same video lags a lot" + a report
-  generated 2026-10-19T11:43:34Z whose "android shell: 1.6.6
-  (versionCode 13)" line STILL names debug.14 — the device never ran
-  debug.15. The report's log root-caused the regression exactly:
-  thirteen "tunnel stall killed idle=15xxx ms" lines in ~70 s, every
-  one a connection that had ALREADY carried real data (2.1 MB,
-  1.6 MB, 723.6 KB, 633.7 KB, 162.6 KB, plus 20.9/23.4/9.2/7.4/
-  5.3/4.4/3.6/2.8 KB) — the player's POOLED video connections
-  (buffer, quiet past 15 s, next range on the SAME connection)
-  murdered at exactly the lean M8-v budget mid-pacing, each kill
-  ALSO demoting a proven-good answer set and counting an error
-  (errors 70/122 ≈ 57 %; fresh dials cost reset ~1.2 s / timeout
-  ~5.4 s). Counters otherwise: dns ok 176 / fail 4 (down from
-  16 — the sixth report's ClearNegative target), rstUnmapped=0,
-  doorFailures=0, udpDropped=73, method balanced (was auto→strong:
-  the heal sweep settled after DNS false-failures).
-- **What this round shipped — v1.6.6-android-debug.16, versionCode
-  15, ADR-0022 (doc 08), the CURRENT build:** the TIERED STALL
-  WATCH. A flow PROVES itself in either of two ways — payload
-  (flow.down ≥ StallRichBytes, default 32 KB: past handshake +
-  headers into real payload; the murdered cohort started at 162.6 KB,
-  the debug.13 dead cohort topped out ~7 KB) — or pacing (the watch
-  observes an activity gap ≥ StallTimeout/5 = 3 s that CLOSED: fresh
-  bytes flowed after it — the pooled-connection rhythm; the shapes
-  overlap in bytes but differ in RHYTHM: the dead cohort never woke).
-  A proved flow's stall budget escalates to StallRichTimeout
-  (default 90 s — well past every real pacing gap, well under the
-  300 s idle timeout) and its close is QUIET: both ends closed but
-  NO answer-set demotion (an origin that just carried megabytes is
-  the opposite of suspect) and NO error count. The LEAN tier keeps
-  the exact M8-v semantics (demotion + error + the fast 15 s close)
-  for the never-proved shape. The stall line is now "tunnel stall
-  killed idle=Nms down=N tier=rich|lean" (the prefix stable — the
-  next report's primary tuning evidence). Knobs StallRichTimeout
-  (negative or ≤ StallTimeout → no escalation, the exact M8-v
-  shape) and StallRichBytes (negative → only a survived gap
-  escalates), wired through Config normalization + the engine.
-  The build carries debug.15's never-run cargo UNCHANGED: the
-  first-dial race (ADR-0021) and the honest dns probe
-  (ClearNegative) — the next report must carry BOTH signatures
-  (raced lines + tier lines). Both-ways proof: with the tiering
-  stashed, TestStallRichFlowSurvivesLeanBudget FAILS (the payload
-  flow closed at the lean budget — the regression reproduced in
-  test) and TestStallWakeEscalatesBudget FAILS (the pacing flow
-  closed at lean right after its second flight); the lean guards
-  fail only on the new line format pre-fix (behavior identical both
-  ways); with the fix 4/4 new + 4/4 M8-v pins PASS. Lane evidence:
-  baseline green (vet, 18/18 ×2, Windows exit 0, matrix 4/4 + arm64
-  full tree), gomobile bind with the tier= string verified in
-  libgojni.so in all three ABIs BEFORE gradle, CLEAN assembleDebug;
-  APK 35,235,345 B, SHA-256
-  e107e337245b89e048e7025e1a6daaab083a9da170d8660f98b55874bdddac5f,
+- **Phase completed:** M8-y (2026-10-19, evening — the TWENTY-SECOND
+  feedback-loop exchange; the EIGHTH pasted-report round, the first
+  from the right build). Ali's input: "The original problem (videos
+  taking time to play) persist, but the problem of easily going next
+  and back in same video instantly is fixed" + a report generated
+  2026-10-19T12:53:37Z whose "android shell: 1.6.6 (versionCode
+  15)" line names the debug.16 build (both prior signatures
+  present: "tunnel first-byte raced dials=2" and
+  "tier=lean" stall lines — ADR-0022 verified on-device by Ali's
+  own words). Counters: conns total 130, live 14, errors 80, dns
+  ok 142 / fail 50, doorFailures=50 (every resolver failure a dead
+  door dial — the pairs at the same millisecond are instant
+  negative-cache hits, one DoH blip's tail through the 15 s TTL on
+  fresh per-video hostnames), rstUnmapped=0, overCap=0, udpDropped=99
+  (the M8-j QUIC fast-fail working — no action), method strong.
+- **What this round shipped — v1.6.6-android-debug.17, versionCode
+  16, ADR-0023 (doc 08), the CURRENT build:** (1) the NEGATIVE
+  RE-ASK — a DNS_UNREACHABLE negative-cache hit (evidence about the
+  resolver's own path, not a verdict about the name) re-asks the
+  servers through the singleflight instead of failing instantly,
+  rate-limited per host to one WALK per DNSCacheNegativeReask=1 s
+  with the failure's own walk counting as the window's first probe
+  (every negative hit is instant or a genuinely fresh walk, never a
+  redundant one); server-verdict negatives (BLOCKED_ANSWER / no
+  usable answer) keep the instant fail; new log line "dns negative
+  re-ask (path failure, not a name verdict)" — its count is the
+  lockouts-absorbed evidence. (2) The ORIGIN-IP PENALTY BOX — every
+  classified first-byte death (the origin connected or reset at the
+  hello write and never spoke; writeReplay failure or read death,
+  natural only) marks its origin IP for DeadIPPenalty=60 s; every
+  dial list (both doors, the raced extras, the salvage candidates,
+  the plain-http forward) skips the marked IPs; a preference never a
+  verdict — an all-penalized list dials in full; NOT marked: stall
+  kills, client-side deaths, teardown-canceled deaths, dial
+  failures; bounded 512 FIFO; the knowledge crosses flows AND
+  hostnames (the blackhole is per cache-node IP, shared across rr
+  names — the second video's start dials only proven-live
+  addresses). (3) The baked reason — the socks5 door's DNS line now
+  carries reason= in the message (the 50 bare lines of the report
+  could not say why). Knobs DNSCacheNegativeReask (doh.Config;
+  negative → the exact M8-w shape) and DeadIPPenalty (proxy.Config;
+  negative → the exact M8-x shape), both wired through the engine.
+  Both-ways proofs: the re-ask neutered →
+  TestNegativeReaskRecoversAfterBlip FAILS with the report's exact
+  signature ("lookup failed recently: DNS_UNREACHABLE"),
+  TestNegativeReaskRateLimited FAILS, the rewritten TestCacheNegativeTTL
+  FAILS at its recovery assertion (the old pin WAS the lockout);
+  tunnel.go marking stashed → TestDeadIPPreferenceSparesTheNextFlow
+  FAILS (flow 2 EOF on the corpse) and TestRacedDeathsMarkTheIP
+  FAILS (corpse accepts 5 ≠ 3); all guards pass both ways. Lane
+  evidence: baseline green (vet, 18/18 ×2, Windows exit 0, matrix
+  4/4 ABIs CGO+NDK + arm64 full tree), gomobile bind with the
+  re-ask + reason strings verified in libgojni.so in all three ABIs
+  BEFORE gradle, CLEAN assembleDebug; APK 35,279,565 B, SHA-256
+  f40d03a09a896a6ea3cfcad4e081ba36e3e62430e55b23b69640b4a9f6577018,
   apksigner OK (the pinned c76bb7c6...8551d), badging versionCode
-  15 / versionName 1.6.6 / minSdk 26 / targetSdk 36; the tier= +
-  raced + stall strings verified in the APK's libgojni.so in all
-  three ABIs.
-- **Current architecture decision / confidence:** ADR-0022 (doc
-  08) — the tiered stall watch, extending the ADR-0018..0021 species
-  (failure detection, hygiene, bounded recovery; never steering).
-  Live ADRs: ADR-0001..0022. The auth lane stays CLOSED (D97).
+  16 / versionName 1.6.6 / minSdk 26 / targetSdk 36; the strings
+  verified in the APK's libgojni.so in all three ABIs.
+- **Current architecture decision / confidence:** ADR-0023 (doc
+  08) — the negative re-ask + the origin-IP penalty box, extending
+  the ADR-0018..0022 species (failure detection, hygiene, bounded
+  recovery; memory as preference, never verdict; never steering).
+  Live ADRs: ADR-0001..0023. The auth lane stays CLOSED (D97).
 - **Blocking questions:** none blocking the loop. The standing
-  input is **Ali's debug.16 round** — the report whose shell line
-  reads **versionCode 15** (13 or 14 means the old APK is still
-  installed: the D103 filename v1.6.6-debug16.apk makes the right
-  build self-identifying — this round's report proved the accident
-  class is REAL): (a) going next and back in the same video —
-  instant again? (that is this build's whole point); (b) the stall
-  lines' tier split — "tier=rich" kills should be rare and harmless,
-  "tier=lean" kills the dead-origin cohort only (their counts tune
-  32 KB / 90 s / the wake gap); (c) the "tunnel first-byte raced
-  dials=N" lines (debug.15's never-run race — the save rate is the
-  candidate count's tuning material); (d) the dns fail count and the
-  method line (does the degraded state still fire; did the sweep
-  stop dragging the method); (e) the D102 question for Ali himself,
-  still LIVE: terminal first-byte failures cluster under both strong
-  and balanced now — should a flow that exhausts its raced round be
-  retried once with the NEXT preset in HealSweepOrder? His ruling,
-  never unilateral. Plus the older circle rows (the cross-device UI
-  verdict on debug.6, rows 4-8, rotation/TalkBack, the data-usage
-  round, D93's desktop check).
+  input is **Ali's debug.17 round** — the report whose shell line
+  reads **versionCode 16** (15 means the old APK is still
+  installed: the D103 filename v1.6.6-debug17.apk makes the right
+  build self-identifying): (a) video STARTS — the first video after
+  connecting and the second right after it (the second used to pay
+  the full dead-origin discovery cost again); (b) the "dns negative
+  re-ask (path failure, not a name verdict)" count — each line is a
+  lockout absorbed; (c) the dns fail counter (was 50 — should
+  collapse to the handful of real server walks) and the "socks5 dns
+  lookup failed reason=…" lines (the reason finally visible — it
+  names which DoH leg fails); (d) the first-byte terminal count
+  (was 17 timeouts + 8 resets) and the raced save rate; (e) the
+  D102 question for Ali himself, still LIVE: terminal first-byte
+  failures cluster under both strong and balanced — should a flow
+  that exhausts its raced round be retried once with the NEXT
+  preset in HealSweepOrder? His ruling, never unilateral. Plus the
+  older circle rows (the cross-device UI verdict on debug.6, rows
+  4-8, rotation/TalkBack, the data-usage round, D93's desktop
+  check).
 - **Exact next task:** ONE workstream — the feedback loop. **Task
-  ID M8-y — ingest Ali's results from v1.6.6-android-debug.16 (the
-  versionCode 15 build)**: the pasted diagnostics report FIRST —
-  verify the "android shell:" line names versionCode 15 (13 or 14
-  means the install never happened: ask which FILENAME was
-  downloaded — the D103 name v1.6.6-debug16.apk makes the wrong
-  build self-identifying); then read the tier= split on the stall
-  lines (the tuning material), the raced lines (the save rate), the
-  terminal ratios (the D102 material) and the dur= dones to name
-  the remaining waiting phase; root-cause from the evidence; fix at
+  ID M8-z — ingest Ali's results from v1.6.6-android-debug.17 (the
+  versionCode 16 build)**: the pasted diagnostics report FIRST —
+  verify the "android shell:" line names versionCode 16 (15 means
+  the install never happened: ask which FILENAME was downloaded —
+  the D103 name v1.6.6-debug17.apk makes the wrong build
+  self-identifying); then read the re-ask lines (lockouts
+  absorbed), the dns fail counter + the baked reasons (which leg
+  fails), the first-byte terminal cohort (was 17+8), the raced save
+  rate, and the tier= split; root-cause from the evidence; fix at
   the correct layer; keep the D77-D103 honesty rules binding (D101:
   any new user-facing surface ships in the variant(s) the affected
   editions bake, verified through the real webui server). Bump
-  `versionCode` and cut `v1.6.6-android-debug.17` through the same
+  `versionCode` and cut `v1.6.6-android-debug.18` through the same
   regular-release lane (D89) WHEN an app code change warrants it —
   D98: every release page carries the debug APK asset; D103
   (amending D99): the asset is NAMED v<versionName>-debug<N>.apk,
-  N = the tag's build sequence (debug.17's asset is
-  v1.6.6-debug17.apk) — push the code commit BEFORE creating the
+  N = the tag's build sequence (debug.18's asset is
+  v1.6.6-debug18.apk) — push the code commit BEFORE creating the
   release (the full-SHA target_commitish 422s against an unpushed
   SHA). The auth Task IDs (A1/A2/A3) stay retired (D97). The
   dormant alternatives when no feedback arrives: the desktop
