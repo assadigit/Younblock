@@ -15,9 +15,13 @@ inside the new budget, DNS ok 118 / fail 0, udpDropped=107).
 **v1.6.6-android-debug.13 stays the CURRENT build** — re-verified
 this session: the release asset re-downloaded through the API and
 hash-matched, the salvage lines present in libgojni.so in all three
-ABIs, Latest confirmed. The stall row stays OPEN for the ACTUAL
-debug.13 report — whose first check is the shell line reading
-versionCode 12.)
+ABIs, Latest confirmed. D103 landed the same session (Ali's
+ruling: "add debug13 in the apk's name") — every D99-era APK asset
+renamed in place (v1.6.6-debug8.apk … v1.6.6-debug13.apk, bytes
+unchanged), so the downloaded FILE itself names its build: the
+accident class this round found is closed. The stall row stays OPEN
+for the ACTUAL debug.13 report — whose first check is the shell
+line reading versionCode 12.)
 Earlier: M8-s (ADR-0018, debug.12 — superseded by debug.13: its
 round produced the third pasted report, which debug.13 acts on),
 M8-r (ADR-0017, debug.11), M8-q/p (the diagnostics surface,
@@ -57,8 +61,11 @@ free-for-all app.**
 **What this build is:** versionCode 12, built at the M8-t commit, the
 pinned debug certificate — **installs directly over debug.12** in
 place; settings and usage history survive. The APK asset on the
-release page is NAMED with the version (**v1.6.6-debug.apk**, per
-D99). This is the round your THIRD diagnostics report built: it
+release page is NAMED **v1.6.6-debug13.apk** (D99 as amended by
+D103 — the build number rides in the filename now, Ali's ruling
+after the fourth report ran the previous build; renamed in place
+2026-10-19, same bytes, same digest). This is the round your THIRD
+diagnostics report built: it
 proved the debug.12 budget on-device and named what was still
 missing (ADR-0019).
 
@@ -104,8 +111,9 @@ missing (ADR-0019).
 **What this build is:** versionCode 11, built at the M8-s commit, the
 pinned debug certificate — **installs directly over debug.11** in
 place; settings and usage history survive. The APK asset on the
-release page is NAMED with the version (**v1.6.6-debug.apk**, per
-D99). This is the round your SECOND diagnostics report built: it
+release page is NAMED **v1.6.6-debug12.apk** (D99 as amended by
+D103 — renamed in place 2026-10-19). This is the round your SECOND
+diagnostics report built: it
 proved the debug.11 fixes on-device (state on, a sweep that found
 its method) and exposed the remaining stall's exact shape
 (ADR-0018).
@@ -152,8 +160,9 @@ its method) and exposed the remaining stall's exact shape
 **What this build is:** versionCode 10, built at the M8-r commit, the
 pinned debug certificate — **installs directly over debug.10** in
 place; settings and usage history survive. The APK asset on the
-release page is NAMED with the version (**v1.6.6-debug.apk**, per
-D99). This is the round your first diagnostics report built: it
+release page is NAMED **v1.6.6-debug11.apk** (D99 as amended by
+D103 — renamed in place 2026-10-19). This is the round your first
+diagnostics report built: it
 named the build (versionCode 9 ✓ — the surface worked), and its log
 was read back against the engine line by line (ADR-0017).
 
@@ -197,8 +206,9 @@ was read back against the engine line by line (ADR-0017).
 35,053,265 B (SHA-256 4264996a…f9e7), the pinned debug certificate
 — **installs directly over debug.9** in place; settings and usage
 history survive. The APK asset on the release page is NAMED with the
-version (**v1.6.6-debug.apk**, per D99). It carries ONE theme: **the
-diagnostics surface finally rendered where you have been looking all
+version (**v1.6.6-debug10.apk**, D99 as amended by D103 — renamed
+in place 2026-10-19). It carries ONE theme: **the diagnostics
+surface finally rendered where you have been looking all
 along** (ADR-0016, D101):
 
 1. **What was wrong (found this round):** the debug.9 build DID ship
@@ -234,8 +244,9 @@ along** (ADR-0016, D101):
 35,026,961 B (SHA-256 1a2b2bf7…7833), the pinned debug certificate
 — installed directly over debug.8 in place; settings and usage
 history survive. The APK asset on the release page is NAMED with the
-version (**v1.6.6-debug.apk**, per D99). It carries ONE theme: **the
-evidence-collection surface for the still-open per-video stall
+version (**v1.6.6-debug9.apk**, D99 as amended by D103 — renamed in
+place 2026-10-19). It carries ONE theme: **the evidence-collection
+surface for the still-open per-video stall
 (ADR-0015) — "Menu → Diagnostics → Copy" is now a real, reachable
 path on every edition**:
 
@@ -279,8 +290,10 @@ doubled to **the last 200 lines** (a stalled video's retry loop
 34,978,761 B (SHA-256 c0c4019f…cd5f6), the pinned debug certificate
 — **installs directly over debug.7** in place; settings and usage
 history survive. The APK asset on the release page is now NAMED with
-the version (**v1.6.6-debug.apk**) and every release after this one
-follows that form (D99). It carries ONE theme: **the dial-failure →
+the version, and every release after this one follows that form
+(D99; amended by D103 at the D99-era releases: the build number
+rides in the filename — this release's asset is now
+v1.6.6-debug8.apk). It carries ONE theme: **the dial-failure →
 DNS-requery feedback loop (ADR-0014) — the per-video stall amplifier
 that survived the debug.7 fix**:
 
@@ -809,9 +822,9 @@ remove the Last-session line).**
    data). No new build: zero bytes of the report describe the
    salvage build's behavior, so there is nothing to tune (D84). The
    row STAYS OPEN, unchanged, for the ACTUAL debug.13 report —
-   first check: the shell line reads versionCode 12; every release
-   names its APK v1.6.6-debug.apk, so download from the debug.13
-   release page specifically.)
+   first check: the shell line reads versionCode 12; the APK filename
+   itself now names the build (D103): download v1.6.6-debug13.apk —
+   if the filename says anything else, it is the wrong build.)
 4. **youtube.com in a browser** — Chrome, Firefox, Opera and Brave
    are on the default list now (D87): youtube.com loads inside each
    installed one of them after connecting. For a browser you removed

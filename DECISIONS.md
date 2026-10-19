@@ -2285,3 +2285,40 @@ Diagnostics → Copy" existed only on screens his device cannot show.
    touch the stall (doc 10 row 3 stays open; a real pasted report is
    still the next evidence).
 4. Next decision ID: D102.
+
+**D103 — the APK asset name carries the build number (Ali's ruling,
+2026-10-19, the M8-u round — amends D99 after the fourth-report
+install miss).** "please add debug13 in the apks name, so such
+accidents does not happen."
+
+1. **RECORDED as ruled — every release's APK asset is named
+   `v<versionName>-debug<N>.apk`**, where N is the release tag's
+   build sequence (the .N in `v<versionName>-android-debug.N`). The
+   filename must identify the build WITHOUT opening the release
+   page — D99's own stated test, which the shared
+   `v<versionName>-debug.apk` form failed in practice: six releases
+   (debug.8 through debug.13) carried the identical filename, and
+   the fourth diagnostics report round ran the previous build with
+   no way to tell the downloaded files apart once they left the
+   release page.
+2. **First application — the backfill:** all six same-named assets
+   renamed IN PLACE through the API (v1.6.6-debug8.apk …
+   v1.6.6-debug13.apk; sizes and download counts preserved, bytes
+   unchanged — the debug.13 asset re-served and hash-matched after
+   the rename:
+   18b4ea648b0aa02d7eebf84f2dc596d13894093a1469dfc4f111ddc5b286b518),
+   and every affected release body updated so its download
+   instructions name the new file and carry the rename note.
+3. **Scope:** the asset NAME only — the release TAG keeps its
+   v<versionName>-android-debug.N form (D84/D89 unchanged), the
+   versionCode-bump rule is untouched, and D98 (every release
+   carries the APK) is unchanged; D99's `v<versionName>-debug.apk`
+   form is superseded by `v<versionName>-debug<N>.apk` from debug.14
+   on. The pre-D99 releases (debug.1 through debug.7, the
+   `app-debug.apk` era) keep their historical names: they predate
+   the naming rule, and Android refuses same-signature versionCode
+   downgrades, so the silent wrong-build install cannot happen
+   through them.
+4. Next decision ID: D104. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates this one.)

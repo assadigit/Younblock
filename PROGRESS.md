@@ -3327,3 +3327,16 @@ line reads versionCode 12).
 The D102 question stands unchanged, reserved for Ali. Next: M8-v
 expects the ACTUAL debug.13 report — shell line versionCode 12,
 retry/salvaged line ratios as the tuning evidence.
+
+D103 (same session, Ali's ruling — "please add debug13 in the apks
+name, so such accidents does not happen"): all six D99-era APK
+assets renamed in place through the API (v1.6.6-debug8.apk …
+v1.6.6-debug13.apk — the shared v1.6.6-debug.apk name could not
+tell the builds apart once downloaded); bytes unchanged (the
+debug.13 asset re-served and hash-matched after the rename), every
+affected release body updated with the new name + a rename note,
+and the naming rule amended for every future release: the asset is
+v<versionName>-debug<N>.apk, N = the release tag's build sequence.
+The downloaded file now names its own build — the accident class
+the fourth-report round found is closed. No app change; versionCode
+stays 12; debug.13 stays CURRENT.

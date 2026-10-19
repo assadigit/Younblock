@@ -20,8 +20,13 @@ release asset re-downloaded through the API and hash-matched, the
 embedded engine checked to carry both salvage lines in libgojni.so
 in all three ABIs, Latest confirmed via /releases/latest); the reply
 and the preview page walk Ali through installing
-v1.6.6-android-debug.13 — every release names its APK
-v1.6.6-debug.apk, so the debug.13 PAGE is what disambiguates.**
+v1.6.6-android-debug.13. The same session then brought Ali's D103
+ruling ("add debug13 in the apk's name"): every D99-era APK asset
+renamed in place (v1.6.6-debug8.apk … v1.6.6-debug13.apk, bytes
+unchanged — the debug.13 asset re-served and hash-matched after
+the rename), every affected release body updated, and the naming
+rule amended — from debug.14 on the asset carries the build
+number, so the downloaded FILE itself names its build.**
 Earlier: M8-t (ADR-0019, the salvage re-dial + the 2.5 s budget,
 debug.13 — still the CURRENT build), M8-s (ADR-0018, the first-byte
 budget, debug.12), M8-r (ADR-0017, the sweep probes from zero,
@@ -114,10 +119,10 @@ ever built.** This file is the live handoff; keep the fields in
   HEAD knobs re-read (FirstByteTimeout 2.5 s, FirstByteSalvageDials
   2). (2) The reply + the preview page (src/app/page.tsx in the
   Next.js surface) walk Ali through the install: open the
-  v1.6.6-android-debug.13 release page specifically (D99 names every
-  release's APK asset v1.6.6-debug.apk — the same name on every
-  page, so the PAGE title is what disambiguates), download
-  v1.6.6-debug.apk from THAT page, install over debug.12 in place
+  v1.6.6-android-debug.13 release page and download
+  v1.6.6-debug13.apk — the filename itself names the build now
+  (D103, Ali's ruling this round; if the filename says anything
+  else, it is the wrong build); install over debug.12 in place
   (same pinned certificate, higher versionCode — settings and usage
   survive), reconnect, then verify the report header reads
   versionCode 12. (3) If a stall remains: menu → Diagnostics → Copy
@@ -172,8 +177,9 @@ ever built.** This file is the live handoff; keep the fields in
   versionCode 12 build)**: the pasted diagnostics report FIRST —
   verify the "android shell:" line names versionCode 12 (a
   versionCode 11 report means the install failed again: the round is
-  the install, exactly as M8-u was; check WHICH release page the APK
-  came from — D99 gives every release the same asset name); then
+  the install, exactly as M8-u was — ask which FILENAME was
+  downloaded: the D103 names (v1.6.6-debug13.apk) make the wrong
+  build self-identifying); then
   read the retry/salvaged/failed line ratios + the dur= dones + the
   tun: line to name the waiting phase; root-cause from the evidence;
   fix at the correct layer; keep the D77-D101 honesty rules binding
@@ -181,8 +187,10 @@ ever built.** This file is the live handoff; keep the fields in
   affected editions bake, verified through the real webui server).
   Bump `versionCode` and cut `v1.6.6-android-debug.14` through the
   same regular-release lane (D89) WHEN an app code change warrants
-  it — D98: every release page carries the debug APK asset; D99: the
-  asset is NAMED v<versionName>-debug.apk — push the code commit
+  it — D98: every release page carries the debug APK asset; D103
+  (amending D99): the asset is NAMED v<versionName>-debug<N>.apk,
+  N = the tag's build sequence (debug.14's asset is
+  v1.6.6-debug14.apk) — push the code commit
   BEFORE creating the release (the full-SHA target_commitish 422s
   against an unpushed SHA). The auth Task IDs (A1/A2/A3) stay
   retired (D97). The dormant alternatives when no feedback arrives:

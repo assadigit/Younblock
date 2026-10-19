@@ -1587,3 +1587,21 @@ NO-BUILD round: the report ran the previous build):
   disambiguates — and name the next evidence: the retry/salvaged
   line ratios against terminal failures, from a report whose shell
   line reads versionCode 12.
+
+D103 follow-up (same session, Ali's ruling — "please add debug13 in
+the apks name, so such accidents does not happen"): all six D99-era
+APK assets renamed IN PLACE through the API (v1.6.6-debug8.apk …
+v1.6.6-debug13.apk — D99's own stated test, "the asset name must
+identify the build without opening the release page," had failed:
+six releases shared the identical filename); sizes and download
+counts preserved, bytes unchanged (the debug.13 asset re-served and
+hash-matched after the rename: 18b4ea648b0aa02d7eebf84f2dc596d1389
+4093a1469dfc4f111ddc5b286b518); every affected release body updated
+so its download instructions name the new file and carry the rename
+note. The naming rule is amended from debug.14 on: the asset is
+v<versionName>-debug<N>.apk, N = the release tag's build sequence.
+The pre-D99 releases (debug.1-7, the app-debug.apk era) keep their
+historical names — they predate the rule, and Android refuses
+same-signature versionCode downgrades, so the silent wrong-build
+install cannot happen through them. No app change: versionCode
+stays 12, debug.13 stays the CURRENT build, no release cut.

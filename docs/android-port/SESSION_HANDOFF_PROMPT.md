@@ -25,15 +25,19 @@ session prompt carries a fresh token if push is rejected).
   67 errors / 114 conns, healthy first-bytes 58–548 ms, DNS ok
   118 / fail 0, udpDropped=107). **The round's lesson, now standing
   doctrine: the fix can ship while the phone still runs the old
-  build — EVERY report's first check is its shell line, and D99
-  gives every release the same APK asset name (v1.6.6-debug.apk), so
-  the release PAGE is what disambiguates which build Ali gets.**
+  build — EVERY report's first check is its shell line. The same
+  session brought Ali's D103 ruling ("add debug13 in the apk's
+  name"): every D99-era APK asset renamed in place
+  (v1.6.6-debug8.apk … v1.6.6-debug13.apk, bytes unchanged — the
+  debug.13 asset re-served and hash-matched after the rename), so
+  the downloaded FILE itself names its build.**
   debug.13 was re-verified end-to-end at M8-u (asset hash-matched,
   salvage lines in libgojni.so in all three ABIs, Latest). No
   versionCode bump, no release cut (D84: no app change).
 - **THE THIRD PASTED DIAGNOSTICS REPORT ARRIVED and was acted on:
   `v1.6.6-android-debug.13` (versionCode 12, Latest, the APK asset
-  named v1.6.6-debug.apk) ships the fix it drove (ADR-0019).** Ali's
+  named v1.6.6-debug13.apk — D103) ships the fix it drove
+  (ADR-0019).** Ali's
   debug.12 round: "The problem persists" + the full report — its
   "android shell: 1.6.6 (versionCode 11)" line proved the debug.12
   install. **The M8-s budget was PROVEN on-device exactly as
@@ -94,10 +98,12 @@ side) or his rebuilt desktop exe:
   this check is not a formality: a versionCode 11 report means the
   old APK is still installed — the round is the INSTALL again, not a
   fix. Before anything else, establish WHICH release page the APK
-  came from: D99 names every release's asset v1.6.6-debug.apk, so
-  the page — not the filename — is what disambiguates. The install
-  itself is ordinary: download v1.6.6-debug.apk from the
-  v1.6.6-android-debug.13 release page, install over the old app in
+  downloaded: the D103 names make the wrong build self-identifying
+  (the correct file is v1.6.6-debug13.apk). The install itself is
+  ordinary: download v1.6.6-debug13.apk from the
+  v1.6.6-android-debug.13 release page (the filename must say
+  debug13 — if it says anything else, it is the wrong build),
+  install over the old app in
   place — same pinned certificate, higher versionCode, settings and
   usage survive — then reconnect and confirm the report header reads
   versionCode 12.) Then read it in this order: (a) the NEW
@@ -130,7 +136,9 @@ side) or his rebuilt desktop exe:
 - **Bump `versionCode`** in `android/app/build.gradle.kts` (the D84
   rule) and cut the next debug release — a REGULAR release in the
   private repo, never flagged prerelease (D89), **carrying the debug
-  APK asset per D98, NAMED v<versionName>-debug.apk per D99** —
+  APK asset per D98, NAMED v<versionName>-debug<N>.apk per D103
+  (amending D99; N = the tag's build sequence — debug.14's asset
+  is v1.6.6-debug14.apk)** —
   through the release lane (push the code commit BEFORE creating the
   release; upload the APK, verify via the API, record size + digest)
   WHEN a code change warrants it. Full lane before release: desktop
@@ -159,8 +167,9 @@ side) or his rebuilt desktop exe:
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.13 edition + §"Device test circle" — row 3 is the stall row
    with the D102 question and the fourth-report note), doc 06 (the
-   M8-c…M8-u records), doc 08 + `DECISIONS.md` (D1-D101; read D97,
-   D98, D99, D100, D101 in full; **ADR-0019 is the M8-t decision**),
+   M8-c…M8-u records), doc 08 + `DECISIONS.md` (D1-D103; read D97,
+   D98, D99, D100, D101, D103 in full; **ADR-0019 is the M8-t
+   decision**),
    and the tail of `PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3` (expect the M8-u commit
@@ -250,7 +259,8 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   rulings land), `CHANGELOG.md`; append the worklog entry (Task ID
   M8-v / M8-w / …); commit and push; cut the debug release with the
   bumped versionCode when APP code changed — **always attach the
-  debug APK per D98, named v<versionName>-debug.apk per D99** — and
+  debug APK per D98, named v<versionName>-debug<N>.apk per D103
+  (amending D99)** — and
   record the artifact.
 
 ## Required first response
@@ -263,7 +273,9 @@ its "android shell:" line (the build identity) and name the FIRST
 issue you will address from its evidence; if only prose arrived, ask
 for the report instead of guessing; (5) confirmation that you have
 read D97 (the auth lane stays untouched), D98 (every release carries
-the APK), D99 (the APK asset is named with the version), D100 (the
-diagnostics surface is the loop's evidence path) and D101 (a surface
-ships in the variant the edition serves). If no feedback arrived,
+the APK), D99 (the APK asset is named with the version — as amended
+by D103: the build number rides in the filename), D100 (the
+diagnostics surface is the loop's evidence path), D101 (a surface
+ships in the variant the edition serves) and D103 (the APK asset is
+named v<versionName>-debug<N>.apk). If no feedback arrived,
 say so plainly and put the honest alternatives to Ali. Then execute.
