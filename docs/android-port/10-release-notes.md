@@ -80,8 +80,8 @@ the escape-the-pool round. What changed, in plain words:
 `v1.6.6-debug20.apk`, versionCode 19 / versionName 1.6.6 / minSdk 26 /
 targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
 certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
-over every earlier debug build, D85), APK size and SHA-256 as recorded
-below once built. Built from commit COMMIT_SHA_PLACEHOLDER. The
+over every earlier debug build, D85), APK 55,148,841 B, SHA-256
+`e44efc0d5baeefb3bff019090b309460264e69921bfa3d340406c5a874f8f2ab`. Built from commit 4058f46. The
 gomobile bind ran with the debug-tester ldflags
 (`-X …/internal/config.DebugTesterBuild=true`) and the M8-ab
 signatures were verified present in libgojni.so in ALL THREE ABIs
