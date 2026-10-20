@@ -69,6 +69,13 @@ type Counters struct {
 	stallRichPending atomic.Int64
 	stallTrickle     atomic.Int64
 
+	// M8-ae (ADR-0040/0041/0042): the wire-discipline round's meters —
+	// every googlevideo-SNI ClientHello the engine put on the wire
+	// (flow candidates, substitutes, probe jobs: the volume number
+	// the censor actually sees) and the emission breaker's arms.
+	gvideoHellos    atomic.Int64
+	gvideoCooldowns atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -172,6 +179,22 @@ func (c *Counters) SubstWin() { c.substWins.Add(1) }
 // the churn signal the gvideo loop's 1 s watch kicks an immediate
 // origin-probe pass on.
 func (c *Counters) GvideoTerminal() { c.gvideoTerminals.Add(1) }
+
+// GvideoHello counts one googlevideo-SNI ClientHello the engine put
+// on the wire (M8-ae, ADR-0042): every raced candidate, every
+// substitute, every serial attempt, every probe job — the volume
+// number the censor's per-source flag actually accumulates on. The
+// next report reads it against routedFlows: the reference
+// implementations put ~1 hello per flow; debug.22 put ~4 plus bursts.
+func (c *Counters) GvideoHello() { c.gvideoHellos.Add(1) }
+
+// GvideoCooldown counts one emission-breaker arm (M8-ae, ADR-0041):
+// GvideoBreakerTerminals googlevideo terminals inside the window
+// flip the engine to wire-silent on googlevideo for one cooldown so
+// the app's hostname rotation (and any per-source flag decay) can
+// actually happen. Cooldowns>0 in a report = the breaker caught a
+// flag state that debug.22 rode into "never opens again".
+func (c *Counters) GvideoCooldown() { c.gvideoCooldowns.Add(1) }
 
 // StallLeanPending counts one lean stall kill whose client had spoken
 // after the origin's last byte (M8-ac, ADR-0036): a request the origin
@@ -301,9 +324,12 @@ type All struct {
 
 	// M8-ad (ADR-0037): the rich tier's cause split — the pending
 	// fast kill and the trickle kill.
-	StallRichPending int64     `json:"stallRichPending"`
-	StallTrickle     int64     `json:"stallTrickle"`
-	StartedAt        time.Time `json:"startedAt"`
+	StallRichPending int64 `json:"stallRichPending"`
+	StallTrickle     int64 `json:"stallTrickle"`
+	// M8-ae (ADR-0042): the wire-discipline meters.
+	GvideoHellos    int64     `json:"gvideoHellos"`
+	GvideoCooldowns int64     `json:"gvideoCooldowns"`
+	StartedAt       time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
@@ -341,6 +367,8 @@ func (c *Counters) Diagnostic() All {
 		DoHBrownouts:       c.dohBrownouts.Load(),
 		StallRichPending:   c.stallRichPending.Load(),
 		StallTrickle:       c.stallTrickle.Load(),
+		GvideoHellos:       c.gvideoHellos.Load(),
+		GvideoCooldowns:    c.gvideoCooldowns.Load(),
 		StartedAt:          c.startedAt,
 	}
 }

@@ -28,21 +28,24 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug22.apk` from the repo's
+releasing yet"): download `v1.6.6-debug23.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.22` release (a regular release in this private
+`v1.6.6-android-debug.23` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug22**; it installs over any earlier
+**make sure the filename says debug23**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build fixes the MID-VIDEO stall the debug.21 report measured
-(minute 5 of a 10-minute video goes loading; a refresh fixed it —
-now three automatic kills do the refresh's job engine-side: an
-unanswered request on a proven connection closes at 10 s, a
-blackholed connection surfaces via tuned keepalive in ~30 s, and a
-throttled connection closes on the spot) and moves auto to the old
-Python's own 299-cut hello; the release notes carry the round's
-full story (and every earlier round's, in place).
+this build is the WIRE-DISCIPLINE round the debug.22 report forced
+(video dead for the whole session while the feed kept refreshing:
+the engine's own googlevideo emission — 4 parallel hellos per
+connection plus 48-handshake background bursts — feeding a
+per-source SNI flag; a connection to a verified origin now sends
+ONE hello, the background check is a trickle with no start burst,
+and repeated googlevideo failure arms a ~45 s total-silence
+cooldown in which the app rotates hostnames and the flag decays;
+the report's new "gvideo discipline" line measures the volume —
+see ADR-0040/0041/0042 and the release notes); the release notes
+carry every earlier round's story in place.
 Sign in with your
 GitHub account, then sideload it:
 

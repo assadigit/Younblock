@@ -20,46 +20,49 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 21: the M8-ad build (debug.22 -- the
-        // long-lived-connection round): the tester's post-debug.21
-        // report brought the round's whole brief in two sentences --
-        // "the problem is not solved yet (video lags to begin)" and
-        // "after a while playing and seeing a video like minute 5 of
-        // a 10min video, it goes loading, and as soon as you refresh
-        // it fixes" (more on Linux, less on Windows), plus a pointer
-        // back at the legacy Python backend: "read the backend script
-        // again, maybe it gives you ideas." The ideas it gave: (1)
-        // ADR-0037 rich-flow liveness -- the minute-5 wedge was three
-        // death shapes the 90 s hygiene budget sat on: a PENDING
-        // death (the player's next range request riding the dead
-        // pooled conn) now closes at StallRichPendingTimeout=10 s
-        // with the demote landing; a blackholed conn now surfaces in
-        // ~30 s via tuned TCP keepalive (15 s idle + 3x5 s probes,
-        // every origin dial including the DoH lane's); and the
-        // per-connection THROTTLE (bytes keep arriving under the
-        // floor -- the both-silent clock never even started, and the
-        // debug.20 report's 5x-less-down was its fingerprint) now
-        // dies to the trickle kill: a 12 s rolling window that keeps
-        // landing above zero but under 128 KB on a 1 MB+ flow closes
-        // both ends QUIETLY so the player's retry lands on a fresh,
-        // unthrottled conn -- engine-side what the tester's REFRESH
-        // did by hand. (2) ADR-0038 -- stall kills never invalidate
-        // the answer set anymore (the debug.20 churn spiral's feed:
-        // dns=579-846 ms late-session, 59 DoH dials; the Python
-        // cached DNS forever). (3) ADR-0039 -- auto STARTS at legacy,
-        // the Python's own 299-cut 1 ms hello (the preset existed
-        // since the rewrite but auto started at balanced and the
-        // sweep tried legacy LAST; under a censor that now RSTs
-        // recognizably-shaped hellos -- 35 of 77 probe verdicts --
-        // weak splitting was never in the fight), and the heal sweep
-        // walks DOWN the strength ladder from there. The report's
-        // stall line gains the rich cause split: rich=N
-        // (pending=Q trickle=T) -- the numbers that say whether this
-        // round caught what the tester saw. Installs over debug.21
-        // (the same pinned debug certificate -- D85). The D84 rule:
-        // every debug build bumps this. D103: the APK asset is named
-        // v1.6.6-debug22.apk.
-        versionCode = 21
+        // versionCode 22: the M8-ae build (debug.23 -- the
+        // wire-discipline round): the tester's post-debug.22 report
+        // was "it doesn't even open video after a while. But the
+        // feed refreshes. this is probably one of the worst
+        // versions" plus two reference repositories
+        // (gfw_resist_HTTPS_proxy, WebImmortalGuards) as "knowing
+        // how this system works" -- and they told us exactly that:
+        // the reference implementations emit ONE fragmented hello
+        // per connection and ZERO background handshakes, while this
+        // engine was emitting ~4 hellos per video connection (the
+        // raced fan-out, each a legacy 299-cut hello) plus
+        // 48-handshake background bursts at start, every 5 minutes,
+        // and within 10 s of every failed flow. A censor that flags
+        // noisy sources per service name trips on exactly that
+        // volume: early session clean, then every googlevideo
+        // connection reset forever while youtube.com (quieter,
+        // different name) keeps serving -- the feed refreshes, video
+        // never opens, our retries keep feeding the flag. The round
+        // (ADR-0040/0041/0042): (1) a primary whose origin holds a
+        // live verified mark skips the raced round -- ONE hello,
+        // the reference steady-state shape; a raced round demotes
+        // the answer set ONCE, not once per dead candidate. (2) The
+        // probe pass is a trickle -- OriginProbePerPass 48->10
+        // clamped inside ProbeOrigins, its own GoogleVideoProbeEvery
+        // 15-minute cadence, the START-of-session pass and the
+        // churn-kick lane DELETED (a fresh engine is silent on
+        // googlevideo until the first flow speaks). (3) The EMISSION
+        // BREAKER: 3 googlevideo terminals inside 30 s arm a ~45 s
+        // cooldown (plus jitter) during which googlevideo flows fail
+        // fast at BOTH doors with zero wire and the probe lane stays
+        // paused -- the app's player rotates hostnames (the
+        // reference recovery) and any per-source flag decays in the
+        // quiet; non-gvideo hosts are untouched, the feed keeps
+        // refreshing through the cooldown. (4) Diagnostics: the
+        // gvideoHellos meter counts every googlevideo-SNI hello the
+        // engine puts on the wire (flows + substitutes + probes)
+        // and the report gains "gvideo discipline: hellos=N
+        // cooldowns=M" -- read hellos against routedFlows; ~1 per
+        // flow is the goal. Installs over debug.22 (the same pinned
+        // debug certificate -- D85). The D84 rule: every debug
+        // build bumps this. D103: the APK asset is named
+        // v1.6.6-debug23.apk.
+        versionCode = 22
         versionName = "1.6.6"
     }
 

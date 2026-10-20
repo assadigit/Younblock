@@ -436,6 +436,16 @@ func (e *Engine) GetDiagnosticReport() string {
 	}
 	fmt.Fprintf(&b, "substitution: attempts=%d wins=%d pool=%d (gvideo %d)\n",
 		d.SubstAttempts, d.SubstWins, poolTotal, poolGvideo)
+	// M8-ae (ADR-0042): the wire-discipline evidence — the googlevideo
+	// hellos the engine actually put on the wire this session (flow
+	// candidates + substitutes + probe jobs) and the emission breaker's
+	// arms. hellos read against routedFlows: the reference
+	// implementations run ~1 per flow (plus zero background), debug.22
+	// ran ~4 per flow plus bursts; cooldowns>0 means the breaker caught
+	// a flag state that debug.22 rode into "never opens again". Counts
+	// only (R21).
+	fmt.Fprintf(&b, "gvideo discipline: hellos=%d cooldowns=%d\n",
+		d.GvideoHellos, d.GvideoCooldowns)
 	// §8.3.3: the DNS detail — per recent failure, the server number,
 	// the phase that failed (tcp, tls, http, status, parse) and the
 	// latency.

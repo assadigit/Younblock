@@ -589,6 +589,14 @@ func (e *Engine) timelineMarks() []Mark {
 // in the debug.20 session, 6 thirteen hours earlier), the prewarm,
 // the probe passes, and the churn kicks pause until the lane recovers;
 // the app's own flows keep the resolver busy enough.
+//
+// M8-ae (ADR-0041) deletes the START-of-session probe pass and the
+// churn kick, and slows the pass to a trickle on its own
+// GoogleVideoProbeEvery cadence: the reference implementations the
+// tester pointed at (backend.py, gfw_resist_HTTPS_proxy,
+// WebImmortalGuards) run ZERO background handshakes, and the censor
+// flags scan-like googlevideo volume per source — the round's answer
+// is emission discipline (ADR-0040/0041), not more verification.
 func (e *Engine) startGvideoLoop() {
         e.resolver.Load().WarmProbe()
         ctx, cancel := context.WithCancel(context.Background())
@@ -600,16 +608,19 @@ func (e *Engine) startGvideoLoop() {
                 old()
         }
         go func() {
+                // M8-ae (ADR-0041): the START-of-session probe pass is DELETED.
+                // A cold engine is SILENT on googlevideo — the persisted good
+                // pool (ADR-0033) and the first flows' own first bytes
+                // (ADR-0031) own the cold start, and the 48-handshake opening
+                // burst was the session's first and largest flag deposit.
                 e.prewarmGvideoCodes(ctx)
-                e.probeOriginsPass(ctx)
-                lastKick := time.Now()
-                churnSeen := e.stats.Diagnostic().GvideoTerminals
-                android := e.platform.Name() == "android"
                 brownout := newDoHBrownout()
                 slow := time.NewTicker(config.GoogleVideoPrewarmEvery)
+                probe := time.NewTicker(config.GoogleVideoProbeEvery)
                 watch := time.NewTicker(time.Second)
                 pool := time.NewTicker(config.GoodPoolSaveEvery)
                 defer slow.Stop()
+                defer probe.Stop()
                 defer watch.Stop()
                 defer pool.Stop()
                 for {
@@ -621,7 +632,25 @@ func (e *Engine) startGvideoLoop() {
                                 if brownout.active() {
                                         continue // M8-ac (ADR-0035): the DoH lane is dying — the background stays quiet
                                 }
+                                // M8-ae: the slow tick is the DoH-ONLY prewarm (rr1..rr5 of
+                                // the learned codes — resolver traffic; no googlevideo
+                                // packet ever leaves the phone).
                                 e.prewarmGvideoCodes(ctx)
+                        case <-probe.C:
+                                if brownout.active() {
+                                        continue
+                                }
+                                // M8-ae (ADR-0041): the probe pass is a rehab-first trickle
+                                // (at most OriginProbePerPass jobs) on its own slow cadence,
+                                // and NEVER while the emission breaker holds the engine
+                                // quiet — a pass during the cooldown would be the exact
+                                // churn-kick mistake this round deletes (the M8-ab kick
+                                // answered googlevideo failure with a 48-handshake burst;
+                                // the debug.22 "worst version" report is what that mistake
+                                // looks like at field scale).
+                                if srv := e.RunningServer(); srv != nil && srv.GvideoCoolingDown() {
+                                        continue
+                                }
                                 e.probeOriginsPass(ctx)
                         case <-watch.C:
                                 // The brownout tracker steps every second on the
@@ -631,24 +660,9 @@ func (e *Engine) startGvideoLoop() {
                                         e.stats.DoHBrownout()
                                         e.logger.Warn("doh brownout: background lanes paused (resolver connections churning)")
                                 }
-                                // The churn lane: a fresh googlevideo terminal
-                                // (all-dead raced round + dead salvage) means the
-                                // answer sets just rolled black — verify new
-                                // origins NOW. The desktops never enter; neither
-                                // does a brownout.
-                                if !android || brownout.active() {
-                                        continue
-                                }
-                                cur := e.stats.Diagnostic().GvideoTerminals
-                                if cur <= churnSeen {
-                                        continue
-                                }
-                                churnSeen = cur
-                                if time.Since(lastKick) < config.ProbeChurnKickDebounce {
-                                        continue // a recent pass is still landing
-                                }
-                                lastKick = time.Now()
-                                e.probeOriginsPass(ctx)
+                                // M8-ae (ADR-0041): the churn-kick lane is DELETED — the
+                                // breaker on the server owns terminal response now, and
+                                // its answer is silence, never a burst.
                         case <-pool.C:
                                 e.saveGoodPoolIfChanged()
                         }

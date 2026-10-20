@@ -1,25 +1,62 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-ad (2026-10-20, night — the debug.22 round,
-the long-lived-connection fixes the post-debug.21 report named: the
-rich-flow liveness trio (ADR-0037 — the pending fast budget, the
-tuned origin keepalive, the trickle kill), stall kills never
-invalidating the answer set (ADR-0038), and auto starting at legacy
-— the old Python backend's own 299-cut hello (ADR-0039). The
-tester's report this time was two sentences and a pointer: "the
-problem is not solved yet (video lags to begin)" and "after a while
-playing and seeing a video like minute 5 of a 10min video, it goes
-loading, and as soon as you refresh it fixes" (more on Linux, less
-on Windows) — plus "read the backend script again, maybe it gives
-you ideas." The backend script's ideas are now the round: the
-minute-5 wedge was the engine holding PROVEN connections to budgets
-measured for dead strangers (90 s hygiene, OS-default keepalive,
-and a both-silent clock that a throttled connection never even
-starts — bytes keep arriving, under the floor); the refresh that
-fixed it is now three automatic kills; and the legacy fragmentation
-that carried the Python for years is now where auto starts, with
-the heal sweep walking DOWN the strength ladder instead of saving
-its strongest card for last.**v1.6.6-android-debug.22 (versionCode
+**Status:** updated at M8-ae (2026-10-21 — the debug.23 round, the
+wire-discipline round). The tester's post-debug.22 report was
+blunt: "This time, it doesn't even open video after a while. But
+the feed refreshes. this is probably one of the worst versions."
+And then the most useful thing anyone has sent this whole circle:
+two links — GFW-knocker/gfw_resist_HTTPS_proxy and
+mahdisml/WebImmortalGuards — with "maybe the instructions of this
+would help you, knowing how this system works." They did. Reading
+them against our engine showed the bug that has been growing since
+debug.13: every recovery mechanism we shipped (racing, probing,
+substitution, churn kicks) multiplies the number of googlevideo
+hellos the phone emits, and the censor flags noisy sources PER
+SERVICE NAME. Early in a session the source is clean (everything
+works — "after a while"); once the flag trips, every googlevideo
+connection is reset while youtube.com — a different name, and one
+we send far less volume to — keeps serving: the feed refreshes,
+video never opens, and our own retry machinery keeps re-feeding
+the flag forever. The reference implementations never trip it
+because they send ONE fragmented hello per connection and NOTHING
+in the background, ever. This round makes the engine match that
+volume discipline while keeping the proven intelligence (the
+substitution pool, flow-fed marks, the box rehabilitation):
+
+- **A connection to an origin we've already seen speak now sends
+  ONE hello.** Not four in parallel (the "race") — one, exactly
+  like backend.py. The racing fan-out returns only when the origin
+  is unknown or the session is young, which is when racing
+  actually pays.
+- **The background verification is a trickle, not a scanner.** At
+  most 10 handshakes every 15 minutes (was up to 48 every 5
+  minutes, plus an immediate 48-handshake burst after every
+  failed flow, plus a full burst at app start — all deleted).
+  A fresh app start now sends ZERO googlevideo packets before
+  your first video plays.
+- **When googlevideo keeps dying, the engine goes SILENT instead
+  of trying harder.** Three completely-failed video connections
+  inside 30 seconds → for the next ~45-60 seconds, googlevideo
+  requests fail instantly with no packets sent at all, while
+  everything else (the feed, search, thumbnails) keeps working
+  normally. This is deliberate: in that quiet window the player
+  re-fetches the video and rotates to a NEW googlevideo hostname
+  — the same recovery your manual refresh always triggered, and
+  exactly what the reference implementations rely on the
+  browser to do — and any per-source flag decays because we
+  stopped feeding it. After the window, the next connection
+  just works again.
+- **The report now measures our own volume:** a new line
+  `gvideo discipline: hellos=N cooldowns=M`. hellos is every
+  googlevideo hello we put on the wire (connections, retries,
+  background checks). Compare it to the routedFlows number on
+  the counters line: ~1 hello per flow is the reference
+  implementations' shape (that's the goal); debug.22 ran ~4 per
+  flow plus bursts. cooldowns>0 means the silence circuit caught
+  a flag state that debug.22 would have ridden into "never opens
+  video again."
+
+**v1.6.6-android-debug.22 (versionCode
 20+1=21) is the CURRENT build** — the long-lived-connection round.
 What changed, in plain words:
 

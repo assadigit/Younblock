@@ -135,7 +135,7 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // debug round — versionName stays 1.6.6 across rounds, the -debug.NN
         // suffix is what a pasted report maps to its release.
         // M8-ad (debug.22, versionCode 21): the long-lived-connection round.
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.22"}
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.23"}
         if mutate != nil {
                 mutate(&opts)
         }

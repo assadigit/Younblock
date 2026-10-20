@@ -1188,6 +1188,9 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                                 results <- racedCandidate{death: firstByteReason(werr), canceled: deathCanceled(werr), deadIP: deadIP, subst: substCandidate}
                                 return
                         }
+                        if isGvideoHost(host) && s.stats != nil {
+                                s.stats.GvideoHello() // M8-ae (ADR-0042): the round's per-candidate emission
+                        }
                         cbuf := getBuf()
                         conn.SetReadDeadline(time.Now().Add(s.cfg.FirstByteTimeout))
                         cn, cerr := conn.Read(*cbuf)
@@ -1207,6 +1210,11 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
 
         dialed := make([]string, 0, total)
         substWin := false
+        // M8-ae (ADR-0040): ONE invalidation per round, not one per dead
+        // candidate — a 4-way all-dead round demoted the answer set 4x
+        // through the DoH lane for one identical effect (the churn the
+        // debug.20/21 reports measured as dns=579-846 ms during the decay).
+        invalidateOnce := sync.OnceFunc(func() { s.invalidateDNS(host) })
         if primary != nil {
                 launch(primary, nil, false)
                 for i := 0; i < raceN; i++ {
@@ -1255,7 +1263,7 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                         s.markDeadIPClass(res.deadIP, res.death)
                 }
                 if !res.subst {
-                        s.invalidateDNS(host)
+                        invalidateOnce()
                 }
         }
         if winner == nil {
@@ -1279,7 +1287,7 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                                         s.markDeadIPClass(res.deadIP, res.death)
                                 }
                                 if !res.subst {
-                                        s.invalidateDNS(host)
+                                        invalidateOnce()
                                 }
                         }
                 }
@@ -1514,9 +1522,10 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         }
         // failFlow is the M8-s terminal: both ends closed, the error
         // counted once, the reason line, the done line with final totals.
-        // A googlevideo terminal is the churn signal the engine's gvideo
-        // loop kicks an origin-probe pass on (M8-ab, ADR-0032) — the
-        // flow's raced round AND its untried salvage all died.
+        // A googlevideo terminal feeds the EMISSION BREAKER (M8-ae,
+        // ADR-0041 — the M8-ab churn kick is deleted: its probe pass
+        // answered googlevideo failure with MORE googlevideo volume):
+        // enough terminals inside the window and the doors go quiet.
         failFlow := func(reason string) {
                 link.swap(nil) // unblocks a pump stuck writing before anything else
                 if pumpRunning {
@@ -1527,6 +1536,12 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 s.countConnError()
                 if isGvideoHost(host) {
                         s.stats.GvideoTerminal()
+                        if s.noteGvideoTerminal() {
+                                if s.cfg.Logger != nil {
+                                        s.cfg.Logger.Warn("gvideo emission breaker armed (googlevideo goes wire-quiet)")
+                                }
+                                s.stats.GvideoCooldown()
+                        }
                 }
                 s.logTunnelFirstByteFailed(host, class, reason)
                 s.logTunnelDone(host, class, time.Since(tstart), flow)
@@ -1579,7 +1594,15 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         // salvage race's own proven semantics); the pump never starts on
         // this path, so the serial loop below is the racing-disabled
         // shape only.
-        if raceN > 0 && replay.fits() {
+        // M8-ae (ADR-0040): a primary whose origin holds a LIVE good mark
+        // skips the raced round entirely — the engine has SEEN this origin
+        // speak, so the fan-out's extra hellos are pure emission (4x the
+        // reference implementation's steady-state volume on exactly the
+        // healthy flows whose traffic a per-source SNI flag accumulates
+        // on). One hello, the serial budget, the salvage machinery if the
+        // verified origin dies anyway — the duress shapes return only when
+        // the front is unknown or the marks have gone stale.
+        if raceN > 0 && replay.fits() && !s.goodMarkActive(remoteIP(upstream)) {
                 // The extras dial the current answer set (cached fresh — the
                 // handleTunnel resolve landed milliseconds ago; a sibling flow's
                 // demotion in between makes this the fresher set, exactly the
@@ -1709,6 +1732,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 if err := s.writeReplay(origin, replay.bytes(), len(first), isTLS, preset, fcfg); err != nil {
                         failFlow(firstByteReason(err))
                         return
+                }
+                if isGvideoHost(host) && s.stats != nil {
+                        s.stats.GvideoHello() // M8-ae (ADR-0042): counted on the wire
                 }
                 if !countedFirst {
                         countedFirst = true

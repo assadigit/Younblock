@@ -2279,6 +2279,144 @@ DOWN, not up (M8-ad)
   mimicry (a different tool for a report that shows even 299-cut
   hellos being RST).
 
+## ADR-0040 — Wire discipline I: a verified front dials ONE hello; a round demotes the set once (M8-ae)
+
+- **Status:** Accepted 2026-10-21 (M8-ae; the tester's post-debug.22
+  report — "it doesn't even open video after a while. But the feed
+  refreshes. probably one of the worst versions" — plus his two
+  reference repositories, gfw_resist_HTTPS_proxy and
+  WebImmortalGuards, offered as "knowing how this system works").
+- **Context:** the reference implementations put ONE fragmented
+  ClientHello per CONNECT on the wire, ever (backend.py: one dial per
+  flow, DNS cached forever, nothing in the background; the xray
+  TLSFrag config: fragment the first packet, done; WebImmortalGuards
+  wraps the same Python). Younblock's raced round put FOUR parallel
+  hellos on every budgeted flow — primary + FirstByteRaceDials(2) +
+  one substitute — and each of debug.22's hellos is now the legacy
+  299-cut shape (ADR-0039): ~1200 tiny writes per flow, on exactly
+  the healthy flows a per-source SNI flag accumulates on. Every dead
+  candidate ALSO called invalidateDNS (a 4-way all-dead round demoted
+  the answer set 4x through the DoH lane for one identical effect —
+  the debug.20/21 decay's dns=579-846 ms tail).
+- **Decision:** (1) the raced round is SKIPPED when the primary's
+  remote IP holds a live verified mark (goodMarkActive): the engine
+  has SEEN this origin speak, so the extras are pure emission — one
+  hello, the serial budget, the salvage machinery if the verified
+  origin dies anyway; the duress fan-out returns only when the front
+  is unknown or stale. (2) A raced round demotes the answer set
+  exactly ONCE (sync.OnceFunc around invalidateDNS at the round's
+  death sites); the M8-s terminal keeps its own invalidation.
+- **Evidence:** internal/proxy/discipline_test.go
+  TestGoodFrontSendsOneHello (the echo origin accepts exactly ONE
+  flow connection, the corpse ZERO — the race never launched; the
+  gvideoHellos meter reads 2 probes + 1 flow) and
+  TestRacedDeathInvalidatesOncePerRound (3 dead candidates →
+  invalidateDNS called exactly 2x: the round's one + the terminal's
+  one). Both-ways: the good-front condition stashed → the echo count
+  FAILS at the fan-out's 3; the once-per-round hunk stashed → the
+  invalidation count FAILS at 4.
+- **Consequences:** steady-state googlevideo emission drops to the
+  reference implementation's ~1 hello per flow; unknown-front flows
+  (young sessions, stale pools) keep the full duress shape; the DoH
+  lane's churn under all-dead windows halves-to-quarters.
+- **What this ADR does NOT decide:** the raced round's fan-out SIZE
+  for unknown fronts (FirstByteRaceDials=2 stands, now the duress
+  shape only); the emission breaker (ADR-0041).
+
+## ADR-0041 — Wire discipline II: the probe trickle and the emission breaker (M8-ae)
+
+- **Status:** Accepted 2026-10-21 (M8-ae; same report — "the feed
+  refreshes" while video never opens is the per-SNI-class flag
+  signature: youtube.com keeps serving through the same proxy while
+  *.googlevideo.com stays dead, and the one behavior that sustains
+  such a flag is the engine's own emission — the app's retry storm
+  x the 4-way fan-out x the churn kick's 48-handshake burst, forever).
+- **Context:** the origin-probe pass verified up to 48 IPs per pass
+  — each a FULL TLS handshake with a real googlevideo SNI under the
+  live legacy preset — at engine START, every 5 minutes, AND
+  churn-kicked within 10 s of every all-dead flow (M8-ab's answer to
+  googlevideo failure was MORE googlevideo volume: exactly backwards
+  under a censor that flags scan-like sources). The debug.22 report's
+  "worst version ever" is that policy at field scale: early session
+  clean (flag accrual), then every googlevideo hello RST'd, the
+  engine never going quiet, video never opening again.
+- **Decision:** (1) the pass is a TRICKLE: OriginProbePerPass 48→10,
+  clamped INSIDE ProbeOrigins (a caller cannot re-create the burst),
+  on its own GoogleVideoProbeEvery=15min cadence, decoupled from the
+  5-minute DoH-only prewarm (resolver traffic; no googlevideo packet
+  ever leaves the phone). (2) The START-of-session pass is DELETED —
+  the persisted good pool (ADR-0033) and flow-fed marks (ADR-0031)
+  own the cold start; a fresh engine is SILENT on googlevideo until
+  the first flow speaks. (3) The churn-kick lane is DELETED
+  (ProbeChurnKickDebounce leaves the config surface). (4) The
+  EMISSION BREAKER replaces it: GvideoBreakerTerminals=3 googlevideo
+  flow terminals inside GvideoBreakerWindow=30 s arm a
+  GvideoBreakerCooldown=45 s (plus proportional jitter ≤ 10 s)
+  during which googlevideo flows fail FAST at BOTH doors (HTTP
+  CONNECT 502 and the SOCKS reply — zero wire, no resolve, no dial)
+  and the probe lane stays paused; door-blocks create no terminals,
+  so the breaker self-extinguishes and service resumes on the next
+  flow. The app's player does in that quiet what the reference
+  implementations rely on it doing: re-fetch and rotate to a NEW
+  hostname. Non-gvideo hosts are untouched — the feed keeps
+  refreshing through the cooldown.
+- **Evidence:** internal/proxy/discipline_test.go
+  TestEmissionBreakerQuietsTheWire (two terminals arm the breaker;
+  the cooldown's googlevideo CONNECT gets its 502 while the corpses'
+  accept counts stand PERFECTLY still — zero wire; the same window's
+  non-gvideo flow echoes byte-exact; the lapsed cooldown lets the
+  next flow dial again) and TestProbePassIsClampedToTheTrickle
+  (sixteen reset origins, a caller asking for 999 — the pass probes
+  exactly 10, every probe hello counted in the gvideoHellos meter) +
+  internal/engine/m8ae_test.go TestWireDisciplineKnobs (the knob
+  contract pinned: 10 / 15 min / 3-30 s-45 s, and the churn-kick
+  knob gone from the surface). Both-ways: the door stashed → the
+  502 becomes a 200 and the wire speaks (FAIL); the clamp stashed →
+  16 probes (FAIL).
+- **Consequences:** "video never opens again" becomes "video pauses
+  ~45-60 s while the app rotates hostnames, then resumes" whenever
+  the flag regime is the cause; ordinary per-origin dirt (the
+  debug.19 world) never trips the threshold because terminals that
+  sparse fall outside the 30 s window; the background emission
+  collapses from ~48 handshakes per 5 minutes (plus bursts) to ≤10
+  per 15 minutes, rehab-first.
+- **What this ADR does NOT decide:** the raced fan-out (ADR-0040);
+  the diagnostics' shape (ADR-0042); the legacy preset itself
+  (ADR-0039 stands — the round disciplines the COUNT, not the SHAPE).
+
+## ADR-0042 — The gvideo discipline line: the emission is measured (M8-ae)
+
+- **Status:** Accepted 2026-10-21 (M8-ae; every prior round's
+  machinery was validated by its own counters while the one number
+  that kept growing — how much googlevideo volume the engine emits —
+  was never on any report).
+- **Context:** the censor's per-source flag accumulates on exactly
+  the emission: every flow candidate, every substitute, every probe
+  job. debug.22's steady state was ~4 hellos per flow plus bursts;
+  the references run ~1 per flow plus zero background. No report
+  line ever said so.
+- **Decision:** stats.gvideoHellos counts every googlevideo-SNI
+  ClientHello the engine puts on the wire (the raced launches —
+  per candidate after the write lands, the serial attempts, the
+  probe jobs with gvideo names); stats.gvideoCooldowns counts the
+  breaker's arms. The diagnostic report gains one line —
+  "gvideo discipline: hellos=N cooldowns=M" — read against
+  routedFlows on the counters line. Counts only (R21).
+- **Evidence:** internal/engine/m8ae_test.go
+  TestReportRendersM8aeSections (the line renders in a
+  release-shaped report, no hostnames, no IPs) + the proxy tests'
+  meter assertions (TestGoodFrontSendsOneHello reads 3 = 2 probes +
+  1 flow; TestProbePassIsClampedToTheTrickle bounds the pass's own
+  hellos at the clamp). Both-ways: the line stashed → the render
+  test FAILS on the missing section.
+- **Consequences:** the next report's headline decision number is
+  hellos-vs-routedFlows (volume parity with the references is the
+  goal) and cooldowns>0 (the breaker catching flag states that
+  debug.22 rode into "never opens again").
+- **What this ADR does NOT decide:** what the censor's threshold
+  actually is (the round's bet is that the references' volume is
+  below it by construction — matching them removes the question).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

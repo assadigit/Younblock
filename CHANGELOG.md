@@ -12,6 +12,37 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-ae; shipping in `v1.6.6-android-debug.23`, versionCode 22)
+
+- **"This time, it doesn't even open video after a while. But the
+  feed refreshes. this is probably one of the worst versions" — plus
+  two reference repositories offered as "knowing how this system
+  works" — became the wire-discipline round (ADR-0040/0041/0042).**
+  Reading gfw_resist_HTTPS_proxy (backend.py's family: one fragmented
+  hello per connection, zero background traffic) and
+  WebImmortalGuards against our engine showed the regression that
+  compounded across every recovery mechanism since debug.13: ~4
+  parallel legacy hellos per video connection plus 48-handshake
+  background bursts — the exact scan-like volume a per-SNI-class
+  source flag feeds on. Early session clean, then googlevideo dead
+  for the rest of the session while youtube.com keeps serving (the
+  feed refreshes). (1) **ADR-0040**: a primary whose origin holds a
+  live verified mark skips the raced round — ONE hello, the
+  reference steady-state shape; a raced round demotes the answer set
+  once, not per dead candidate (the DoH churn halves). (2)
+  **ADR-0041**: the probe pass is a trickle (OriginProbePerPass
+  48→10, clamped inside ProbeOrigins; its own 15-minute
+  GoogleVideoProbeEvery cadence; the start-of-session pass and the
+  churn-kick lane deleted — a fresh engine is silent on googlevideo
+  until the first flow speaks) and the EMISSION BREAKER replaces the
+  churn kick: 3 googlevideo terminals inside 30 s arm a 45 s (+
+  jitter) cooldown of zero googlevideo wire at both doors while
+  non-gvideo hosts keep full service — the app's player rotates
+  hostnames in the quiet (the reference recovery) and any per-source
+  flag decays. (3) **ADR-0042**: the gvideoHellos meter counts every
+  googlevideo-SNI hello on the wire (flows + substitutes + probes)
+  and the report gains "gvideo discipline: hellos=N cooldowns=M".
+
 ### Fixed / Added (2026-10-20 — M8-ad; shipping in `v1.6.6-android-debug.22`, versionCode 21)
 
 - **"After a while playing … minute 5 of a 10min video, it goes

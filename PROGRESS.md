@@ -4093,3 +4093,62 @@ Version: mobile facade "1.6.6-debug.22"; gradle versionCode 20→21
 with the round's comment block; ADR-0037/0038/0039, release notes
 (the minute-5 story in plain words, the browser-per-OS ask for the
 Linux/Windows asymmetry), CHANGELOG, README, PROGRESS updated.
+
+
+## M8-ae — the wire-discipline round (debug.23, versionCode 22)
+
+The tester's post-debug.22 report ("it doesn't even open video
+after a while. But the feed refreshes. this is probably one of the
+worst versions") came with the two reference repositories
+(gfw_resist_HTTPS_proxy, WebImmortalGuards) and the instruction to
+learn how those systems work. They work by emitting almost
+nothing: one fragmented hello per connection, DoH through their own
+fragmented lane, DNS cached forever, zero background handshakes,
+and recovery delegated to the app's hostname rotation. Auditing
+our engine against that bar found the compounding regression: the
+raced fan-out (primary + 2 extras + 1 substitute, each a legacy
+299-cut hello), the 48-job probe pass at start/every 5 min/churn-
+kicked, and per-candidate DNS invalidation — ~10-40x the reference
+volume, on exactly the SNI class a per-source flag accumulates on.
+"Feed refreshes but video never opens" is that flag's signature.
+
+The round (ADR-0040/0041/0042): the good-front single hello + the
+once-per-round demotion; the probe trickle (10 per pass, 15-minute
+cadence, no start pass, no churn kick) + the emission breaker (3
+terminals in 30 s -> ~45 s of zero googlevideo wire at both doors,
+non-gvideo untouched, self-extinguishing); the gvideoHellos /
+gvideoCooldowns meters and the "gvideo discipline" report line.
+
+Tests: proxy/discipline_test.go (4: the good-front single hello —
+the echo origin accepts exactly one flow connection, zero corpse
+dials, the meter reads 2 probes + 1 flow; the once-per-round
+invalidation — 3 dead candidates demote exactly 2x, never 4x; the
+emission breaker — two terminals arm it, the cooldown's
+googlevideo CONNECT gets its 502 while the corpses' accept counts
+stand perfectly still, the same window's non-gvideo flow echoes
+byte-exact, the lapsed cooldown restores the dial; the probe clamp
+— 16 reset origins and a 999 budget probe exactly 10, every probe
+hello in the meter) + engine/m8ae_test.go (2: the report renders
+the discipline line with no-leak guards; the knob contract pinned
+— 10 / 15 min / 3-30 s-45 s, the churn-kick knob gone from the
+surface). Both-ways, executed: the good-front condition stashed ->
+TestGoodFrontSendsOneHello FAILS on the echo count; the
+once-per-round hunk stashed -> TestRacedDeathInvalidatesOncePerRound
+FAILS at 4 invalidations; the door stashed -> the cooldown's 502
+becomes a 200 and the wire speaks; the clamp stashed -> 16 probes;
+the report line stashed -> the render test FAILS. Full suite green
+(19 packages + mobile). Flake record: one
+TestStallRichEscalationDisabledByConfig failure in ONE full-suite
+interleave, passing 3/3 solo immediately after; and one
+TestPendingStallDemotesTheMark failure ("the origin's first flight
+must be delivered: unexpected EOF") in ONE of the final-gate
+interleaves, passing 5/5 solo and in both following whole-package
+runs — the same first-byte-read family documented for four rounds
+(it lives in the read path this diff never touches), recorded
+honestly.
+
+Version: mobile facade "1.6.6-debug.23"; gradle versionCode 21->22
+with the round's comment block; ADR-0040/0041/0042, release notes
+(the wire-discipline story in plain words, the hellos-vs-flows and
+cooldowns decision numbers, the fresh-start ask), CHANGELOG,
+README, PROGRESS updated.

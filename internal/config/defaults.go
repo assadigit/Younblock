@@ -122,13 +122,18 @@ var OriginProbeNames = []string{
 const OriginProbeBudget = 2500 * time.Millisecond
 
 // OriginProbePerPass — how many answer IPs one origin-probe pass
-// verifies at most (M8-aa, ADR-0028): the stable OriginProbeNames
-// first, then the learned googlevideo codes' rr names (round-robin,
-// M8-ab, ADR-0032) until the budget fills. The pass runs while the
-// engine is On, off the app's critical path, on the fast-start
-// cadence first and the prewarm cycle after. 48 leaves ~30 slots
-// after the stable fronts — a dozen distinct clusters per pass.
-const OriginProbePerPass = 48
+// verifies at most (M8-aa, ADR-0028; M8-ae, ADR-0041 cuts 48→10):
+// the pass's every job is a FULL TLS handshake with a real
+// googlevideo SNI under the live (legacy) preset — 48 of them is a
+// scan burst, and the tester's two reference implementations send
+// ZERO background handshakes ever (backend.py, xray TLSFrag,
+// WebImmortalGuards: fragment + DoH, nothing else). 10 keeps the
+// rehabilitation sample (4 boxed IPs) plus ~6 fresh verdicts as a
+// slow trickle on the GoogleVideoProbeEvery cadence; the flows'
+// own first bytes are the pool's real food (flow-fed marks,
+// ADR-0031). The value is ALSO a hard clamp inside ProbeOrigins —
+// a caller passing a larger budget cannot re-create the burst.
+const OriginProbePerPass = 10
 
 // OriginProbeInflight — the concurrency cap of the origin-probe pass
 // (M8-aa, ADR-0028): at most this many probe connections in flight,
@@ -429,6 +434,20 @@ const GoodPoolSaveEvery = 15 * time.Second
 // included — is verified within a few passes.
 const ProbeCodesPerPass = 12
 
+// GoogleVideoProbeEvery — the origin-probe pass cadence (M8-ae,
+// ADR-0041): decoupled from the 5-minute DoH prewarm because a
+// probe pass is googlevideo-SNI WIRE VOLUME and the prewarm is
+// resolver-only (no googlevideo packet ever leaves the phone).
+// The reference implementations send zero background handshakes;
+// the pass here is a rehab-first trickle (ProbeRehabPerPass boxed
+// IPs + a few fresh verdicts, capped by OriginProbePerPass) at a
+// cadence slow enough that its emission is noise next to the
+// app's own flows. The START-of-session pass is gone entirely —
+// the persisted good pool (ADR-0033) and flow-fed marks (ADR-0031)
+// own the cold start; a fresh engine must be SILENT on googlevideo
+// until the first flow speaks.
+const GoogleVideoProbeEvery = 15 * time.Minute
+
 // ProbeRehabPerPass — how many currently-BOXED origin IPs one
 // origin-probe pass re-verifies (M8-ac, ADR-0034): the debug.20
 // report's smoking gun was penalized=12 while the one-shot
@@ -440,16 +459,33 @@ const ProbeCodesPerPass = 12
 // IP good (counted as a rehabilitation); anything else refreshes it.
 const ProbeRehabPerPass = 4
 
-// ProbeChurnKickDebounce — the minimum spacing between churn-kicked
-// origin-probe passes (M8-ab, ADR-0032; M8-ac, ADR-0035 adds the
-// brownout gate): a googlevideo flow that terminaled (its raced
-// round AND its untried salvage all dead) bumps the gvideoTerminals
-// counter, and the gvideo loop's 1 s watch kicks an immediate pass —
-// verified origins land inside the app's next retry wave instead of
-// the next 5-minute cycle. The debounce keeps a hopeless minute from
-// spending the radio on back-to-back passes; the brownout gate keeps
-// it silent while the DoH lane itself is dying.
-const ProbeChurnKickDebounce = 10 * time.Second
+// GvideoBreakerTerminals — how many googlevideo flow terminals
+// within GvideoBreakerWindow arm the emission breaker (M8-ae,
+// ADR-0041): a terminal is a flow whose raced round AND salvage
+// all died — under the flag regime that is 3+ failed
+// hello-fanouts in half a minute, each one refreshing the very
+// flag that killed it. The breaker's answer is silence, not more
+// evidence. (This knob REPLACES the M8-ab churn kick, whose probe
+// pass responded to googlevideo failure by sending MORE
+// googlevideo volume — exactly backwards under a censor that
+// flags scan-like sources.)
+const GvideoBreakerTerminals = 3
+
+// GvideoBreakerWindow — the window the arming terminals must fall
+// inside (M8-ae, ADR-0041).
+const GvideoBreakerWindow = 30 * time.Second
+
+// GvideoBreakerCooldown — how long the breaker keeps the engine
+// SILENT on googlevideo after arming (M8-ae, ADR-0041): flows fail
+// fast at the tunnel door (zero wire), probes stay paused, and the
+// app's player does the one thing the reference implementations
+// rely on — re-fetch and rotate to a NEW hostname. The cooldown's
+// quiet lets a per-source SNI flag decay; door-blocks create no
+// terminals, so the breaker self-extinguishes and service resumes
+// on the next flow. Jitter of up to a quarter of the cooldown
+// (capped at 10 s) staggers re-arming. Non-gvideo hosts are
+// untouched — the feed keeps refreshing through the cooldown.
+const GvideoBreakerCooldown = 45 * time.Second
 
 // ResetIPPenalty — how long an origin IP that RESET a flow's
 // first-byte attempt is skipped in dial lists (M8-ac, ADR-0034): a

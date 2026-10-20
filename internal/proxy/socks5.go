@@ -198,6 +198,20 @@ func (s *Server) serveSocks5(conn net.Conn) {
 		return
 	}
 
+	// M8-ae (ADR-0041): the emission breaker's door, the SOCKS side —
+	// the app's own door. Same contract as the HTTP door: googlevideo
+	// during a cooldown gets its failure reply with ZERO wire so the
+	// player rotates hostnames and the flag decays; every other SNI
+	// class passes untouched.
+	if s.gvideoDoorBlocked(host) {
+		if s.cfg.Logger != nil {
+			s.cfg.Logger.Warn("socks5 gvideo cooldown (emission breaker: wire quiet)")
+		}
+		s.socks5Reply(conn, socks5RepGeneralFailure)
+		s.countConnError()
+		return
+	}
+
 	// From here on this is the HTTP-CONNECT tunnel path, verbatim:
 	// resolve (DoH; literals skip DNS) → dial (netx, protected) →
 	// reply established → copy with the first-record rule.

@@ -162,6 +162,19 @@ type Config struct {
 	// debug.19 shape).
 	GoodIPSubstitution int
 
+	// GvideoBreakerTerminals / GvideoBreakerWindow / GvideoBreakerCooldown
+	// (M8-ae, ADR-0041): the googlevideo EMISSION BREAKER. Terminals
+	// counted in the window → a cooldown during which googlevideo flows
+	// fail fast at both doors (zero wire) and the probe lane stays
+	// paused, so the app's player re-fetches and rotates hostnames —
+	// the reference implementations' only recovery — and any
+	// per-source SNI flag the censor accumulated decays in the quiet.
+	// Zero values take the config defaults; a NEGATIVE terminals value
+	// disables the breaker (the exact debug.22 shape).
+	GvideoBreakerTerminals int
+	GvideoBreakerWindow    time.Duration
+	GvideoBreakerCooldown  time.Duration
+
 	// FragmentAllRouted (M8-z, ADR-0024 work item A): fragment the
 	// first TLS record of EVERY non-direct-TLD host (class=plain
 	// included), not just the routed domain list. The budgeted shape —
@@ -253,6 +266,12 @@ type Server struct {
 	// spread across the verified origins instead of funneling onto
 	// one.
 	goodRot atomic.Int64
+
+	// The googlevideo emission breaker (M8-ae, ADR-0041): the
+	// recent-terminal ring and the cooldown's end. fed by failFlow
+	// (every googlevideo terminal), read at BOTH doors and by the
+	// engine's probe lane.
+	gvideoBreak gvideoBreakState
 }
 
 // deadMark is one penalized origin IP's box entry (M8-aa, ADR-0028):
@@ -325,6 +344,15 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.GoodIPSubstitution == 0 {
 		cfg.GoodIPSubstitution = config.GoodIPSubstitution
+	}
+	if cfg.GvideoBreakerTerminals == 0 {
+		cfg.GvideoBreakerTerminals = config.GvideoBreakerTerminals
+	}
+	if cfg.GvideoBreakerWindow <= 0 {
+		cfg.GvideoBreakerWindow = config.GvideoBreakerWindow
+	}
+	if cfg.GvideoBreakerCooldown <= 0 {
+		cfg.GvideoBreakerCooldown = config.GvideoBreakerCooldown
 	}
 	if cfg.PlainFirstByteTimeout == 0 {
 		cfg.PlainFirstByteTimeout = config.PlainFirstByteTimeout
@@ -647,6 +675,21 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 	}
 	port := 0
 	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil || port < 1 || port > 65535 {
+		s.reply(client, statusBadGateway)
+		s.countConnError()
+		return
+	}
+
+	// M8-ae (ADR-0041): the emission breaker's door. The breaker is
+	// armed (recent googlevideo terminals) and this is a googlevideo
+	// host: reply 502 NOW, zero wire, no resolve, no dial — the app's
+	// player re-fetches and rotates hostnames while the cooldown lets
+	// any per-source SNI flag decay. The feed's hosts (a different SNI
+	// class) pass untouched, which is the whole point.
+	if s.gvideoDoorBlocked(host) {
+		if s.cfg.Logger != nil {
+			s.cfg.Logger.Warn("tunnel gvideo cooldown (emission breaker: wire quiet)")
+		}
 		s.reply(client, statusBadGateway)
 		s.countConnError()
 		return
@@ -1018,6 +1061,100 @@ func (s *Server) markGoodIP(ip string, gvideo bool) {
 	s.good[ip] = goodMark{until: time.Now().Add(config.OriginProbeGoodTTL), gvideo: gvideo}
 }
 
+// gvideoBreakState is the googlevideo emission breaker (M8-ae,
+// ADR-0041): the ring of recent googlevideo flow terminals and the
+// active cooldown's end. The breaker's contract is SILENCE — the
+// debug.22 death spiral was the engine answering googlevideo failure
+// with MORE googlevideo volume (the app's retry storm × the 4-way
+// raced fan-out × the churn kick's 48-handshake pass), which under a
+// censor that flags scan-like sources per SNI class is exactly the
+// behavior that turns "video laggy" into "video never opens again
+// while the feed keeps working". Door-blocks create no terminals, so
+// an armed breaker self-extinguishes: the quiet window's stamps age
+// out and the next flow resumes service on a decayed flag.
+type gvideoBreakState struct {
+	mu        sync.Mutex
+	terminals []time.Time // recent googlevideo terminal stamps
+	until     time.Time   // the cooldown's end (zero = never armed)
+}
+
+// noteGvideoTerminal records one googlevideo flow terminal and arms
+// the cooldown when GvideoBreakerTerminals of them landed inside
+// GvideoBreakerWindow (M8-ae, ADR-0041). Returns true on the arm —
+// the caller logs it and counts the cooldown. The arm's jitter is
+// proportional (a quarter of the cooldown, capped at 10 s) so
+// re-arming staggers; a nil RNG (the test harness) skips it.
+func (s *Server) noteGvideoTerminal() bool {
+	if s.cfg.GvideoBreakerTerminals <= 0 || s.cfg.GvideoBreakerWindow <= 0 || s.cfg.GvideoBreakerCooldown <= 0 {
+		return false // breaker disabled: the exact debug.22 shape
+	}
+	now := time.Now()
+	s.gvideoBreak.mu.Lock()
+	defer s.gvideoBreak.mu.Unlock()
+	s.gvideoBreak.terminals = append(s.gvideoBreak.terminals, now)
+	cut := now.Add(-s.cfg.GvideoBreakerWindow)
+	kept := s.gvideoBreak.terminals[:0]
+	for _, t := range s.gvideoBreak.terminals {
+		if t.After(cut) {
+			kept = append(kept, t)
+		}
+	}
+	s.gvideoBreak.terminals = kept
+	if len(s.gvideoBreak.terminals) < s.cfg.GvideoBreakerTerminals || now.Before(s.gvideoBreak.until) {
+		return false // under threshold, or already quiet
+	}
+	cd := s.cfg.GvideoBreakerCooldown
+	if jitter := cd / 4; jitter > 0 && s.cfg.RNG != nil {
+		if maxJitter := 10 * time.Second; jitter > maxJitter {
+			jitter = maxJitter
+		}
+		if ms := s.cfg.RNG.Intn(int(jitter / time.Millisecond)); ms > 0 {
+			cd += time.Duration(ms) * time.Millisecond
+		}
+	}
+	s.gvideoBreak.until = now.Add(cd)
+	return true
+}
+
+// gvideoCoolingDown reports whether the emission breaker keeps the
+// engine silent on googlevideo right now (M8-ae, ADR-0041).
+func (s *Server) gvideoCoolingDown() bool {
+	s.gvideoBreak.mu.Lock()
+	defer s.gvideoBreak.mu.Unlock()
+	return time.Now().Before(s.gvideoBreak.until)
+}
+
+// GvideoCoolingDown is the exported probe-lane gate (M8-ae,
+// ADR-0041): the engine's gvideo loop checks it before every
+// origin-probe pass — a pass during the cooldown would be the exact
+// churn-kick mistake the round deletes.
+func (s *Server) GvideoCoolingDown() bool { return s.gvideoCoolingDown() }
+
+// gvideoDoorBlocked reports whether the emission breaker blocks THIS
+// host at the door (M8-ae, ADR-0041): googlevideo hosts only —
+// youtube.com, ytimg, ggpht and every other SNI class keeps full
+// service through the cooldown, which is why the FEED keeps
+// refreshing while the video path goes quiet.
+func (s *Server) gvideoDoorBlocked(host string) bool {
+	return isGvideoHost(host) && s.gvideoCoolingDown()
+}
+
+// goodMarkActive reports whether one origin IP's verified-live mark
+// is live right now (M8-ae, ADR-0040): the raced round's skip gate —
+// a primary that connected to an origin the engine has SEEN speak
+// gets exactly ONE hello (the reference implementations'
+// steady-state shape) instead of the four-way fan-out, and the race
+// returns only when the front is unknown or the session is young.
+func (s *Server) goodMarkActive(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	s.goodMu.Lock()
+	defer s.goodMu.Unlock()
+	m, ok := s.good[ip]
+	return ok && m.until.After(time.Now())
+}
+
 // liveIPs filters penalized origin IPs out of a dial list and puts
 // verified-live ones at its front (M8-y, ADR-0023; M8-aa, ADR-0028).
 // The box is a preference, never a verdict: a list the filter would
@@ -1335,6 +1472,13 @@ func (s *Server) probeOneOrigin(ctx context.Context, ip net.IP, sni string, port
 		return "silent" // not even a TCP answer: the IP's path is dead
 	}
 	defer conn.Close()
+	// M8-ae (ADR-0042): every googlevideo-SNI hello the engine emits
+	// is counted — the probes ride the same emission budget the flows
+	// do, and the report's hellos number is the volume the censor
+	// actually sees.
+	if isGvideoHost(sni) && s.stats != nil {
+		s.stats.GvideoHello()
+	}
 	fconn := fragment.NewConn(conn, preset, fcfg, s.cfg.RNG)
 	tlsCfg := &tls.Config{ServerName: sni, InsecureSkipVerify: true}
 	tc := tls.Client(fconn, tlsCfg)
@@ -1369,6 +1513,15 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 	var sum ProbeSummary
 	if len(names) == 0 || maxIPs <= 0 {
 		return sum
+	}
+	// M8-ae (ADR-0041): the pass is a TRICKLE, never a burst — the
+	// budget is clamped to config.OriginProbePerPass (10) no matter
+	// what the caller asks for. Every job is a full TLS handshake with
+	// a real SNI; the tester's reference implementations send zero
+	// background handshakes, and the 48-job pass was scan-shaped
+	// volume against the very censor the pass was measuring.
+	if maxIPs > config.OriginProbePerPass {
+		maxIPs = config.OriginProbePerPass
 	}
 	// The pass's wire shape is captured once (D102's discipline: one
 	// preset per pass, the method's current shape — the same one every
