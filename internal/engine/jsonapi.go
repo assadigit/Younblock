@@ -479,8 +479,14 @@ func (e *Engine) GetDiagnosticReport() string {
 	// hello PACKET count never was (one legacy hello is up to 300 TCP
 	// segments; the censor may key on packets per source, and the
 	// network test prints its per-method deltas beside this total).
-	fmt.Fprintf(&b, "gvideo discipline: hellos=%d cooldowns=%d fragPackets=%d\n",
-		d.GvideoHellos, d.GvideoCooldowns, fragment.PiecesTotal())
+	// M8-ag (ADR-0046): the escapes ride it too — lifts (a googlevideo
+	// first byte ended a cooldown early: the wire was never dead) and
+	// scouts (the one flow per cooldown the door let probe). The
+	// debug.24 report's failure read cooldowns=1 with the player dead
+	// and attempts=0: these two numbers say which world the next
+	// report landed in.
+	fmt.Fprintf(&b, "gvideo discipline: hellos=%d cooldowns=%d lifts=%d scouts=%d fragPackets=%d\n",
+		d.GvideoHellos, d.GvideoCooldowns, d.GvideoLifts, d.GvideoScouts, fragment.PiecesTotal())
 	// M8-af (ADR-0043, spec W1): the kernel-TCP verdict split — every
 	// stalled googlevideo flow classified from its A/B snapshots:
 	// upstream-lost (the request never reached the server),

@@ -233,7 +233,29 @@ func TestStallPendingFeedsBreaker(t *testing.T) {
 		t.Fatalf("gvideoTerminals = %d, want 3 (the ring heard every pending kill)", d.GvideoTerminals)
 	}
 	wire := echo.count()
-	// The cooldown's flow: 502 at the door, zero wire.
+	// M8-ag (ADR-0046) shape: the cooldown's first googlevideo flow
+	// is the SCOUT — it dials the live origin, the origin's first
+	// byte falsifies the arm's premise on the spot, and the breaker
+	// LIFTS (the debug.24 field report's breaker sat blind behind
+	// its own door while the wire was this healthy).
+	sc := dialConnect(t, srv.Addr(), "rr2---sn-af2.googlevideo.com", port)
+	_, _ = sc.Write(tlsLikeRecord(64))
+	_ = sc.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, _ = sc.Read(make([]byte, 128))
+	_ = sc.Close()
+	if lifted := pollLines(log, "INFO gvideo emission breaker lifted", 1, 2*time.Second); len(lifted) == 0 {
+		t.Fatalf("the scout's first byte must LIFT the cooldown")
+	}
+	d = st.Diagnostic()
+	if d.GvideoScouts != 1 || d.GvideoLifts != 1 {
+		t.Fatalf("scouts=%d lifts=%d, want 1/1 (the scout dialed, the wire answered)", d.GvideoScouts, d.GvideoLifts)
+	}
+	if probed := echo.count(); probed != wire+1 {
+		t.Fatalf("the scout must dial: %d -> %d connections", wire, probed)
+	}
+
+	// The LIFT (not the lapse) restored service: the very next
+	// googlevideo flow passes the door too.
 	c, err := net.DialTimeout("tcp", srv.Addr(), 3*time.Second)
 	if err != nil {
 		t.Fatalf("dial door: %v", err)
@@ -243,11 +265,11 @@ func TestStallPendingFeedsBreaker(t *testing.T) {
 	buf := make([]byte, 256)
 	n, rerr := c.Read(buf)
 	_ = c.Close()
-	if rerr != nil || !strings.Contains(string(buf[:n]), "502") {
-		t.Fatalf("door reply = %q err=%v, want the cooldown's 502", string(buf[:n]), rerr)
+	if rerr != nil || !strings.Contains(string(buf[:n]), "200") {
+		t.Fatalf("door reply = %q err=%v, want the lifted door's 200", string(buf[:n]), rerr)
 	}
-	if still := echo.count(); still != wire {
-		t.Fatalf("the wire spoke during the cooldown: %d -> %d connections", wire, still)
+	if served := echo.count(); served != wire+2 {
+		t.Fatalf("the lifted cooldown must serve the next flow: %d -> %d connections", wire+1, served)
 	}
 }
 

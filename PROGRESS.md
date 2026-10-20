@@ -4292,3 +4292,97 @@ Version: mobile facade "1.6.6-debug.24"; gradle versionCode
 release notes (the prove-before-change story in plain words, the
 new decision numbers, the tester protocol), CHANGELOG, README,
 PROGRESS updated.
+
+## M8-ag — the breaker stops starving the player (debug.25, versionCode 24)
+
+The tester's debug.24 report, pasted the same night: "Didn't work,
+it even failed to play a video. but feed refreshes." The evidence
+chain, read in order: (1) the play burst raced googlevideo terminals
+from a dead cache cluster (the whole sn-qxau5 set: flows=3 failures=3
+each, worstFirstByte=0ms — the terminal never spoke); (2) the W5
+sensor fix — the round's own PROVEN defect repair — finally saw those
+pending stall kills, three landed inside the 30s window, and the
+breaker armed, exactly as designed; (3) ONE 45s+jitter cooldown then
+blanket-covered the session (cooldowns=1): 58 "socks5 gvideo
+cooldown → door dial failed" pairs, zero wire, the app retrying every
+2-7s against the door until +46s when it stopped asking — the
+player's whole retry budget spent INSIDE one cooldown; (4) the same
+report proved the wire healthy twice: the network test answered 5/5
+addresses under the real SNI (media-verifying the substitution pool
+to pool=6, gvideo 5) and the one media flow that squeaked through
+before the arm delivered 406KB down (win=orig, first-app-byte=77ms,
+then 90s idle); (5) substitution: attempts=0 — the door-block
+short-circuits BEFORE the raced round where the substitute lane
+engages, so the breaker starved the very pool built to route around
+dead clusters. The breaker had inverted its own contract (ADR-0041
+was written to prevent "video never opens again while the feed keeps
+working" — the debug.24 field session WAS that, by the breaker's
+own hand).
+
+The round (ADR-0046, four changes, all inside the breaker's scope —
+googlevideo hosts at the doors plus the cooldown budget; every other
+SNI class and the desktop shapes untouched):
+- The pool escape: gvideoDoorBlocked passes a flow when
+  goodSubstitutes(nil, 1) finds a fresh, unboxed, media-verified
+  origin — answered-under-the-real-SNI evidence outranks the arm's
+  guess; the flow rides the existing substitute lane the pass now
+  actually reaches. Respects the W4 switches and knob (breaker-on +
+  substitution-off keeps the pure M8-ae shape).
+- The scout: claimGvideoScout hands each cooldown's FIRST googlevideo
+  flow to the wire (reset on every arm) — the app's own request, zero
+  synthetic emission, so an armed breaker is never blind; its death
+  feeds the ring like any terminal (in-cooldown feeds never re-arm),
+  its first byte delivers video.
+- The lift: any googlevideo first byte — every path funnels through
+  logTunnelFirstByte (serial, raced winner, salvaged, substituted,
+  plain relay) — calls liftGvideoBreaker: an active cooldown ends on
+  the spot, the ring stays, stalls resume → fresh terminals re-arm.
+  Self-correcting in both directions.
+- The budget: GvideoBreakerCooldown 45s → 15s (the report measured
+  the player dying inside one 45s cooldown; 15s still spans the app's
+  2-7s retry cadence for hostname rotation; jitter shape unchanged).
+  SetExperimentFlags' breaker-off clear also resets the scout.
+- Report: the discipline line reads hellos=… cooldowns=… lifts=…
+  scouts=… fragPackets=… (two new counters, gvideoScouts/gvideoLifts)
+  — lifts>0 after a play attempt means the wire spoke through an
+  armed breaker; scouts>0 with playback recovered means the scout
+  carried it; attempts>0 beside a fed pool means the substitute lane
+  finally engaged through the pass.
+
+Tests: the two breaker door tests rewired to the new contract —
+TestEmissionBreakerQuietsTheWire (corpse fixture: the FIRST post-arm
+flow is the scout — dials once, terminal, feeds the ring a third
+terminal while cooldowns stays 1; the SECOND gets the door's 502 with
+the corpse counts standing still; a mid-cooldown MarkMediaVerifiedIP
+lets the NEXT flow through the SAME active cooldown — the pool escape
+tail; the non-gvideo feed sails; the lapse serves again; the test's
+cooldown raised to 2s so no pass can be mistaken for a lapse) and
+TestStallPendingFeedsBreaker (echo fixture: three pending kills arm,
+the scout dials the live echo, its first byte LIFTS — the log line,
+lifts=1 — and the very next flow passes on the lift, not the lapse).
+Both-ways proofs EXECUTED (stash → FAIL → restore): the scout claim
+stashed → the corpse test FAILS on the scout's CONNECT getting the
+door's 502; the pool check stashed → FAILS on the pool-primed flow's
+502; the lift hook stashed → the echo test FAILS on the missing lift
+line; the 15s default's both-ways was the knob pin failing on the
+unchanged suite (TestWireDisciplineKnobs wanted 45s and said so).
+Full suite green (19 packages + mobile); -race green on the house
+gate (proxy + probe + netx); gofmt -l identical to HEAD's list (the
+edit tool space-ified seven tab-indented files mid-round — caught by
+the gofmt-list diff against HEAD and restored with gofmt -w).
+
+One detour, recorded honestly: the engine -race run flagged
+TestNetworkTestGatingAndStatus ("the network test never finished",
+5.07s) on this tree while the first HEAD runs passed — investigated
+before touching anything. The test rides a REAL-network DoH failure
+(~3.01s, the stub resolver has no codes and the redirector lookup
+fails) against its 5s poll; passing runs measure identically on both
+trees (3.00-3.07s) and HEAD flakes at the same rate with more samples
+(27 pass / 3 fail over 30 HEAD runs vs 10/12 here) — a pre-existing
+marginal test, which is why the house -race gate never included
+engine. No code changed for it; the ADR records the numbers.
+
+Version: mobile facade "1.6.6-debug.25"; gradle versionCode
+23→24 with the round's comment block; ADR-0046, release notes
+(the starved-behind-its-own-door story in plain words, the new
+discipline-line numbers), CHANGELOG, README, PROGRESS updated.

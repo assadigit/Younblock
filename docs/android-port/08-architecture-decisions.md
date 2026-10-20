@@ -2672,6 +2672,119 @@ DOWN, not up (M8-ad)
   tester's network (the network test's answered column says so — the
   two ADRs share the field answer).
 
+## ADR-0046 — The breaker stops starving the player: the pool escape, the scout, the lift, and a 15 s cooldown (M8-ag)
+
+- **Status:** Accepted 2026-10-21 (M8-ag, debug.25 — decided entirely on
+  the debug.24 field report, the first report with W5's fixed sensor
+  and W6's media-verified pool running live).
+- **Context:** the report inverted ADR-0041's own contract. The player
+  pressed play; the app's burst raced googlevideo terminals from a
+  dead cache cluster (the whole `sn-qxau5` set: flows=3 failures=3
+  worstFirstByte=0 ms each); the W5-fixed sensor finally saw those
+  stall kills, three landed inside the 30 s window, and the breaker
+  armed — correct, as designed. Then the cost: ONE 45 s+jitter
+  cooldown covered the rest of the session (`cooldowns=1`), the two
+  doors refused every googlevideo dial (58 `door dial failed` pairs,
+  zero wire), the player spent its whole retry budget against the door
+  (last googlevideo attempt +46 s, then the app stopped asking), and
+  the video never opened while the feed kept refreshing — the exact
+  "video never opens again while the feed keeps working" outcome the
+  breaker was built to PREVENT. Meanwhile the wire was proven healthy
+  twice in the same report: the network test answered 5/5 addresses
+  under the real SNI (media-verifying the pool to `pool=6 (gvideo 5)`),
+  and the one media flow that slipped through before the arm delivered
+  406 KB (`win=orig`, first-app-byte=77 ms). The breaker starved a
+  healthy wire behind its own door — and it starved the substitution
+  pool with it: `attempts=0`, because the door-block short-circuits
+  BEFORE the raced round where the substitute lane engages.
+- **Decision:** four changes, all inside the breaker's existing
+  scope (googlevideo hosts at the doors + the cooldown's budget; every
+  other SNI class and every desktop shape untouched). (1) THE POOL
+  ESCAPE: `gvideoDoorBlocked` passes a flow when
+  `goodSubstitutes(nil, 1)` finds a fresh, unboxed, media-verified
+  origin — an address that ANSWERED under the real SNI is the
+  strongest wire-alive evidence the engine owns, and blocking the flow
+  it can serve is pure loss; the flow then rides the existing
+  substitute lane (which the pass actually reaches, because the door
+  no longer short-circuits it). Respects the W4 switches and knob
+  exactly: breaker-on with substitution off keeps the pure M8-ae
+  shape. (2) THE SCOUT: each cooldown hands its FIRST googlevideo
+  flow to the wire (`claimGvideoScout`, once per arm, reset on every
+  arm) — the app's own request, zero synthetic emission — so an armed
+  breaker still learns the flag state it guessed; against a dead
+  cluster the scout terminal normally (feeding the ring, never
+  re-arming: in-cooldown feeds extend nothing), and against a live
+  one it delivers video. (3) THE LIFT: any googlevideo first byte —
+  every path funnels through `logTunnelFirstByte` (serial, raced
+  winner, salvaged, substituted, plain relay) — ends an active
+  cooldown early (`liftGvideoBreaker("first byte")`): a speaking wire
+  falsifies the arm's premise for right now. The terminal ring stays
+  untouched; if stalls resume, fresh terminals re-arm exactly as
+  before. The breaker becomes self-correcting in both directions
+  (silence keeps it armed, speech lifts it). (4) THE BUDGET:
+  `GvideoBreakerCooldown` 45 s → 15 s — the debug.24 report measured
+  the player's retry budget dying inside ONE 45 s cooldown, so the
+  block must never outlive it; 15 s still spans the app's measured
+  2-7 s retry cadence (2-6 blocked hostname rotations per cooldown)
+  and the jitter shape (a quarter, capped at 10 s) is unchanged. Two
+  counters ride the discipline line so the next report can tell the
+  worlds apart: `lifts=` (a first byte ended a cooldown early) and
+  `scouts=` (flows the door let probe); the line reads
+  `gvideo discipline: hellos=… cooldowns=… lifts=… scouts=…
+  fragPackets=…`.
+- **Evidence:** internal/proxy/discipline_test.go
+  TestEmissionBreakerQuietsTheWire, rewired to the new contract and
+  extended: the corpse fixture arms the breaker, the FIRST post-arm
+  flow is the scout (dials once, terminals, feeds the ring —
+  cooldowns stays 1), the SECOND gets the door's 502 with the corpse
+  counts standing perfectly still, a media-verified
+  `MarkMediaVerifiedIP` mid-cooldown lets the NEXT flow through the
+  SAME active cooldown (the pool escape), a non-gvideo host sails
+  throughout, and the lapse serves again; internal/proxy/
+  tcpmon_test.go TestStallPendingFeedsBreaker, rewired: three pending
+  kills arm, the scout dials the live echo, its first byte LIFTS
+  (the log line, `lifts=1`), and the very next flow passes on the
+  lift, not the lapse. Both-ways proofs EXECUTED (stash → FAIL →
+  restore): the scout claim stashed → the rewired shape-3 test FAILS
+  on the scout's CONNECT getting the door's 502; the pool check
+  stashed → FAILS on the pool-primed flow's 502; the lift hook
+  stashed → the shape-2 test FAILS on the missing lift line. The knob
+  pin: internal/engine/m8ae_test.go TestWireDisciplineKnobs wants
+  15 s (it FAILED on the unchanged test suite at 45 s, the honest
+  both-ways for the default). Full 19-package suite + mobile green;
+  -race green on the house gate (proxy + probe + netx);
+  `gofmt -l` identical to HEAD's list. The one -race flake
+  investigated and dismissed as pre-existing:
+  engine TestNetworkTestGatingAndStatus rides a REAL-network DoH
+  failure (~3 s) against its 5 s poll — HEAD flakes at the same rate
+  (27 pass / 3 fail over 30 HEAD runs vs 10/12 on this tree), which
+  is why the house -race gate never included engine.
+- **Consequences:** the debug.24 failure mode is unreachable by
+  construction: an armed breaker can no longer sit blind through the
+  player's whole retry budget (15 s cap), can no longer starve a
+  media-verified pool (the escape), and can no longer stay armed
+  against a wire that just spoke (the lift). The A/B levers survive
+  intact: breaker-off stays the exact debug.22 shape, and
+  breaker-on-with-substitution-off keeps the pure M8-ae door (plus
+  the scout — one flow per cooldown is the new floor, the price of
+  never being blind). The censor-facing emission budget per cooldown
+  rises from zero to at most one scout round plus whatever the pool
+  serves — bounded by the app's own demand, never the M8-ae spiral
+  the churn kick rode. The next report reads the new discipline
+  line: `lifts>0` after a play attempt means the wire spoke through
+  an armed breaker (the flag hypothesis falsified in-session);
+  `scouts>0` with `cooldowns>0` and playback recovered means the
+  scout carried it; `attempts>0`/`wins>0` beside `pool=6 (gvideo 5)`
+  means the substitution lane finally engaged through the pass.
+- **What this ADR does NOT decide:** whether quiet windows recover
+  playback on a genuinely flagged wire (the 15 s cooldown + scout
+  makes the question askable per-cycle instead of per-session);
+  whether the player's own backoff tolerates even 15 s (the next
+  report's play timeline says so); and whether the scout's single
+  raced round is emission the censor counts — the discipline line's
+  hellos= read against routedFlows answers it the same way it always
+  has.
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

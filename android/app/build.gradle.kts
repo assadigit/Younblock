@@ -20,45 +20,43 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 23: the M8-af build (debug.24 -- the
-        // prove-before-change round): the external engineer's review
-        // of the debug.23 consultation said the cause is still
-        // UNPROVEN -- the 2.8 KB corpses are probably
-        // handshake-only replies, but sizes suggest, they don't
-        // prove -- and this round measures instead of guessing
-        // (ADR-0043/0044/0045, younblock-debug24-spec.md): (1) TCP
-        // kernel-counter evidence per media flow (TCP_INFO
-        // snapshots A at the request write and B at flow end; the
-        // stalled-flow verdicts upstream-lost / downstream-lost /
-        // both-ok / unknown answer WHERE the data is lost -- no
-        // packet capture). (2) The TLS record timeline (first 12
-        // server / 8 client records as type:length@ms, plus
-        // first-app-byte) -- the corpse question measured, not
-        // inferred. (3) win=orig|subst|race on every done line.
-        // (4) The experiment switches (method / substitution /
-        // breaker) in a diagnostics sub-screen, all printed on the
-        // report's experiment line. (5) "Run network test": the
-        // current addresses probed under all four methods in the
-        // same minute, with the real SNI, www.google.com and no SNI,
-        // an i.ytimg.com control and per-method packet counts -- the
-        // same-minute preset-vs-hour comparison no round has ever
-        // had; only its "answered" verdicts (an HTTP status line
-        // from a deliberately bad GET /videoplayback) certify
-        // media capability. (6) The breaker sensor fix (W5, the one
-        // PROVEN defect: pending stall kills feed the emission
-        // breaker now -- debug.23 died 13 media flows with
-        // cooldowns=0 because the breaker watched the wrong death
-        // class) and the substitution scope fix (W6: the pool eats
-        // media-verified verdicts only, never first-byte wins --
-        // debug.23's 18 substitution "wins" delivered <=12.1 KB
-        // each). (7) device: and net: header lines (phone model,
-        // operator -- the consultation's unrecorded-environment
-        // gaps). (8) The optional foreign-cluster file (W8,
-        // experiment_nodes.txt). Installs over debug.23 (the same
-        // pinned debug certificate -- D85). The D84 rule: every
-        // debug build bumps this. D103: the APK asset is named
-        // v1.6.6-debug24.apk.
-        versionCode = 23
+        // versionCode 24: the M8-ag build (debug.25 -- the
+        // breaker-stops-starving round, ADR-0046). The debug.24
+        // field report was the W5 sensor working exactly as
+        // designed -- and killing playback with it: armed on the
+        // play-burst's dead sn-qxau5 cache cluster (flows=3
+        // failures=3, worstFirstByte=0ms), ONE 45s+jitter cooldown
+        // blanket-covered the session: 58 door-dial refusals with
+        // zero wire, the player's retry budget dead at +46s, video
+        // never opened, feed perfect -- while the same report proved
+        // the wire healthy twice (network test answered 5/5 under
+        // the real SNI, media-verifying pool=6/gvideo 5; the one
+        // flow that slipped through pre-arm delivered 406KB
+        // win=orig). Four fixes, all inside the breaker's scope:
+        // (1) the pool escape -- a media-verified address is
+        // answered-under-the-real-SNI evidence, the strongest
+        // wire-alive proof the engine owns, so a flow the pool can
+        // serve passes the door and rides the substitute lane
+        // (attempts=0 in the report: the door-block short-circuited
+        // before the raced round where substitutes engage);
+        // (2) the scout -- each cooldown's FIRST googlevideo flow
+        // goes to the wire (the app's own request, zero synthetic
+        // emission) so an armed breaker is never blind; (3) the
+        // lift -- any googlevideo first byte ends an active cooldown
+        // on the spot (a speaking wire falsifies the arm's premise;
+        // the breaker becomes self-correcting both ways);
+        // (4) the budget -- cooldown 45s -> 15s: the block can
+        // never outlive the player's measured retry patience, while
+        // 15s still spans the app's 2-7s retry cadence for hostname
+        // rotation. The discipline line gains lifts= and scouts= so
+        // the next report tells the worlds apart. Switches keep
+        // their meaning: breaker-off = the debug.22 shape;
+        // breaker-on+substitution-off = the M8-ae door + the scout.
+        // Installs over debug.24 (the same pinned debug
+        // certificate -- D85). The D84 rule: every debug build
+        // bumps this. D103: the APK asset is named
+        // v1.6.6-debug25.apk.
+        versionCode = 24
         versionName = "1.6.6"
     }
 

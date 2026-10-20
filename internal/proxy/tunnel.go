@@ -444,6 +444,14 @@ func (s *Server) logTunnelFirstByte(host, class string, d time.Duration) {
         if d > time.Second {
                 s.stats.FirstByteSlow() // the timeline window's "slow flows" metric (ADR-0027 §8.3.6)
         }
+        if isGvideoHost(host) {
+                // M8-ag (ADR-0046): the wire spoke on googlevideo — an armed
+                // breaker's premise (a flagged wire stays silent) is falsified
+                // right now, so the cooldown ends early. Every first-byte path
+                // — serial, raced winner, salvaged, substituted, plain relay —
+                // funnels through this one site.
+                s.liftGvideoBreaker("first byte")
+        }
         if s.cfg.Logger == nil {
                 return
         }

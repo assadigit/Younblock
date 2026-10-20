@@ -15,11 +15,15 @@ package proxy
 //     churn the debug.20/21 decay measured as dns=579-846 ms.
 //
 //  3. The emission breaker — consecutive googlevideo terminals arm a
-//     cooldown; during it a googlevideo flow fails fast at the door
-//     with ZERO wire (the corpses' accept counts stand perfectly
-//     still), a NON-gvideo host sails through untouched (the feed
-//     keeps refreshing through the cooldown — the whole point), and
-//     once the cooldown lapses the next googlevideo flow dials again.
+//     cooldown; its FIRST googlevideo flow is the scout (M8-ag,
+//     ADR-0046: the app's own request probes the wire once), the
+//     SECOND fails fast at the door with ZERO wire (the corpses'
+//     accept counts stand perfectly still), a NON-gvideo host sails
+//     through untouched (the feed keeps refreshing through the
+//     cooldown — the whole point), and once the cooldown lapses the
+//     next googlevideo flow dials again. A media-verified pool
+//     serving the flow would pass too (the pool escape — pinned from
+//     the substitution side by TestExperimentSwitches' primePool).
 //
 //  4. The probe clamp — ProbeOrigins never exceeds the trickle budget
 //     (config.OriginProbePerPass) no matter how large a budget the
@@ -31,7 +35,10 @@ package proxy
 // hunk stashed, test 2 FAILS on the invalidate count (4, not 2); with
 // the door hunk stashed, test 3 FAILS on the corpse count (the wire
 // spoke during the cooldown); with the clamp stashed, test 4 FAILS on
-// 16 probes, not 10.
+// 16 probes, not 10. M8-ag both-ways: with the scout claim stashed,
+// test 3 FAILS on the corpse count staying flat (the scout's dial
+// never happened); with the lift hook stashed, the M8-af shape-2
+// test FAILS on the missing lift line.
 
 import (
 	"context"
@@ -225,7 +232,7 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 		c.FirstByteSalvageDials = -1 // attempt 0 only: fail fast, terminal now
 		c.GvideoBreakerTerminals = 2
 		c.GvideoBreakerWindow = 5 * time.Second
-		c.GvideoBreakerCooldown = 400 * time.Millisecond
+		c.GvideoBreakerCooldown = 2 * time.Second // long enough that no pass below can be a lapse
 	})
 	// Two all-dead googlevideo flows: two terminals, one arm.
 	for i := 0; i < 2; i++ {
@@ -243,7 +250,30 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 	}
 	wire := corpse1.count() + corpse2.count()
 
-	// The cooldown's googlevideo flow: 502 at the door, zero wire.
+	// M8-ag (ADR-0046): the cooldown's FIRST googlevideo flow is
+	// the SCOUT — the app's own request probes the flag state the
+	// arm guessed. Against corpses it terminal exactly like any
+	// flow (the dial lands, the first byte never comes), feeding
+	// the ring a third terminal — never a re-arm: in-cooldown
+	// feeds extend nothing.
+	sc := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
+	_, _ = sc.Write(tlsLikeRecord(64))
+	_ = sc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _ = sc.Read(make([]byte, 128))
+	_ = sc.Close()
+	if d := st.Diagnostic(); d.GvideoScouts != 1 {
+		t.Fatalf("gvideoScouts = %d, want 1 (the first cooldown flow is the scout)", d.GvideoScouts)
+	}
+	if probed := corpse1.count() + corpse2.count(); probed != wire+1 {
+		t.Fatalf("the scout must dial once: %d -> %d corpse connections", wire, probed)
+	}
+	if d := st.Diagnostic(); d.GvideoCooldowns != 1 {
+		t.Fatalf("gvideoCooldowns = %d after the scout's terminal, want 1 (in-cooldown feeds never re-arm)", d.GvideoCooldowns)
+	}
+
+	// The SECOND flow inside the cooldown: 502 at the door, zero
+	// wire (the scout is spent, the pool is empty — the corpses
+	// never media-verified anything).
 	c, err := net.DialTimeout("tcp", srv.Addr(), 3*time.Second)
 	if err != nil {
 		t.Fatalf("dial door: %v", err)
@@ -259,8 +289,23 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 	if door := pollLines(log, "WARN tunnel gvideo cooldown", 1, 2*time.Second); len(door) == 0 {
 		t.Fatalf("the door's cooldown line must log")
 	}
-	if still := corpse1.count() + corpse2.count(); still != wire {
-		t.Fatalf("the wire spoke during the cooldown: %d -> %d corpse connections", wire, still)
+	if still := corpse1.count() + corpse2.count(); still != wire+1 {
+		t.Fatalf("the wire spoke during the cooldown: %d -> %d corpse connections", wire+1, still)
+	}
+
+	// M8-ag (ADR-0046) pool escape: a media-verified address — the
+	// W7 evidence class, one the corpses never provided — lets the
+	// NEXT googlevideo flow through the SAME active cooldown:
+	// verified wire outranks the arm (the debug.24 report's breaker
+	// starved a healthy pool behind its own door).
+	srv.MarkMediaVerifiedIP("127.0.0.9")
+	pc := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
+	_, _ = pc.Write(tlsLikeRecord(64))
+	_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _ = pc.Read(make([]byte, 128))
+	_ = pc.Close()
+	if moved := corpse1.count() + corpse2.count(); moved != wire+2 {
+		t.Fatalf("the pool-served flow must pass the door and dial: %d -> %d corpse connections", wire+1, moved)
 	}
 
 	// The same window, a NON-gvideo host: full service (the feed keeps
@@ -283,16 +328,17 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 		t.Fatalf("the non-gvideo flow never reached the echo origin (count=%d)", n)
 	}
 
-	// The cooldown lapses (400 ms + the proportional jitter's margin):
-	// the next googlevideo flow dials again.
-	time.Sleep(700 * time.Millisecond)
+	// The cooldown lapses (2 s + margin): the door serves googlevideo
+	// again (the pool may carry it too — the lapse is what the count
+	// proves either way: the arm is over).
+	time.Sleep(2300 * time.Millisecond)
 	gc := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
 	_, _ = gc.Write(tlsLikeRecord(64))
 	_ = gc.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _ = gc.Read(make([]byte, 128))
 	_ = gc.Close()
-	if resumed := corpse1.count() + corpse2.count(); resumed <= wire {
-		t.Fatalf("the lapsed cooldown must let the next flow dial: %d -> %d", wire, resumed)
+	if resumed := corpse1.count() + corpse2.count(); resumed <= wire+1 {
+		t.Fatalf("the lapsed cooldown must let the next flow dial: %d -> %d", wire+1, resumed)
 	}
 }
 

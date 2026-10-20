@@ -476,16 +476,24 @@ const GvideoBreakerTerminals = 3
 const GvideoBreakerWindow = 30 * time.Second
 
 // GvideoBreakerCooldown — how long the breaker keeps the engine
-// SILENT on googlevideo after arming (M8-ae, ADR-0041): flows fail
-// fast at the tunnel door (zero wire), probes stay paused, and the
-// app's player does the one thing the reference implementations
-// rely on — re-fetch and rotate to a NEW hostname. The cooldown's
-// quiet lets a per-source SNI flag decay; door-blocks create no
-// terminals, so the breaker self-extinguishes and service resumes
-// on the next flow. Jitter of up to a quarter of the cooldown
-// (capped at 10 s) staggers re-arming. Non-gvideo hosts are
-// untouched — the feed keeps refreshing through the cooldown.
-const GvideoBreakerCooldown = 45 * time.Second
+// SILENT on googlevideo after arming (M8-ae, ADR-0041; M8-ag,
+// ADR-0046 re-tuned): flows fail fast at the tunnel door (zero
+// wire), probes stay paused, and the app's player does the one thing
+// the reference implementations rely on — re-fetch and rotate to a
+// NEW hostname. The cooldown's quiet lets a per-source SNI flag
+// decay; door-blocks create no terminals, so the breaker
+// self-extinguishes and service resumes on the next flow. Jitter of
+// up to a quarter of the cooldown (capped at 10 s) staggers
+// re-arming. Non-gvideo hosts are untouched — the feed keeps
+// refreshing through the cooldown. The debug.24 field report set the
+// budget: 45 s outlived the player's own retry patience — the last
+// googlevideo attempt landed at +46 s, ONE cooldown covered the
+// whole window (58 door failures), and the video never opened while
+// the feed kept working. 15 s still spans the app's measured 2-7 s
+// retry cadence (2-6 blocked rotations per cooldown) but can never
+// outlive the player; the pool escape and the scout (M8-ag) bound
+// the blindness further.
+const GvideoBreakerCooldown = 15 * time.Second
 
 // ResetIPPenalty — how long an origin IP that RESET a flow's
 // first-byte attempt is skipped in dial lists (M8-ac, ADR-0034): a

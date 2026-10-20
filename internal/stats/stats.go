@@ -76,6 +76,12 @@ type Counters struct {
 	gvideoHellos    atomic.Int64
 	gvideoCooldowns atomic.Int64
 
+	// M8-ag (ADR-0046): the breaker's escapes — scout flows let
+	// through an armed cooldown, and cooldowns a speaking wire
+	// lifted early.
+	gvideoScouts atomic.Int64
+	gvideoLifts  atomic.Int64
+
 	// M8-af (ADR-0043, spec W1): the googlevideo flows' kernel-TCP
 	// verdict split — every stalled googlevideo flow classified from
 	// its A/B TCP_INFO snapshots (upstream-lost: the request never
@@ -206,6 +212,19 @@ func (c *Counters) GvideoHello() { c.gvideoHellos.Add(1) }
 // actually happen. Cooldowns>0 in a report = the breaker caught a
 // flag state that debug.22 rode into "never opens again".
 func (c *Counters) GvideoCooldown() { c.gvideoCooldowns.Add(1) }
+
+// GvideoScout counts one googlevideo flow the door let through an
+// armed cooldown as its single wire probe (M8-ag, ADR-0046): the
+// app's own request, not synthetic emission — the debug.24 report's
+// breaker sat blind for 45 s while the player spent its retry budget
+// against the door.
+func (c *Counters) GvideoScout() { c.gvideoScouts.Add(1) }
+
+// GvideoLift counts one cooldown an early escape ended (M8-ag,
+// ADR-0046): a googlevideo origin spoke (first byte through any path),
+// falsifying the arm's premise for right now — the breaker's
+// self-correction in the wire-alive direction.
+func (c *Counters) GvideoLift() { c.gvideoLifts.Add(1) }
 
 // TCPUpstreamLost counts one stalled googlevideo flow whose kernel TCP
 // evidence says the request never reached the server (acked did not
@@ -362,6 +381,11 @@ type All struct {
 	// M8-ae (ADR-0042): the wire-discipline meters.
 	GvideoHellos    int64 `json:"gvideoHellos"`
 	GvideoCooldowns int64 `json:"gvideoCooldowns"`
+	// M8-ag (ADR-0046): the breaker's two escapes — the scout flows
+	// that probed an armed cooldown, and the early lifts a speaking
+	// wire earned.
+	GvideoScouts int64 `json:"gvideoScouts"`
+	GvideoLifts  int64 `json:"gvideoLifts"`
 	// M8-af (ADR-0043, spec W1): the stalled googlevideo flows' kernel
 	// TCP verdict split.
 	TCPUpstreamLost   int64     `json:"tcpUpstreamLost"`
@@ -408,6 +432,8 @@ func (c *Counters) Diagnostic() All {
 		StallTrickle:       c.stallTrickle.Load(),
 		GvideoHellos:       c.gvideoHellos.Load(),
 		GvideoCooldowns:    c.gvideoCooldowns.Load(),
+		GvideoScouts:       c.gvideoScouts.Load(),
+		GvideoLifts:        c.gvideoLifts.Load(),
 		TCPUpstreamLost:    c.tcpUpstreamLost.Load(),
 		TCPDownstreamLost:  c.tcpDownstreamLost.Load(),
 		TCPBothOK:          c.tcpBothOK.Load(),

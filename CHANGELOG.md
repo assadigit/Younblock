@@ -12,6 +12,65 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-ag; shipping in `v1.6.6-android-debug.25`, versionCode 24)
+
+- **"Didn't work, it even failed to play a video. but feed
+  refreshes." — the debug.24 field report, read end to end, was the
+  breaker finally working exactly as designed and killing playback
+  with it (ADR-0046).** The W5 sensor fix armed the emission breaker
+  on the play-burst's dead cache cluster (`sn-qxau5`: flows=3
+  failures=3, worstFirstByte=0 ms each) — and then ONE 45 s+jitter
+  cooldown blanketed the whole session: 58 door-dial refusals with
+  zero wire, the player's retry budget dead by +46 s, video never
+  opened, feed perfect. The same report proved the wire healthy
+  TWICE: the network test answered 5/5 addresses under the real SNI
+  (media-verifying the pool to 5 gvideo entries) and the one media
+  flow that slipped through before the arm delivered 406 KB
+  (win=orig). The breaker starved a healthy wire behind its own door
+  — and starved the substitution pool with it (attempts=0: the
+  door-block short-circuits before the raced round where substitutes
+  engage).
+- **The four fixes (ADR-0046):** (1) the **pool escape** — a
+  media-verified address is answered-under-the-real-SNI evidence, the
+  strongest wire-alive proof the engine owns, so a flow the pool can
+  serve PASSES the door and rides the substitute lane instead of
+  being silenced; (2) the **scout** — each cooldown's FIRST
+  googlevideo flow goes to the wire (the app's own request, zero
+  synthetic emission) so an armed breaker is never blind: against a
+  dead cluster it terminal like any flow, against a live one it
+  delivers video; (3) the **lift** — any googlevideo first byte
+  (serial, raced, salvaged, substituted, or plain path) ends an
+  active cooldown on the spot: a speaking wire falsifies the arm's
+  premise, and the breaker becomes self-correcting in both
+  directions; (4) the **budget** — the cooldown drops 45 s → 15 s:
+  the block can never again outlive the player's measured retry
+  patience (last googlevideo attempt +46 s in the report), while 15 s
+  still spans the app's 2-7 s retry cadence for hostname rotation.
+  The experiment switches keep their meaning: breaker-off is still
+  the exact debug.22 shape; breaker-on with substitution off is still
+  the pure M8-ae door (plus the one-flow scout).
+- **Reading the next report:** the discipline line gains two numbers
+  — `gvideo discipline: hellos=… cooldowns=… lifts=… scouts=…
+  fragPackets=…`. `lifts>0` after a play attempt = the wire spoke
+  through an armed breaker; `scouts>0` with `cooldowns>0` and
+  playback recovered = the scout carried it; `attempts>0`/`wins>0`
+  beside a fed pool = the substitution lane finally engaged through
+  the pass.
+- Tests: the two breaker door tests rewired to the new contract (the
+  corpse fixture: scout dials once → second flow gets the 502 → a
+  media-verified mark mid-cooldown lets the third flow through →
+  lapse serves; the echo fixture: the scout's first byte lifts, the
+  next flow passes on the lift) plus a pool-escape tail on the corpse
+  test; both-ways proofs EXECUTED for all three escapes (scout claim
+  stashed → FAIL on the scout's 502; pool check stashed → FAIL on
+  the pool-primed flow's 502; lift hook stashed → FAIL on the missing
+  lift) and for the default (the knob pin failed at 45 s before the
+  change). Full suite green; -race green on the house gate (proxy +
+  probe + netx); the engine -race flake in TestNetworkTestGatingAndStatus
+  investigated and dismissed as pre-existing (a real-network DoH
+  failure riding a 5 s poll — HEAD flakes at the same ~10% rate; 27/3
+  over 30 HEAD runs vs 10/2 over 12).
+
 ### Fixed / Added (2026-10-21 — M8-af; shipping in `v1.6.6-android-debug.24`, versionCode 23)
 
 - **The prove-before-change round (ADR-0043/0044/0045, the external

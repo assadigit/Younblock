@@ -407,6 +407,7 @@ func (s *Server) SetExperimentFlags(substitution, breaker bool) {
 	if !breaker {
 		s.gvideoBreak.mu.Lock()
 		s.gvideoBreak.until = time.Time{}
+		s.gvideoBreak.scouted = false
 		s.gvideoBreak.mu.Unlock()
 	}
 }
@@ -1133,6 +1134,7 @@ type gvideoBreakState struct {
 	mu        sync.Mutex
 	terminals []time.Time // recent googlevideo terminal stamps
 	until     time.Time   // the cooldown's end (zero = never armed)
+	scouted   bool        // M8-ag (ADR-0046): this cooldown's scout flow is spent
 }
 
 // noteGvideoTerminal records one googlevideo flow terminal and arms
@@ -1175,6 +1177,7 @@ func (s *Server) noteGvideoTerminal() bool {
 		}
 	}
 	s.gvideoBreak.until = now.Add(cd)
+	s.gvideoBreak.scouted = false // M8-ag (ADR-0046): every arm starts with a fresh scout
 	return true
 }
 
@@ -1192,13 +1195,86 @@ func (s *Server) gvideoCoolingDown() bool {
 // churn-kick mistake the round deletes.
 func (s *Server) GvideoCoolingDown() bool { return s.gvideoCoolingDown() }
 
+// claimGvideoScout hands out the cooldown's ONE scout (M8-ag,
+// ADR-0046): the first googlevideo flow after an arm proceeds to the
+// wire — the app's own flow, not synthetic emission — so every
+// cooldown carries exactly one live probe of the flag state the arm
+// guessed. The debug.24 field report's breaker sat fully silent for
+// 45 s while the player spent its retry budget against the door; the
+// scout bounds that blindness at one flow. False once the episode's
+// scout is spent (or when no cooldown is active).
+func (s *Server) claimGvideoScout() bool {
+	s.gvideoBreak.mu.Lock()
+	defer s.gvideoBreak.mu.Unlock()
+	if !time.Now().Before(s.gvideoBreak.until) || s.gvideoBreak.scouted {
+		return false
+	}
+	s.gvideoBreak.scouted = true
+	return true
+}
+
+// liftGvideoBreaker ends an active cooldown early (M8-ag, ADR-0046):
+// a googlevideo origin just SPOKE, which falsifies the arm's premise
+// (a flagged wire stays silent) for right now. The terminal ring
+// stays untouched — if stalls resume, fresh terminals re-arm exactly
+// as before; the breaker becomes self-correcting in both directions.
+func (s *Server) liftGvideoBreaker(reason string) {
+	s.gvideoBreak.mu.Lock()
+	if !time.Now().Before(s.gvideoBreak.until) {
+		s.gvideoBreak.mu.Unlock()
+		return
+	}
+	s.gvideoBreak.until = time.Time{}
+	s.gvideoBreak.mu.Unlock()
+	s.stats.GvideoLift()
+	if s.cfg.Logger != nil {
+		s.cfg.Logger.Info("gvideo emission breaker lifted (" + reason + ")")
+	}
+}
+
 // gvideoDoorBlocked reports whether the emission breaker blocks THIS
 // host at the door (M8-ae, ADR-0041): googlevideo hosts only —
 // youtube.com, ytimg, ggpht and every other SNI class keeps full
 // service through the cooldown, which is why the FEED keeps
 // refreshing while the video path goes quiet.
+//
+// M8-ag (ADR-0046) — the debug.24 field report inverted the breaker's
+// own contract ("video never opens again while the feed keeps
+// working" is what it was built to PREVENT): armed on a dead cache
+// cluster's stall kills, it refused every googlevideo dial for
+// 45 s+jitter while the player spent its whole retry budget against
+// the door (58 door failures, substitution attempts=0 — the
+// door-block short-circuits before the raced round where the pool
+// engages). Two escapes, both on the report's own evidence:
+//
+// (1) The media-verified pool: an address that ANSWERED under the
+// real SNI (ADR-0044's probe) is the strongest wire-alive evidence
+// the engine owns — a flow the pool can serve passes the door and
+// rides the substitute lane instead of being silenced. Respects the
+// substitution switch and knob (goodSubstitutes): breaker-on with
+// substitution off keeps the exact M8-ae shape.
+//
+// (2) The scout: the cooldown's FIRST flow dials (the app's own
+// request, zero extra emission) so an armed breaker still learns the
+// flag state; its first byte lifts the cooldown (liftGvideoBreaker),
+// its death feeds the terminal ring exactly like any terminal.
+//
+// Everything else keeps the M8-ae silence.
 func (s *Server) gvideoDoorBlocked(host string) bool {
-	return isGvideoHost(host) && s.gvideoCoolingDown()
+	if !isGvideoHost(host) || !s.gvideoCoolingDown() {
+		return false
+	}
+	if s.goodSubstitutes(nil, 1) != nil {
+		return false // the pool serves this flow — verified wire
+	}
+	if s.claimGvideoScout() {
+		s.stats.GvideoScout()
+		if s.cfg.Logger != nil {
+			s.cfg.Logger.Info("gvideo emission breaker scout (one flow probes the wire)")
+		}
+		return false
+	}
+	return true
 }
 
 // goodMarkActive reports whether one origin IP's verified-live mark

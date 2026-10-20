@@ -74,7 +74,7 @@ func TestWireDisciplineKnobs(t *testing.T) {
         if config.GvideoBreakerWindow != 30*time.Second {
                 t.Fatalf("GvideoBreakerWindow = %v, want 30s", config.GvideoBreakerWindow)
         }
-        if config.GvideoBreakerCooldown != 45*time.Second {
-                t.Fatalf("GvideoBreakerCooldown = %v, want 45s", config.GvideoBreakerCooldown)
+        if config.GvideoBreakerCooldown != 15*time.Second {
+                t.Fatalf("GvideoBreakerCooldown = %v, want 15s (M8-ag, ADR-0046: the debug.24 report measured the player's retry budget dying inside one 45 s cooldown — the block must never outlive it)", config.GvideoBreakerCooldown)
         }
 }
