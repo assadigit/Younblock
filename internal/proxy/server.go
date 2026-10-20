@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -123,6 +124,20 @@ type Config struct {
 	IdleTimeout    time.Duration
 	MaxHeaderBytes int64
 
+	// GoodIPSubstitution (M8-ab, ADR-0031): a *.googlevideo.com flow
+	// whose raced round draws only its own hostname's rotating answer
+	// set gets ONE substitute candidate instead — pool origins the
+	// engine has SEEN speak (probe verdicts and real flow first-bytes),
+	// not in the current answer set, not penalized, freshest verdict
+	// first. The substitute replays the identical fragmented
+	// ClientHello (SNI unchanged — the client's own hello) onto the
+	// pool origin: Google's video edge serves any *.googlevideo.com
+	// name, the Iranian hosts-file IP-substitution practice rides
+	// exactly this. Positive → the per-flow substitute candidate cap;
+	// zero → the config default; negative → disabled (the exact
+	// debug.19 shape).
+	GoodIPSubstitution int
+
 	// FragmentAllRouted (M8-z, ADR-0024 work item A): fragment the
 	// first TLS record of EVERY non-direct-TLD host (class=plain
 	// included), not just the routed domain list. The budgeted shape —
@@ -189,14 +204,20 @@ type Server struct {
 	dead      map[string]deadMark
 	deadOrder []string
 
-	// The verified-live table (M8-aa, ADR-0028): origin IP → preferred
-	// until, written by the origin-probe pass's "answered" verdicts and
-	// read by liveIPs to put origins the engine has SEEN speak at the
-	// FRONT of every dial list. Bounded FIFO like the box, guarded by
-	// goodMu. Equally a preference, never a verdict — an IP's absence
-	// costs it nothing but first place.
+	// The verified-live table (M8-aa, ADR-0028; M8-ab extends the
+	// marks with the origin's service, ADR-0031): origin IP → good
+	// mark (preferred until, googlevideo flag), written by the
+	// origin-probe pass's "answered" verdicts AND by real flow
+	// first-bytes (stronger evidence — the session's own wire shape
+	// spoke back), read by liveIPs to put origins the engine has
+	// SEEN speak at the FRONT of every dial list, and by the raced
+	// round's substitute candidate (the cross-origin escape: the
+	// gvideo-flagged pool serves any *.googlevideo.com flow). Bounded
+	// FIFO like the box, guarded by goodMu. Equally a preference,
+	// never a verdict — an IP's absence costs it nothing but first
+	// place.
 	goodMu    sync.Mutex
-	good      map[string]time.Time
+	good      map[string]goodMark
 	goodOrder []string
 }
 
@@ -206,6 +227,15 @@ type Server struct {
 type deadMark struct {
 	until   time.Time
 	strikes int
+}
+
+// goodMark is one verified-live origin IP's table entry (M8-ab,
+// ADR-0031): the preference's expiry and whether the origin serves
+// the googlevideo wildcard — the flag that scopes cross-origin
+// substitution to same-service flows.
+type goodMark struct {
+	until  time.Time
+	gvideo bool
 }
 
 // Start binds the listener (with the AutoPort fallback) and serves until
@@ -246,6 +276,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.DeadIPPenalty == 0 {
 		cfg.DeadIPPenalty = config.DeadIPPenalty
+	}
+	if cfg.GoodIPSubstitution == 0 {
+		cfg.GoodIPSubstitution = config.GoodIPSubstitution
 	}
 	if cfg.PlainFirstByteTimeout == 0 {
 		cfg.PlainFirstByteTimeout = config.PlainFirstByteTimeout
@@ -713,6 +746,14 @@ func (s *Server) forwardRequest(client net.Conn, br *bufio.Reader, req *http.Req
 	<-bodyDone
 }
 
+// isGvideoHost reports whether a host is a Google video cache name
+// (M8-ab, ADR-0031): the service whose edge serves ANY
+// *.googlevideo.com origin behind the per-cluster names — the scope
+// of cross-origin substitution and the gvideo good-pool flag.
+func isGvideoHost(host string) bool {
+	return strings.HasSuffix(host, ".googlevideo.com")
+}
+
 // resolve returns target addresses; IP literals skip DNS.
 func (s *Server) resolve(host string) ([]net.IP, error) {
 	if ip := net.ParseIP(host); ip != nil {
@@ -790,16 +831,17 @@ func (s *Server) markDeadIP(ip string) {
 // entry lives (or later — the strike count survives expiry until the
 // 512-entry FIFO evicts it) escalates the TTL to the escalation floor,
 // so a cache node that keeps killing flows stops being re-learned
-// every 60 s. A verified-live mark on the same IP is dropped — a fresh
-// "answered" verdict is newer evidence than a stale death, and vice
-// versa (markGoodIP drops the box entry's PREFERENCE by letting the
-// good TTL lapse; the box entry itself stays for its strike memory).
+// every 60 s. A verified-live mark on the same IP is DROPPED (M8-ab,
+// ADR-0031 — the behavior ADR-0028's comment promised, actually
+// implemented): the death is the fresher evidence, and without the
+// drop a dead IP resurfaces at the FRONT of every dial list the
+// moment its box entry lapses — the debug.19 code's latent leak, and
+// a poisoned substitution pool the moment the pool started mattering.
 func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
 	if s.cfg.DeadIPPenalty <= 0 || base <= 0 || ip == "" {
 		return
 	}
 	s.deadMu.Lock()
-	defer s.deadMu.Unlock()
 	if s.dead == nil {
 		s.dead = make(map[string]deadMark)
 	}
@@ -819,21 +861,45 @@ func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
 		s.deadOrder = append(s.deadOrder, ip)
 	}
 	s.dead[ip] = m
+	s.deadMu.Unlock()
+	// The demote (M8-ab): the box's verdict outranks the good mark
+	// while it lives, and the stale preference must not outlive it.
+	s.dropGoodIP(ip)
+}
+
+// dropGoodIP removes one origin IP's verified-live mark (M8-ab,
+// ADR-0031). The table's FIFO order entry is kept — a later re-mark
+// refreshes it in place, and expired entries sweep cheaply on access.
+func (s *Server) dropGoodIP(ip string) {
+	if ip == "" {
+		return
+	}
+	s.goodMu.Lock()
+	if _, ok := s.good[ip]; ok {
+		m := s.good[ip]
+		m.until = time.Now() // expires on the next access
+		s.good[ip] = m
+	}
+	s.goodMu.Unlock()
 }
 
 // markGoodIP prefers one origin IP for OriginProbeGoodTTL (M8-aa,
-// ADR-0028): the origin-probe pass watched this IP answer the exact
-// wire shape a real flow sends, so every dial list built while the
-// mark lives starts there. The mark NEVER gates anything — an IP
-// without one dials exactly as before, first place is its only prize.
-func (s *Server) markGoodIP(ip string) {
+// ADR-0028; M8-ab adds the service flag, ADR-0031): the origin-probe
+// pass watched this IP answer the exact wire shape a real flow sends,
+// so every dial list built while the mark lives starts there. The
+// mark NEVER gates anything — an IP without one dials exactly as
+// before, first place is its only prize. gvideo marks the origin as
+// serving the *.googlevideo.com wildcard: the flag the raced round's
+// substitute candidate scopes itself to (same-service substitution
+// only; the API fronts keep their own answers).
+func (s *Server) markGoodIP(ip string, gvideo bool) {
 	if ip == "" {
 		return
 	}
 	s.goodMu.Lock()
 	defer s.goodMu.Unlock()
 	if s.good == nil {
-		s.good = make(map[string]time.Time)
+		s.good = make(map[string]goodMark)
 	}
 	if _, ok := s.good[ip]; !ok {
 		for len(s.good) >= goodIPTableMax && len(s.goodOrder) > 0 {
@@ -843,7 +909,7 @@ func (s *Server) markGoodIP(ip string) {
 		}
 		s.goodOrder = append(s.goodOrder, ip)
 	}
-	s.good[ip] = time.Now().Add(config.OriginProbeGoodTTL)
+	s.good[ip] = goodMark{until: time.Now().Add(config.OriginProbeGoodTTL), gvideo: gvideo}
 }
 
 // liveIPs filters penalized origin IPs out of a dial list and puts
@@ -876,7 +942,7 @@ func (s *Server) liveIPs(ips []net.IP) []net.IP {
 	s.goodMu.Lock()
 	var live, neutral []net.IP
 	for _, ip := range out {
-		if until, ok := s.good[ip.String()]; ok && now.Before(until) {
+		if m, ok := s.good[ip.String()]; ok && now.Before(m.until) {
 			live = append(live, ip)
 		} else {
 			neutral = append(neutral, ip)
@@ -911,16 +977,144 @@ func (s *Server) DeadBoxStats() (live, escalated int) {
 // GoodIPCount reports how many origin IPs are verified-live right now
 // (M8-aa, ADR-0028) — the dial lists' preferred front.
 func (s *Server) GoodIPCount() int {
+	total, _ := s.GoodIPStats()
+	return total
+}
+
+// GoodIPStats reports the verified-live table's current shape (M8-ab,
+// ADR-0031): how many origin IPs are preferred right now, and how
+// many of those carry the googlevideo flag — the substitution pool's
+// size, the number the report's substitution line and the fast-start
+// probe cadence read.
+func (s *Server) GoodIPStats() (total, gvideo int) {
 	now := time.Now()
 	s.goodMu.Lock()
 	defer s.goodMu.Unlock()
-	n := 0
 	for _, ip := range s.goodOrder {
-		if until, ok := s.good[ip]; ok && now.Before(until) {
-			n++
+		if m, ok := s.good[ip]; ok && now.Before(m.until) {
+			total++
+			if m.gvideo {
+				gvideo++
+			}
 		}
 	}
-	return n
+	return total, gvideo
+}
+
+// GoodGvideoIPList returns the gvideo-flagged verified-live origin IPs
+// in FIFO order (M8-ab, ADR-0033): the persistence layer's snapshot —
+// the engine writes it to GoogleVideoGoodIPsFile and seeds the next
+// session's pool from it.
+func (s *Server) GoodGvideoIPList() []string {
+	now := time.Now()
+	s.goodMu.Lock()
+	defer s.goodMu.Unlock()
+	var out []string
+	for _, ip := range s.goodOrder {
+		if m, ok := s.good[ip]; ok && now.Before(m.until) && m.gvideo {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
+
+// SeedGoodIPs seeds persisted verified-live origin IPs back into the
+// good table (M8-ab, ADR-0033): every IP gvideo-flagged with the
+// shorter GoodPoolSeedTTL — yesterday's verdict is stale evidence,
+// and a seed that went bad overnight self-corrects through the same
+// demote-on-death guard every live mark carries.
+func (s *Server) SeedGoodIPs(ips []string) {
+	if len(ips) == 0 {
+		return
+	}
+	s.goodMu.Lock()
+	if s.good == nil {
+		s.good = make(map[string]goodMark)
+	}
+	until := time.Now().Add(config.GoodPoolSeedTTL)
+	for _, ip := range ips {
+		if ip == "" || net.ParseIP(ip) == nil {
+			continue
+		}
+		if _, ok := s.good[ip]; !ok {
+			for len(s.good) >= goodIPTableMax && len(s.goodOrder) > 0 {
+				oldest := s.goodOrder[0]
+				s.goodOrder = s.goodOrder[1:]
+				delete(s.good, oldest)
+			}
+			s.goodOrder = append(s.goodOrder, ip)
+		}
+		s.good[ip] = goodMark{until: until, gvideo: true}
+	}
+	s.goodMu.Unlock()
+}
+
+// goodSubstitutes builds one raced round's substitute candidate list
+// (M8-ab, ADR-0031): gvideo-flagged verified-live origins that are NOT
+// in the flow's current answer set and NOT penalized right now,
+// freshest verdict first, capped at max. Google's video edge serves
+// any *.googlevideo.com name, so the candidate replays the identical
+// fragmented ClientHello — SNI unchanged — onto the pool origin. Nil
+// when the knob is off or the pool has nothing new to offer (the
+// round then keeps its own-set rotations, exactly the debug.19
+// shape).
+func (s *Server) goodSubstitutes(own []net.IP, max int) []net.IP {
+	if s.cfg.GoodIPSubstitution <= 0 || max <= 0 {
+		return nil
+	}
+	ownSet := make(map[string]bool, len(own))
+	for _, ip := range own {
+		ownSet[ip.String()] = true
+	}
+	now := time.Now()
+	type cand struct {
+		ip    net.IP
+		until time.Time
+	}
+	var out []cand
+	s.goodMu.Lock()
+	for _, key := range s.goodOrder {
+		m, ok := s.good[key]
+		if !ok || !m.gvideo || !now.Before(m.until) {
+			continue
+		}
+		if ownSet[key] {
+			continue // already a candidate this round
+		}
+		if ip := net.ParseIP(key); ip != nil {
+			out = append(out, cand{ip: ip, until: m.until})
+		}
+	}
+	s.goodMu.Unlock()
+	if len(out) == 0 {
+		return nil
+	}
+	// Penalized pool origins are skipped: the box outranks a stale
+	// good mark exactly as in every dial list.
+	s.deadMu.Lock()
+	kept := out[:0]
+	for _, c := range out {
+		if m, ok := s.dead[c.ip.String()]; ok && now.Before(m.until) {
+			continue
+		}
+		kept = append(kept, c)
+	}
+	s.deadMu.Unlock()
+	out = kept
+	if len(out) == 0 {
+		return nil
+	}
+	// Freshest verdict first: the most recently verified pool origin
+	// leads the candidate's dial list.
+	sort.Slice(out, func(i, j int) bool { return out[i].until.After(out[j].until) })
+	if len(out) > max {
+		out = out[:max]
+	}
+	ips := make([]net.IP, len(out))
+	for i, c := range out {
+		ips[i] = c.ip
+	}
+	return ips
 }
 
 // PenalizedIPs returns up to n origin IPs currently in the dead-IP
@@ -1049,8 +1243,9 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 	preset, fcfg := s.fragmentData()
 	now := time.Now()
 	type probeJob struct {
-		ip  net.IP
-		sni string
+		ip     net.IP
+		sni    string
+		gvideo bool
 	}
 	var jobs []probeJob
 	for _, name := range names {
@@ -1062,6 +1257,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 		if err != nil {
 			continue
 		}
+		gvideo := isGvideoHost(name)
 		for _, ip := range dedupeIPs(ips) {
 			if len(jobs) >= maxIPs {
 				break
@@ -1078,7 +1274,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 			s.goodMu.Lock()
 			_, live := s.good[key]
 			if live {
-				if until, ok := s.good[key]; ok && !now.Before(until) {
+				if m, ok := s.good[key]; ok && !now.Before(m.until) {
 					live = false // expired: re-learn it
 				}
 			}
@@ -1086,7 +1282,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 			if boxed || live {
 				continue
 			}
-			jobs = append(jobs, probeJob{ip: ip, sni: name})
+			jobs = append(jobs, probeJob{ip: ip, sni: name, gvideo: gvideo})
 		}
 	}
 	if len(jobs) == 0 {
@@ -1100,6 +1296,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 	var wg sync.WaitGroup
 	verdicts := make([]string, len(jobs))
 	probedIPs := make([]string, len(jobs))
+	probeGvideo := make([]bool, len(jobs))
 	for i, j := range jobs {
 		if ctx.Err() != nil {
 			break
@@ -1113,6 +1310,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 			defer cancel()
 			verdicts[i] = s.probeOneOrigin(pctx, j.ip, j.sni, port, preset, fcfg)
 			probedIPs[i] = j.ip.String()
+			probeGvideo[i] = j.gvideo
 		}(i, j)
 	}
 	wg.Wait()
@@ -1124,7 +1322,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 		switch v {
 		case "answered":
 			sum.Answered++
-			s.markGoodIP(probedIPs[i])
+			s.markGoodIP(probedIPs[i], probeGvideo[i])
 			if s.cfg.Stats != nil {
 				s.cfg.Stats.ProbeAnswered()
 			}

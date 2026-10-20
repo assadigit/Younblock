@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -196,6 +198,18 @@ type Engine struct {
 	probeDone    bool        // the dead-origin probe ran this run
 	probeLines   []string    // its lines, rendered once per report section
 
+	// M8-ab (ADR-0032/0033): the origin-probe pass's round-robin
+	// cursor over the learned googlevideo codes (owned by the gvideo
+	// loop's goroutine), and the persisted good pool's file path —
+	// the session-over-session memory the first video of the day
+	// rides. goodPoolLast is the last snapshot written (the change
+	// check); guarded by goodMu so the Stop-time save and the loop's
+	// periodic save never interleave a write.
+	probeCursor  int
+	goodPoolPath string
+	goodMu       sync.Mutex
+	goodPoolLast string
+
 	// M8-aa (ADR-0029): the effective lean stall budget this run's
 	// proxy carries — Android's platform default (8 s), the
 	// desktop's config.StallTimeout — printed beside the report's
@@ -316,6 +330,9 @@ func New(opts Options) (*Engine, error) {
 		rng:       fragment.NewDefaultRNG(),
 		phase:     PhaseOff,
 		since:     opts.Now(),
+		// M8-ab (ADR-0033): the persisted verified-live pool's file,
+		// beside the codes store in the app's private directory.
+		goodPoolPath: filepath.Join(opts.Platform.ConfigDir(), config.GoogleVideoGoodIPsFile),
 	}
 	// The round-3 usage history lives beside settings.json; a failed
 	// open only disables the history (usageOpen logs it).
@@ -516,6 +533,19 @@ func (e *Engine) timelineMarks() []Mark {
 // variants re-resolve in the background (at most
 // GoogleVideoPrewarmInflight lookups in flight) so the next fresh
 // per-video hostname often lands on a warm cache entry.
+//
+// M8-ab (ADR-0032/0033) adds two lanes, both Android-gated exactly
+// like the probe pass itself (ADR-0028 decision 5 — the desktops keep
+// the byte-for-byte M8-z loop): the FAST-START cadence, passes every
+// ProbeFastStartEvery while the engine is young and the gvideo good
+// pool is thin (the debug.19 session ran ONE pass in its whole 45 s
+// cold start), and the CHURN KICK — a 1 s watch on the
+// gvideoTerminals counter (a googlevideo flow whose raced round AND
+// untried salvage all died) that kicks an immediate pass, debounced
+// by ProbeChurnKickDebounce, so verified origins land inside the
+// app's next retry wave instead of the next 5-minute cycle. The loop
+// also flushes the persisted good pool on change
+// (GoogleVideoGoodIPsFile, ADR-0033).
 func (e *Engine) startGvideoLoop() {
 	e.resolver.Load().WarmProbe()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -528,19 +558,74 @@ func (e *Engine) startGvideoLoop() {
 	}
 	go func() {
 		e.prewarmGvideoCodes(ctx)
-		e.probeOriginsPass(ctx) // M8-aa (ADR-0028): verify the answer sets the moment the cache is warm
-		ticker := time.NewTicker(config.GoogleVideoPrewarmEvery)
-		defer ticker.Stop()
+		e.probeOriginsPass(ctx)
+		started := time.Now()
+		lastKick := started
+		churnSeen := e.stats.Diagnostic().GvideoTerminals
+		android := e.platform.Name() == "android"
+		slow := time.NewTicker(config.GoogleVideoPrewarmEvery)
+		fast := time.NewTicker(config.ProbeFastStartEvery)
+		watch := time.NewTicker(time.Second)
+		pool := time.NewTicker(config.GoodPoolSaveEvery)
+		defer slow.Stop()
+		defer fast.Stop()
+		defer watch.Stop()
+		defer pool.Stop()
 		for {
 			select {
 			case <-ctx.Done():
+				e.saveGoodPoolIfChanged() // the Stop-time flush (ADR-0033)
 				return
-			case <-ticker.C:
+			case <-slow.C:
 				e.prewarmGvideoCodes(ctx)
-				e.probeOriginsPass(ctx) // M8-aa: every cycle, the freshest codes first
+				e.probeOriginsPass(ctx)
+			case <-fast.C:
+				// The young-engine lane: 45 s passes until the
+				// pool is stocked or the window closes. The
+				// desktops never enter (byte-for-byte).
+				if !android || e.probeFastStartOver(started) {
+					continue
+				}
+				e.prewarmGvideoCodes(ctx)
+				e.probeOriginsPass(ctx)
+			case <-watch.C:
+				// The churn lane: a fresh googlevideo terminal
+				// (all-dead raced round + dead salvage) means the
+				// answer sets just rolled black — verify new
+				// origins NOW. The desktops never enter.
+				if !android {
+					continue
+				}
+				cur := e.stats.Diagnostic().GvideoTerminals
+				if cur <= churnSeen {
+					continue
+				}
+				churnSeen = cur
+				if time.Since(lastKick) < config.ProbeChurnKickDebounce {
+					continue // a recent pass is still landing
+				}
+				lastKick = time.Now()
+				e.probeOriginsPass(ctx)
+			case <-pool.C:
+				e.saveGoodPoolIfChanged()
 			}
 		}
 	}()
+}
+
+// probeFastStartOver reports whether the fast-start probe cadence is
+// done (M8-ab, ADR-0032): past ProbeFastStartWindow, or the gvideo
+// good pool already carries ProbeFastStartPoolFloor verified origins.
+func (e *Engine) probeFastStartOver(started time.Time) bool {
+	if time.Since(started) >= config.ProbeFastStartWindow {
+		return true
+	}
+	if srv := e.RunningServer(); srv != nil {
+		if _, gvideo := srv.GoodIPStats(); gvideo >= config.ProbeFastStartPoolFloor {
+			return true
+		}
+	}
+	return false
 }
 
 // stopGvideoLoop halts the prewarm loop (Stop's path).
@@ -551,6 +636,80 @@ func (e *Engine) stopGvideoLoop() {
 	e.mu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+}
+
+// loadGoodIPPool reads the persisted verified-live googlevideo pool
+// (M8-ab, ADR-0033): one IP per line, the origins the LAST session's
+// probe passes and flow first-bytes verified. Start seeds them back
+// with the shorter GoodPoolSeedTTL; a seed that went bad overnight
+// self-corrects through the demote-on-death guard. A missing or
+// unreadable file is simply an empty pool (first run, or a fresh
+// install) — never an error worth failing a start over.
+func (e *Engine) loadGoodIPPool() []string {
+	e.goodMu.Lock()
+	path := e.goodPoolPath
+	e.goodMu.Unlock()
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if net.ParseIP(line) == nil {
+			continue // a stale or corrupted line never poisons the pool
+		}
+		out = append(out, line)
+		if len(out) >= goodIPTableMaxPersist {
+			break
+		}
+	}
+	return out
+}
+
+// goodIPTableMaxPersist bounds the persisted pool (M8-ab, ADR-0033):
+// a session's verified gvideo origins, capped for the same reasons the
+// in-memory table is — plenty of substitutes, trivially small file.
+const goodIPTableMaxPersist = 32
+
+// saveGoodPoolIfChanged writes the gvideo good pool to
+// GoogleVideoGoodIPsFile when it changed since the last write (M8-ab,
+// ADR-0033). Called from the gvideo loop's periodic tick and its
+// Stop-time flush; goodMu serializes the change-check-and-write so the
+// two never interleave. Write failures log and leave the file for the
+// next change — the pool is an optimization, never a dependency.
+func (e *Engine) saveGoodPoolIfChanged() {
+	srv := e.RunningServer()
+	if srv == nil {
+		return
+	}
+	e.goodMu.Lock()
+	path := e.goodPoolPath
+	if path == "" {
+		e.goodMu.Unlock()
+		return
+	}
+	list := srv.GoodGvideoIPList()
+	snapshot := strings.Join(list, "\n")
+	if snapshot == e.goodPoolLast {
+		e.goodMu.Unlock()
+		return
+	}
+	e.goodPoolLast = snapshot
+	e.goodMu.Unlock()
+	data := ""
+	if snapshot != "" {
+		data = snapshot + "\n"
+	}
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		e.logger.Warn("good pool save failed reason=" + errKind(err))
 	}
 }
 
@@ -591,14 +750,17 @@ func (e *Engine) prewarmGvideoCodes(ctx context.Context) {
 
 // probeOriginsPass runs one origin-probe pass through the running
 // proxy (M8-aa, ADR-0028): the stable OriginProbeNames first — the
-// player request's own API fronts — then the FRESHEST learned
-// googlevideo codes' rr names (the store is oldest-first, the next
-// video's hostname rides the newest code). The pass resolves through
-// the same resolver the flows use (the prewarm that just ran filled
-// the cache), verifies each answer IP with the exact wire shape a
-// real flow sends, and hands its verdicts to the box and the good
-// table. Bounded by OriginProbePerPass and the loop's own ctx; the
-// verdicts ride counters only (R21 — no names, no IPs anywhere).
+// player request's own API fronts — then a round-robin window of the
+// learned googlevideo codes' rr names (M8-ab, ADR-0032: the debug.19
+// pass pinned the freshest-2 codes — early in a session the local
+// cluster twice, so the verified pool could not escape the blackhole
+// even in principle; the rotation covers every remembered code,
+// foreign clusters included, within a few passes). The pass resolves
+// through the same resolver the flows use (the prewarm that just ran
+// filled the cache), verifies each answer IP with the exact wire
+// shape a real flow sends, and hands its verdicts to the box and the
+// good table. Bounded by OriginProbePerPass and the loop's own ctx;
+// the verdicts ride counters only (R21 — no names, no IPs anywhere).
 func (e *Engine) probeOriginsPass(ctx context.Context) {
 	// ADR-0028 decision 5: the pass runs on the phone's lane only —
 	// the desktops keep the M8-z prewarm-resolution behavior
@@ -612,15 +774,50 @@ func (e *Engine) probeOriginsPass(ctx context.Context) {
 	if srv == nil {
 		return
 	}
-	names := make([]string, 0, len(config.OriginProbeNames)+10)
-	names = append(names, config.OriginProbeNames...)
-	codes := e.resolver.Load().GvideoCodes()
-	for i := len(codes) - 1; i >= 0 && len(codes)-i <= 2; i-- {
-		for j := 1; j <= 5; j++ {
-			names = append(names, fmt.Sprintf("rr%d---%s.googlevideo.com", j, codes[i]))
-		}
-	}
+	names, next := probePassNames(config.OriginProbeNames, e.resolver.Load().GvideoCodes(), e.probeCursor, config.ProbeCodesPerPass)
+	e.probeCursor = next
 	srv.ProbeOrigins(ctx, names, 443, config.OriginProbePerPass)
+}
+
+// probePassNames builds one origin-probe pass's name list (M8-ab,
+// ADR-0032): the stable names first (their answer sets are small and
+// the first-play wave leans on them), then one rr name per code from
+// a round-robin window of the learned code store — the rr index
+// rotates with the cursor too, so a cluster's different rr variants
+// (each a slightly different rotation of the same pool) get their
+// turn across passes. Codes already covered by an earlier name in
+// THIS list are skipped (the store is unique, but the wrap-around
+// window may revisit). Returns the next cursor.
+func probePassNames(stable []string, codes []string, cursor, perPass int) ([]string, int) {
+	names := make([]string, 0, len(stable)+perPass)
+	names = append(names, stable...)
+	if len(codes) == 0 || perPass <= 0 {
+		return names, cursor
+	}
+	seen := make(map[string]bool, perPass)
+	for k := 0; k < perPass && k < len(codes); k++ {
+		idx := (cursor + k) % len(codes)
+		code := codes[idx]
+		if seen[code] {
+			continue
+		}
+		seen[code] = true
+		rr := (cursor + k) % 5 // the rr variant rotates with the window
+		names = append(names, fmt.Sprintf("rr%d---%s.googlevideo.com", rr+1, code))
+	}
+	next := cursor + perPass
+	if next >= len(codes) {
+		next = 0
+	}
+	return names, next
+}
+
+// ProbePassNamesForTest is the engine tests' one reach into the pass's
+// pure name builder (the engine package keeps its API surface
+// otherwise untouched — the function is unexported logic owned by the
+// gvideo loop).
+func ProbePassNamesForTest(stable, codes []string, cursor, perPass int) ([]string, int) {
+	return probePassNames(stable, codes, cursor, perPass)
 }
 
 // startAutoTimeline runs the heuristic play detector while the engine
@@ -786,8 +983,12 @@ func (e *Engine) startListener() error {
 		StallRichTimeout:      config.StallRichTimeout,
 		StallRichBytes:        config.StallRichBytes,
 		DeadIPPenalty:         config.DeadIPPenalty,
-		IdleTimeout:           idle,
-		MaxHeaderBytes:        config.MaxHeaderBytes,
+		// M8-ab (ADR-0031): the cross-origin escape hatch — a
+		// googlevideo flow whose own answer set keeps dying dials
+		// the good pool's verified-live origins instead.
+		GoodIPSubstitution: config.GoodIPSubstitution,
+		IdleTimeout:        idle,
+		MaxHeaderBytes:     config.MaxHeaderBytes,
 		// M8-z (ADR-0024): the platform-aware setting the doors consult
 		// through fragmentHost, the plain-relay safety net's budget, and
 		// the report's per-host table.
@@ -808,6 +1009,14 @@ func (e *Engine) startListener() error {
 	})
 	if err != nil {
 		return err
+	}
+	// M8-ab (ADR-0033): seed the persisted verified-live pool — the
+	// origins the LAST session verified, gvideo-flagged with the
+	// shorter seed TTL, so the first video of this session rides them
+	// instead of re-paying the whole discovery cost. A stale seed
+	// self-corrects: a flow death drops its mark and boxes the IP.
+	if seeded := e.loadGoodIPPool(); len(seeded) > 0 {
+		srv.SeedGoodIPs(seeded)
 	}
 	e.mu.Lock()
 	e.server = srv

@@ -9,7 +9,9 @@ was **RETIRED the same day by D97** (the gate cancelled before
 implementation — kept below as history). ADR-0013…0027 record the
 debug-circle rounds M8-n…M8-z (the reliability ladder through Ali's
 pasted reports); ADR-0028…0030 record the debug.19 round (M8-aa, the
-dead-origin-pool fixes the first debug.18 report measured).
+dead-origin-pool fixes the first debug.18 report measured);
+ADR-0031…0033 record the debug.20 round (M8-ab, the escape-the-pool
+fixes the first debug.19 report measured).
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -1750,6 +1752,198 @@ flow starts, and the probe's verdicts on the report (M8-aa)
   carries the play→data elapsed time even when the buttons go
   unpressed; `racedSaves`/`salvagedSaves` say the machinery saved
   flows; `origin probe:` says the pool was verified before the wave.
+
+## ADR-0031 — The cross-origin substitution: a *.googlevideo.com
+flow whose own answer set keeps dying dials a VERIFIED-LIVE pool
+origin instead (SNI unchanged — Google's video edge serves any
+googlevideo.com name), the pool fed by probe verdicts AND real flow
+first-bytes, and a flow death demoting the stale mark (M8-ab, the
+debug.20 escape-the-pool round)
+
+- **Status:** Accepted 2026-10-20 (M8-ab; the debug.19 report's own
+  numbers named the round: auto-timeline play-suspected ->
+  first-data elapsed=44999ms pairs=5 — five app retry waves gambling
+  fresh rotated qxau5 unknowns while the good table held 24 verified
+  origins no dial list ever saw, racedSaves=9 but salvagedSaves=0,
+  and the video starting only when the app ITSELF fell back to a
+  foreign cache hostname — r5---sn-4g5e6nsy and r2---sn-nv47lnsr,
+  the only googlevideo hosts with clean first-bytes in the whole
+  window).
+- **Context:** ADR-0028 built the verified pool, but the debug.19
+  report proved its SCOPE is the failure: liveIPs, the raced extras,
+  and the untried salvage all draw from the SAME hostname's rotating
+  answer set, so the pool's marks help only when a fresh answer
+  happens to overlap them — Google's rotating per-video answers
+  mostly do not. Five waves re-gambled unknown qxau5 IPs (every
+  raced death invalidating the DNS set, the next resolve rotating)
+  until the player's own fallback landed a foreign cluster. The
+  knowledge existed the whole 45 s (24 verified origins) and no dial
+  list could reach it. Two latent leaks rode along: a first-byte
+  death on a good-marked IP left the stale mark live (the ADR-0028
+  comment claimed the drop; the code never ran it) — a dead IP
+  resurfacing at the FRONT of every dial list once its box entry
+  lapsed — and flow successes never wrote good marks at all (the
+  session's one foreign-cache win armed nothing).
+- **Decision:**
+  1. **The substitute candidate.** A *.googlevideo.com flow's raced
+     round replaces ONE own-set rotation with a substitute candidate
+     that dials the good pool's gvideo-flagged verified-live origins
+     (not in the current answer set, not penalized, freshest verdict
+     first, up to SubstitutionPoolDials=3 walked with DialHost's
+     stagger). The substitute replays the identical fragmented
+     ClientHello — SNI unchanged, the client's own hello — onto the
+     pool origin: Google's video edge is one wildcard service behind
+     the per-cluster names, and the Iranian practice of pinning
+     hand-picked working cache IPs into a hosts file rides exactly
+     this. The dial count stays flat. A substitute win logs "tunnel
+     first-byte substituted" and counts substWins; a death demotes
+     the POOL origin (box + mark drop) and never the host's answer
+     set. Scoped to googlevideo flows only — the API fronts keep
+     their own answers (their certs are not interchangeable with
+     video-edge IPs). Knob: GoodIPSubstitution (negative = the exact
+     debug.19 shape).
+  2. **The self-feeding pool.** Every first-byte SUCCESS — raced
+     winner, salvage winner, serial-path origin — marks the speaking
+     origin good (gvideo-flagged for googlevideo hosts, 15-minute
+     TTL): stronger evidence than the probe's synthetic hello, and
+     the loop the report's 45 s never closed (the session's own
+     foreign-cache win now arms every later flow).
+  3. **The demote.** markDeadIPTTL drops the good mark on the same
+     IP (the ADR-0028 documented behavior, actually implemented): the
+     box's verdict outranks the stale preference while it lives, and
+     the preference no longer outlives it — the debug.19 latent leak,
+     and a poisoned substitution pool the moment the pool started
+     mattering.
+  4. **Platform scope.** Substitution is pool-driven and
+     platform-neutral by design: a desktop without probe passes
+     starts with an empty pool and behaves byte-for-byte like
+     debug.19 until a flow succeeds; after that only better. The
+     android-only parts of the round stay android-only (ADR-0032's
+     cadences, ADR-0033's persistence).
+- **Evidence:** internal/proxy/substitution_test.go (six tests): the
+  all-corpse answer set saved by the pool origin (echo byte-exact,
+  the substituted line, no terminal), the neutered control
+  (GoodIPSubstitution=-1 terminals with the report's exact
+  signature), the self-feeding loop (flow 1's success saves flow 2's
+  different-host all-corpse set), the demote (a once-echo origin:
+  probe-answered then flow-dead — good count 0, box marked), the
+  churn signal (gvideoTerminals), and the substituted line's R21
+  privacy. Verified BOTH WAYS: the substitution neutered (the raced
+  path passes nil, the winner marking removed), the two headline
+  tests FAIL — the flow terminals with "read echo: EOF" and the pool
+  never gains the flow's evidence; the demote neutered, the demote
+  test FAILS on good count 1; the churn counter neutered, the churn
+  test FAILS at 0.
+- **What this ADR does NOT decide:** cross-SERVICE substitution
+  (youtube.com SNI onto googlevideo IPs — the certs are not
+  interchangeable, and the API fronts answer fine on their own); the
+  probe's cadence and coverage (ADR-0032); persistence (ADR-0033);
+  any user-facing setting (the knob is engine wiring, like the M8-y
+  box before it).
+- **How the next report verifies it:** the new
+  `substitution: attempts=N wins=M pool=G (gvideo V)` line — wins>0
+  with a shrinking auto-timeline means the escape worked in the
+  field; attempts>0 with wins=0 means the cross-cache bet failed and
+  the round needs a different shape (the one honest failure mode this
+  ADR cannot rule out from the armchair); the "tunnel first-byte
+  substituted" lines ride the ring beside the raced ones.
+
+## ADR-0032 — The probe pass's coverage and cadence: the name list
+walks the learned code store ROUND-ROBIN (one rr name per code, the
+freshest-2 bias that kept the pool local-only gone), a fast-start
+cadence (45 s passes while the pool is thin), and the churn kick (a
+googlevideo terminal verifies new origins immediately, debounced)
+(M8-ab)
+
+- **Status:** Accepted 2026-10-20 (M8-ab; the debug.19 session ran
+  passes=1 in its whole cold start, and that one pass's name list
+  was the stable fronts plus rr1..rr5 of the 2 FRESHEST learned
+  codes — early in a session the local cluster twice, so the
+  verified pool could not have escaped the blackhole even in
+  principle).
+- **Context:** the pool's content is only as diverse as the names
+  the pass probes. The store is oldest-first and the freshest-2
+  window sits at its tail — exactly where a young session's local
+  codes cluster. Foreign clusters (the ones that actually serve)
+  live deeper in the store and were never probed early; the 5-minute
+  cadence meant the one pass at engine start was often the whole
+  cold start's verification budget.
+- **Decision:**
+  1. **Rotation.** probePassNames (pure, cursor-owned-by-the-loop):
+     stable OriginProbeNames first, then one rr name per code from a
+     round-robin window (ProbeCodesPerPass=12 codes a pass, the rr
+     index rotating with the cursor so a cluster's variants take
+     turns), the cursor wrapping at the store's end — every
+     remembered code is covered within a few passes. PerPass raised
+     32->48.
+  2. **Fast-start cadence.** While the engine is On and young (5
+     minutes) and the gvideo pool is thin (<8), a 45 s ticker runs
+     passes; the 5-minute prewarm cadence stands otherwise.
+  3. **Churn kick.** failFlow on a googlevideo host bumps
+     gvideoTerminals (the stats counter); the gvideo loop's 1 s
+     watch kicks an immediate prewarm+pass on a fresh increase,
+     debounced 10 s — verified origins land inside the app's next
+     retry wave, not the next cycle.
+  4. **Android-only, exactly like ADR-0028 decision 5:** the fast
+     and watch lanes never fire passes on non-android platforms; the
+     desktop loop is the M8-z shape byte-for-byte (the 5-minute
+     prewarm stands).
+- **Evidence:** internal/engine/m8ab_test.go
+  TestProbePassNamesRotatesTheCodeWindow (window advance, rr
+  rotation, wrap, oversized window, empty store) pins the pure
+  builder; TestReportRendersM8abSections renders the new sections
+  with R21 no-leak guards; the churn SIGNAL is pinned at the proxy
+  layer (substitution_test.go shape 5). The loop's own select logic
+  is 10 lines of ticker arithmetic exercised by every android-named
+  engine test since M8-aa (the tickers fire, the gates hold).
+- **What this ADR does NOT decide:** the probe's wire shape and
+  verdicts (ADR-0028's exactly); the pool's substitution use
+  (ADR-0031); persistence (ADR-0033); no ECS steering or DNS-answer
+  manipulation (the DoH lane stays ADR-0025's).
+- **How the next report verifies it:** origin probe passes= grows
+  several entries inside one cold start; answered climbs with
+  non-local clusters covered (the substitution pool's gvideo count
+  in the new line); gvideoTerminals pairs with a pass shortly after
+  a terminal in the ring.
+
+## ADR-0033 — The persisted verified-live pool:
+googlevideo-good-ips.txt seeded back at start with a shorter TTL (the
+first video of session N+1 rides the origins session N verified), the
+seeds self-correcting through the demote (M8-ab)
+
+- **Status:** Accepted 2026-10-20 (M8-ab; every session of the debug
+  circle restarted with an empty pool and re-paid discovery — the
+  tester's recurring complaint is the FIRST video of a session).
+- **Context:** the codes store (ADR-0025 §6.4) already persists
+  CLUSTER memory across sessions, but the verified-live IPs
+  themselves were session-scoped: session N+1 knew which clusters to
+  resolve and nothing about which origins actually spoke. The probe
+  pass needs minutes to re-verify; the player's first video pays the
+  whole window.
+- **Decision:** the engine persists the gvideo good pool (one IP per
+  line, cap 32, GoogleVideoGoodIPsFile beside the codes store in the
+  app's private directory) — written on change from the gvideo loop's
+  15 s ticker and flushed at its Stop; seeded at listener start with
+  GoodPoolSeedTTL=5m (yesterday's verdict is stale evidence).
+  Desktop-included: the pool is an optimization, never a dependency
+  (unreadable file = empty pool, write failure = next change), and a
+  stale seed self-corrects through ADR-0031's demote (one flow's
+  ~650 ms reset drops and boxes it). Same privacy footing as the
+  codes file (D-entries on user data; infrastructure addresses in
+  the app's private data directory, never a log line — R21).
+- **Evidence:** internal/engine/m8ab_test.go
+  TestGoodPoolPersistenceRoundTrip: a pre-written pool file renders
+  pool=2 (gvideo 2) in the started engine's report and survives the
+  Stop-time flush on disk. Verified BOTH WAYS with the report
+  section proof (ADR-0027's shape): the M8-ab additions stashed, the
+  pool line is absent and the seed unrendered.
+- **What this ADR does NOT decide:** expiry of seeds beyond the TTL
+  (the demote owns correctness); the probe's cadence (ADR-0032); any
+  user-facing setting or UI.
+- **How the next report verifies it:** the first minutes of a
+  session that follows a working one show substitution wins BEFORE
+  the first probe pass could have verified anything (the seeded
+  pool's fingerprint), and the pool's gvideo count starts non-zero.
 
 ## Decision-change procedure
 

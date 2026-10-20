@@ -20,38 +20,52 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 18: the M8-aa build (debug.19 — the dead-origin-pool
-        // round): the verified prewarm (the 5-minute googlevideo loop
-        // now PROBES the answer sets with the exact wire shape a real
-        // flow sends — a fragmented ClientHello carrying the prewarmed
-        // name as SNI — through the one netx dialer, at engine start
-        // and on every cycle: "answered" marks the origin IP
-        // verified-live for 15 minutes and every dial list starts
-        // there, "silent"/"reset" marks it dead for 10 minutes with
-        // strike escalation 60s->5m->30m ending the debug.18 report's
-        // re-gamble — the top failing host ran 13 flows for 8
-        // failures, every wave re-rolling the same mixed live-and-
-        // blackholed answer set the 60 s penalty kept re-serving; the
-        // stable API fronts probe first, the freshest sn-codes'
-        // rr1..rr5 right behind), the raced-path salvage round (an
-        // all-dead race now runs ONE more raced round over the answer
-        // set's untried unboxed origins before the terminal — the
-        // app's retry wave collapses into an in-engine budget, gated
-        // so a hopeless set keeps the fast ~2.6 s terminal), the
-        // Android lean stall budget 15s->8s (ADR-0029: the report's
-        // three mid-response corpses each held the app's retry for
-        // the whole 15 s desktop budget; the platform gate lives in
-        // the engine's listener build, desktop keeps 15 s
-        // byte-for-byte), and the ADR-0030 diagnostics (the
-        // auto-timeline heuristic — play-suspected after routed quiet,
-        // first-data on the down-burst, the buttons stay authoritative
-        // — plus the origin-probe counters, the box's live/strikes
-        // counts, the good count, the stall tier split with the
-        // budget that fired, racedSaves/salvagedSaves/routedFlows).
-        // Installs over debug.18 (the same pinned debug certificate —
-        // D85). The D84 rule: every debug build bumps this. D103: the
-        // APK asset is named v1.6.6-debug19.apk.
-        versionCode = 18
+        // versionCode 19: the M8-ab build (debug.20 — the escape-the-pool
+        // round): the debug.19 report proved the dead-origin pool works
+        // but only ever inside ONE hostname's rotating answer set
+        // (auto-timeline elapsed=44999ms pairs=5 — five retry waves
+        // gambling fresh unknown qxau5 IPs while the good table held 24
+        // verified origins no dial list ever saw, the video starting
+        // only when the app itself fell back to a foreign cache), so:
+        // (1) the cross-origin substitution (ADR-0031) — a
+        // *.googlevideo.com flow's raced round gains ONE substitute
+        // candidate dialing the good pool's verified-live origins
+        // (not in the current answer set, not boxed, freshest verdict
+        // first; the identical fragmented ClientHello replays with the
+        // SNI unchanged — Google's video edge serves any
+        // *.googlevideo.com name, the Iranian hosts-file IP-pin
+        // practice rides exactly this; flat dial count — the
+        // substitute replaces one own-set rotation), flow first-byte
+        // SUCCESSES now feed the pool too (the session's own
+        // foreign-cache win arms every later flow), and a first-byte
+        // death on a pool origin drops its good mark and boxes it (the
+        // ADR-0028 demote actually implemented — the debug.19 code's
+        // latent leak that resurfaced dead IPs at the FRONT of dial
+        // lists once the box lapsed); (2) the probe coverage and
+        // cadence (ADR-0032) — the pass's name list walks the learned
+        // code store ROUND-ROBIN (one rr name per code, 12 codes a
+        // pass, 48 IPs the cap: every remembered code, foreign
+        // clusters included, is verified within a few passes instead
+        // of the freshest-2 local cluster forever), a fast-start
+        // cadence (45 s passes while the engine is young and the
+        // gvideo pool is thin — the debug.19 session ran ONE pass in
+        // its whole 45 s cold start), and the churn kick (a
+        // googlevideo terminal — all-dead raced round + dead salvage
+        // — bumps gvideoTerminals and the gvideo loop's 1 s watch
+        // kicks an immediate pass, 10 s debounce); (3) the persisted
+        // verified-live pool (ADR-0033) — googlevideo-good-ips.txt
+        // seeded back at start with the shorter 5-minute TTL so the
+        // FIRST video of session N+1 rides the origins session N
+        // verified (a stale seed self-corrects through the demote);
+        // and the substitution line in the report
+        // (attempts/wins/pool — the one line that says whether the
+        // cross-cache bet worked in the field). Android-gated lanes
+        // stay android-gated (ADR-0028 decision 5: desktops
+        // byte-for-byte). Installs over debug.19 (the same pinned
+        // debug certificate — D85). The D84 rule: every debug build
+        // bumps this. D103: the APK asset is named
+        // v1.6.6-debug20.apk.
+        versionCode = 19
         versionName = "1.6.6"
     }
 

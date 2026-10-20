@@ -44,6 +44,13 @@ type Counters struct {
 	probeSilent   atomic.Int64
 	probeReset    atomic.Int64
 
+	// M8-ab (ADR-0031/0032/0033): the cross-origin substitution's
+	// attempts and wins, and the googlevideo terminal count the
+	// gvideo loop's churn watch kicks a probe pass on.
+	substAttempts   atomic.Int64
+	substWins       atomic.Int64
+	gvideoTerminals atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -132,6 +139,22 @@ func (c *Counters) ProbeSilent() { c.probeSilent.Add(1) }
 // ProbeReset counts a probe verdict of "reset".
 func (c *Counters) ProbeReset() { c.probeReset.Add(1) }
 
+// SubstAttempt counts one substitute candidate launched by a raced
+// round (M8-ab, ADR-0031): a pool origin dialed in place of one
+// own-set rotation for a *.googlevideo.com flow.
+func (c *Counters) SubstAttempt() { c.substAttempts.Add(1) }
+
+// SubstWin counts one flow whose substitute candidate delivered the
+// first byte and won the round (M8-ab, ADR-0031) — the counter the
+// next report reads to say the escape worked in the field.
+func (c *Counters) SubstWin() { c.substWins.Add(1) }
+
+// GvideoTerminal counts one googlevideo flow that terminaled after
+// its raced round AND its untried salvage all died (M8-ab, ADR-0032):
+// the churn signal the gvideo loop's 1 s watch kicks an immediate
+// origin-probe pass on.
+func (c *Counters) GvideoTerminal() { c.gvideoTerminals.Add(1) }
+
 // Snapshot is the 1-second UI snapshot (JSON shape from file 01, section 10).
 type Snapshot struct {
 	BytesDown   int64   `json:"bytesDown"`
@@ -190,17 +213,21 @@ type All struct {
 	FirstByteSlow    int64 `json:"firstByteSlow"`
 	// M8-aa (ADR-0028/0029/0030): the tier split, the saves, the routed
 	// flow starts, and the origin-probe verdicts.
-	StallKillLean int64     `json:"stallKillLean"`
-	StallKillRich int64     `json:"stallKillRich"`
-	RacedSaves    int64     `json:"racedSaves"`
-	SalvagedSaves int64     `json:"salvagedSaves"`
-	RoutedFlows   int64     `json:"routedFlows"`
-	ProbePasses   int64     `json:"probePasses"`
-	ProbeIPs      int64     `json:"probeIPs"`
-	ProbeAnswered int64     `json:"probeAnswered"`
-	ProbeSilent   int64     `json:"probeSilent"`
-	ProbeReset    int64     `json:"probeReset"`
-	StartedAt     time.Time `json:"startedAt"`
+	StallKillLean int64 `json:"stallKillLean"`
+	StallKillRich int64 `json:"stallKillRich"`
+	RacedSaves    int64 `json:"racedSaves"`
+	SalvagedSaves int64 `json:"salvagedSaves"`
+	RoutedFlows   int64 `json:"routedFlows"`
+	ProbePasses   int64 `json:"probePasses"`
+	ProbeIPs      int64 `json:"probeIPs"`
+	ProbeAnswered int64 `json:"probeAnswered"`
+	ProbeSilent   int64 `json:"probeSilent"`
+	ProbeReset    int64 `json:"probeReset"`
+	// M8-ab (ADR-0031/0032/0033).
+	SubstAttempts   int64     `json:"substAttempts"`
+	SubstWins       int64     `json:"substWins"`
+	GvideoTerminals int64     `json:"gvideoTerminals"`
+	StartedAt       time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
@@ -228,6 +255,9 @@ func (c *Counters) Diagnostic() All {
 		ProbeAnswered:    c.probeAnswered.Load(),
 		ProbeSilent:      c.probeSilent.Load(),
 		ProbeReset:       c.probeReset.Load(),
+		SubstAttempts:    c.substAttempts.Load(),
+		SubstWins:        c.substWins.Load(),
+		GvideoTerminals:  c.gvideoTerminals.Load(),
 		StartedAt:        c.startedAt,
 	}
 }

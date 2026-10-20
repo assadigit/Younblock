@@ -398,6 +398,25 @@ func (s *Server) logTunnelFirstByteRaced(host, class string, dials int) {
         s.cfg.Logger.Info(msg)
 }
 
+// logTunnelFirstByteSubstituted records a flow the cross-origin
+// substitute saved (M8-ab, ADR-0031): the host's own answer set lost
+// the raced round and a VERIFIED-LIVE pool origin delivered the first
+// byte instead — the debug.19 report's 45 s escape (five retry waves
+// gambling rotated unknowns until the app's own fallback landed a
+// foreign cache) collapsed into one round. dials is the pool list the
+// candidate walked.
+func (s *Server) logTunnelFirstByteSubstituted(host, class string, dials int) {
+        s.stats.SubstWin() // one flow the substitute saved (M8-ab, ADR-0031's counter)
+        if s.cfg.Logger == nil {
+                return
+        }
+        msg := fmt.Sprintf("tunnel first-byte substituted class=%s dials=%d", class, dials)
+        if s.cfg.LogHostnames {
+                msg += " host=" + host
+        }
+        s.cfg.Logger.Info(msg)
+}
+
 // logTunnelStallKilled records the stall kill (M8-v, ADR-0020; M8-x,
 // ADR-0022): a budgeted flow whose relay went silent in BOTH
 // directions for the whole effective budget — the debug.13 report's
@@ -903,6 +922,12 @@ type racedCandidate struct {
         // evidence) and for every death (canceled or not) the
         // candidate's own conn does not witness.
         deadIP string
+        // subst marks the cross-origin substitute candidate (M8-ab,
+        // ADR-0031): its conn dialed a VERIFIED-LIVE pool origin, not
+        // this host's answer set — a win is the escape the substitution
+        // line counts, and its death demotes the POOL origin (never the
+        // host's answer set).
+        subst bool
 }
 
 // raceFirstByte runs one raced first-byte round (M8-w, ADR-0021): the
@@ -924,6 +949,17 @@ type racedCandidate struct {
 // round's untried computation (a dial failure reports no IP; the
 // primary's IP rides its own result).
 //
+// M8-ab (ADR-0031): when subst is non-empty (a *.googlevideo.com
+// flow's escape hatch), ONE extra candidate slot becomes the
+// substitute — it dials the good pool's verified-live origins instead
+// of an answer-set rotation, replaying the identical fragmented hello
+// with the SNI unchanged (Google's video edge serves any
+// *.googlevideo.com name). The dial count stays flat: the substitute
+// replaces one own-set rotation. A substitute win is reported through
+// the final return so the caller logs the escape; a substitute death
+// demotes the POOL origin (box + good-mark drop) and never the host's
+// answer set.
+//
 // The debug.14 report's evidence this shape answers: attempt 0 still
 // walked its budget ALONE before the M8-v race launched (six timeout
 // terminals at 5320–5576 ms = the two-budget chain, salvage saves only
@@ -932,13 +968,22 @@ type racedCandidate struct {
 // per-moment, so spending the dial budget in parallel from t=0 lands a
 // mixed-window flow at its fastest live origin and terminals an
 // all-dead flow at ~1 budget instead of 2.
-func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []net.IP, snapshot []byte, firstLen int, isTLS bool, preset fragment.Preset, fcfg fragment.Config, raceN int) (net.Conn, []byte, string, []string) {
+func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []net.IP, snapshot []byte, firstLen int, isTLS bool, preset fragment.Preset, fcfg fragment.Config, raceN int, subst []net.IP) (net.Conn, []byte, string, []string, bool) {
+        substN := 0
+        if s.cfg.GoodIPSubstitution > 0 && len(subst) > 0 && raceN > 0 {
+                substN = 1
+                raceN-- // the substitute replaces one own-set rotation — flat dial count
+                if s.cfg.Stats != nil {
+                        s.cfg.Stats.SubstAttempt()
+                }
+        }
         total := raceN
         if primary != nil {
                 total++
         }
+        total += substN
         if total == 0 {
-                return nil, nil, "", nil
+                return nil, nil, "", nil, false
         }
         results := make(chan racedCandidate, total)
         stopRound := make(chan struct{})
@@ -956,6 +1001,8 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
 
         // launch starts one candidate. pre != nil is the primary (already
         // dialed; its dial time is the head start the extras must beat).
+        // substCandidate marks the cross-origin substitute (M8-ab): its
+        // list dials the good pool, its result carries the flag. A
         // deathCanceled classifies one death: teardown-caused only when the
         // round ended AND the error is the teardown's own fingerprint (the
         // aborted dial ctx or a conn closed under the candidate) — a budget
@@ -966,8 +1013,8 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                 }
                 return errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled)
         }
-        launch := func(pre net.Conn, list []net.IP) {
-                go func(pre net.Conn, list []net.IP) {
+        launch := func(pre net.Conn, list []net.IP, substCandidate bool) {
+                go func(pre net.Conn, list []net.IP, substCandidate bool) {
                         conn := pre
                         if conn == nil {
                                 ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
@@ -981,14 +1028,14 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                                 var derr error
                                 conn, derr = s.cfg.Dialer.DialHost(ctx, "tcp", host, port, list)
                                 if derr != nil {
-                                        results <- racedCandidate{death: "dial", canceled: deathCanceled(derr)}
+                                        results <- racedCandidate{death: "dial", canceled: deathCanceled(derr), subst: substCandidate}
                                         return
                                 }
                         }
                         if werr := s.writeReplay(conn, snapshot, firstLen, isTLS, preset, fcfg); werr != nil {
                                 deadIP := remoteIP(conn)
                                 conn.Close()
-                                results <- racedCandidate{death: firstByteReason(werr), canceled: deathCanceled(werr), deadIP: deadIP}
+                                results <- racedCandidate{death: firstByteReason(werr), canceled: deathCanceled(werr), deadIP: deadIP, subst: substCandidate}
                                 return
                         }
                         cbuf := getBuf()
@@ -998,31 +1045,40 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                         if cn > 0 {
                                 firstDown := append([]byte(nil), (*cbuf)[:cn]...)
                                 putBuf(cbuf)
-                                results <- racedCandidate{conn: conn, first: firstDown}
+                                results <- racedCandidate{conn: conn, first: firstDown, subst: substCandidate}
                                 return
                         }
                         putBuf(cbuf)
                         deadIP := remoteIP(conn)
                         conn.Close()
-                        results <- racedCandidate{death: firstByteReason(cerr), canceled: deathCanceled(cerr), deadIP: deadIP}
-                }(pre, list)
+                        results <- racedCandidate{death: firstByteReason(cerr), canceled: deathCanceled(cerr), deadIP: deadIP, subst: substCandidate}
+                }(pre, list, substCandidate)
         }
 
         dialed := make([]string, 0, total)
+        substWin := false
         if primary != nil {
-                launch(primary, nil)
+                launch(primary, nil, false)
                 for i := 0; i < raceN; i++ {
-                        launch(nil, rotateIPs(ips, i+1))
+                        launch(nil, rotateIPs(ips, i+1), false)
+                }
+                if substN > 0 {
+                        launch(nil, subst, true)
                 }
         } else {
                 // The salvage round's shape: no primary, the rotations start at 0.
                 for i := 0; i < raceN; i++ {
-                        launch(nil, rotateIPs(ips, i))
+                        launch(nil, rotateIPs(ips, i), false)
+                }
+                if substN > 0 {
+                        launch(nil, subst, true)
                 }
         }
 
         // Collect: the first speaking origin wins; every natural death
-        // demotes (one per dead candidate, the M8-o loop).
+        // demotes (one per dead candidate, the M8-o loop). A substitute's
+        // death demotes the POOL origin only — the host's answer set was
+        // never dialed by it (M8-ab).
         var winner net.Conn
         var winnerFirst []byte
         lastDeath := ""
@@ -1034,7 +1090,7 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                         continue // cannot precede a winner; defensive
                 }
                 if res.conn != nil {
-                        winner, winnerFirst = res.conn, res.first
+                        winner, winnerFirst, substWin = res.conn, res.first, res.subst
                         if ip := remoteIP(res.conn); ip != "" {
                                 dialed = append(dialed, ip)
                         }
@@ -1045,10 +1101,12 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                         dialed = append(dialed, res.deadIP)
                         s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
                 }
-                s.invalidateDNS(host)
+                if !res.subst {
+                        s.invalidateDNS(host)
+                }
         }
         if winner == nil {
-                return nil, nil, lastDeath, dialed
+                return nil, nil, lastDeath, dialed, false
         }
         // The round ended with a winner: the still-pending candidates are
         // reaped in the background — a late speaker is closed (it lost),
@@ -1066,11 +1124,13 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                                 if res.deadIP != "" {
                                         s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
                                 }
-                                s.invalidateDNS(host)
+                                if !res.subst {
+                                        s.invalidateDNS(host)
+                                }
                         }
                 }
         }(pending)
-        return winner, winnerFirst, "", dialed
+        return winner, winnerFirst, "", dialed, substWin
 }
 
 // racedSalvage is one raced salvage round's outcome: the winning origin
@@ -1135,11 +1195,16 @@ func (s *Server) raceIPList(host string, port int, ips []net.IP, count int, snap
         // Collect: the first speaking origin wins; the still-pending
         // candidates are reaped in the background (their conns closed, their
         // late deaths still demoted — one per dead candidate, the M8-o loop).
+        // A winner SPOKE on the flow's own wire shape — the good-pool
+        // evidence the substitute candidates draw from (M8-ab, ADR-0031).
         deaths := 0
         for {
                 res := <-results
                 if res.conn != nil {
                         out.conn, out.first = res.conn, res.first
+                        if ip := remoteIP(res.conn); ip != "" {
+                                s.markGoodIP(ip, isGvideoHost(host))
+                        }
                         break
                 }
                 deaths++
@@ -1207,7 +1272,7 @@ func (s *Server) untriedIPs(host string, dialed []string) []net.IP {
         s.goodMu.Lock()
         var live, neutral []net.IP
         for _, ip := range kept {
-                if until, ok := s.good[ip.String()]; ok && now.Before(until) {
+                if m, ok := s.good[ip.String()]; ok && now.Before(m.until) {
                         live = append(live, ip)
                 } else {
                         neutral = append(neutral, ip)
@@ -1293,6 +1358,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         }
         // failFlow is the M8-s terminal: both ends closed, the error
         // counted once, the reason line, the done line with final totals.
+        // A googlevideo terminal is the churn signal the engine's gvideo
+        // loop kicks an origin-probe pass on (M8-ab, ADR-0032) — the
+        // flow's raced round AND its untried salvage all died.
         failFlow := func(reason string) {
                 link.swap(nil) // unblocks a pump stuck writing before anything else
                 if pumpRunning {
@@ -1301,6 +1369,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 }
                 tc.closeBoth()
                 s.countConnError()
+                if isGvideoHost(host) {
+                        s.stats.GvideoTerminal()
+                }
                 s.logTunnelFirstByteFailed(host, class, reason)
                 s.logTunnelDone(host, class, time.Since(tstart), flow)
         }
@@ -1366,12 +1437,36 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 } else {
                         raceN = 0
                 }
-                winner, winnerFirst, lastDeath, dialedIPs := s.raceFirstByte(upstream, host, port, raceIPs, replay.bytes(), len(first), isTLS, preset, fcfg, raceN)
+                // M8-ab (ADR-0031): the cross-origin escape hatch. A googlevideo
+                // flow whose answer set is all blackholed cache nodes gets ONE
+                // substitute candidate — the good pool's verified-live origins,
+                // not in this answer set, not boxed, freshest verdict first.
+                // The substitute replays the identical fragmented ClientHello
+                // (SNI unchanged — the client's own hello): Google's video edge
+                // serves any *.googlevideo.com name, so the flow rides an
+                // origin the engine has SEEN speak instead of re-gambling the
+                // rotation. Non-gvideo hosts and empty pools keep the exact
+                // debug.19 round.
+                subst := []net.IP(nil)
+                if isGvideoHost(host) {
+                        subst = s.goodSubstitutes(raceIPs, config.SubstitutionPoolDials)
+                }
+                winner, winnerFirst, lastDeath, dialedIPs, substWin := s.raceFirstByte(upstream, host, port, raceIPs, replay.bytes(), len(first), isTLS, preset, fcfg, raceN, subst)
                 // The first record went upstream on every candidate; it
                 // counts once (the winner's copy is the flow's).
                 if len(first) > 0 {
                         s.stats.AddBytesUp(int64(len(first)))
                         flow.up.Add(int64(len(first)))
+                }
+                // The winner SPOKE with the exact wire shape a real flow
+                // sends — stronger evidence than the probe's synthetic hello,
+                // and the pool the substitute candidates draw from (M8-ab,
+                // ADR-0031: the session's own foreign-cache win arms every
+                // later flow).
+                if winner != nil {
+                        if ip := remoteIP(winner); ip != "" {
+                                s.markGoodIP(ip, isGvideoHost(host))
+                        }
                 }
                 if winner == nil {
                         // M8-aa (ADR-0028): the raced round died on every candidate
@@ -1438,7 +1533,9 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 s.stats.AddBytesDown(int64(len(winnerFirst)))
                 flow.down.Add(int64(len(winnerFirst)))
                 onFirst()
-                if winner != upstream {
+                if substWin {
+                        s.logTunnelFirstByteSubstituted(host, class, len(subst))
+                } else if winner != upstream {
                         s.logTunnelFirstByteRaced(host, class, raceN)
                 }
                 relayEntry(winner)
@@ -1476,7 +1573,11 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         // The origin spoke. Deliver the first bytes, then hand
                         // the client reads to the plain two-goroutine relay
                         // (the pump's reads are all delivered; the shape from
-                        // here is byte-for-byte the plain copy's).
+                        // here is byte-for-byte the plain copy's). The spoke
+                        // origin is good-pool evidence (M8-ab, ADR-0031).
+                        if ip := remoteIP(origin); ip != "" {
+                                s.markGoodIP(ip, isGvideoHost(host))
+                        }
                         if err := writeFull(client, (*buf)[:n], s.cfg.IdleTimeout); err != nil {
                                 putBuf(buf)
                                 // The origin spoke but the client is gone: a

@@ -354,9 +354,10 @@ func (e *Engine) GetDiagnosticReport() string {
 	fmt.Fprintf(&b, "counters: plainFirstByteTimeouts %d, dialNear %d, dialFar %d, slowFirstBytes %d\n",
 		d.PlainFirstByteTo, d.DialNear, d.DialFar, d.FirstByteSlow)
 	// M8-aa (ADR-0028/0029/0030): the tier split, the raced/salvage
-	// saves, the routed-flow starts, and the origin-probe verdicts.
-	fmt.Fprintf(&b, "counters: stallKillsLean %d, stallKillsRich %d, racedSaves %d, salvagedSaves %d, routedFlows %d\n",
-		d.StallKillLean, d.StallKillRich, d.RacedSaves, d.SalvagedSaves, d.RoutedFlows)
+	// saves, the routed-flow starts, and the origin-probe verdicts;
+	// M8-ab adds the googlevideo terminal count the churn kick reads.
+	fmt.Fprintf(&b, "counters: stallKillsLean %d, stallKillsRich %d, racedSaves %d, salvagedSaves %d, routedFlows %d, gvideoTerminals %d\n",
+		d.StallKillLean, d.StallKillRich, d.RacedSaves, d.SalvagedSaves, d.RoutedFlows, d.GvideoTerminals)
 	// §8.3.3: the DoH transport's own counters (dials opened, reuse,
 	// hedge wins by server number) ride the header too.
 	dohd := e.resolver.Load().Diagnostic()
@@ -406,6 +407,20 @@ func (e *Engine) GetDiagnosticReport() string {
 	}
 	fmt.Fprintf(&b, "origin probe: passes=%d ips=%d answered=%d silent=%d reset=%d good=%d penalized=%d strikes=%d\n",
 		d.ProbePasses, d.ProbeIPs, d.ProbeAnswered, d.ProbeSilent, d.ProbeReset, good, penalized, strikes)
+	// M8-ab (ADR-0031): the cross-origin substitution's own evidence —
+	// how many substitute candidates launched, how many won their
+	// round, and the pool they drew from (total verified-live origins,
+	// gvideo-flagged among them). The one line that says whether the
+	// escape worked in the field: attempts without wins means the
+	// cross-cache bet failed and the next round needs a different
+	// shape; wins with a shrinking auto-timeline means it worked.
+	// Counts only (R21).
+	poolTotal, poolGvideo := 0, 0
+	if srv := e.RunningServer(); srv != nil {
+		poolTotal, poolGvideo = srv.GoodIPStats()
+	}
+	fmt.Fprintf(&b, "substitution: attempts=%d wins=%d pool=%d (gvideo %d)\n",
+		d.SubstAttempts, d.SubstWins, poolTotal, poolGvideo)
 	// §8.3.3: the DNS detail — per recent failure, the server number,
 	// the phase that failed (tcp, tls, http, status, parse) and the
 	// latency.

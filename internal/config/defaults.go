@@ -123,10 +123,12 @@ const OriginProbeBudget = 2500 * time.Millisecond
 
 // OriginProbePerPass — how many answer IPs one origin-probe pass
 // verifies at most (M8-aa, ADR-0028): the stable OriginProbeNames
-// first, then the freshest learned googlevideo codes' rr names until
-// the budget fills. The pass runs while the engine is On, off the app's
-// critical path, on the same 5-minute cadence as the prewarm loop.
-const OriginProbePerPass = 32
+// first, then the learned googlevideo codes' rr names (round-robin,
+// M8-ab, ADR-0032) until the budget fills. The pass runs while the
+// engine is On, off the app's critical path, on the fast-start
+// cadence first and the prewarm cycle after. 48 leaves ~30 slots
+// after the stable fronts — a dozen distinct clusters per pass.
+const OriginProbePerPass = 48
 
 // OriginProbeInflight — the concurrency cap of the origin-probe pass
 // (M8-aa, ADR-0028): at most this many probe connections in flight,
@@ -358,6 +360,100 @@ const FirstByteRaceDials = 2
 // negative → disabled (the exact M8-x shape: every flow re-gambles the
 // whole answer set).
 const DeadIPPenalty = 60 * time.Second
+
+// GoodIPSubstitution — the cross-origin escape hatch (M8-ab,
+// ADR-0031). The debug.19 report proved the dead-origin pool works but
+// only ever inside ONE hostname's rotating answer set: five retry
+// waves (auto-timeline elapsed=44999ms pairs=5) re-gambled fresh
+// unknown qxau5 IPs while the good table held 24 verified origins no
+// dial list ever saw, and the video started only when the app itself
+// fell back to a foreign cache hostname. Google's video edge serves
+// any *.googlevideo.com origin (one wildcard service behind the
+// per-cluster names — the Iranian practice of pinning hand-picked
+// working cache IPs into a hosts file rides exactly this), so a flow
+// whose own answer set keeps dying may dial a VERIFIED-LIVE origin
+// from the good pool instead: the raced round's substitute candidate
+// replays the identical fragmented ClientHello — SNI unchanged, the
+// client's own hello — onto a pool origin that is not in the current
+// answer set and not penalized, freshest verdict first. Substitution
+// is scoped to *.googlevideo.com flows only (same-service wildcard;
+// the API fronts keep their own answers), the dial count stays flat
+// (the substitute replaces one own-set rotation), and a flow whose
+// pool bet dies keeps the untried-set salvage exactly as before.
+// Flow first-byte SUCCESSES feed the pool too (stronger evidence than
+// the probe's synthetic hello — the session's one foreign-cache win
+// arms every later flow), and a first-byte DEATH on a pool origin
+// drops its good mark and boxes it (the ADR-0028 demote, actually
+// implemented — the debug.19 code left the stale mark live). Positive
+// in a proxy Config → the per-flow substitute candidate cap; zero →
+// this default; negative → disabled (the exact debug.19 shape).
+const GoodIPSubstitution = 1
+
+// SubstitutionPoolDials — how many pool origins one substitute
+// candidate's dial list may walk (M8-ab, ADR-0031): DialHost staggers
+// them Happy-Eyeballs style, so a dead pool origin costs ~750 ms
+// before the next starts — inside the raced round's budget, never
+// blocking a live winner (the first speaker breaks the collect).
+const SubstitutionPoolDials = 3
+
+// GoogleVideoGoodIPsFile — the persisted verified-live googlevideo
+// pool (M8-ab, ADR-0033): one IP per line, gvideo-flagged, seeded back
+// at engine start with the shorter GoodPoolSeedTTL so the FIRST video
+// of session N+1 rides the origins session N verified. Stale seeds
+// self-correct — a flow death on a seeded origin drops its mark and
+// boxes it like any other. Same privacy footing as the codes file:
+// infrastructure addresses in the app's private data directory, never
+// a log line (R21).
+const GoogleVideoGoodIPsFile = "googlevideo-good-ips.txt"
+
+// GoodPoolSeedTTL — how long a PERSISTED good mark lives when seeded
+// back at start (M8-ab, ADR-0033): shorter than OriginProbeGoodTTL —
+// yesterday's verdict is stale evidence, and the demote-on-death
+// guard bounds the cost of a seed that went bad overnight.
+const GoodPoolSeedTTL = 5 * time.Minute
+
+// GoodPoolSaveEvery — how often the engine re-checks whether the
+// gvideo good pool changed and needs writing to
+// GoogleVideoGoodIPsFile (M8-ab, ADR-0033). The write itself only
+// happens on change.
+const GoodPoolSaveEvery = 15 * time.Second
+
+// ProbeCodesPerPass — how many learned googlevideo codes ONE
+// origin-probe pass covers (M8-ab, ADR-0032): the debug.19 pass
+// probed rr1..rr5 of the 2 FRESHEST codes — early in a session that
+// is the local cluster twice, so the verified pool could not escape
+// the blackhole even in principle. The pass now walks the code store
+// round-robin, one rr name per code (rr1..rr5 share the cluster's
+// rotating answers), so every remembered code — foreign clusters
+// included — is verified within a few passes.
+const ProbeCodesPerPass = 12
+
+// ProbeFastStartEvery — the origin-probe pass cadence while the
+// engine is young (M8-ab, ADR-0032): passes every 45 s until the
+// gvideo good pool carries ProbeFastStartPoolFloor origins or
+// ProbeFastStartWindow passes, then the 5-minute prewarm cadence
+// takes over. The debug.19 session ran ONE pass in its whole cold
+// start; the 45 s window puts fresh verdicts inside the first
+// video's retry waves. Android lane only (ADR-0028 decision 5: the
+// desktops keep the byte-for-byte M8-z loop).
+const ProbeFastStartEvery = 45 * time.Second
+
+// ProbeFastStartWindow — how long the fast-start probe cadence may
+// run before settling to the prewarm cadence (M8-ab, ADR-0032).
+const ProbeFastStartWindow = 5 * time.Minute
+
+// ProbeFastStartPoolFloor — the gvideo good-pool size that ends the
+// fast-start cadence early (M8-ab, ADR-0032).
+const ProbeFastStartPoolFloor = 8
+
+// ProbeChurnKickDebounce — the minimum spacing between churn-kicked
+// origin-probe passes (M8-ab, ADR-0032): a googlevideo flow that
+// terminaled (its raced round AND its untried salvage all dead) bumps
+// the gvideoTerminals counter, and the gvideo loop's 1 s watch kicks
+// an immediate pass — verified origins land inside the app's next
+// retry wave instead of the next 5-minute cycle. The debounce keeps
+// a hopeless minute from spending the radio on back-to-back passes.
+const ProbeChurnKickDebounce = 10 * time.Second
 
 // StallTimeout — how long a processed host's relay may stay silent in
 // BOTH directions before the flow is closed as a mid-stream stall

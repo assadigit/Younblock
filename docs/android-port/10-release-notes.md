@@ -1,41 +1,119 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-aa (2026-10-20 — the debug.19 round, the
-dead-origin-pool fixes the FIRST debug.18 report measured: the
-verified prewarm + strike escalation + the good table (ADR-0028), the
-raced-path salvage round over the untried origins (ADR-0028), the
-Android 8 s lean stall budget (ADR-0029), and the auto-timeline
-heuristic + the M8-aa counters (ADR-0030). The tester's debug.18
-report answered the cold-start spec's own §12 grid: the plain lane
-healthy (H1 disproven — the debug.18 fixes held), DoH healthy, the
-QUIC fallback instant, the dead-origin probe silent on BOTH sni=alt
-AND sni=none — IP-level blackholing, "the penalty box is right" —
-and ALL 38 remaining errors class=routed: ~20 first-byte terminals at
-exactly one budget (dur≈2.6 s), three lean stall kills at exactly
-15 s carrying half-finished responses, the top host 13 flows for 8
-failures, the app's retry waves re-rolling the same mixed
-live-and-blackholed answer set. Earlier at M8-z (2026-10-19, night —
-the debug.18 round, the cold-start fix per
-docs/specs/debug18-cold-start.md: fragment EVERY routed app's TLS on
-Android + the plain-relay 8 s safety net (ADR-0024), the
-one-warm-connection hedged DoH (ADR-0025), the measurable QUIC
-fallback (ADR-0026), and the diagnostics surface that can PROVE it
-all (ADR-0027). Earlier at M8-y (2026-10-19, evening —
-Ali's EIGHTH
-pasted report round; the FIRST from the right build: the shell line
-reads versionCode 15 = the debug.16 build, both of its signatures
-present — the raced line and the tier= stall line — and Ali's own
-words closed ADR-0022: "The original problem (videos taking time to
-play) persist, but the problem of easily going next and back in same
-video instantly is fixed"). The report measures the start lag's two
-remaining sources: the DNS negative-cache lockout (dns ok 142 /
-fail 50 with doorFailures=50, the failure lines pairing at the same
-millisecond — one DoH blip's tail amplified through the 15 s TTL on
-fresh per-video hostnames) and the dead-origin re-gamble (~17
-timeout terminals at 2892–4304 ms plus ~8 resets through the raced
-round, the second video's start paying the full discovery cost
-again).
-**v1.6.6-android-debug.19 (versionCode 18) is the CURRENT build** —
+**Status:** updated at M8-ab (2026-10-20 — the debug.20 round, the
+escape-the-pool fixes the FIRST debug.19 report measured: the
+cross-origin substitution from the verified-live pool (ADR-0031), the
+probe pass's round-robin coverage + fast-start cadence + churn kick
+(ADR-0032), and the persisted good pool (ADR-0033). The tester's
+debug.19 report proved the dead-origin pool WORKS — racedSaves=9, the
+box and probe verdicts healthy — but only ever inside ONE hostname's
+rotating answer set: auto-timeline play->first-data elapsed=44999ms
+pairs=5, five app retry waves gambling fresh unknown qxau5 cache IPs
+while the good table held 24 verified origins no dial list ever saw,
+the video starting only when the app ITSELF fell back to a foreign
+cache hostname (r5---sn-4g5e6nsy / r2---sn-nv47lnsr — the only
+googlevideo hosts with clean first-bytes in the whole window); plus
+the round's own confession, the one pass ran at engine start and its
+name list was the stable fronts plus the 2 FRESHEST learned codes —
+early in a session the local cluster twice, so the pool could not
+have escaped the blackhole even in principle. Earlier at M8-aa
+(2026-10-20 — the debug.19 round, the dead-origin-pool fixes the
+FIRST debug.18 report measured: the verified prewarm + strike
+escalation + the good table (ADR-0028), the raced-path salvage round
+over the untried origins (ADR-0028), the Android 8 s lean stall
+budget (ADR-0029), and the auto-timeline heuristic + the M8-aa
+counters (ADR-0030). The tester's debug.18 report answered the
+cold-start spec's own §12 grid: the plain lane healthy (H1 disproven —
+the debug.18 fixes held), DoH healthy, the QUIC fallback instant, the
+dead-origin probe silent on BOTH sni=alt AND sni=none — IP-level
+blackholing, "the penalty box is right" — and ALL 38 remaining errors
+class=routed: ~20 first-byte terminals at exactly one budget
+(dur≈2.6 s), three lean stall kills at exactly 15 s carrying
+half-finished responses, the top host 13 flows for 8 failures, the
+app's retry waves re-rolling the same mixed live-and-blackholed answer
+set.**v1.6.6-android-debug.20 (versionCode 19) is the CURRENT build** —
+the escape-the-pool round. What changed, in plain words:
+
+- **A video connection whose own addresses keep dying now ESCAPES to
+  an address the engine has already seen speak** (Android-tuned;
+  desktops benefit too once their pool fills). Your debug.19 report
+  showed the whole remaining wait: five retry waves re-gambling
+  fresh unknown addresses of the same blackholed local cache cluster
+  — 45 seconds — while 24 verified-good addresses sat in a table no
+  connection could reach, until YouTube itself fell back to a foreign
+  cache and the video finally played. Google's video edge serves ANY
+  googlevideo.com name from any of its caches (this is exactly the
+  trick behind the "working YouTube IPs" hosts-file lists Iranians
+  share), so when a video connection's raced round would die, one of
+  its candidates now dials a VERIFIED-LIVE pool address instead —
+  same fragmented hello, same name, different cache. If that cache
+  answers, the video starts in one round.
+- **The pool now fills from the connections that ACTUALLY WORKED**
+  (not just the background probes): every first byte that lands marks
+  its address verified-live — the one foreign cache that served you
+  this session now arms every later connection. And an address that
+  goes black is dropped from the pool the moment a connection dies on
+  it (a latent leak the debug.19 code left: dead addresses could
+  resurface at the FRONT of the dial lists).
+- **The background verification now covers ALL the cache clusters it
+  knows, not just the two newest ones, and runs FAR more often while
+  it matters**: passes every 45 seconds while the engine is young and
+  the pool is thin (your session ran ONE pass in its whole cold
+  start), the name list walks every learned cluster in turn, and a
+  video connection that dies completely triggers an immediate extra
+  verification pass — verified addresses land inside the app's NEXT
+  retry wave, not the next 5-minute cycle.
+- **The verified pool now PERSISTS across sessions**
+  (googlevideo-good-ips.txt, in the app's private data): the first
+  video of your next session rides the addresses this session
+  verified. A stale entry self-corrects — one dead connection drops
+  and blacklists it.
+- **The report says whether the escape worked**: a new
+  "substitution: attempts=N wins=M pool=G (gvideo V)" line (wins>0 =
+  the cross-cache bet paid; attempts>0 with wins=0 = it did not, and
+  the next report tells us to change the shape), a "tunnel
+  first-byte substituted" log line beside the raced one, and the
+  googlevideo-terminal counter the immediate re-verification
+  triggers on.
+
+**The debug.20 artifact** (built this round, verified before packing):
+`v1.6.6-debug20.apk`, versionCode 19 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
+certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
+over every earlier debug build, D85), APK size and SHA-256 as recorded
+below once built. Built from commit COMMIT_SHA_PLACEHOLDER. The
+gomobile bind ran with the debug-tester ldflags
+(`-X …/internal/config.DebugTesterBuild=true`) and the M8-ab
+signatures were verified present in libgojni.so in ALL THREE ABIs
+before gradle (the house ritual): the substitution line, the
+substituted first-byte line, gvideoTerminals, the good pool save
+line's source string, and 1.6.6-debug.20.
+
+**Tester checklist for debug.20 (the 5 steps):**
+
+1. Install debug.20 and open the app. Turn it **On**, then give it
+   about 15 seconds (the fast-start verification passes are filling
+   the pool — the "origin probe:" line shows passes climbing).
+2. Fully close the YouTube app, then open it fresh.
+3. Tap **"I pressed play"** in the Younblock diagnostics screen, then
+   play a **new** video in YouTube.
+4. When the first frame appears, tap **"First frame"**.
+5. Play two more new videos, turn Younblock **Off then On again**
+   (this seeds the next session's pool), play one more new video,
+   then open **Diagnostics** and send the whole report.
+
+What to look for: the elapsed time between your two taps (target well
+under the debug.19 baseline of 45 s — with substitution working, the
+first video should land in seconds); the `substitution:` line —
+`attempts` >0 means the escape is firing, `wins` >0 means it WORKED
+(this is the round's headline number); `origin probe: passes=` should
+climb several entries during the first minutes (the fast-start
+cadence); and after the Off/On cycle, the LAST video should start
+fast too (the persisted pool seeding). If `attempts` >0 but `wins`
+stays 0, send the report anyway — that single number says the
+cross-cache bet failed on your ISP and the next round changes shape.
+
+Earlier at M8-aa: **v1.6.6-android-debug.19 (versionCode 18)** was
 the dead-origin-pool round. What changed, in plain words:
 
 - **The engine now VERIFIES the video hosts' addresses before your

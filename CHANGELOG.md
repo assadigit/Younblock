@@ -12,6 +12,53 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-20 — M8-ab; shipping in `v1.6.6-android-debug.20`, versionCode 19)
+
+- **"The problem persists" — the tester's FIRST debug.19 report
+  measured 45 s of play→first-data (auto-timeline elapsed=44999ms,
+  pairs=5) and this round removes its root cause: the dead-origin
+  pool worked but its SCOPE was the failing hostname's own rotating
+  answer set. The escape-the-pool fixes (ADR-0031/0032/0033).**
+  (1) **The cross-origin substitution (ADR-0031)**: a
+  *.googlevideo.com flow's raced round replaces ONE own-set rotation
+  with a substitute candidate dialing the good pool's VERIFIED-LIVE
+  gvideo origins (not in the current answer set, not boxed, freshest
+  verdict first, up to 3 walked) — the identical fragmented
+  ClientHello replays with the SNI unchanged (Google's video edge
+  serves any googlevideo.com name; the Iranian hosts-file IP-pin
+  practice rides exactly this), the dial count stays flat, a win logs
+  "tunnel first-byte substituted" + substWins, a death demotes the
+  POOL origin (never the host's answer set); flow first-byte
+  SUCCESSES now feed the pool too (the session's own foreign-cache
+  win arms every later flow — the loop the 45 s escape never closed);
+  and a first-byte death on a pool origin DROPS its good mark and
+  boxes it (the ADR-0028 demote actually implemented — the debug.19
+  code's latent leak resurfaced dead IPs at the FRONT of dial lists
+  once the box lapsed). Knob GoodIPSubstitution (negative = the exact
+  debug.19 shape). (2) **The probe coverage + cadence (ADR-0032,
+  Android-only lanes)**: the pass's name list walks the learned code
+  store ROUND-ROBIN (one rr name per code, 12 codes a pass, the rr
+  index rotating, PerPass 32→48 — every remembered code, foreign
+  clusters included, is verified within a few passes instead of the
+  freshest-2 local cluster forever), a fast-start cadence (45 s passes
+  while the engine is <5 min old and the gvideo pool <8 — the
+  debug.19 session ran ONE pass in its whole cold start), and the
+  churn kick (failFlow on a googlevideo host bumps gvideoTerminals;
+  the gvideo loop's 1 s watch kicks an immediate prewarm+pass,
+  10 s debounce — verified origins land inside the app's next retry
+  wave). (3) **The persisted good pool (ADR-0033)**:
+  googlevideo-good-ips.txt (cap 32, app-private dir, beside the codes
+  store) written on change (15 s check) and at Stop, seeded at
+  listener start with a 5-minute TTL — the first video of session N+1
+  rides the origins session N verified; stale seeds self-correct
+  through the demote. (4) **Diagnostics**: the report's
+  `substitution: attempts=N wins=M pool=G (gvideo V)` line (the
+  round's headline number — wins>0 means the cross-cache bet paid),
+  gvideoTerminals on the counters line, the substituted first-byte
+  log line. Both-ways proven (substitution_test.go, m8ab_test.go);
+  full suite green (18 packages + mobile); race-clean on the touched
+  lanes.
+
 ### Fixed / Added (2026-10-20 — M8-aa; shipped in `v1.6.6-android-debug.19`, versionCode 18)
 
 - **The first video is STILL slow after debug.18 — the tester's

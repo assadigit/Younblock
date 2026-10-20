@@ -3866,3 +3866,69 @@ of the tree like every round's APK, uploaded as the release asset.
 
 Final verification: `go vet ./...` clean; `go test ./...` 18
 packages ok, 0 failures.
+
+## M8-ab — the escape-the-pool round (ADR-0031/0032/0033, debug.20, versionCode 19)
+
+Date: 2026-10-20 (Asia/Tehran), early morning. Input: the tester's
+FIRST debug.19 report (versionCode 18, the dead-origin-pool build,
+pasted 2026-10-20T00:54Z) — "The problem persists."
+
+What the report said, read through the round's own instruments: the
+dead-origin pool WORKS — racedSaves=9 (racing lands mixed-window
+flows on live origins), the box and good table healthy (probe
+answered=32/32 on the one pass, box strikes=6, the one-shot
+dead-origin probe SILENT on both SNI variants — IP-level blackholing
+confirmed again), the plain lane and DoH healthy, the QUIC fallback
+instant. But the one number that matters — auto-timeline
+play-suspected -> first-data **elapsed=44999ms pairs=5** — says five
+app retry waves paid the whole discovery cost anyway, and the code
+read says WHY: liveIPs, the raced extras, and the untried salvage all
+draw from the SAME hostname's rotating answer set, so the 24
+verified-good origins sat in a table no dial list of the failing
+hostnames could reach; the video started only when the app itself
+fell back to a foreign cache hostname (r5---sn-4g5e6nsy /
+r2---sn-nv47lnsr — the only googlevideo hosts with clean first-bytes
+in the window). The pass's own name list explained the pool's bias:
+stable fronts + rr1..rr5 of the 2 FRESHEST learned codes — early in
+a session, the local cluster twice. And markDeadIPTTL never dropped
+the good mark its ADR-0028 comment claimed it dropped (the latent
+leak: dead IPs resurfacing at the FRONT of dial lists once the box
+lapsed).
+
+The round:
+- **ADR-0031 (the substitution + the hygiene)**: goodMark{until,gvideo};
+  probe verdicts AND flow first-byte successes mark origins good (the
+  self-feeding pool); the raced round's substitute candidate (googlevideo
+  flows only, pool origins not in the current answer set and not boxed,
+  freshest verdict first, SubstitutionPoolDials=3 walked, flat dial
+  count, SNI unchanged, knob GoodIPSubstitution); the substitute win
+  line + substWins/substAttempts; substitute deaths demote the pool
+  origin, never the host's answer set; markDeadIPTTL drops the good
+  mark (the demote, actually implemented).
+- **ADR-0032 (coverage + cadence, android-gated lanes)**:
+  probePassNames round-robin over the code store (one rr name per
+  code, rr index rotating, ProbeCodesPerPass=12, PerPass 32→48);
+  fast-start cadence (45 s passes while <5 min old AND gvideo pool
+  <8); churn kick (gvideoTerminals in failFlow; the gvideo loop's 1 s
+  watch kicks an immediate prewarm+pass, ProbeChurnKickDebounce=10 s).
+- **ADR-0033 (persistence)**: googlevideo-good-ips.txt (cap 32) —
+  seeded at listener start with GoodPoolSeedTTL=5m, written on change
+  (15 s check) + Stop-time flush; loadGoodIPPool tolerates
+  missing/corrupt files; stale seeds self-correct through the demote.
+- **Diagnostics**: `substitution: attempts=N wins=M pool=G (gvideo V)`
+  report line; gvideoTerminals on the counters line; "tunnel
+  first-byte substituted class=… dials=…" log line (LogHostnames-gated
+  host like every tunnel line).
+- **Tests**: proxy/substitution_test.go (6: the escape, the neutered
+  control, the self-feeding pool, the demote, the churn signal, the
+  line's R21 privacy) + engine/m8ab_test.go (3: the rotation pure
+  function, the section render with no-leak guards, the persistence
+  round-trip). Both-ways: substitution neutered → the escape and the
+  self-feeding tests FAIL (the terminal signature / the empty pool);
+  the demote neutered → good count 1; the churn counter neutered →
+  gvideoTerminals 0. Full suite GREEN (18 packages + mobile);
+  race-clean on the touched lanes.
+- **Version:** mobile facade Version "1.6.6-debug.20"; gradle
+  versionCode 18→19 with the round's comment block; release notes /
+  CHANGELOG / README updated; the webui dist rebuilt from frontend
+  (the known fresh-checkout gap) before the mobile tests.
