@@ -81,7 +81,7 @@ the dead-origin-pool round. What changed, in plain words:
 targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
 certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
 over every earlier debug build, D85). Built from commit
-COMMIT_SHA_PLACEHOLDER. The gomobile bind ran with the debug-tester
+1143cc6f3894dceb072fbbd30370c13c569fb97f. The gomobile bind ran with the debug-tester
 ldflags (`-X …/internal/config.DebugTesterBuild=true`) and the M8-aa
 signatures were verified present in libgojni.so in ALL THREE ABIs
 before gradle (the house ritual): the origin probe line, the
