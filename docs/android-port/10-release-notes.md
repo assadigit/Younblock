@@ -56,9 +56,62 @@ substitution pool, flow-fed marks, the box rehabilitation):
   a flag state that debug.22 would have ridden into "never opens
   video again."
 
+**v1.6.6-android-debug.23 (versionCode 21+1=22) is the CURRENT
+build** — the wire-discipline round. What changed, in plain words:
+
+- **"It doesn't even open video after a while. But the feed
+  refreshes."** That split — video dead, feed alive — was the
+  clue. Both go through the same proxy, the same fragmented
+  hellos, the same DoH. What's different is VOLUME: for every
+  video connection the engine opened 4 parallel connections
+  (each sending a 299-piece fragmented hello), and on failure it
+  retried, re-raced, and fired background bursts of up to 48
+  more handshakes to googlevideo servers — while the feed's
+  connections to youtube.com are one-at-a-time and quiet. A
+  censor that flags noisy sources per service name slowly puts
+  your line on the googlevideo list: everything works early
+  ("after a while" = the flag accruing), then every googlevideo
+  connection is reset on sight — permanently, because our retry
+  machinery never stopped feeding it. The two projects you sent
+  (gfw_resist_HTTPS_proxy — the family backend.py comes from —
+  and WebImmortalGuards) never trip this because they emit ~1
+  hello per connection and zero background traffic. That's the
+  shape this round adopts.
+- **The numbers to read next report:** `gvideo discipline:
+  hellos=N cooldowns=M` next to `routedFlows` on the counters
+  line. If hellos settles near routedFlows (≈1 per flow), the
+  engine is finally as quiet as the Python. If cooldowns>0
+  appears during an evening test and video comes BACK after
+  ~45-60 s pauses instead of dying for the session, the silence
+  circuit is doing its job — note whether it fires.
+- **One ask:** watch whether the FIRST video after a fresh app
+  start plays (the startup background burst is gone — the pool
+  file + your first video's own connections now carry the cold
+  start), and if video ever wedges again, note whether it
+  recovers by itself within about a minute (the circuit) or
+  needs a manual refresh (tell us — that changes the next
+  round's tuning).
+
+**The debug.23 artifact** (built this round, verified before
+packing): `v1.6.6-debug23.apk`, versionCode 22 / versionName
+1.6.6 / minSdk 26 / targetSdk 36 (aapt2 badging), signed by the
+pinned test-circle debug certificate (SHA-256 `c76bb7c6…8551d`,
+apksigner verify — installs over every earlier debug build,
+D85), APK 55,283,553 B, SHA-256
+`c5d48c50a8c56e061b3c002db04d9711aa139668e7eaae848ed9db3a7c718c7c`.
+Built from commit a57a215. The gomobile bind ran with the
+debug-tester ldflags
+(`-X …/internal/config.DebugTesterBuild=true`) and the M8-ae
+signatures were verified present in libgojni.so in ALL THREE
+ABIs before gradle (the house ritual): the `gvideo discipline:
+hellos=` report line, `gvideo emission breaker armed`, `tunnel
+gvideo cooldown`, `gvideoHellos`, and `1.6.6-debug.23`; the
+uploaded asset re-downloaded and verified byte-identical
+(`cmp` + SHA-256).
+
 **v1.6.6-android-debug.22 (versionCode
-20+1=21) is the CURRENT build** — the long-lived-connection round.
-What changed, in plain words:
+20+1=21) — superseded by debug.23** — the long-lived-connection round.
+What changed, in plain words (kept for the record):
 
 - **The minute-5 bug has three killers now, and none of them is
   you pressing refresh.** Your report: a video plays fine, then at
