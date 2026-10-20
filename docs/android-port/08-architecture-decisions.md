@@ -15,7 +15,13 @@ fixes the first debug.19 report measured); ADR-0034…0036 record the
 debug.21 round (M8-ac, the hostile-network fixes the first debug.20
 report measured); ADR-0037…0039 record the debug.22 round (M8-ad, the
 long-lived-connection fixes the post-debug.21 report named — the
-mid-video wedge and the legacy hello the tester pointed back at).
+mid-video wedge and the legacy hello the tester pointed back at);
+ADR-0040…0042 record the debug.23 round (M8-ae, the wire-discipline
+round); ADR-0043…0045 record the debug.24 round (M8-af, the
+prove-before-change round: per-flow kernel-TCP and TLS-record
+evidence, the experiment switches and the one-button network test,
+the breaker sensor fix and the media-evidence-only substitution
+pool — the external engineer's debug.24 spec executed end to end).
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -2416,6 +2422,255 @@ DOWN, not up (M8-ad)
 - **What this ADR does NOT decide:** what the censor's threshold
   actually is (the round's bet is that the references' volume is
   below it by construction — matching them removes the question).
+
+## ADR-0043 — The per-flow evidence: kernel TCP snapshots, the TLS record timeline, the winner class, and the environment lines (M8-af)
+
+- **Status:** Accepted 2026-10-21 (M8-af, debug.24, spec W1/W2/W3/W9 —
+  the prove-before-change round; the external engineer's review of the
+  ENGINEERING-CONSULTATION document ruled the cause still unproven and
+  the sizes suggestive only, and this ADR is the measurement half of
+  the answer).
+- **Context:** six rounds of field reports fixed everything around the
+  media-body starvation while the starvation itself never changed, and
+  the debug.23 consultation's §2.4 named the reason precisely: no
+  measurement in the engine could distinguish "handshake completed,
+  zero application data" from "a small HTTP error" in the 2.8 KB
+  corpses, no line ever said WHETHER the request was even ACKed, and
+  no report ever named the phone model or the operator (the reference
+  tuning tables are per-ISP: MCI 80-250 fragments, Irancell 10-40).
+- **Decision:** every budgeted googlevideo flow now carries evidence
+  onto its own lines. (W1) The kernel's TCP_INFO is read twice on the
+  origin socket — snapshot A through a write-wrapper at the exact
+  moment the client's first post-handshake bytes go out (the request;
+  its ACK lands an RTT later, so A is the pre-request baseline), and
+  snapshot B at every flow end (relay unwind, stall kill, terminal —
+  always before the close takes the fd's counters), both rendered on
+  the done and stall-killed lines; each stalled googlevideo flow is
+  classified (netx.ClassifyTCPVerdict: acked frozen + retrans/unacked
+  grew = upstream-lost — the request never reached the server, the
+  censor drops outbound data after the handshake; acked moved + rcvd
+  frozen = downstream-lost — the request arrived, the answer is being
+  dropped or throttled; both moved = both-ok; anything else unknown,
+  never a guess) and aggregated in the report's `tcp verdicts:` line.
+  A failed read logs `tcpinfo=unavailable reason=…` once per device
+  and the flow then counts unknown — non-Linux platforms keep the
+  no-op (desktop behavior unchanged; hard constraint 2). (W2) A light
+  5-byte TLS record header parser (no decryption) watches the RELAYED
+  bytes of both directions — the first 12 server→client and 8
+  client→server records as `type:length@ms` on the done line, plus
+  `first-app-byte` (the first server record after the client's request
+  record: the corpse question — handshake-only vs HTTP error vs first
+  media slice — goes from inferred to measured); direct deliveries
+  (the raced winner's first bytes, the serial first byte) feed the
+  same tracker so the timeline is whole. (W3) `win=orig|subst|race`
+  rides every googlevideo done line — the A2/A3 substitution
+  false-win cycle becomes visible per flow. (W9) the fragmenter
+  counts every TCP segment it writes (fragment.PiecesTotal — hello
+  COUNT was measured since debug.23, hello PACKET count never was;
+  one legacy hello is up to 300 segments) rendered as `fragPackets=`
+  on the discipline line, and the network test (ADR-0044) prints
+  per-method deltas. The Android facade adds `device:` (Build fields,
+  no unique identifiers) and `net:` lines (permission-free
+  TelephonyManager getters + a shell-owned wifi/cellular heuristic
+  recorded here as a heuristic — ConnectivityManager would need
+  ACCESS_NETWORK_STATE, which the manifest deliberately does not
+  hold). R21 stays: addresses in the network test table and the
+  report render redacted (`addrN`, `<redacted>`) unless the debug
+  tester build's LogHostnames is on.
+- **Evidence:** internal/proxy/tcpmon.go (the holders), internal/netx/
+  tcpinfo{,_linux,_other}.go (the snapshot + classifier), the wiring
+  in internal/proxy/tunnel.go (pumpClient's request hook, relayEntry's
+  read/write wrappers, every winner/demote/terminal site), stats
+  TCPUpstreamLost/DownstreamLost/BothOK/Unknown, and the pins:
+  internal/proxy/tcpmon_test.go
+  TestGvideoFlowEvidenceOnDoneAndStallLines (the loopback corpse:
+  `win=orig tcp A[acked=…] B[acked=… rcvd=…] rec s2c=[22:96@0]
+  c2s=[22:1024@25 …] first-app-byte=none`, verdict
+  downstream-lost), TestRecordTrackerParsesAcrossChunks,
+  TestFirstAppByteRule, TestWinnerClassRidesTheDoneLine,
+  TestFragmentPiecesCounted; internal/netx/tcpinfo_linux_test.go
+  (the live-socket snapshot exchange + the classifier's six cases);
+  internal/engine/m8af_test.go TestReportRendersM8afSections (the
+  `tcp verdicts:` and `fragPackets=` lines render release-shaped,
+  no leaks); mobile/report_test.go (the device:/net: lines). All
+  both-ways: the doneSuffix wiring stashed → the evidence test FAILS
+  on the missing fields; the classifier's acked-comparison stashed →
+  the verdict pins FAIL; the tracker's desync guard stashed → the
+  parser test FAILS on garbage tails; the piece counter stashed →
+  TestFragmentPiecesCounted FAILS at zero delta.
+- **Consequences:** the next report's decision numbers are the tcp
+  verdicts split (the §7 decision table's second and third rows),
+  first-app-byte (none = the request never got any answer — the
+  corpse confirmed at the record layer), and win=subst flows' byte
+  totals (A2 measured). The kernel-counters path is loopback-proof
+  and race-clean, and the stalled-fixture echo bug the round exposed
+  in the test herd (a single-read echo racing the fragmented hello's
+  pieces — a ~10% flake all along, near-deterministic under -race
+  once the evidence wrappers shifted timing) is fixed at the fixture
+  (echo the whole first flight, byte-budgeted) — the real corpse's
+  handshake completes, and now so does the fixture's.
+- **What this ADR does NOT decide:** what the verdicts will say (that
+  is the tester's report's job), and no behavior changes ride on the
+  measurements yet — the censor-facing behavior changes of this round
+  are ADR-0045's, decided on the consultation's own evidence.
+
+## ADR-0044 — The experiment switches, the media-liveness probe, and the one-button network test (M8-af)
+
+- **Status:** Accepted 2026-10-21 (M8-af, debug.24, spec W4/W7/W8 —
+  the same-minute preset comparison and the media-capability
+  certification the consultation's §2.3 open matrix demanded as items
+  1-3).
+- **Context:** every method comparison so far rode a DIFFERENT build
+  at a different hour (preset vs hour-of-day confounded since
+  debug.16's last good media report — 14.6 MB on `strong`, 12:53
+  Tehran), substitution has never been field-tested as an isolated
+  variable, and every "verified good" verdict the engine ever wrote
+  certified a TLS handshake only — nothing had ever asked a
+  googlevideo address for actual video bytes.
+- **Decision:** (W4) the diagnostics screen gains an Experiments
+  section: the method selector (legacy/strong/balanced/light — the
+  existing presets, applied live through the existing settings path),
+  the substitution and breaker toggles (settings v6
+  `advanced.experimentSubstitution`/`experimentBreaker`, both shipping
+  ON, migrated on for pre-v6 files exactly the v5 pattern — absent
+  fields are the shipped default, never a choice), all three printed
+  at the top of every report as `experiment: method=… substitution=…
+  breaker=…` so each paste says which world its numbers came from;
+  the proxy's SetExperimentFlags applies them to the NEXT flow (same
+  sitting, same network — the A/B the consultation demanded), and
+  disabling the breaker clears an active cooldown (off = the exact
+  debug.22 shape). (W7) internal/probe is the media-liveness probe:
+  dial the candidate address through the engine's one netx door
+  (protect applies), TLS handshake with a REAL googlevideo SNI
+  through the same fragmenter a flow uses, ALPN http/1.1, then a
+  deliberately bad `GET /videoplayback` — ANY HTTP status line (even
+  a 400) proves the address carries HTTP, therefore media; the
+  classes are answered / silent-after-handshake (the corpse shape,
+  measured directly) / hello-silent (the blackholed-address class,
+  including dial timeouts) / reset / error. "Run network test" — the
+  diagnostics screen's button, operator-pressed, never a timer —
+  probes up to 6 CURRENT cluster addresses (the freshest learned
+  code's rr1..rr5 resolutions, the redirector fallback when no codes
+  are learned) under ALL FOUR methods in the same minute, then the
+  SNI discrimination (real name vs www.google.com vs none) under the
+  current method, the i.ytimg.com control per method (the test's own
+  sanity row — a failing control means the table is not
+  trustworthy), the per-method fragment-packet deltas, and (W8) the
+  foreign-cluster lane: config.ExperimentNodes() embeds
+  internal/config/experiment_nodes.txt (Ali's yt-dlp -g hostnames,
+  resolved on-device through the normal DoH path, probed under each
+  line's own real SNI) — the file ships EMPTY with a comment header,
+  and an empty file skips the lane silently. The lane runs OUTSIDE
+  the emission breaker's door rules (a measurement must not change
+  what it measures) but every googlevideo-SNI hello it emits IS
+  counted in the discipline meter — the censor sees them, the report
+  says so. Two spec readings recorded: the report build itself never
+  probes (a synchronous test would hang the report button for
+  minutes; the button is the only trigger — the honest not-run line
+  says so), and the network test's lines SURVIVE Stop (unlike the
+  per-run probe latch) because the tester's paste is the
+  measurement's whole value.
+- **Evidence:** internal/probe/media.go (+ media_test.go: the 400
+  answering server = answered, the handshake-then-silent server =
+  silent-after-handshake, RST = reset, dead address never answers —
+  all both-ways via the classifier branches); internal/engine/
+  networktest.go (the orchestration, the status/run JSON, the
+  counts-only ring line — R21); internal/config/settings_v6_test.go
+  (the switches' defaults, migration, and the owner's-word shapes);
+  internal/engine/m8af_test.go TestNetworkTestGatingAndStatus (NOT_ON
+  while off, RUNNING while in flight, the done flip); the webui
+  /api/networktest route (GET+POST, one registration — the mux
+  panics on doubles); the DiagnosticsView Experiments section; and
+  the ADR-0045 tests' primePool (the media-verdict seeding path the
+  pool now depends on).
+- **Consequences:** the next report carries the §7 decision table's
+  primary inputs: answered-vs-silent per method (row 1 — the preset
+  or its packet count triggers the censor), the tcp verdicts (rows
+  2-3), the alt-SNI split (row 4 — the block keyed on the media
+  SNI), probe-answered-but-flows-still-starve (row 5 — the real app
+  traffic differs), and the foreign rows (row 6 — cross-cluster
+  dialing on media-verified addresses only). The table is redacted in
+  release shape (addrN labels) and full in the debug tester build.
+- **What this ADR does NOT decide:** which row of the decision table
+  the tester's network lands on (that is the report's job), and no
+  relay/server option exists (§9: that decision is Ali's after the
+  report).
+
+## ADR-0045 — The breaker's sensor sees pending kills; the substitution pool eats media evidence only (M8-af)
+
+- **Status:** Accepted 2026-10-21 (M8-af, debug.24, spec W5/W6 — the
+  round's two behavior changes, both decided on the debug.23
+  consultation's own measured evidence, not on the new
+  instrumentation).
+- **Context:** A4 (the consultation's provable-from-the-log defect):
+  the emission breaker armed on first-byte terminals only, and the
+  debug.23 session died 13 media flows by STALL KILL with
+  gvideoTerminals=0 and cooldowns=0 — the breaker watched the wrong
+  death class the whole evening while the flows it should have
+  silenced kept feeding any per-source flag. A2/A3: the substitution
+  pool's certification criterion is invalid in this regime — 18
+  substitution "wins" (handshake-only evidence), every flow ≤12.1 KB,
+  goodDrops=17, the gvideo pool 4→0: a self-consuming buffer of false
+  positives that displaced raced slots and bound flows to
+  handshake-alive but body-dead origins.
+- **Decision:** (W5) googlevideo flows killed by the stall watchdog
+  with cause=pending — the client's request outstanding, the exact
+  death shape the debug.23 report measured — now feed the emission
+  breaker's terminal ring exactly like first-byte terminals
+  (Server.feedGvideoBreaker, shared by failFlow and every pending
+  branch of watchStall; lean and rich tiers alike, never idle, never
+  trickle — an idle kill is ambiguous by ADR-0036's own reasoning).
+  The gvideoTerminals counter's meaning widens with it: it counts
+  every ring feed (the breaker's own view of googlevideo deaths).
+  (W6) the good pool's gvideo flag becomes MEDIA-VERIFIED evidence:
+  only the network test's answered verdicts (ADR-0044's probe, an
+  HTTP status line from a real-SNI GET /videoplayback) may write it
+  (Server.MarkMediaVerifiedIP); first-byte wins and handshake-only
+  probe verdicts still PREFER (front of the dial lists, liveIPs
+  unchanged) but never feed the substitution pool; the persisted
+  pool file keeps its name and gains the going-forward content rule
+  (media-verified only), while SeedGoodIPs seeds NON-gvideo marks —
+  every file written by an earlier round was certified by first-byte
+  wins (exactly the false-positive class W6 removes) and the loader
+  cannot distinguish an old file's lines from this build's writes,
+  so the seed stays a preference and the pool starts every session
+  empty until the network test re-verifies. The flip condition is
+  recorded here: a versioned file format that can say
+  "media-verified" per line may restore gvideo-seeding.
+- **Evidence:** internal/proxy/tcpmon_test.go
+  TestStallPendingFeedsBreaker (three pending kills inside the window
+  ARM the breaker, the door's 502 with zero wire on the fourth flow —
+  both-ways: the feedGvideoBreaker calls stashed, the test FAILS on
+  cooldowns=0, the kills themselves unchanged);
+  TestExperimentSwitches (the W4 toggles gating both behaviors live);
+  the rewired internal/proxy/substitution_test.go shape 3
+  (TestFlowSuccessFeedsTheSubstitutionPool: a successful flow
+  prefers but the pool stays EMPTY, the later all-corpse flow
+  TERMINALS with zero substitution attempts, and only
+  MarkMediaVerifiedIP arms the substitute that saves the flow after
+  it — both-ways: the raced-winner markGoodIP(ip, false) stashed, the
+  test FAILS on the flow-fed gvideo pool); primePool in the same file
+  (the probe verdict prefers, the media verdict feeds); the rewired
+  M8-ab persistence round-trip (seeds render `pool=2 (gvideo 0)`, a
+  media-verified mark round-trips through Stop — with the pool flush
+  made synchronous in stopGvideoLoop, the mark no longer depends on
+  the loop goroutine's ctx.Done flush racing the teardown).
+- **Consequences:** with W6, `substitution: attempts=0` is the
+  expected healthy reading until the network test certifies addresses
+  (the pool measures the probe now, not the flow machinery); with W5,
+  `cooldowns>0` finally becomes reachable in the corpse regime — the
+  field question the ADR-0041 design wanted answered (do quiet
+  windows + the player's own hostname rotation recover playback?)
+  becomes askable for real. Both changes are scoped to googlevideo
+  flows exactly like their M8-ae/M8-ab ancestors; non-gvideo hosts
+  and every desktop keep byte-for-byte behavior (pinned by the
+  existing herd).
+- **What this ADR does NOT decide:** whether the breaker's quiet
+  windows actually recover playback (the next report's cooldowns>0
+  says whether it fires; the tester's play observations say whether
+  it helps), and whether any address CAN be media-verified on the
+  tester's network (the network test's answered column says so — the
+  two ADRs share the field answer).
 
 ## Decision-change procedure
 

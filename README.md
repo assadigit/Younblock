@@ -28,21 +28,31 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug23.apk` from the repo's
+releasing yet"): download `v1.6.6-debug24.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.23` release (a regular release in this private
+`v1.6.6-android-debug.24` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug23**; it installs over any earlier
+**make sure the filename says debug24**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build is the WIRE-DISCIPLINE round the debug.22 report forced
-(video dead for the whole session while the feed kept refreshing:
-the engine's own googlevideo emission — 4 parallel hellos per
-connection plus 48-handshake background bursts — feeding a
-per-source SNI flag; a connection to a verified origin now sends
-ONE hello, the background check is a trickle with no start burst,
-and repeated googlevideo failure arms a ~45 s total-silence
-cooldown in which the app rotates hostnames and the flag decays;
+this build is the PROVE-BEFORE-CHANGE round the external engineer's
+review of the debug.23 consultation forced (the video-body
+starvation's cause is still unproven, so this build measures: every
+video connection's report line now says whether our request was
+even acknowledged by the server or the answer is being dropped on
+the way back — the kernel's own TCP counters, no packet capture; a
+"Run network test" button probes the current video servers under
+all four fragmentation methods in the same minute; the substitution
+pool now accepts only media-proven addresses; and the emission
+breaker finally sees the death shape the debug.23 report actually
+measured). The previous round's summary (the WIRE-DISCIPLINE round
+the debug.22 report forced: video dead for the whole session while
+the feed kept refreshing — the engine's own googlevideo emission
+feeding a per-source SNI flag; a connection to a verified origin
+now sends ONE hello, the background check is a trickle with no
+start burst, and repeated googlevideo failure arms a ~45 s
+total-silence cooldown in which the app rotates hostnames and the
+flag decays;
 the report's new "gvideo discipline" line measures the volume —
 see ADR-0040/0041/0042 and the release notes); the release notes
 carry every earlier round's story in place.

@@ -12,6 +12,74 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-af; shipping in `v1.6.6-android-debug.24`, versionCode 23)
+
+- **The prove-before-change round (ADR-0043/0044/0045, the external
+  engineer's debug.24 spec executed end to end): the cause of the
+  media-body starvation is still unproven — the 2.8 KB corpses are
+  probably handshake-only replies, but sizes suggest, they don't
+  prove — so this build measures, and stops trusting "handshake
+  succeeded" as proof an address can carry video.**
+- **ADR-0043 (the evidence):** every googlevideo flow's done and
+  stall lines now carry two snapshots of the kernel's own TCP
+  counters — one right after the request went out, one at flow end
+  — so the report's new `tcp verdicts:` line answers the question
+  six rounds had to guess at: upstream-lost (our request packets
+  never reached the server) vs downstream-lost (the request
+  arrived, the answer is being dropped or throttled) vs both-ok
+  (the transport worked — the server/HTTP layer is the suspect).
+  A light TLS record timeline (`rec s2c=[…] c2s=[…]`, 12+8
+  records, no decryption) plus `first-app-byte` turns the "2.8 KB
+  corpse" inference into a measured fact; `win=orig|subst|race`
+  names which candidate carried every flow; the fragmenter's TCP
+  segment counter (`fragPackets=`) measures hello PACKETS for the
+  first time (hello count was measured since debug.23; one legacy
+  hello is up to 300 segments); and the report gains `device:` and
+  `net:` lines (phone model and operator, permission-free reads —
+  the reference tuning tables are per-ISP and no report had ever
+  said which one the tester rode).
+- **ADR-0044 (the switches and the probe):** the diagnostics
+  screen gains an Experiments section — the method selector
+  (legacy/strong/balanced/light), the substitution and
+  emission-breaker toggles (settings v6, both shipping on, the
+  pre-v6 migration flips them on per the v5 pattern), all three
+  printed on every report's `experiment:` line and applied live to
+  the next flow — and the "Run network test" button: up to six
+  current googlevideo addresses probed under all four methods in
+  the same minute (the preset-vs-hour confound finally broken),
+  with the real SNI, with www.google.com, and with no SNI; an
+  i.ytimg.com control per method; per-method packet counts; and
+  the optional foreign-cluster lane (the embedded
+  experiment_nodes.txt, empty until Ali supplies yt-dlp -g
+  hostnames). Only the probe's `answered` class — an HTTP status
+  line from a deliberately bad GET /videoplayback — certifies an
+  address as media-capable.
+- **ADR-0045 (the two behavior changes, decided on the debug.23
+  consultation's own evidence):** the emission breaker's sensor
+  sees PENDING stall kills now (the one PROVEN defect — 13 media
+  stall deaths, gvideoTerminals=0, cooldowns=0: the breaker
+  watched the wrong death class the whole session), and the
+  substitution pool eats media-verified verdicts only — first-byte
+  wins and handshake-only probe verdicts still PREFER (front of
+  the dial lists) but never feed the pool (the debug.23 report
+  measured the old pool consuming itself on false positives: 18
+  substitution wins, every flow ≤12.1 KB, 17 goodDrops, gvideo
+  4→0). The persisted pool file becomes the media-verified list
+  going forward; seeds prefer, never substitute.
+- Tests: both-ways for every behavior change (executed: the W5
+  breaker feed stashed → the arming test fails at cooldowns=0; the
+  W6 pool scope stashed → the rewired substitution test fails on
+  the flow-fed pool; the W1 done-line wiring stashed → the
+  evidence test fails on the missing fields; the W9 counter
+  stashed → the packet test fails at zero; the W2 desync guard
+  stashed → the parser test fails on garbage). Full suite green,
+  race detector green on internal/proxy + internal/probe +
+  internal/netx — after fixing a pre-existing stalled-fixture echo
+  bug the round exposed (a single-read echo racing the fragmented
+  hello's pieces: a ~10% flake all along, near-deterministic under
+  -race; the fixtures now echo the whole first flight,
+  byte-budgeted).
+
 ### Fixed / Added (2026-10-21 — M8-ae; shipping in `v1.6.6-android-debug.23`, versionCode 22)
 
 - **"This time, it doesn't even open video after a while. But the

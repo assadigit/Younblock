@@ -203,6 +203,21 @@ func (s *Server) handler() http.Handler {
 		// this client before the socket goes away.
 		writeJSON(w, http.StatusOK, s.eng.QuitJSON())
 	})
+	// M8-af (ADR-0044, spec W7): the network test lane — the
+	// diagnostics screen's "Run network test" button. The POST starts
+	// the async run ({"error":null} | {"error":"NOT_ON"} |
+	// {"error":"RUNNING"}); the GET polls the status and renders the
+	// finished table; the completion also arrives as a "networktest"
+	// SSE event. One registration, two methods — the settings path's
+	// own shape (two single-method registrations of one pattern would
+	// panic the mux).
+	m.HandleFunc("/api/networktest", methodGuardMulti("GET, POST", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			writeJSON(w, http.StatusOK, s.eng.NetworkTestStatusJSON())
+			return
+		}
+		writeJSON(w, http.StatusOK, s.eng.RunNetworkTestJSON())
+	}))
 	s.get(m, "/api/events", s.handleEvents)
 
 	// The embedded control page and its assets.

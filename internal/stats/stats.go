@@ -76,6 +76,17 @@ type Counters struct {
 	gvideoHellos    atomic.Int64
 	gvideoCooldowns atomic.Int64
 
+	// M8-af (ADR-0043, spec W1): the googlevideo flows' kernel-TCP
+	// verdict split — every stalled googlevideo flow classified from
+	// its A/B TCP_INFO snapshots (upstream-lost: the request never
+	// reached the server; downstream-lost: the request arrived and the
+	// answer is being dropped or throttled; both-ok: the transport
+	// carried both ways; unknown: no classifiable pair).
+	tcpUpstreamLost   atomic.Int64
+	tcpDownstreamLost atomic.Int64
+	tcpBothOK         atomic.Int64
+	tcpUnknown        atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -195,6 +206,28 @@ func (c *Counters) GvideoHello() { c.gvideoHellos.Add(1) }
 // actually happen. Cooldowns>0 in a report = the breaker caught a
 // flag state that debug.22 rode into "never opens again".
 func (c *Counters) GvideoCooldown() { c.gvideoCooldowns.Add(1) }
+
+// TCPUpstreamLost counts one stalled googlevideo flow whose kernel TCP
+// evidence says the request never reached the server (acked did not
+// move past the request snapshot while retransmits/unacked grew) —
+// the censor drops upstream data after the handshake (M8-af, ADR-0043,
+// spec W1). Fragmentation tuning will not fix this class.
+func (c *Counters) TCPUpstreamLost() { c.tcpUpstreamLost.Add(1) }
+
+// TCPDownstreamLost counts one stalled googlevideo flow whose request
+// ARRIVED (acked moved) but whose answer never came back (rcvd did
+// not) — response bytes throttled or dropped on the way in (M8-af,
+// ADR-0043, spec W1).
+func (c *Counters) TCPDownstreamLost() { c.tcpDownstreamLost.Add(1) }
+
+// TCPBothOK counts one stalled googlevideo flow whose TCP carried
+// both directions — the transport worked; the server or HTTP layer is
+// the suspect (M8-af, ADR-0043, spec W1).
+func (c *Counters) TCPBothOK() { c.tcpBothOK.Add(1) }
+
+// TCPUnknown counts one stalled googlevideo flow without a
+// classifiable snapshot pair — never a guess (M8-af, ADR-0043).
+func (c *Counters) TCPUnknown() { c.tcpUnknown.Add(1) }
 
 // StallLeanPending counts one lean stall kill whose client had spoken
 // after the origin's last byte (M8-ac, ADR-0036): a request the origin
@@ -327,9 +360,15 @@ type All struct {
 	StallRichPending int64 `json:"stallRichPending"`
 	StallTrickle     int64 `json:"stallTrickle"`
 	// M8-ae (ADR-0042): the wire-discipline meters.
-	GvideoHellos    int64     `json:"gvideoHellos"`
-	GvideoCooldowns int64     `json:"gvideoCooldowns"`
-	StartedAt       time.Time `json:"startedAt"`
+	GvideoHellos    int64 `json:"gvideoHellos"`
+	GvideoCooldowns int64 `json:"gvideoCooldowns"`
+	// M8-af (ADR-0043, spec W1): the stalled googlevideo flows' kernel
+	// TCP verdict split.
+	TCPUpstreamLost   int64     `json:"tcpUpstreamLost"`
+	TCPDownstreamLost int64     `json:"tcpDownstreamLost"`
+	TCPBothOK         int64     `json:"tcpBothOK"`
+	TCPUnknown        int64     `json:"tcpUnknown"`
+	StartedAt         time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
@@ -369,6 +408,10 @@ func (c *Counters) Diagnostic() All {
 		StallTrickle:       c.stallTrickle.Load(),
 		GvideoHellos:       c.gvideoHellos.Load(),
 		GvideoCooldowns:    c.gvideoCooldowns.Load(),
+		TCPUpstreamLost:    c.tcpUpstreamLost.Load(),
+		TCPDownstreamLost:  c.tcpDownstreamLost.Load(),
+		TCPBothOK:          c.tcpBothOK.Load(),
+		TCPUnknown:         c.tcpUnknown.Load(),
 		StartedAt:          c.startedAt,
 	}
 }

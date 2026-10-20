@@ -68,6 +68,17 @@ export interface Settings {
   [key: string]: unknown;
 }
 
+/** The one-button network test's status (debug.24, spec W7): running
+ *  flag, done flag, and the finished run's report lines. Null from a
+ *  host without the lane (the Windows Wails build, the preview). */
+export interface NetworkTestStatus {
+  running: boolean;
+  done: boolean;
+  startedAt?: string;
+  finishedAt?: string;
+  lines?: string[];
+}
+
 /** The backend surface the screen talks to. */
 export interface Backend {
   getSnapshot(): Promise<Snapshot>;
@@ -88,6 +99,13 @@ export interface Backend {
   getUsage(): Promise<UsageSummary | null>;
   /** Empties the usage history; rejects with a typed error on failure. */
   clearUsage(): Promise<void>;
+  /** The network test lane's status (debug.24), or null without the
+   *  lane — the diagnostics screen hides its Experiments section then. */
+  getNetworkTestStatus(): Promise<NetworkTestStatus | null>;
+  /** Starts the network test; resolves with the typed error code
+   *  ("NOT_ON" | "RUNNING") or null on a successful start. Rejects on
+   *  transport failure. */
+  runNetworkTest(): Promise<string | null>;
 }
 
 /** Create the backend for this environment (Wails, then HTTP, then preview). */
@@ -267,6 +285,17 @@ class WailsBackend implements Backend {
     const fn = this.bindings[BINDINGS.clearUsage];
     const reply = JSON.parse(String(await fn())) as { error?: string | null };
     if (reply.error) throw new Error(reply.error);
+  }
+
+  // The debug.24 network test lane exists on the Android/web hosts only —
+  // the Windows desktop keeps its diagnostics screen exactly as it was
+  // (null hides the Experiments section).
+  async getNetworkTestStatus(): Promise<NetworkTestStatus | null> {
+    return null;
+  }
+
+  async runNetworkTest(): Promise<string | null> {
+    throw new Error("unavailable");
   }
 }
 
@@ -486,6 +515,30 @@ class HttpBackend implements Backend {
     if (body.error) throw new Error(String(body.error));
   }
 
+  // The debug.24 network test lane (Android WebView + the Linux web
+  // edition — the two hosts whose engine ships it).
+  async getNetworkTestStatus(): Promise<NetworkTestStatus | null> {
+    try {
+      const res = await fetch("/api/networktest", { cache: "no-store" });
+      if (!res.ok) return null;
+      return (await res.json()) as NetworkTestStatus;
+    } catch {
+      return null;
+    }
+  }
+
+  async runNetworkTest(): Promise<string | null> {
+    let res: Response;
+    try {
+      res = await fetch("/api/networktest", { method: "POST", cache: "no-store" });
+    } catch {
+      throw new Error("network");
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = (await res.json()) as { error?: string | null };
+    return body.error ? String(body.error) : null;
+  }
+
   /** Fold one fresh engine state into the snapshot, the bridge's mapping. */
   private applyState(state: EngineState): void {
     const prev = this.snap;
@@ -633,6 +686,12 @@ function autoBackend(): Backend {
     async clearUsage(): Promise<void> {
       return (await whenReady()).clearUsage();
     },
+    async getNetworkTestStatus(): Promise<NetworkTestStatus | null> {
+      return (await whenReady()).getNetworkTestStatus();
+    },
+    async runNetworkTest(): Promise<string | null> {
+      return (await whenReady()).runNetworkTest();
+    },
   };
 }
 
@@ -728,6 +787,14 @@ function previewBackend(): Backend {
       usageSessions = [];
       snap = { ...snap, lastSession: null };
       emit();
+    },
+    // No lane behind a plain browser: the diagnostics screen hides its
+    // Experiments section instead of showing dead controls.
+    async getNetworkTestStatus(): Promise<NetworkTestStatus | null> {
+      return null;
+    },
+    async runNetworkTest(): Promise<string | null> {
+      throw new Error("no host");
     },
     async connect(): Promise<void> {
       if (snap.phase !== "disconnected" && snap.phase !== "error") return;

@@ -1,0 +1,16 @@
+# Younblock debug.24 — the optional foreign-cluster experiment file
+# (spec W8, ADR-0044).
+#
+# Ali fills this file with googlevideo hostnames collected OUTSIDE
+# Iran (for example: `yt-dlp -g <video-url>` on a foreign node, the
+# videoplayback hostnames out of the manifest). One hostname per
+# line, '#' starts a comment. Commit the file, build the APK, and
+# "Run network test" additionally probes these addresses through the
+# normal on-device DoH path, with each line's own name as the SNI,
+# under every method — the report's table then carries foreign-cluster
+# rows, and the decision table's "the cluster the geo-DNS gives this
+# network is harmed" row becomes answerable.
+#
+# This file ships EMPTY on purpose: with no lines, the foreign lane
+# is skipped silently and the network test behaves exactly as if it
+# did not exist.

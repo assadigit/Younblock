@@ -44,6 +44,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	}
 	pieces := Plan(len(b), c.preset, c.rng, c.cfg)
 	if len(pieces) <= 1 {
+		piecesTotal.Add(1) // one segment, still the fragmenter's write (M8-af, W9)
 		return writeAll(c.Conn, b)
 	}
 	off := 0
@@ -56,6 +57,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 		if err != nil {
 			return off, err
 		}
+		piecesTotal.Add(1) // one TCP segment on the wire per piece (M8-af, W9)
 	}
 	return off, nil
 }

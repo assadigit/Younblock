@@ -19,12 +19,15 @@ package proxy
 //      sides of the substitution: with the knob on, the same flow is
 //      shape 1.
 //
-//   3. The self-feeding pool — a flow that SUCCEEDS marks its own
-//      origin verified-live (gvideo-flagged), and a LATER flow to a
-//      DIFFERENT googlevideo host with an all-corpse answer set is
-//      saved by substitution from that mark: the session's one
-//      foreign-cache win arms every later flow, exactly the loop the
-//      report's 45 s escape never closed.
+//   3. The pool's evidence class (M8-af, ADR-0045, spec W6 — this
+//      round's change): a flow that SUCCEEDS marks its origin
+//      verified-live but NOT gvideo-flagged — the mark prefers (front
+//      of the dial lists) and NEVER substitutes. Only a MEDIA verdict
+//      (MarkMediaVerifiedIP, what the W7 network test writes) feeds
+//      the substitution pool. Pre-fix (the debug.23 shape) every
+//      first-byte win gvideo-flagged and the pool consumed itself on
+//      false positives: 18 substitution wins, every flow <=12.1 KB,
+//      17 goodDrops, pool gvideo 4->0.
 //
 //   4. The demote — a flow death on a good-marked origin drops the
 //      mark and boxes the IP (the ADR-0028 behavior the debug.19 code
@@ -146,8 +149,12 @@ func substFixture(t *testing.T) (resolver *hostResolver, corpse1 *acceptTimes, p
 	return resolver, c1, port
 }
 
-// primePool runs one short probe pass over the fixture's verified
-// name, marking the echo origin good (gvideo-flagged).
+// primePool arms the substitution pool the W7 way (M8-af, ADR-0045,
+// spec W6): the probe pass first verifies the echo origin answers the
+// flow-shaped hello (a HANDSHAKE verdict — preference, never the
+// pool), then the media verdict (what the network test's answered
+// class writes) gvideo-flags it. After this, the substitute candidate
+// may draw the origin.
 func primePool(t *testing.T, srv *Server, port int) {
 	t.Helper()
 	pctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
@@ -156,8 +163,14 @@ func primePool(t *testing.T, srv *Server, port int) {
 	if sum.IPs != 1 || sum.Answered != 1 {
 		t.Fatalf("probe summary = %+v, want ips=1 answered=1 (the echo origin)", sum)
 	}
+	// The handshake verdict preferred but never flagged (W6)...
+	if _, gvideo := srv.GoodIPStats(); gvideo != 0 {
+		t.Fatalf("gvideo good pool = %d after a handshake-only verdict, want 0 (W6: media evidence only)", gvideo)
+	}
+	// ...the MEDIA verdict is what feeds the pool.
+	srv.MarkMediaVerifiedIP("127.0.0.4")
 	if _, gvideo := srv.GoodIPStats(); gvideo != 1 {
-		t.Fatalf("gvideo good pool = 0, want 1 (the verified echo origin)")
+		t.Fatalf("gvideo good pool = %d after the media verdict, want 1", gvideo)
 	}
 }
 
@@ -242,16 +255,20 @@ func TestSubstitutionNeuteredKeepsTheOldTerminal(t *testing.T) {
 	}
 }
 
-// TestFlowSuccessFeedsTheSubstitutionPool (M8-ab shape 3): a flow that
-// succeeds marks its origin verified-live, and a later flow to a
-// DIFFERENT googlevideo host with an all-corpse answer set is saved by
-// substitution from that mark — the self-reinforcing loop the debug.19
-// report's one foreign-cache win never left behind.
+// TestFlowSuccessFeedsTheSubstitutionPool (M8-ab shape 3, REWIRED by
+// M8-af/ADR-0045/W6): a flow that succeeds marks its origin
+// verified-live — but the gvideo pool stays EMPTY (first-byte evidence
+// is handshake evidence; the debug.23 report measured that pool
+// consuming itself on exactly these false positives), so a later flow
+// to an all-corpse answer set TERMINALS — and only an explicit MEDIA
+// verdict (the W7 network test's answered class) arms the substitute
+// that saves the flow after it.
 func TestFlowSuccessFeedsTheSubstitutionPool(t *testing.T) {
 	c1, port := silentListenerAt(t, "127.0.0.1", 0)
 	_, _ = silentListenerAt(t, "127.0.0.2", port)
 	_, _ = silentListenerAt(t, "127.0.0.3", port)
 	echoListenerAt(t, "127.0.0.5:"+strconv.Itoa(port))
+	_ = c1 // flow 2's primary still dials corpse #1; the count is shape 1's business
 	resolver := &hostResolver{hosts: map[string][]net.IP{
 		"rr1---sn-ccc.googlevideo.com": {net.ParseIP("127.0.0.5")},
 		"rr9---sn-ddd.googlevideo.com": {
@@ -277,33 +294,52 @@ func TestFlowSuccessFeedsTheSubstitutionPool(t *testing.T) {
 		t.Fatalf("read echo (flow 1 must succeed on its own origin): %v", err)
 	}
 	_ = c1c.Close()
-	if _, gvideo := srv.GoodIPStats(); gvideo != 1 {
-		t.Fatalf("gvideo good pool = 0 after a successful flow, want 1 (the flow's own evidence)")
+	// W6 (M8-af): the successful flow's origin is preferred (good
+	// total 1) but the gvideo pool is EMPTY — first-byte evidence
+	// never substitutes again.
+	if total, gvideo := srv.GoodIPStats(); total != 1 || gvideo != 0 {
+		t.Fatalf("good pool = %d (gvideo %d) after a successful flow, want 1/0 (W6: preference, never the pool)", total, gvideo)
 	}
 
-	// Flow 2: a different googlevideo host, all-corpse answers — the
-	// pool mark from flow 1 is the substitute that saves it.
+	// Flow 2: a different googlevideo host, all-corpse answers — NO
+	// substitute engages (the pool is empty), the flow terminals.
 	c2 := dialConnect(t, srv.Addr(), "rr9---sn-ddd.googlevideo.com", port)
-	if _, err := c2.Write(rec); err != nil {
+	_, _ = c2.Write(rec)
+	_ = c2.SetReadDeadline(time.Now().Add(4 * time.Second))
+	_, _ = c2.Read(make([]byte, 128))
+	_ = c2.Close()
+	if failed := pollLines(log, "WARN tunnel first-byte failed ", 1, 3*time.Second); len(failed) == 0 {
+		t.Fatalf("the empty pool must leave the all-corpse flow to its terminal (W6)")
+	}
+	if saved := log.lines("INFO tunnel first-byte substituted "); len(saved) != 0 {
+		t.Fatalf("a substituted line with an empty pool: %q", saved[0])
+	}
+	if d := st.Diagnostic(); d.SubstAttempts != 0 {
+		t.Fatalf("substAttempts = %d with an empty pool, want 0", d.SubstAttempts)
+	}
+
+	// Flow 3: the MEDIA verdict arms the pool (the W7 evidence
+	// class), and the same all-corpse host is saved by the
+	// substitute — the escape works, on real evidence now.
+	srv.MarkMediaVerifiedIP("127.0.0.5")
+	c3 := dialConnect(t, srv.Addr(), "rr9---sn-ddd.googlevideo.com", port)
+	if _, err := c3.Write(rec); err != nil {
 		t.Fatalf("write record: %v", err)
 	}
-	_ = c2.SetReadDeadline(time.Now().Add(4 * time.Second))
-	got2 := make([]byte, len(rec))
-	if _, err := io.ReadFull(c2, got2); err != nil {
-		t.Fatalf("read echo (the flow-fed pool must save the second host): %v", err)
+	_ = c3.SetReadDeadline(time.Now().Add(4 * time.Second))
+	got3 := make([]byte, len(rec))
+	if _, err := io.ReadFull(c3, got3); err != nil {
+		t.Fatalf("read echo (the media-armed pool must save the flow): %v", err)
 	}
-	_ = c2.Close()
-	if string(got2) != string(rec) {
-		t.Fatalf("echo mismatch: %d bytes", len(got2))
+	_ = c3.Close()
+	if string(got3) != string(rec) {
+		t.Fatalf("echo mismatch: %d bytes", len(got3))
 	}
 	if saved := pollLines(log, "INFO tunnel first-byte substituted ", 1, 2*time.Second); len(saved) == 0 {
-		t.Fatalf("the flow-fed substitution must log its escape")
+		t.Fatalf("the media-armed substitution must log its escape")
 	}
 	if d := st.Diagnostic(); d.SubstWins != 1 {
 		t.Fatalf("substWins = %d, want 1", d.SubstWins)
-	}
-	if n := c1.count(); n != 1 {
-		t.Fatalf("corpse #1 accepted %d connections, want 1 (the primary of flow 2)", n)
 	}
 }
 

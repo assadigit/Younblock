@@ -151,13 +151,24 @@ func TestGoodPoolPersistenceRoundTrip(t *testing.T) {
 	}
 	waitForPhase(t, eng, engine.PhaseOn)
 
-	// The seeded pool shows in the report: two gvideo-flagged origins.
+	// The seeded pool shows in the report as PREFERENCE marks — two
+	// verified-live origins, ZERO gvideo flags (M8-af, ADR-0045, spec
+	// W6: the file's contents were certified by first-byte wins in
+	// every earlier round, exactly the false-positive class the round
+	// removes from the substitution pool; the seeds prefer, never
+	// substitute).
 	report := eng.GetDiagnosticReport()
-	if !strings.Contains(report, "pool=2 (gvideo 2)") {
-		t.Fatalf("the seeded pool must render its counts, got: %q", firstLine(report, "substitution:"))
+	if !strings.Contains(report, "pool=2 (gvideo 0)") {
+		t.Fatalf("the seeded pool must render preference-only counts, got: %q", firstLine(report, "substitution:"))
 	}
 
-	// Stop flushes the pool back; the seeds survive the round trip.
+	// A MEDIA verdict (the W7 network test's answered class — the only
+	// evidence that may feed the pool now) rides the running server
+	// and Stop flushes IT into the file: the pool's persistence is the
+	// media-verified list going forward.
+	if srv := eng.RunningServer(); srv != nil {
+		srv.MarkMediaVerifiedIP("192.0.2.55")
+	}
 	if err := eng.Stop(); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +176,7 @@ func TestGoodPoolPersistenceRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the pool file must survive Stop: %v", err)
 	}
-	if !strings.Contains(string(data), "192.0.2.10") {
-		t.Fatalf("the seed must round-trip through Stop, got %q", string(data))
+	if !strings.Contains(string(data), "192.0.2.55") {
+		t.Fatalf("the media-verified mark must round-trip through Stop, got %q", string(data))
 	}
 }

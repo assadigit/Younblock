@@ -1,7 +1,14 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-ae (2026-10-21 — the debug.23 round, the
-wire-discipline round). The tester's post-debug.22 report was
+**Status:** updated at M8-af (2026-10-21 — the debug.24 round, the
+prove-before-change round). The external engineer reviewed the
+debug.23 consultation document and wrote this round's spec: the
+cause is still UNPROVEN — the 2.8 KB corpses are probably
+TLS-handshake-only replies, but sizes suggest, they don't prove —
+so this build measures instead of guessing, and stops the engine
+from trusting "handshake succeeded" as proof an address can carry
+video. (The debug.23 wire-discipline summary follows the debug.24
+section.) The tester's post-debug.22 report was
 blunt: "This time, it doesn't even open video after a while. But
 the feed refreshes. this is probably one of the worst versions."
 And then the most useful thing anyone has sent this whole circle:
@@ -58,6 +65,122 @@ substitution pool, flow-fed marks, the box rehabilitation):
 
 **v1.6.6-android-debug.23 (versionCode 21+1=22) is the CURRENT
 build** — the wire-discipline round. What changed, in plain words:
+
+- **"It doesn't even open video after a while. But the feed
+  refreshes."** That split — video dead, feed alive — was the
+  clue. Both go through the same proxy, the same fragmented
+  hellos, the same DoH. What's different is VOLUME: for every
+  video connection the engine opened 4 parallel connections
+  (each sending a 299-piece fragmented hello), and on failure it
+  retried, re-raced, and fired background bursts of up to 48
+  more handshakes to googlevideo servers — while the feed's
+  connections to youtube.com are one-at-a-time and quiet. A
+  censor that flags noisy sources per service name slowly puts
+  your line on the googlevideo list: everything works early
+  ("after a while" = the flag accruing), then every googlevideo
+  connection is reset on sight — permanently, because our retry
+  machinery never stopped feeding it. The two projects you sent
+  (gfw_resist_HTTPS_proxy — the family backend.py comes from —
+  and WebImmortalGuards) never trip this because they emit ~1
+  hello per connection and zero background traffic. That's the
+  shape this round adopts.
+- **The numbers to read next report:** `gvideo discipline:
+  hellos=N cooldowns=M` next to `routedFlows` on the counters
+  line. If hellos settles near routedFlows (≈1 per flow), the
+  engine is finally as quiet as the Python. If cooldowns>0
+  appears during an evening test and video comes BACK after
+  ~45-60 s pauses instead of dying for the session, the silence
+  circuit is doing its job — note whether it fires.
+- **One ask:** watch whether the FIRST video after a fresh app
+  start plays (the startup background burst is gone — the pool
+  file + your first video's own connections now carry the cold
+  start), and if video ever wedges again, note whether it
+  recovers by itself within about a minute (the circuit) or
+  needs a manual refresh (tell us — that changes the next
+  round's tuning).
+
+**v1.6.6-android-debug.24 (versionCode 22+1=23) is the CURRENT
+build** — the prove-before-change round. What changed, in plain
+words:
+
+- **This build is mostly a measuring instrument.** Six rounds fixed
+  many things and the video starvation never changed, because we
+  could never see WHERE the data is lost. Now every video
+  connection's report line says what the KERNEL knows: whether the
+  request we sent was even acknowledged by the server (if not —
+  our request packets are being dropped on the way out), or whether
+  it was acknowledged but the answer is being dropped or slowed on
+  the way back. That one line answers the question every previous
+  round had to guess at. A second new line shows the exact TLS
+  record timeline of each video connection — so the "2.8 KB
+  corpse" question (was it just the handshake? or a small error
+  reply?) becomes a measured fact, not an inference.
+- **A "Run network test" button** in Diagnostics. One press probes
+  the video servers your phone is actually being given, under all
+  four fragmentation methods, in the same minute — the
+  same-minute comparison we never had (every method comparison so
+  far happened on a different build at a different hour of the
+  day). It also tries the same probe with a different name and with
+  no name at all (does the block care about the video name?), a
+  control probe to a thumbnail server (does the test itself work?),
+  and counts the packets each method emits. The whole table lands
+  in the report. It takes up to a few minutes on a fully dead
+  network — usually well under a minute.
+- **Experiments you can switch mid-session** (Diagnostics →
+  Experiments): the fragmentation method (Legacy / Strong /
+  Balanced / Light), the substitution toggle, and the
+  emission-breaker toggle. Every report says which position they
+  were in. Substitution is now OFF for video servers until an
+  address has PROVEN it can carry video (an actual HTTP reply from
+  a video request) — your debug.23 report showed 18 substitution
+  "wins" that each delivered under 12 KB: the pool was full of
+  false positives and this stops it.
+- **The silence circuit finally sees the right deaths.** Your
+  debug.23 report's video connections all died the "request sent,
+  nothing ever came back" way — 13 of them — while the circuit
+  that should have gone quiet counted ZERO (it was watching for a
+  different death shape). Fixed: it now sees exactly these. If
+  `cooldowns>0` shows up in your next report, the quiet windows
+  finally ran — note whether video recovers by itself within about
+  a minute.
+- **The report now names your phone and your operator** (model and
+  carrier name only — no identifiers, nothing new is read from the
+  phone). The public tuning tables for this ecosystem are per-ISP
+  (MCI needs 80-250 fragments, Irancell 10-40) and we never knew
+  which one you were riding.
+
+**The debug.24 tester protocol — do this in ONE sitting, with the
+phone in the same place:**
+
+1. Open Younblock → Diagnostics. Press **Run network test** and
+   wait for it to finish (up to a few minutes on a fully dead
+   network — usually under a minute).
+2. In the YouTube app, open a video and let it try for 2 minutes.
+   Press **I pressed play** before you start and **First frame**
+   if it ever plays.
+3. Switch the method to **strong** (Diagnostics → Experiments →
+   Strong), press **Run network test** again, and play another
+   video for 2 minutes.
+4. Send the full report (Copy report).
+5. Repeat steps 1-4 once in the MORNING (before 9:00 Tehran time)
+   and once in the EVENING, and say each time whether you were on
+   mobile data or Wi-Fi.
+6. If a laptop with `backend.py` is available on the same network,
+   play any video through it at the same time and say whether it
+   plays fully.
+
+**The debug.24 artifact** (built this round, verified before
+packing): `v1.6.6-debug24.apk`, versionCode 23 / versionName
+1.6.6 / minSdk 26 / targetSdk 36 (aapt2 badging), signed by the
+pinned test-circle debug certificate (SHA-256 `c76bb7c6…8551d`,
+apksigner verify — installs over every earlier debug build, D85).
+[The build's size, SHA-256, commit and the verified libgojni.so
+signatures are recorded in the docs follow-up commit — the house
+ritual.]
+
+**v1.6.6-android-debug.23 (versionCode 21+1=22) — superseded by
+debug.24** — the wire-discipline round. What changed, in plain
+words (kept for the record):
 
 - **"It doesn't even open video after a while. But the feed
   refreshes."** That split — video dead, feed alive — was the

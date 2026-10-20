@@ -40,10 +40,27 @@ import (
 // M8-v shape 1: the stall kill.
 // ---------------------------------------------------------------------------
 
-// stallOriginServer echoes the client's first flight and then goes
-// totally silent — the debug.13 report's mid-stream stall shape (first
-// byte plus a little data, then nothing until someone kills the flow).
+// stallOriginServer echoes the client's whole first flight (a fixed
+// byte budget — every caller sends exactly the tlsLikeRecord(64)
+// 69-byte hello) and then goes totally silent — the debug.13 report's
+// mid-stream stall shape (first byte plus a little data, then nothing
+// until someone kills the flow).
+//
+// The flight is echoed read-by-read until the budget is spent (M8-af
+// fixture fix): the ClientHello arrives FRAGMENTED — in pieces — and
+// the old single-read echo depended on the scheduler landing every
+// piece in one read, a coin flip that flaked ~10% at full speed and
+// went near-deterministic under the race detector. The real corpse's
+// handshake completes; the fixture now does too — and whatever the
+// client sends AFTER the flight (the request, in the pending tests)
+// is swallowed silently, exactly the shape those tests drive.
 func stallOriginServer(t *testing.T) string {
+        return stallOriginServerFlight(t, 5+64)
+}
+
+// stallOriginServerFlight is stallOriginServer with the flight budget
+// spelled out.
+func stallOriginServerFlight(t *testing.T, flight int) string {
         t.Helper()
         ln, err := net.Listen("tcp", "127.0.0.1:0")
         if err != nil {
@@ -59,14 +76,18 @@ func stallOriginServer(t *testing.T) string {
                         go func(c net.Conn) {
                                 defer c.Close()
                                 buf := make([]byte, 4096)
-                                n, rerr := c.Read(buf)
-                                if n > 0 {
-                                        if _, werr := c.Write(buf[:n]); werr != nil {
+                                echoed := 0
+                                for echoed < flight {
+                                        n, rerr := c.Read(buf)
+                                        if n > 0 {
+                                                if _, werr := c.Write(buf[:n]); werr != nil {
+                                                        return
+                                                }
+                                                echoed += n
+                                        }
+                                        if rerr != nil {
                                                 return
                                         }
-                                }
-                                if rerr != nil {
-                                        return
                                 }
                                 for { // the stall: hold the conn open, never answer again
                                         if _, rerr := c.Read(buf); rerr != nil {
@@ -98,14 +119,22 @@ func streamOriginServer(t *testing.T, interval time.Duration, ticks int) string 
                         go func(c net.Conn) {
                                 defer c.Close()
                                 buf := make([]byte, 4096)
-                                n, rerr := c.Read(buf)
-                                if n > 0 {
-                                        if _, werr := c.Write(buf[:n]); werr != nil {
+                                // The flight: echo until the 69-byte budget is
+                                // spent (the fragmented hello's pieces, however
+                                // many reads they take — the M8-af fixture fix,
+                                // same as stallOriginServer's).
+                                echoed := 0
+                                for echoed < 5+64 {
+                                        n, rerr := c.Read(buf)
+                                        if n > 0 {
+                                                if _, werr := c.Write(buf[:n]); werr != nil {
+                                                        return
+                                                }
+                                                echoed += n
+                                        }
+                                        if rerr != nil {
                                                 return
                                         }
-                                }
-                                if rerr != nil {
-                                        return
                                 }
                                 for i := 0; i < ticks; i++ {
                                         time.Sleep(interval)

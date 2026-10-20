@@ -27,7 +27,7 @@
   // button close it, Tab wraps inside, and focus returns to the menu
   // button (the entry point) on close.
   import { createEventDispatcher, onDestroy } from "svelte";
-  import type { Backend } from "./backend";
+  import type { Backend, NetworkTestStatus, Settings } from "./backend";
   import { canShare, copyText, shareText } from "../classic/lib/clipboard";
   import { ChevronLeft, Copy, Share2, RefreshCw, Check } from "./icons";
 
@@ -43,8 +43,122 @@
   let copyFailed = false;
   let copyFailedTimer: number | undefined;
 
+  // ---- The debug.24 experiments section (spec W4/W7) ----
+  // The network test lane's availability gates the whole section: the
+  // Android WebView and the Linux web edition have it, the Windows
+  // desktop and the offline preview do not (null hides it).
+  let experimentsAvailable = false;
+  let settings: Settings | null = null;
+  let methodSaving = false;
+  let toggleSaving = false;
+  let experimentError: string | null = null;
+  let experimentErrorTimer: number | undefined;
+  let testRunning = false;
+  let testLines: string[] | null = null;
+  let testPoll: number | undefined;
+
   /** The share sheet exists only behind the APK shell bridge. */
   const shareable = canShare();
+
+  const METHODS: Array<{ id: string; label: string }> = [
+    { id: "legacy", label: "Legacy" },
+    { id: "strong", label: "Strong" },
+    { id: "balanced", label: "Balanced" },
+    { id: "light", label: "Light" },
+  ];
+
+  function noteExperimentError(text: string): void {
+    experimentError = text;
+    window.clearTimeout(experimentErrorTimer);
+    experimentErrorTimer = window.setTimeout(() => (experimentError = null), 6000);
+  }
+
+  async function loadExperiments(): Promise<void> {
+    if (!backend) return;
+    const status = await backend.getNetworkTestStatus();
+    experimentsAvailable = status !== null;
+    if (!experimentsAvailable) return;
+    settings = await backend.getSettings();
+    if (status.running) {
+      testRunning = true;
+      pollTest();
+    } else if (status.done && status.lines) {
+      testLines = status.lines;
+    }
+  }
+
+  /** Saves the full settings document with one field changed (the
+   *  spread keeps every field this screen never touches — a partial
+   *  save would zero them server-side). */
+  async function saveSettingsPatched(patch: (s: Settings) => Settings): Promise<void> {
+    if (!backend || !settings) return;
+    const next = patch({ ...settings, advanced: { ...(settings.advanced ?? {}) } });
+    try {
+      settings = await backend.saveSettings(next);
+    } catch (e) {
+      noteExperimentError(`Could not save the setting (${e instanceof Error ? e.message : "error"}).`);
+    }
+  }
+
+  async function onMethod(id: string): Promise<void> {
+    if (methodSaving || !settings || settings.method === id) return;
+    methodSaving = true;
+    await saveSettingsPatched((s) => ({ ...s, method: id }));
+    methodSaving = false;
+    // The report line the tester pastes says the world it came from.
+    void load();
+  }
+
+  async function onToggle(key: "experimentSubstitution" | "experimentBreaker"): Promise<void> {
+    if (toggleSaving || !settings) return;
+    toggleSaving = true;
+    const now = !((settings.advanced?.[key] as boolean | undefined) ?? true);
+    await saveSettingsPatched((s) => ({ ...s, advanced: { ...s.advanced, [key]: now } }));
+    toggleSaving = false;
+  }
+
+  function toggleState(key: "experimentSubstitution" | "experimentBreaker"): boolean {
+    return (settings?.advanced?.[key] as boolean | undefined) ?? true;
+  }
+
+  async function onRunTest(): Promise<void> {
+    if (!backend || testRunning) return;
+    try {
+      const err = await backend.runNetworkTest();
+      if (err === "NOT_ON") {
+        noteExperimentError("Turn Younblock on first — the test dials through the engine.");
+        return;
+      }
+      if (err === "RUNNING") {
+        testRunning = true;
+        return;
+      }
+      if (err) {
+        noteExperimentError(`The test could not start (${err}).`);
+        return;
+      }
+      testRunning = true;
+      testLines = null;
+      pollTest();
+    } catch (e) {
+      noteExperimentError(`The test could not start (${e instanceof Error ? e.message : "error"}).`);
+    }
+  }
+
+  function pollTest(): void {
+    window.clearInterval(testPoll);
+    testPoll = window.setInterval(async () => {
+      if (!backend) return;
+      const status: NetworkTestStatus | null = await backend.getNetworkTestStatus();
+      if (!status) return;
+      if (!status.running) {
+        testRunning = false;
+        window.clearInterval(testPoll);
+        if (status.done && status.lines) testLines = status.lines;
+        void load(); // the report now carries the table too
+      }
+    }, 2000);
+  }
 
   let backBtn: HTMLElement | undefined;
   let viewEl: HTMLElement | undefined;
@@ -70,6 +184,7 @@
   // Mount = fetch once. The component only exists while open (App.svelte
   // renders it conditionally), so every open re-reads a fresh snapshot.
   void load();
+  void loadExperiments();
 
   async function onCopy(): Promise<void> {
     if (report === null) return;
@@ -127,6 +242,8 @@
   onDestroy(() => {
     window.clearTimeout(copiedTimer);
     window.clearTimeout(copyFailedTimer);
+    window.clearTimeout(experimentErrorTimer);
+    window.clearInterval(testPoll);
   });
 </script>
 
@@ -186,6 +303,81 @@
       <p class="status err" role="alert">
         Copying failed — press and hold the report below, choose Select all, then Copy.
       </p>
+    {/if}
+
+    {#if experimentsAvailable}
+      <section class="experiments" aria-label="Experiments">
+        <h2 class="exp-title">Experiments (debug.24)</h2>
+        <p class="exp-note">
+          The same-minute A/B switches. Change one thing, press Run network test, play a
+          video — the report says which world its numbers came from.
+        </p>
+
+        <div class="exp-row" role="group" aria-label="Fragmentation method">
+          <span class="exp-label">Method</span>
+          <div class="segmented">
+            {#each METHODS as m (m.id)}
+              <button
+                type="button"
+                class="seg"
+                aria-pressed={settings?.method === m.id}
+                disabled={methodSaving}
+                on:click={() => onMethod(m.id)}
+              >
+                {m.label}
+              </button>
+            {/each}
+          </div>
+          {#if settings && !METHODS.some((m) => m.id === settings.method)}
+            <span class="exp-hint">current: {settings.method}</span>
+          {/if}
+        </div>
+
+        <div class="exp-row" role="group" aria-label="Experiment switches">
+          <button
+            type="button"
+            class="toggle"
+            aria-pressed={toggleState("experimentSubstitution")}
+            disabled={toggleSaving}
+            on:click={() => onToggle("experimentSubstitution")}
+          >
+            <span class="toggle-label">Substitution</span>
+            <span class="toggle-state" data-on={toggleState("experimentSubstitution")}>
+              {toggleState("experimentSubstitution") ? "on" : "off"}
+            </span>
+          </button>
+          <button
+            type="button"
+            class="toggle"
+            aria-pressed={toggleState("experimentBreaker")}
+            disabled={toggleSaving}
+            on:click={() => onToggle("experimentBreaker")}
+          >
+            <span class="toggle-label">Emission breaker</span>
+            <span class="toggle-state" data-on={toggleState("experimentBreaker")}>
+              {toggleState("experimentBreaker") ? "on" : "off"}
+            </span>
+          </button>
+        </div>
+
+        <button type="button" class="primary run" on:click={onRunTest} disabled={testRunning}>
+          {testRunning ? "Running the test…" : "Run network test"}
+        </button>
+        <p class="exp-note">
+          Probes the current video addresses under all four methods in the same minute —
+          takes up to a few minutes on a fully silent network. The table lands in the
+          report below.
+        </p>
+        {#if experimentError}
+          <p class="status err" role="alert">{experimentError}</p>
+        {/if}
+        {#if testRunning}
+          <p class="state">Running — keep this screen open until it finishes.</p>
+        {/if}
+        {#if testLines}
+          <pre class="test-table">{testLines.join("\n")}</pre>
+        {/if}
+      </section>
     {/if}
 
     {#if loading && report === null}
@@ -412,5 +604,147 @@
     font-size: 0.75rem;
     line-height: 1.5;
     color: var(--text-tertiary);
+  }
+
+  /* ---- the debug.24 experiments section ---- */
+  .experiments {
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--sheet-border);
+  }
+  .exp-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: var(--fw-semibold);
+    color: var(--text-primary);
+  }
+  .exp-note {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    line-height: 1.55;
+    color: var(--text-tertiary);
+  }
+  .exp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem;
+    margin-top: 1rem;
+  }
+  .exp-label {
+    flex: none;
+    min-width: 5.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+  .segmented {
+    display: inline-flex;
+    border: 1px solid var(--chip-border);
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+  .seg {
+    min-height: 2.5rem;
+    padding: 0 0.875rem;
+    border: none;
+    border-right: 1px solid var(--chip-border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 150ms ease;
+  }
+  .seg:last-child {
+    border-right: none;
+  }
+  .seg:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .seg[aria-pressed="true"] {
+    background: var(--red-500);
+    color: #fff;
+  }
+  .seg:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .seg:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: -0.125rem;
+  }
+  .exp-hint {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+  }
+  .toggle {
+    flex: 1 1 12rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--chip-border);
+    background: var(--chip-bg);
+    color: var(--text-secondary);
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 150ms ease;
+  }
+  .toggle:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .toggle:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .toggle:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .toggle-label {
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+  }
+  .toggle-state {
+    flex: none;
+    min-width: 2.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.04em;
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--text-tertiary);
+  }
+  .toggle-state[data-on="true"] {
+    background: var(--green-led);
+    color: #06240f;
+  }
+  .run {
+    margin-top: 1rem;
+  }
+  .test-table {
+    margin: 0.75rem 0 0;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sheet-border);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 22rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   }
 </style>

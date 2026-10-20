@@ -11,7 +11,16 @@ import (
 	"time"
 
 	"github.com/assadigit/Younblock/internal/config"
+	"github.com/assadigit/Younblock/internal/fragment"
 )
+
+// onOff renders a bool the report's experiment line reads.
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
 
 // appInfo is the GetAppInfo payload (file 01, section 10).
 type appInfo struct {
@@ -110,6 +119,16 @@ func (e *Engine) SaveSettingsJSON(payload string) string {
 		if normalized.Method != prev.Method || settingsFragmentChanged(prev, normalized) {
 			e.server.SetFragment(e.currentPreset(), e.currentFragmentConfig())
 			e.resolver.Load().SetFragment(e.currentPreset(), e.currentFragmentConfig())
+		}
+		// M8-af (ADR-0044, spec W4): the experiment switches apply LIVE —
+		// the tester toggles substitution or the breaker in the
+		// diagnostics screen and the next flow obeys, same sitting.
+		if normalized.Advanced.ExperimentSubstitution != prev.Advanced.ExperimentSubstitution ||
+			normalized.Advanced.ExperimentBreaker != prev.Advanced.ExperimentBreaker {
+			e.server.SetExperimentFlags(normalized.Advanced.ExperimentSubstitution, normalized.Advanced.ExperimentBreaker)
+			e.logger.Info("experiment switches changed",
+				"substitution", normalized.Advanced.ExperimentSubstitution,
+				"breaker", normalized.Advanced.ExperimentBreaker)
 		}
 	}
 	// Autostart is applied whenever it flips, on or off.
@@ -337,6 +356,17 @@ func (e *Engine) GetDiagnosticReport() string {
 	fmt.Fprintf(&b, "state: %s (detail %q)\n", s.Phase, s.Detail)
 	fmt.Fprintf(&b, "mode: %s method: %s port: %d fragmentAllRouted=%v\n",
 		s.Mode, s.Method, s.Port, snapshot.FragmentAllRouted)
+	// M8-af (ADR-0044, spec W4): the experiment line — the three
+	// switches the tester's sitting rides on, printed where the report
+	// starts so every paste says which world its numbers came from.
+	// substitution/breaker read the RUNNING server's live state (the
+	// settings when off), method is the state's own field.
+	substOn, breakerOn := snapshot.Advanced.ExperimentSubstitution, snapshot.Advanced.ExperimentBreaker
+	if srv := e.RunningServer(); srv != nil {
+		substOn, breakerOn = srv.ExperimentFlags()
+	}
+	fmt.Fprintf(&b, "experiment: method=%s substitution=%s breaker=%s\n",
+		s.Method, onOff(substOn), onOff(breakerOn))
 	if s.LatencyMs != nil {
 		fmt.Fprintf(&b, "response time: %d ms\n", *s.LatencyMs)
 	}
@@ -444,8 +474,23 @@ func (e *Engine) GetDiagnosticReport() string {
 	// ran ~4 per flow plus bursts; cooldowns>0 means the breaker caught
 	// a flag state that debug.22 rode into "never opens again". Counts
 	// only (R21).
-	fmt.Fprintf(&b, "gvideo discipline: hellos=%d cooldowns=%d\n",
-		d.GvideoHellos, d.GvideoCooldowns)
+	// M8-af (ADR-0043, spec W9): the fragmenter's packet total rides
+	// the discipline line — hello COUNT was measured since debug.23,
+	// hello PACKET count never was (one legacy hello is up to 300 TCP
+	// segments; the censor may key on packets per source, and the
+	// network test prints its per-method deltas beside this total).
+	fmt.Fprintf(&b, "gvideo discipline: hellos=%d cooldowns=%d fragPackets=%d\n",
+		d.GvideoHellos, d.GvideoCooldowns, fragment.PiecesTotal())
+	// M8-af (ADR-0043, spec W1): the kernel-TCP verdict split — every
+	// stalled googlevideo flow classified from its A/B snapshots:
+	// upstream-lost (the request never reached the server),
+	// downstream-lost (it arrived, the answer is being dropped or
+	// throttled), both-ok (the transport carried, the server/HTTP
+	// layer is the suspect), unknown (no classifiable pair, never a
+	// guess). The §7 decision table's second and third rows read this
+	// line directly.
+	fmt.Fprintf(&b, "tcp verdicts: upstream-lost=%d downstream-lost=%d both-ok=%d unknown=%d\n",
+		d.TCPUpstreamLost, d.TCPDownstreamLost, d.TCPBothOK, d.TCPUnknown)
 	// §8.3.3: the DNS detail — per recent failure, the server number,
 	// the phase that failed (tcp, tls, http, status, parse) and the
 	// latency.
@@ -491,6 +536,26 @@ func (e *Engine) GetDiagnosticReport() string {
 			last.data.Sub(last.play).Milliseconds(), len(pairs))
 	} else {
 		fmt.Fprintf(&b, "auto-timeline: no pair yet (heuristic; the buttons stay authoritative)\n")
+	}
+	// M8-af (ADR-0044, spec W7/W8): the network test — the last
+	// completed run's table (ip × method -> verdict, the alt-SNI
+	// sweep, the control, the per-method packet counts, the foreign
+	// cluster rows), or the honest not-run line. The report build
+	// itself never probes (a probe here would hang the report button
+	// for minutes); the button is the only trigger.
+	if lines := e.networkTestLines(); len(lines) > 0 {
+		for _, line := range lines {
+			fmt.Fprintf(&b, "%s\n", line)
+		}
+	} else {
+		e.netTest.mu.Lock()
+		running := e.netTest.running
+		e.netTest.mu.Unlock()
+		if running {
+			fmt.Fprintf(&b, "network test: running (wait for it to finish, then refresh)\n")
+		} else {
+			fmt.Fprintf(&b, "network test: not run this session (press Run network test in Diagnostics)\n")
+		}
 	}
 	// The embedder's section (M8-p, ADR-0015): snapshot under the lock,
 	// run OUTSIDE it — the hook is free to touch engine state (GetState

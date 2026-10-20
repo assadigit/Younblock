@@ -4152,3 +4152,143 @@ with the round's comment block; ADR-0040/0041/0042, release notes
 (the wire-discipline story in plain words, the hellos-vs-flows and
 cooldowns decision numbers, the fresh-start ask), CHANGELOG,
 README, PROGRESS updated.
+## M8-af — the prove-before-change round (debug.24, versionCode 23)
+
+Date: 2026-10-21 (Asia/Tehran). Input: the external engineer's
+debug.24 spec (younblock-debug24-spec.md, saved at the repo root by
+Ali's upload) executing their review of the ENGINEERING-
+CONSULTATION document — the debug.23 field report analysis with its
+tested/not-tested matrix and ranked assumptions. The spec's own
+ruling: the cause is still UNPROVEN (the 2.8 KB corpses are
+probably TLS-handshake-only replies, but sizes suggest, they don't
+prove), so the round measures before changing — with exactly two
+behavior changes, both decided on the consultation's own measured
+evidence (A4: the breaker sensor defect, provable from the log
+alone; A2/A3: the substitution pool's self-consuming false
+positives, measured exactly in the debug.23 counters).
+
+Built, in the spec's priority order (spec §5):
+
+- W1 (ADR-0043): internal/netx/tcpinfo{,_linux,_other}.go — the
+  kernel TCP_INFO snapshot (GetsockoptTCPInfo via SyscallConn
+  .Control, the M8-ad keepalive pattern) plus
+  ClassifyTCPVerdict (the spec's decision rule, pure and
+  unit-pinned); internal/proxy/tcpmon.go — the per-flow holders;
+  tunnel.go wiring — snapshot A at the request write (the pump's
+  hook on the serial path, a write-wrapper on the relay path —
+  taken the moment the bytes go out, BEFORE their ACK can land),
+  snapshot B at every flow end before the close takes the fd
+  (relay unwind, all four stall-kill branches, the terminal), the
+  verdict classification into four new stats counters, and the
+  `tcp verdicts:` report line. A read failure logs
+  `tcpinfo=unavailable reason=…` once per device.
+- W2 (ADR-0043): the 5-byte TLS record header parser over the
+  RELAYED bytes (first 12 s2c + 8 c2s records as type:length@ms),
+  fed by both relay read sides AND the direct deliveries (the
+  raced winner's first bytes, the serial first byte) so the
+  timeline is whole; `first-app-byte` per the spec's simple rule
+  (the first server record after the client's request record),
+  with `none`/`no-request` as honest explicit absences.
+- W3 (ADR-0043): `win=orig|subst|race` on every googlevideo done
+  line, set at every winner site.
+- W9 (ADR-0043): fragment.PiecesTotal (one count per written
+  piece, process-wide) rendered as `fragPackets=` on the
+  discipline line; the network test prints per-method deltas.
+  The Android facade gains SetDeviceInfo/SetNetworkInfo
+  (permission-free: Build fields; TelephonyManager getters; the
+  wifi/cellular GUESS is a shell-owned heuristic — data state
+  connected → cellular, else a wlan interface with addresses →
+  wifi — recorded as a heuristic in the ADR, because
+  ConnectivityManager would need ACCESS_NETWORK_STATE which the
+  manifest deliberately does not hold), rendered as `device:` and
+  `net:` report lines; no new permissions.
+- W4 (ADR-0044): settings v6 (advanced.experimentSubstitution /
+  experimentBreaker, both shipping on; the pre-v6 migration flips
+  both on — the v5 pattern, absent fields are the shipped default
+  never a choice); proxy.Server.SetExperimentFlags applies them
+  live (goodSubstitutes and noteGvideoTerminal gate on them;
+  disabling the breaker clears an active cooldown); the engine
+  wires the knobs (substitution off = the knob's 0 shape, breaker
+  off = -1, the debug.22 shape) and applies settings changes
+  live; the report's `experiment:` line reads the RUNNING
+  server's live flags; the diagnostics screen gains the
+  Experiments section (method selector, two toggles, all wired
+  through the full-document settings save — a partial save would
+  zero fields server-side).
+- W7 (ADR-0044): internal/probe/media.go — the media-liveness
+  probe (dial through the engine's netx door, fragmented TLS
+  handshake with a real SNI and ALPN http/1.1, the deliberately
+  bad GET /videoplayback, ANY status line = answered); classes
+  answered / silent-after-handshake / hello-silent / reset /
+  error. internal/engine/networktest.go — the one-button lane:
+  up to 6 current addresses (the freshest learned code's
+  rr1..rr5, redirector fallback) × all four methods in the same
+  minute, alt-SNI variants (www.google.com, none) under the
+  current method, the i.ytimg.com control per method, per-method
+  fragment-packet deltas, answered-under-real-SNI →
+  MarkMediaVerifiedIP; async with RUNNING/NOT_ON gating, a
+  status JSON, an SSE event, and the webui /api/networktest route
+  (GET+POST, one registration — two HandleFunc calls on one
+  pattern panic the mux). The lane runs outside the breaker's
+  door rules (a measurement must not change what it measures)
+  but counts every googlevideo-SNI hello in the discipline meter.
+  Two spec readings recorded in the ADR: the report build itself
+  never probes (a synchronous test would hang the report button
+  for minutes; the honest not-run line replaces it), and the
+  test's lines survive Stop (the paste is the measurement's whole
+  value).
+- W8 (ADR-0044): config.ExperimentNodes() embeds
+  internal/config/experiment_nodes.txt (empty with a comment
+  header; comments/blanks skipped, capped at 4 hostnames); the
+  network test probes Ali's hostnames with their own real SNI
+  under every method (2 addresses each), foreign-cluster rows
+  rendered in the table, foreign answered → media-verified marks.
+- W5 (ADR-0045): Server.feedGvideoBreaker (the ring feed
+  extracted from failFlow) called from every PENDING stall-kill
+  branch of watchStall — lean and rich, never idle, never
+  trickle; gvideoTerminals now counts every ring feed (the
+  breaker's own view of googlevideo deaths).
+- W6 (ADR-0045): markGoodIP's gvideo flag becomes media-verified
+  evidence — every first-byte/probe verdict site now passes
+  false (preference only); MarkMediaVerifiedIP is the only writer
+  of the flag; SeedGoodIPs seeds non-gvideo marks (the old files
+  were first-byte-certified — exactly the false-positive class
+  W6 removes — and the loader cannot tell them from this build's
+  writes; the flip condition, a versioned per-line format, is
+  recorded in the ADR).
+
+Tests, all both-ways (executed proofs): the W5 breaker feed
+stashed → TestStallPendingFeedsBreaker FAILS at cooldowns=0; the
+W6 raced-winner flag stashed → TestFlowSuccessFeedsTheSubstitutionPool
+FAILS on the flow-fed pool; the W1 doneSuffix stashed →
+TestGvideoFlowEvidenceOnDoneAndStallLines FAILS on the missing
+fields; the W9 piece counter stashed → TestFragmentPiecesCounted
+FAILS at zero delta; the W2 desync guard stashed →
+TestRecordTrackerParsesAcrossChunks FAILS on garbage tails. Full
+suite green (19 packages + mobile); race detector green on
+internal/proxy + internal/probe + internal/netx.
+
+The round's one detour, recorded honestly: the stalled-flow test
+fixtures (stallOriginServer, streamOriginServer,
+richThenSilentOrigin) echoed exactly ONE read — but a fragmented
+ClientHello arrives in PIECES, so "echo the first flight" silently
+depended on the scheduler landing every piece in a single read: a
+~10% flake at full speed (documented in the M8-ae and earlier
+flake records — the same first-byte-read family, it turns out,
+was THIS) and near-deterministic failure under -race once the
+evidence wrappers shifted the write timing. The fixtures now echo
+the whole first flight byte-budgeted (the real corpse's handshake
+completes; the fixture's now does too) — deterministic at any
+speed, and the pending-shape tests keep their semantics (the
+request after the flight budget is swallowed silently, exactly
+the dead-with-work shape they drive). A second detour: one
+git-checkout during the both-ways proofs wiped the working
+tunnel.go — re-applied from the patch scripts and re-verified
+(full proxy suite green) before anything else ran; the both-ways
+proofs after it use file-copy stashes only.
+
+Version: mobile facade "1.6.6-debug.24"; gradle versionCode
+22→23 with the round's comment block; ADR-0043/0044/0045,
+release notes (the prove-before-change story in plain words, the
+new decision numbers, the tester protocol), CHANGELOG, README,
+PROGRESS updated.

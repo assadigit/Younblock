@@ -53,14 +53,23 @@ func richThenSilentOrigin(t *testing.T, payload int) string {
                         go func(c net.Conn) {
                                 defer c.Close()
                                 buf := make([]byte, 4096)
-                                n, rerr := c.Read(buf)
-                                if n > 0 {
-                                        if _, werr := c.Write(buf[:n]); werr != nil {
+                                // The flight: echo until the 69-byte budget is
+                                // spent — the fragmented hello's pieces, however
+                                // many reads they take (the M8-af fixture fix:
+                                // a single-read echo depended on the scheduler
+                                // coalescing the pieces and flaked under -race).
+                                echoed := 0
+                                for echoed < 5+64 {
+                                        n, rerr := c.Read(buf)
+                                        if n > 0 {
+                                                if _, werr := c.Write(buf[:n]); werr != nil {
+                                                        return
+                                                }
+                                                echoed += n
+                                        }
+                                        if rerr != nil {
                                                 return
                                         }
-                                }
-                                if rerr != nil {
-                                        return
                                 }
                                 big := bytes.Repeat([]byte{0x42}, payload)
                                 if _, werr := c.Write(big); werr != nil {

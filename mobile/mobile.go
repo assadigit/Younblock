@@ -74,6 +74,15 @@ type Engine struct {
         // a pasted diagnostic report names the exact build it came from —
         // versionName alone stays 1.6.6 across debug rounds. Guarded by mu.
         shellVersion string
+
+        // deviceInfo / netInfo (M8-af, ADR-0043, spec W9): the phone's
+        // identity and the radio's, as Kotlin reads them — the debug.23
+        // consultation's §1.4 data gaps ("device model not recorded",
+        // "ISP not recorded" — the reference projects' tuning tables
+        // are per-ISP, and mobile networks and home lines filter
+        // differently). Empty until Kotlin sets them.
+        deviceInfo string
+        netInfo    string
 }
 
 // NewEngine builds the engine for the Android shell: the platform adapter
@@ -135,7 +144,8 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // debug round — versionName stays 1.6.6 across rounds, the -debug.NN
         // suffix is what a pasted report maps to its release.
         // M8-ad (debug.22, versionCode 21): the long-lived-connection round.
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.23"}
+        // M8-af (debug.24, versionCode 23): the prove-before-change round.
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.24"}
         if mutate != nil {
                 mutate(&opts)
         }
@@ -204,6 +214,45 @@ func (m *Engine) SetShellVersion(v string) {
         m.mu.Unlock()
 }
 
+// SetDeviceInfo records the phone's identity (M8-af, ADR-0043, spec
+// W9): Kotlin passes Build.MANUFACTURER, Build.MODEL and
+// Build.VERSION.SDK_INT once at engine construction. It rides the
+// report's header as "device: <manufacturer> <model> android <sdk>"
+// — the consultation's unrecorded-phone-model data gap, closed. No
+// unique identifiers (no serial, no IMEI): the model string only.
+func (m *Engine) SetDeviceInfo(manufacturer, model string, sdkInt int32) {
+        if manufacturer == "" && model == "" {
+                return
+        }
+        m.mu.Lock()
+        m.deviceInfo = fmt.Sprintf("%s %s android %d", strings.TrimSpace(manufacturer), strings.TrimSpace(model), sdkInt)
+        m.mu.Unlock()
+}
+
+// SetNetworkInfo records the radio's identity (M8-af, ADR-0043, spec
+// W9): Kotlin passes the network type guess ("wifi"/"cellular"/
+// "unknown" — a heuristic the shell owns and documents), the
+// operator's alphabetic name and the mccmnc code — both from
+// TelephonyManager getters that need NO permission and read empty on
+// devices that will not share them (the report prints unknown then).
+// This is the consultation's unrecorded-ISP data gap: the reference
+// tuning tables are per-ISP (MCI 80-250 fragments, Irancell 10-40),
+// and no report has ever said which one the tester rode.
+func (m *Engine) SetNetworkInfo(netType, operator, mccmnc string) {
+        if netType == "" {
+                netType = "unknown"
+        }
+        if operator == "" {
+                operator = "unknown"
+        }
+        if mccmnc == "" {
+                mccmnc = "unknown"
+        }
+        m.mu.Lock()
+        m.netInfo = fmt.Sprintf("type=%s operator=%s mccmnc=%s", netType, operator, mccmnc)
+        m.mu.Unlock()
+}
+
 // diagnosticsExtra is the report section the facade installs on the
 // engine (ADR-0015): the shell version line, then the TUN counters —
 // the one surface that names the "flow never reached the door" case
@@ -215,10 +264,21 @@ func (m *Engine) diagnosticsExtra() string {
         var b strings.Builder
         m.mu.Lock()
         shell := m.shellVersion
+        device := m.deviceInfo
+        net := m.netInfo
         t := m.tun
         m.mu.Unlock()
         if shell != "" {
                 fmt.Fprintf(&b, "android shell: %s\n", shell)
+        }
+        // M8-af (ADR-0043, spec W9): the environment lines the
+        // consultation's §1.4 asked for — phone model and network
+        // identity, per-ISP filtering made visible.
+        if device != "" {
+                fmt.Fprintf(&b, "device: %s\n", device)
+        }
+        if net != "" {
+                fmt.Fprintf(&b, "net: %s\n", net)
         }
         if t == nil {
                 b.WriteString("tun: inactive\n")

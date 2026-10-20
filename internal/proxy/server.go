@@ -270,8 +270,19 @@ type Server struct {
 	// The googlevideo emission breaker (M8-ae, ADR-0041): the
 	// recent-terminal ring and the cooldown's end. fed by failFlow
 	// (every googlevideo terminal), read at BOTH doors and by the
-	// engine's probe lane.
+	// engine's probe lane. M8-af (ADR-0045, spec W5): the PENDING
+	// googlevideo stall kills feed the same ring.
 	gvideoBreak gvideoBreakState
+
+	// The debug.24 experiment switches (M8-af, ADR-0044, spec W4):
+	// runtime overrides for the substitution candidate and the
+	// emission breaker, so the tester can A/B in ONE sitting —
+	// same hour, same network, same build. Initialized from the
+	// Config's knobs at Start; SetExperimentFlags flips them live
+	// (the engine applies settings changes without a restart, like
+	// the method preset).
+	substOn   atomic.Bool
+	breakerOn atomic.Bool
 }
 
 // deadMark is one penalized origin IP's box entry (M8-aa, ADR-0028):
@@ -370,10 +381,40 @@ func Start(cfg Config) (*Server, error) {
 		cfg.Domains = config.DefaultDomains()
 	}
 	s := &Server{cfg: cfg, stats: cfg.Stats, tunnels: make(map[*tunnelCloser]struct{})}
+	// M8-af (ADR-0044, spec W4): the experiment switches start from
+	// the Config's own knobs (the engine passes the settings-derived
+	// values; the tests' raw Configs keep their shapes).
+	s.substOn.Store(cfg.GoodIPSubstitution > 0)
+	s.breakerOn.Store(cfg.GvideoBreakerTerminals > 0)
 	if err := s.Start(); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// SetExperimentFlags flips the debug.24 experiment switches live
+// (M8-af, ADR-0044, spec W4): the tester toggles substitution or the
+// emission breaker in the diagnostics screen and the NEXT flow obeys,
+// same sitting, same network — the A/B the consultation demanded
+// (substitution has never been field-tested as an isolated variable).
+// Disabling the breaker also clears an active cooldown (off = the
+// exact debug.22 shape: no breaker, no door-block). Substitution off
+// keeps the good pool and its front-of-list preference — only the
+// substitute candidate stops engaging.
+func (s *Server) SetExperimentFlags(substitution, breaker bool) {
+	s.substOn.Store(substitution)
+	s.breakerOn.Store(breaker)
+	if !breaker {
+		s.gvideoBreak.mu.Lock()
+		s.gvideoBreak.until = time.Time{}
+		s.gvideoBreak.mu.Unlock()
+	}
+}
+
+// ExperimentFlags reports the switches' live state (the report's
+// experiment line and the diagnostics screen read it).
+func (s *Server) ExperimentFlags() (substitution, breaker bool) {
+	return s.substOn.Load(), s.breakerOn.Load()
 }
 
 // Start binds (or rebinds) the listener.
@@ -1033,14 +1074,20 @@ func (s *Server) dropGoodIP(ip string) {
 }
 
 // markGoodIP prefers one origin IP for OriginProbeGoodTTL (M8-aa,
-// ADR-0028; M8-ab adds the service flag, ADR-0031): the origin-probe
-// pass watched this IP answer the exact wire shape a real flow sends,
-// so every dial list built while the mark lives starts there. The
-// mark NEVER gates anything — an IP without one dials exactly as
-// before, first place is its only prize. gvideo marks the origin as
-// serving the *.googlevideo.com wildcard: the flag the raced round's
-// substitute candidate scopes itself to (same-service substitution
-// only; the API fronts keep their own answers).
+// ADR-0028): the origin answered the exact wire shape a real flow
+// sends, so every dial list built while the mark lives starts there.
+// The mark NEVER gates anything — an IP without one dials exactly as
+// before, first place is its only prize.
+//
+// M8-af (ADR-0045, spec W6) — the gvideo flag's meaning changes: it
+// is now MEDIA-VERIFIED evidence, written ONLY by the W7 network
+// test's "answered" verdicts (a deliberately bad GET /videoplayback
+// that still got an HTTP status line — the one proof an address can
+// carry video). First-byte wins and handshake-only probe verdicts
+// still prefer (gvideo=false), but they can never feed the
+// substitution pool again: the debug.23 report measured that pool
+// consuming itself on false positives — 18 substitution "wins", every
+// flow <=12.1 KB, goodDrops=17, pool gvideo 4->0.
 func (s *Server) markGoodIP(ip string, gvideo bool) {
 	if ip == "" {
 		return
@@ -1059,6 +1106,16 @@ func (s *Server) markGoodIP(ip string, gvideo bool) {
 		s.goodOrder = append(s.goodOrder, ip)
 	}
 	s.good[ip] = goodMark{until: time.Now().Add(config.OriginProbeGoodTTL), gvideo: gvideo}
+}
+
+// MarkMediaVerifiedIP records one origin IP as MEDIA-CAPABLE
+// (M8-af, ADR-0045, spec W6/W7): the network test watched this address
+// answer a real-SNI GET /videoplayback with an HTTP status line — the
+// only evidence class that may feed the googlevideo substitution pool
+// now. Same TTL as every good mark; the gvideo flag only this path
+// writes.
+func (s *Server) MarkMediaVerifiedIP(ip string) {
+	s.markGoodIP(ip, true)
 }
 
 // gvideoBreakState is the googlevideo emission breaker (M8-ae,
@@ -1085,8 +1142,13 @@ type gvideoBreakState struct {
 // proportional (a quarter of the cooldown, capped at 10 s) so
 // re-arming staggers; a nil RNG (the test harness) skips it.
 func (s *Server) noteGvideoTerminal() bool {
+	// M8-af (ADR-0044, spec W4): the experiment switch can disable the
+	// breaker live — the exact debug.22 shape on demand.
 	if s.cfg.GvideoBreakerTerminals <= 0 || s.cfg.GvideoBreakerWindow <= 0 || s.cfg.GvideoBreakerCooldown <= 0 {
 		return false // breaker disabled: the exact debug.22 shape
+	}
+	if !s.breakerOn.Load() {
+		return false
 	}
 	now := time.Now()
 	s.gvideoBreak.mu.Lock()
@@ -1278,10 +1340,20 @@ func (s *Server) GoodGvideoIPList() []string {
 }
 
 // SeedGoodIPs seeds persisted verified-live origin IPs back into the
-// good table (M8-ab, ADR-0033): every IP gvideo-flagged with the
-// shorter GoodPoolSeedTTL — yesterday's verdict is stale evidence,
-// and a seed that went bad overnight self-corrects through the same
+// good table (M8-ab, ADR-0033): every IP seeded with the shorter
+// GoodPoolSeedTTL — yesterday's verdict is stale evidence, and a seed
+// that went bad overnight self-corrects through the same
 // demote-on-death guard every live mark carries.
+//
+// M8-af (ADR-0045, spec W6): the seed writes NON-gvideo marks. Every
+// file written by an earlier round was certified by first-byte wins —
+// exactly the false-positive class W6 removes from the pool — and the
+// loader cannot distinguish an old file's entries from this build's
+// media-verified writes, so the seed stays a preference (front of the
+// dial lists) and the substitution pool starts every session empty
+// until the network test re-verifies. The ADR records the flip
+// condition: a versioned file format that can say "media-verified"
+// per line.
 func (s *Server) SeedGoodIPs(ips []string) {
 	if len(ips) == 0 {
 		return
@@ -1303,7 +1375,7 @@ func (s *Server) SeedGoodIPs(ips []string) {
 			}
 			s.goodOrder = append(s.goodOrder, ip)
 		}
-		s.good[ip] = goodMark{until: until, gvideo: true}
+		s.good[ip] = goodMark{until: until, gvideo: false} // W6 (M8-af): a seed prefers, never substitutes
 	}
 	s.goodMu.Unlock()
 }
@@ -1321,7 +1393,9 @@ func (s *Server) SeedGoodIPs(ips []string) {
 // so consecutive substitutes spread across the pool instead of always
 // betting its freshest mark.
 func (s *Server) goodSubstitutes(own []net.IP, max int) []net.IP {
-	if s.cfg.GoodIPSubstitution <= 0 || max <= 0 {
+	// M8-af (ADR-0044, spec W4): the experiment switch gates the
+	// candidate before anything else — the tester's A/B lever.
+	if s.cfg.GoodIPSubstitution <= 0 || max <= 0 || !s.substOn.Load() {
 		return nil
 	}
 	ownSet := make(map[string]bool, len(own))
@@ -1663,7 +1737,11 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 					s.cfg.Stats.ProbeRehabilitated()
 				}
 			}
-			s.markGoodIP(probedIPs[i], probeGvideo[i])
+			// M8-af (ADR-0045, spec W6): the probe's verdict is
+			// HANDSHAKE evidence — it prefers (front of the dial
+			// lists) but never gvideo-flags: only W7's media
+			// verdicts feed the substitution pool now.
+			s.markGoodIP(probedIPs[i], false)
 			if s.cfg.Stats != nil {
 				s.cfg.Stats.ProbeAnswered()
 			}

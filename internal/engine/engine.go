@@ -224,6 +224,12 @@ type Engine struct {
 
         measuredSleep time.Duration
         stopWait      sync.WaitGroup
+
+        // M8-af (ADR-0044, spec W7/W8): the one-button network test's
+        // state — running flag, timestamps, and the last completed
+        // run's report lines (created once in New; the lines survive
+        // Stop on purpose, see networktest.go).
+        netTest *networkTestState
 }
 
 // Mark is one timeline stamp (M8-z, ADR-0027 §8.3.6): the Go facade
@@ -333,6 +339,8 @@ func New(opts Options) (*Engine, error) {
                 // M8-ab (ADR-0033): the persisted verified-live pool's file,
                 // beside the codes store in the app's private directory.
                 goodPoolPath: filepath.Join(opts.Platform.ConfigDir(), config.GoogleVideoGoodIPsFile),
+                // M8-af (ADR-0044): the network test lane's state.
+                netTest: &networkTestState{},
         }
         // The round-3 usage history lives beside settings.json; a failed
         // open only disables the history (usageOpen logs it).
@@ -740,7 +748,12 @@ func (b *dohBrownout) ActiveForTest() bool { return b.active() }
 
 func (b *dohBrownout) SetClockForTest(now func() time.Time) { b.now = now }
 
-// stopGvideoLoop halts the prewarm loop (Stop's path).
+// stopGvideoLoop halts the prewarm loop (Stop's path). The pool
+// flush runs SYNCHRONOUSLY here too (M8-af, ADR-0045): the loop
+// goroutine's own ctx.Done flush races stopListener's teardown, and
+// a media-verified mark written a microsecond before the server goes
+// away must not depend on that race — the loop's flush stays (harmless
+// duplicate, goodMu-serialized), this one is the deterministic one.
 func (e *Engine) stopGvideoLoop() {
         e.mu.Lock()
         cancel := e.gvideoCancel
@@ -749,6 +762,7 @@ func (e *Engine) stopGvideoLoop() {
         if cancel != nil {
                 cancel()
         }
+        e.saveGoodPoolIfChanged()
 }
 
 // loadGoodIPPool reads the persisted verified-live googlevideo pool
@@ -1066,6 +1080,28 @@ func (e *Engine) Start() error {
 }
 
 // startListener binds the proxy and records the port.
+// goodSubstKnob resolves the substitution candidate's effective knob
+// (M8-af, ADR-0044, spec W4): the config default capped by the
+// settings' experiment switch — off = 0 (disabled), on = the config
+// knob (the W6-scoped semantics).
+func goodSubstKnob(s config.Settings) int {
+        if !s.Advanced.ExperimentSubstitution {
+                return 0
+        }
+        return config.GoodIPSubstitution
+}
+
+// breakerKnob resolves the emission breaker's terminal threshold
+// (M8-af, ADR-0044, spec W4): off = -1 (disabled, the debug.22
+// shape), on = the config default (3 in 30 s -> 45 s quiet, with the
+// W5 sensor extension counting pending stall kills).
+func breakerKnob(s config.Settings) int {
+        if !s.Advanced.ExperimentBreaker {
+                return -1
+        }
+        return config.GvideoBreakerTerminals
+}
+
 func (e *Engine) startListener() error {
         idle := config.IdleTimeout
         if e.settings.Advanced.IdleTimeoutSec > 0 {
@@ -1106,7 +1142,16 @@ func (e *Engine) startListener() error {
                 // M8-ab (ADR-0031): the cross-origin escape hatch — a
                 // googlevideo flow whose own answer set keeps dying dials
                 // the good pool's verified-live origins instead.
-                GoodIPSubstitution: config.GoodIPSubstitution,
+                // M8-af (ADR-0044/0045, spec W4/W6): the experiment
+                // switch gates it (off = 0, the knob's disabled shape),
+                // and the pool it draws from holds only MEDIA-verified
+                // addresses now — the server-side W6 scoping.
+                GoodIPSubstitution: goodSubstKnob(e.settings),
+                // M8-af (ADR-0044, spec W4): the emission breaker's
+                // experiment switch — off = -1, the exact debug.22
+                // shape (and the W5 sensor extension travels inside
+                // the breaker, so off disables both).
+                GvideoBreakerTerminals: breakerKnob(e.settings),
                 IdleTimeout:        idle,
                 MaxHeaderBytes:     config.MaxHeaderBytes,
                 // M8-z (ADR-0024): the platform-aware setting the doors consult

@@ -20,49 +20,45 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 22: the M8-ae build (debug.23 -- the
-        // wire-discipline round): the tester's post-debug.22 report
-        // was "it doesn't even open video after a while. But the
-        // feed refreshes. this is probably one of the worst
-        // versions" plus two reference repositories
-        // (gfw_resist_HTTPS_proxy, WebImmortalGuards) as "knowing
-        // how this system works" -- and they told us exactly that:
-        // the reference implementations emit ONE fragmented hello
-        // per connection and ZERO background handshakes, while this
-        // engine was emitting ~4 hellos per video connection (the
-        // raced fan-out, each a legacy 299-cut hello) plus
-        // 48-handshake background bursts at start, every 5 minutes,
-        // and within 10 s of every failed flow. A censor that flags
-        // noisy sources per service name trips on exactly that
-        // volume: early session clean, then every googlevideo
-        // connection reset forever while youtube.com (quieter,
-        // different name) keeps serving -- the feed refreshes, video
-        // never opens, our retries keep feeding the flag. The round
-        // (ADR-0040/0041/0042): (1) a primary whose origin holds a
-        // live verified mark skips the raced round -- ONE hello,
-        // the reference steady-state shape; a raced round demotes
-        // the answer set ONCE, not once per dead candidate. (2) The
-        // probe pass is a trickle -- OriginProbePerPass 48->10
-        // clamped inside ProbeOrigins, its own GoogleVideoProbeEvery
-        // 15-minute cadence, the START-of-session pass and the
-        // churn-kick lane DELETED (a fresh engine is silent on
-        // googlevideo until the first flow speaks). (3) The EMISSION
-        // BREAKER: 3 googlevideo terminals inside 30 s arm a ~45 s
-        // cooldown (plus jitter) during which googlevideo flows fail
-        // fast at BOTH doors with zero wire and the probe lane stays
-        // paused -- the app's player rotates hostnames (the
-        // reference recovery) and any per-source flag decays in the
-        // quiet; non-gvideo hosts are untouched, the feed keeps
-        // refreshing through the cooldown. (4) Diagnostics: the
-        // gvideoHellos meter counts every googlevideo-SNI hello the
-        // engine puts on the wire (flows + substitutes + probes)
-        // and the report gains "gvideo discipline: hellos=N
-        // cooldowns=M" -- read hellos against routedFlows; ~1 per
-        // flow is the goal. Installs over debug.22 (the same pinned
-        // debug certificate -- D85). The D84 rule: every debug
-        // build bumps this. D103: the APK asset is named
-        // v1.6.6-debug23.apk.
-        versionCode = 22
+        // versionCode 23: the M8-af build (debug.24 -- the
+        // prove-before-change round): the external engineer's review
+        // of the debug.23 consultation said the cause is still
+        // UNPROVEN -- the 2.8 KB corpses are probably
+        // handshake-only replies, but sizes suggest, they don't
+        // prove -- and this round measures instead of guessing
+        // (ADR-0043/0044/0045, younblock-debug24-spec.md): (1) TCP
+        // kernel-counter evidence per media flow (TCP_INFO
+        // snapshots A at the request write and B at flow end; the
+        // stalled-flow verdicts upstream-lost / downstream-lost /
+        // both-ok / unknown answer WHERE the data is lost -- no
+        // packet capture). (2) The TLS record timeline (first 12
+        // server / 8 client records as type:length@ms, plus
+        // first-app-byte) -- the corpse question measured, not
+        // inferred. (3) win=orig|subst|race on every done line.
+        // (4) The experiment switches (method / substitution /
+        // breaker) in a diagnostics sub-screen, all printed on the
+        // report's experiment line. (5) "Run network test": the
+        // current addresses probed under all four methods in the
+        // same minute, with the real SNI, www.google.com and no SNI,
+        // an i.ytimg.com control and per-method packet counts -- the
+        // same-minute preset-vs-hour comparison no round has ever
+        // had; only its "answered" verdicts (an HTTP status line
+        // from a deliberately bad GET /videoplayback) certify
+        // media capability. (6) The breaker sensor fix (W5, the one
+        // PROVEN defect: pending stall kills feed the emission
+        // breaker now -- debug.23 died 13 media flows with
+        // cooldowns=0 because the breaker watched the wrong death
+        // class) and the substitution scope fix (W6: the pool eats
+        // media-verified verdicts only, never first-byte wins --
+        // debug.23's 18 substitution "wins" delivered <=12.1 KB
+        // each). (7) device: and net: header lines (phone model,
+        // operator -- the consultation's unrecorded-environment
+        // gaps). (8) The optional foreign-cluster file (W8,
+        // experiment_nodes.txt). Installs over debug.23 (the same
+        // pinned debug certificate -- D85). The D84 rule: every
+        // debug build bumps this. D103: the APK asset is named
+        // v1.6.6-debug24.apk.
+        versionCode = 23
         versionName = "1.6.6"
     }
 

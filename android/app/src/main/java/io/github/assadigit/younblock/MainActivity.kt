@@ -330,6 +330,54 @@ object EngineHolder {
     var engine: mobile.Engine? = null
         private set
 
+    /**
+     * The radio's alphabetic operator name (spec W9): a permission-free
+     * TelephonyManager getter — empty off-radio or on devices that will
+     * not share it, and the Go side renders unknown then.
+     */
+    private fun operatorName(context: Context): String =
+        runCatching {
+            (context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager)
+                ?.networkOperatorName.orEmpty()
+        }.getOrDefault("")
+
+    /**
+     * The radio's numeric operator identity, MCC+MNC (spec W9): the same
+     * permission-free getter family as [operatorName].
+     */
+    private fun operatorCode(context: Context): String =
+        runCatching {
+            (context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager)
+                ?.networkOperator.orEmpty()
+        }.getOrDefault("")
+
+    /**
+     * The wifi-vs-cellular guess (spec W9, ADR-0043): ConnectivityManager
+     * needs ACCESS_NETWORK_STATE, which this app deliberately does not
+     * hold (the manifest's inventory says why), so the guess reads what
+     * is free — the telephony data state says cellular-active, a wlan
+     * interface with addresses says wifi, anything else is unknown. The
+     * tester's own report words stay authoritative; this line is the
+     * cross-check, and its heuristic nature is recorded in the ADR.
+     */
+    private fun networkTypeGuess(context: Context): String {
+        val cellular = runCatching {
+            (context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager)
+                ?.dataState == android.telephony.TelephonyManager.DATA_CONNECTED
+        }.getOrDefault(false)
+        if (cellular) return "cellular"
+        val wifi = runCatching {
+            java.net.NetworkInterface.getNetworkInterfaces().asSequence()
+                .any { ni ->
+                    ni.name.startsWith("wlan") && !ni.isLoopback && runCatching {
+                        ni.interfaceAddresses.any { it.address != null }
+                    }.getOrDefault(false)
+                }
+        }.getOrDefault(false)
+        if (wifi) return "wifi"
+        return "unknown"
+    }
+
     fun ensure(context: Context): mobile.Engine {
         val existing = engine
         if (existing != null) return existing
@@ -357,6 +405,22 @@ object EngineHolder {
                 }
                 created.setShellVersion("${info.versionName} (versionCode $code)")
             }.onFailure { Log.w("Younblock", "shell version not reported: ${it.message}") }
+            // M8-af (debug.24, spec W9): the environment the consultation's
+            // §1.4 called unrecorded — phone model and network identity, read
+            // with NO new permissions: Build fields are free;
+            // TelephonyManager's getNetworkOperatorName/getNetworkOperator
+            // getters need none (they read empty when the device will not
+            // share them, and the report prints unknown then); the wifi vs
+            // cellular guess is a shell-owned heuristic (data state connected
+            // -> cellular, else a wlan interface with addresses -> wifi, else
+            // unknown) recorded as such in ADR-0043 — the tester's own words
+            // in the report stay authoritative.
+            runCatching {
+                created.setDeviceInfo(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT.toLong().toInt())
+            }.onFailure { Log.w("Younblock", "device info not reported: ${it.message}") }
+            runCatching {
+                created.setNetworkInfo(networkTypeGuess(context), operatorName(context), operatorCode(context))
+            }.onFailure { Log.w("Younblock", "network info not reported: ${it.message}") }
             engine = created
             return created
         }

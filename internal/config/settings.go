@@ -40,7 +40,14 @@ import (
 // a DebugTesterBuild (the -ldflags -X lane) on Android turns
 // `logDomains` on for the shipped state — a release build never does,
 // and an owner's saved logDomains survives verbatim in every build.
-const settingsVersion = 5
+// v6 (M8-af, ADR-0044, spec W4) adds the debug.24 experiment switches
+// to Advanced — experimentSubstitution and experimentBreaker, both
+// defaulting ON (the round's shipped semantics: substitution is
+// W6-scoped media-evidence-only, the breaker is the M8-ae shape with
+// the W5 sensor fix). A pre-v6 file never recorded them, so the
+// migration flips both on — the shipped default, never a choice the
+// file's owner made.
+const settingsVersion = 6
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -58,6 +65,19 @@ type Advanced struct {
 	LogDomains bool `json:"logDomains"`
 	// IdleTimeoutSec overrides the idle connection timeout.
 	IdleTimeoutSec int `json:"idleTimeoutSec"`
+	// ExperimentSubstitution (M8-af, ADR-0044, spec W4, schema v6):
+	// the debug.24 A/B switch for the cross-origin substitution
+	// candidate. On = the W6-scoped semantics (non-gvideo fronts
+	// substitute as before; googlevideo substitution engages only when
+	// the pool holds MEDIA-verified addresses). Off = the candidate
+	// never engages (the consultation's §2.3 open matrix item 2:
+	// substitution was never field-tested as an isolated variable).
+	// Default on; applied live while the engine runs.
+	ExperimentSubstitution bool `json:"experimentSubstitution"`
+	// ExperimentBreaker (M8-af, ADR-0044, spec W4, schema v6): the
+	// debug.24 switch for the googlevideo emission breaker. Off = the
+	// exact debug.22 shape (no breaker, no door-block). Default on.
+	ExperimentBreaker bool `json:"experimentBreaker"`
 }
 
 // Settings is everything persisted in settings.json (file 01, section 4).
@@ -118,8 +138,10 @@ func DefaultSettings() Settings {
 		AutoPort: AutoPort,
 		Apps:     DefaultApps(),
 		Advanced: Advanced{
-			DoHServers: Defaults(),
-			Domains:    DefaultDomains(),
+			DoHServers:             Defaults(),
+			Domains:                DefaultDomains(),
+			ExperimentSubstitution: true, // W4 (M8-af): the debug.24 switches ship on
+			ExperimentBreaker:      true,
 		},
 	}
 }
@@ -395,6 +417,15 @@ func LoadFor(dir string, platform string) (s Settings, notice string, err error)
 		// file that recorded its owner's off.
 		if android && loaded.Version < 5 {
 			loaded.FragmentAllRouted = true
+		}
+		// The v6 migration (M8-af, ADR-0044, spec W4): the
+		// experiment switches were absent from every pre-v6
+		// file, so their zero values are the shipped default,
+		// never a choice — both flip on (the round's semantics:
+		// W6-scoped substitution, W5-fixed breaker).
+		if loaded.Version < 6 {
+			loaded.Advanced.ExperimentSubstitution = true
+			loaded.Advanced.ExperimentBreaker = true
 		}
 	}
 	return Normalize(loaded), "", nil

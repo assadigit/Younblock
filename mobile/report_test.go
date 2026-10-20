@@ -52,6 +52,30 @@ func TestReportSectionWithoutTun(t *testing.T) {
 		t.Errorf("report lost 'tun: inactive' after SetShellVersion:\n%s", body)
 	}
 
+	// M8-af (ADR-0043, spec W9): the environment lines — the phone's
+	// model and the radio's identity ride in after Kotlin's calls, the
+	// consultation's unrecorded-environment gaps closed; before them
+	// the report carries neither (an honest absence, not unknown
+	// noise).
+	if strings.Contains(body, "device:") || strings.Contains(body, "net:") {
+		t.Errorf("report carries environment lines before the Kotlin calls:\n%s", body)
+	}
+	m.SetDeviceInfo("Samsung", "SM-S918B", 36)
+	m.SetNetworkInfo("cellular", "MCI", "432011")
+	body = m.eng.GetDiagnosticReport()
+	if !strings.Contains(body, "device: Samsung SM-S918B android 36\n") {
+		t.Errorf("report missing the device line:\n%s", body)
+	}
+	if !strings.Contains(body, "net: type=cellular operator=MCI mccmnc=432011\n") {
+		t.Errorf("report missing the net line:\n%s", body)
+	}
+	// The empty-string shape renders unknown, never blanks.
+	m.SetNetworkInfo("", "", "")
+	body = m.eng.GetDiagnosticReport()
+	if !strings.Contains(body, "net: type=unknown operator=unknown mccmnc=unknown\n") {
+		t.Errorf("the empty net identity must render unknown:\n%s", body)
+	}
+
 	// The section carries no addresses (the R21 redaction extends to it).
 	if strings.Contains(body, "127.0.0.1") {
 		t.Errorf("report section leaks an address:\n%s", body)

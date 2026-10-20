@@ -148,7 +148,7 @@ func (c *stampingReadConn) Read(b []byte) (int, error) {
 // next/seek reuse the pre-watch builds had ("videos used to lag only
 // at start; now even going next and back in the same video lags" —
 // Ali, that report).
-func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDown, flowDown *atomic.Int64, stop chan struct{}) {
+func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDown, flowDown *atomic.Int64, stop chan struct{}, ev *gvideoEvidence) {
         tick := s.cfg.StallTimeout / 4
         if tick > 500*time.Millisecond {
                 tick = 500 * time.Millisecond
@@ -266,11 +266,20 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                 // sat on the full 90 s. The demote still lands
                                 // (the M8-ac ruling), the noise stays quiet.
                                 if pending && pendingLimit > 0 && idle >= pendingLimit {
+                                        ev.snapB() // W1: B before the close takes the fd's counters
                                         tc.closeBoth()
                                         if ip := tc.remoteB(); ip != "" {
                                                 s.dropGoodIP(ip)
                                         }
-                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, true, false)
+                                        s.classifyTCPVerdict(ev)
+                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, true, false, ev)
+                                        // M8-af (ADR-0045, spec W5): the PENDING kill feeds
+                                        // the emission breaker — the sensor extension the
+                                        // debug.23 report demanded (cooldowns>0 now says the
+                                        // breaker caught the flag state).
+                                        if ev != nil {
+                                                s.feedGvideoBreaker()
+                                        }
                                         return
                                 }
                                 if idle < richLimit {
@@ -290,8 +299,10 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                         if ringN > 0 && downNow >= s.cfg.TrickleFloorBytes {
                                                 window := downNow - ring[ringPos]
                                                 if window > 0 && window < s.cfg.TrickleMinBytes {
+                                                        ev.snapB() // W1: B before the close
                                                         tc.closeBoth()
-                                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, false, true)
+                                                        s.classifyTCPVerdict(ev)
+                                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, false, true, ev)
                                                         return
                                                 }
                                         }
@@ -306,20 +317,32 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                 // unanswered for the whole rich budget is
                                 // dead-origin evidence at any tier — only the
                                 // noise stays quiet, the demote still lands.
+                                ev.snapB() // W1: B before the close
                                 tc.closeBoth()
                                 if pending {
                                         if ip := tc.remoteB(); ip != "" {
                                                 s.dropGoodIP(ip)
                                         }
+                                        s.classifyTCPVerdict(ev)
+                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, pending, false, ev)
+                                        if ev != nil {
+                                                s.feedGvideoBreaker() // W5: pending kills feed the breaker
+                                        }
+                                        return
                                 }
-                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, pending, false)
+                                s.classifyTCPVerdict(ev)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, pending, false, ev)
                                 return
                         }
                         if idle >= leanLimit {
+                                ev.snapB() // W1: B before the close
                                 tc.closeBoth()
                                 if pending {
                                         if ip := tc.remoteB(); ip != "" {
                                                 s.dropGoodIP(ip) // M8-ac (ADR-0034): dead-with-work-outstanding demotes, never boxes
+                                        }
+                                        if ev != nil {
+                                                s.feedGvideoBreaker() // W5: pending kills feed the breaker (classify is once, below)
                                         }
                                 }
                                 // M8-ad (ADR-0038): NO invalidateDNS here — the
@@ -336,7 +359,8 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                 // own refresh stays with the dial-failure path
                                 // (M8-o) where a whole set failed to connect.
                                 s.countConnError()
-                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, false, pending, false)
+                                s.classifyTCPVerdict(ev)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, false, pending, false, ev)
                                 return
                         }
                 }
@@ -555,7 +579,7 @@ func (s *Server) logTunnelFirstByteSubstituted(host, class string, dials int) {
 // report's ring like every other tunnel line; the done line that
 // follows carries the flow's totals, and the tier marks which budget
 // fired (the next report's primary tuning evidence).
-func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich, pending, trickle bool) {
+func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich, pending, trickle bool, ev *gvideoEvidence) {
         s.noteFailure(host, class)
         if rich {
                 s.stats.StallKillRich() // the tier split the report reads (M8-aa, ADR-0029)
@@ -592,6 +616,11 @@ func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, do
         }
         msg := fmt.Sprintf("tunnel stall killed class=%s idle=%dms down=%s tier=%s cause=%s",
                 class, idle.Milliseconds(), config.FormatBytes(down), tier, cause)
+        // M8-af (ADR-0043, spec W1): the kernel TCP evidence rides the
+        // stall line — both snapshots, taken while the fd still lived.
+        if suffix := ev.stallSuffix(); suffix != "" {
+                msg += suffix
+        }
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -625,16 +654,62 @@ func firstByteReason(err error) string {
 // logTunnelDone records the flow's lifetime and its own byte totals —
 // with first-byte it separates "slow to start" from "slow to transfer"
 // on the very same line pair.
-func (s *Server) logTunnelDone(host, class string, d time.Duration, m *flowMeter) {
+func (s *Server) logTunnelDone(host, class string, d time.Duration, m *flowMeter, ev *gvideoEvidence) {
         if s.cfg.Logger == nil {
                 return
         }
         msg := fmt.Sprintf("tunnel done class=%s dur=%dms up=%s down=%s",
                 class, d.Milliseconds(), config.FormatBytes(m.up.Load()), config.FormatBytes(m.down.Load()))
+        // M8-af (ADR-0043, spec W1/W2/W3): the googlevideo evidence
+        // block — winner class, kernel TCP pair, record timeline,
+        // first-app-byte — rides the done line (nil ev: no suffix,
+        // the exact pre-M8-af line).
+        if suffix := ev.doneSuffix(); suffix != "" {
+                msg += suffix
+        }
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
         s.cfg.Logger.Info(msg)
+}
+
+// feedGvideoBreaker records one googlevideo death into the emission
+// breaker's terminal ring (M8-ae first-byte terminals; M8-af, ADR-0045,
+// spec W5 extends the sensor to the PENDING stall kills — the debug.23
+// report's blind spot, measured exactly: 13 media stall deaths,
+// gvideoTerminals=0, cooldowns=0, the breaker watched the wrong death
+// class the whole session). The kill's evidence — the origin answered
+// the hello, the client's request went out, nothing ever came back —
+// is the same flag-state signal a first-byte terminal is; now the
+// breaker sees it. Arms (and logs + counts) exactly like failFlow did.
+func (s *Server) feedGvideoBreaker() {
+        s.stats.GvideoTerminal()
+        if s.noteGvideoTerminal() {
+                if s.cfg.Logger != nil {
+                        s.cfg.Logger.Warn("gvideo emission breaker armed (googlevideo goes wire-quiet)")
+                }
+                s.stats.GvideoCooldown()
+        }
+}
+
+// classifyTCPVerdict counts one stalled googlevideo flow's kernel-TCP
+// verdict into the report's tcp verdicts split (M8-af, ADR-0043, spec
+// W1): upstream-lost / downstream-lost / both-ok / unknown — never a
+// guess, an unclassifiable pair counts as unknown.
+func (s *Server) classifyTCPVerdict(ev *gvideoEvidence) {
+        if ev == nil {
+                return
+        }
+        switch ev.verdict() {
+        case "upstream-lost":
+                s.stats.TCPUpstreamLost()
+        case "downstream-lost":
+                s.stats.TCPDownstreamLost()
+        case "both-ok":
+                s.stats.TCPBothOK()
+        default:
+                s.stats.TCPUnknown()
+        }
 }
 
 func (s *Server) runBidirectionalCopy(client *bufferedConn, upstream net.Conn, host string, port int, fragmentTLS, budgeted bool) {
@@ -793,7 +868,7 @@ func (s *Server) copyPlain(client *bufferedConn, upstream net.Conn, host, class 
         }()
         <-done
         <-done
-        s.logTunnelDone(host, class, time.Since(tstart), flow)
+        s.logTunnelDone(host, class, time.Since(tstart), flow, nil)
 }
 
 // firstByteReplayCap bounds the client bytes remembered for a salvage
@@ -958,7 +1033,7 @@ func rotateIPs(ips []net.IP, k int) []net.IP {
 // client's read deadline; every read is fully processed (tee + write +
 // count) before the stop is honored, so no byte is ever lost between
 // pump generations.
-func (s *Server) pumpClient(client *bufferedConn, link *originLink, replay *replayBuf, flow *flowMeter, stop chan struct{}, phaseA bool, done chan<- struct{}) {
+func (s *Server) pumpClient(client *bufferedConn, link *originLink, replay *replayBuf, flow *flowMeter, stop chan struct{}, phaseA bool, done chan<- struct{}, ev *gvideoEvidence) {
         defer close(done)
         buf := getBuf()
         defer putBuf(buf)
@@ -974,6 +1049,18 @@ func (s *Server) pumpClient(client *bufferedConn, link *originLink, replay *repl
                 if n > 0 {
                         if phaseA {
                                 replay.append((*buf)[:n])
+                        }
+                        // M8-af (ADR-0043, spec W1/W2): the first client
+                        // bytes past the ClientHello are THE REQUEST —
+                        // snapshot A is taken the moment they went out
+                        // (their ACK lands an RTT later, so A is the
+                        // pre-request baseline), and the chunk feeds the
+                        // c2s record timeline.
+                        if ev != nil {
+                                ev.feedC2S((*buf)[:n], time.Now())
+                                if cur := link.current(); cur != nil {
+                                        ev.takeA(cur)
+                                }
                         }
                         if _, werr := link.Write((*buf)[:n]); werr != nil {
                                 // Phase-A write failures are the salvage's
@@ -1365,7 +1452,9 @@ func (s *Server) raceIPList(host string, port int, ips []net.IP, count int, snap
                 if res.conn != nil {
                         out.conn, out.first = res.conn, res.first
                         if ip := remoteIP(res.conn); ip != "" {
-                                s.markGoodIP(ip, isGvideoHost(host))
+                                // M8-af (ADR-0045, spec W6): handshake evidence
+                                // prefers, never gvideo-flags.
+                                s.markGoodIP(ip, false)
                         }
                         break
                 }
@@ -1510,6 +1599,16 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         if raceN < 0 {
                 raceN = 0
         }
+        // M8-af (ADR-0043/0044/0045, spec W1/W2/W3): the googlevideo
+        // flow's evidence holder — kernel TCP snapshots around the
+        // request, the TLS record timeline of both relayed directions,
+        // the first-app-byte clock, and the winner class. Non-gvideo
+        // flows (and every desktop non-gvideo host) carry nil and every
+        // hook below degrades to a no-op: behavior unchanged.
+        var ev *gvideoEvidence
+        if isGvideoHost(host) {
+                ev = newGvideoEvidence(tstart, s.noteTCPUnavail)
+        }
 
         var pumpStop chan struct{}
         var pumpDone chan struct{}
@@ -1517,7 +1616,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         startPump := func() {
                 pumpStop = make(chan struct{})
                 pumpDone = make(chan struct{})
-                go s.pumpClient(client, link, replay, flow, pumpStop, true, pumpDone)
+                go s.pumpClient(client, link, replay, flow, pumpStop, true, pumpDone, ev)
                 pumpRunning = true
         }
         // failFlow is the M8-s terminal: both ends closed, the error
@@ -1527,6 +1626,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         // answered googlevideo failure with MORE googlevideo volume):
         // enough terminals inside the window and the doors go quiet.
         failFlow := func(reason string) {
+                ev.snapB() // W1: B while the origin fd's counters are still readable
                 link.swap(nil) // unblocks a pump stuck writing before anything else
                 if pumpRunning {
                         stopClientPump(client, pumpStop, pumpDone)
@@ -1535,16 +1635,10 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 tc.closeBoth()
                 s.countConnError()
                 if isGvideoHost(host) {
-                        s.stats.GvideoTerminal()
-                        if s.noteGvideoTerminal() {
-                                if s.cfg.Logger != nil {
-                                        s.cfg.Logger.Warn("gvideo emission breaker armed (googlevideo goes wire-quiet)")
-                                }
-                                s.stats.GvideoCooldown()
-                        }
+                        s.feedGvideoBreaker() // M8-ae's sensor, extracted (W5 extends it to pending kills)
                 }
                 s.logTunnelFirstByteFailed(host, class, reason)
-                s.logTunnelDone(host, class, time.Since(tstart), flow)
+                s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
         }
 
         // relayEntry runs the post-first-byte relay under the stall watch
@@ -1553,6 +1647,12 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         // READ side of each direction (the copy loops' only activity
         // signal); the idle ends keep the plain shape's IdleTimeout.
         relayEntry := func(origin net.Conn) {
+                // M8-af (ADR-0043, spec W1/W2): the winning origin is the
+                // evidence's subject (snapshot B reads it) and its relay
+                // copy feeds the record timeline — the client read side
+                // (c2s), the origin read side (s2c), and the client→origin
+                // write side (whose first write is THE REQUEST: snapshot A).
+                ev.noteOrigin(origin)
                 cIdle := &idleConn{Conn: client, timeout: s.cfg.IdleTimeout}
                 uIdle := &idleConn{Conn: origin, timeout: s.cfg.IdleTimeout}
                 nowMS := time.Now().UnixMilli()
@@ -1560,27 +1660,34 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 lastDown := &atomic.Int64{}
                 lastUp.Store(nowMS)
                 lastDown.Store(nowMS)
-                upSrc := &stampingReadConn{Conn: cIdle, stamp: lastUp}
-                downSrc := &stampingReadConn{Conn: uIdle, stamp: lastDown}
+                var upRead io.Reader = &stampingReadConn{Conn: cIdle, stamp: lastUp}
+                var downRead io.Reader = &stampingReadConn{Conn: uIdle, stamp: lastDown}
+                var upWrite io.Writer = uIdle
+                if ev != nil {
+                        upRead = &evidenceReadConn{Conn: upRead.(net.Conn), ev: ev, up: true}
+                        downRead = &evidenceReadConn{Conn: downRead.(net.Conn), ev: ev, up: false}
+                        upWrite = &evidenceWriteConn{Conn: uIdle, ev: ev, origin: origin}
+                }
                 stallStop := make(chan struct{})
                 if s.cfg.StallTimeout > 0 {
-                        go s.watchStall(host, class, tc, lastUp, lastDown, &flow.down, stallStop)
+                        go s.watchStall(host, class, tc, lastUp, lastDown, &flow.down, stallStop, ev)
                 }
                 done := make(chan struct{}, 2)
                 go func() {
-                        s.copyDir(upSrc, uIdle, true, flow, nil) // client -> origin counts as up
+                        s.copyDir(upRead, upWrite, true, flow, nil) // client -> origin counts as up
                         closeWrite(origin)
                         done <- struct{}{}
                 }()
                 go func() {
-                        s.copyDir(downSrc, cIdle, false, flow, nil) // origin -> client counts as down
+                        s.copyDir(downRead, cIdle, false, flow, nil) // origin -> client counts as down
                         closeWrite(client.Conn)
                         done <- struct{}{}
                 }()
                 <-done
                 <-done
                 close(stallStop)
-                s.logTunnelDone(host, class, time.Since(tstart), flow)
+                ev.snapB() // W1: B at flow end, while the fd still lives
+                s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
         }
 
         // M8-w (ADR-0021): the first-dial race. With extra candidates
@@ -1644,7 +1751,11 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // later flow).
                 if winner != nil {
                         if ip := remoteIP(winner); ip != "" {
-                                s.markGoodIP(ip, isGvideoHost(host))
+                                // M8-af (ADR-0045, spec W6): a first-byte win is
+                                // HANDSHAKE evidence — preference yes, but never a
+                                // googlevideo pool mark (only W7's media verdicts
+                                // may feed the substitution pool now).
+                                s.markGoodIP(ip, false)
                         }
                 }
                 if winner == nil {
@@ -1670,6 +1781,8 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                         totalDials := raceN + 1 + len(untried)
                                         tc.setB(salv.conn)   // Stop's sweep must hit the live origin
                                         link.swap(salv.conn)      // the salvage winner owns the flow now
+                                        ev.noteOrigin(salv.conn)
+                                        ev.feedS2C(salv.first, time.Now())
                                         if err := writeFull(client, salv.first, s.cfg.IdleTimeout); err != nil {
                                                 // The origin spoke but the client is gone: a
                                                 // client-side death, not a suspect-origin
@@ -1677,7 +1790,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                                 link.swap(nil)
                                                 tc.closeBoth()
                                                 s.countConnError()
-                                                s.logTunnelDone(host, class, time.Since(tstart), flow)
+                                                s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
                                                 return
                                         }
                                         s.stats.AddBytesDown(int64(len(salv.first)))
@@ -1699,6 +1812,24 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         tc.setB(winner)   // Stop's sweep must hit the live origin
                         link.swap(winner) // closes the primary — it lost
                 }
+                // M8-af (ADR-0043, spec W3): the winner class rides the done
+                // line — which candidate carried the flow (the debug.23
+                // report could not say whether its 18 substitution "wins"
+                // ever carried real payload; now every flow names its
+                // carrier), and the winner's first bytes feed the s2c
+                // record timeline before the relay continues the stream.
+                if ev != nil {
+                        switch {
+                        case substWin:
+                                ev.setWinner("subst")
+                        case winner != upstream:
+                                ev.setWinner("race")
+                        default:
+                                ev.setWinner("orig")
+                        }
+                }
+                ev.noteOrigin(winner)
+                ev.feedS2C(winnerFirst, time.Now())
                 if err := writeFull(client, winnerFirst, s.cfg.IdleTimeout); err != nil {
                         // The origin spoke but the client is gone: a
                         // client-side death, not a suspect-origin signal
@@ -1706,7 +1837,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         link.swap(nil)
                         tc.closeBoth()
                         s.countConnError()
-                        s.logTunnelDone(host, class, time.Since(tstart), flow)
+                        s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
                         return
                 }
                 s.stats.AddBytesDown(int64(len(winnerFirst)))
@@ -1756,10 +1887,13 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         // the client reads to the plain two-goroutine relay
                         // (the pump's reads are all delivered; the shape from
                         // here is byte-for-byte the plain copy's). The spoke
-                        // origin is good-pool evidence (M8-ab, ADR-0031).
+                        // origin is good-pool evidence (M8-ab, ADR-0031) —
+                        // M8-af (ADR-0045, spec W6): first-byte evidence
+                        // prefers, never gvideo-flags (media verdicts only).
                         if ip := remoteIP(origin); ip != "" {
-                                s.markGoodIP(ip, isGvideoHost(host))
+                                s.markGoodIP(ip, false)
                         }
+                        ev.feedS2C((*buf)[:n], time.Now())
                         if err := writeFull(client, (*buf)[:n], s.cfg.IdleTimeout); err != nil {
                                 putBuf(buf)
                                 // The origin spoke but the client is gone: a
@@ -1772,7 +1906,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                 }
                                 tc.closeBoth()
                                 s.countConnError()
-                                s.logTunnelDone(host, class, time.Since(tstart), flow)
+                                s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
                                 return
                         }
                         s.stats.AddBytesDown(int64(n))
@@ -1787,7 +1921,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                 // reader — the flow dies here, honestly.
                                 tc.closeBoth()
                                 s.countConnError()
-                                s.logTunnelDone(host, class, time.Since(tstart), flow)
+                                s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
                                 return
                         }
                         pumpRunning = false
@@ -1874,6 +2008,8 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // and enter the relay (the pump is already stopped — the
                 // race stopped it — so the client's buffered bytes flow to
                 // the winner through the plain copy).
+                ev.noteOrigin(winner)
+                ev.feedS2C(winnerFirst, time.Now())
                 if err := writeFull(client, winnerFirst, s.cfg.IdleTimeout); err != nil {
                         // The origin spoke but the client is gone: a
                         // client-side death, not a suspect-origin signal
@@ -1881,7 +2017,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         link.swap(nil)
                         tc.closeBoth()
                         s.countConnError()
-                        s.logTunnelDone(host, class, time.Since(tstart), flow)
+                        s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
                         return
                 }
                 s.stats.AddBytesDown(int64(len(winnerFirst)))
