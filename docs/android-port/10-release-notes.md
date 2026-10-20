@@ -79,6 +79,23 @@ What changed, in plain words:
   asymmetry is a browser's connection pooling rather than the OS,
   the next tuning pass wants to know.
 
+**The debug.22 artifact** (built this round, verified before packing):
+`v1.6.6-debug22.apk`, versionCode 21 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
+certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
+over every earlier debug build, D85), APK 55,218,521 B, SHA-256
+`4cba233bb9b17f6215c386fd74b8d4c956c24a6818e0985266f798e99ae04216`.
+Built from commit 25b081c (rebased over the tester's own
+`backend.py` upload, 3214c71 — the file this round's ADR-0039
+answers). The gomobile bind ran with the debug-tester ldflags
+(`-X …/internal/config.DebugTesterBuild=true`) and the M8-ad
+signatures were verified present in libgojni.so in ALL THREE ABIs
+before gradle (the house ritual): `cause=%s` + `trickle` on the
+stall line's cause split, `stallRichPending` / `stallTrickle` on the
+counters, the report's `rich=%d (pending=%d trickle=%d)` format, and
+`1.6.6-debug.22`; the uploaded asset was re-downloaded and verified
+byte-identical (`cmp` + SHA-256).
+
 **v1.6.6-android-debug.21 (versionCode 19+1=20) — superseded by
 debug.22** — the hostile-network round. What changed, in plain
 words (kept for the record):
