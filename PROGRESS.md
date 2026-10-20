@@ -4386,3 +4386,11 @@ Version: mobile facade "1.6.6-debug.25"; gradle versionCode
 23→24 with the round's comment block; ADR-0046, release notes
 (the starved-behind-its-own-door story in plain words, the new
 discipline-line numbers), CHANGELOG, README, PROGRESS updated.
+Build artifact: commit 0405f1f; release v1.6.6-android-debug.25
+(id 418991235, the repo's Latest), APK v1.6.6-debug25.apk
+56,068,289 B, SHA-256 b29a3aab77b656a5651bc0cf82222025db65fa5a3c
+62d1bf65c4f227bfbdb251, aapt badging versionCode 24 / versionName
+1.6.6 / minSdk 26 / targetSdk 36, apksigner pinned cert
+c76bb7c6…8551d, the M8-ag lift/scout/version strings verified in
+libgojni.so, and the release asset re-downloaded byte-identical
+(cmp + SHA-256).

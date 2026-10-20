@@ -14,6 +14,15 @@ every release are on the
 
 ### Fixed / Added (2026-10-21 — M8-ag; shipping in `v1.6.6-android-debug.25`, versionCode 24)
 
+- **Build artifact:** commit `0405f1f` ("M8-ag: the breaker stops
+  starving the player (ADR-0046) -- debug.25, versionCode 24");
+  release `v1.6.6-android-debug.25` (id 418991235, the repo's
+  Latest), APK asset `v1.6.6-debug25.apk` (56,068,289 B, SHA-256
+  `b29a3aab77b656a5651bc0cf82222025db65fa5a3c62d1bf65c4f227bfbdb251`,
+  the pinned debug certificate c76bb7c6…8551d, versionCode 24 /
+  versionName 1.6.6 / minSdk 26 / targetSdk 36 by aapt; the M8-ag
+  string signatures verified in libgojni.so; the asset re-downloaded
+  and cmp'd byte-identical).
 - **"Didn't work, it even failed to play a video. but feed
   refreshes." — the debug.24 field report, read end to end, was the
   breaker finally working exactly as designed and killing playback
