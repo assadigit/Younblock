@@ -4080,12 +4080,14 @@ TestRichPendingKillAtTheFastBudget FAILS; the trickle ring neutered
 → TestTrickleKillClosesTheThrottledFlow FAILS; invalidateDNS
 restored at the kill site → TestStallKillKeepsTheAnswerSet FAILS;
 presetFor reverted to balanced → TestAutoStartsAtLegacy FAILS. Full
-suite green (18 packages + mobile). Honest flake note:
-TestStallKillClosesSilentRelayFlow (first-flight EOF family, the
-same first-byte path documented flaking for three rounds) measured
-1/20 solo with this diff vs 4+/20 at HEAD in the same session —
-pre-existing and, if anything, less frequent with the round; the
-full package passes.
+suite green (18 packages + mobile). Honest flake note (the
+first-byte-read family documented for three rounds, living in the
+path this diff never touches): TestStallKillClosesSilentRelayFlow
+measured 1/20 solo with this diff vs 4+/20 at HEAD in the same
+session; TestStallKillSparesStreamingDownload flaked once in ONE of
+two full-suite interleaves (first-flight i/o timeout under parallel
+package load), then the package passed solo AND the test passed
+10/10 solo — pre-existing sandbox CPU starvation, recorded here.
 
 Version: mobile facade "1.6.6-debug.22"; gradle versionCode 20→21
 with the round's comment block; ADR-0037/0038/0039, release notes
