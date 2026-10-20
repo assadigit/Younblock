@@ -11,7 +11,9 @@ debug-circle rounds M8-n…M8-z (the reliability ladder through Ali's
 pasted reports); ADR-0028…0030 record the debug.19 round (M8-aa, the
 dead-origin-pool fixes the first debug.18 report measured);
 ADR-0031…0033 record the debug.20 round (M8-ab, the escape-the-pool
-fixes the first debug.19 report measured).
+fixes the first debug.19 report measured); ADR-0034…0036 record the
+debug.21 round (M8-ac, the hostile-network fixes the first debug.20
+report measured).
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -1944,6 +1946,199 @@ seeds self-correcting through the demote (M8-ab)
   session that follows a working one show substitution wins BEFORE
   the first probe pass could have verified anything (the seeded
   pool's fingerprint), and the pool's gvideo count starts non-zero.
+
+## ADR-0034 — The evidence-weighted marking and the
+anti-concentration rotation: reset deaths box briefly without
+demoting, pending stall kills demote, the probe REHABILITATES boxed
+IPs, and the dial lists rotate their verified fronts (M8-ac, the
+debug.21 hostile-network round)
+
+- **Status:** Accepted 2026-10-20 (M8-ac; the debug.20 report's own
+  evidence named the round: penalized=12 while the one-shot
+  dead-origin probe ANSWERED on both SNI variants — the box held IPs
+  the network was happy to serve; the gvideo pool ended at 1 despite
+  substitution wins=5 because every terminal's deaths demoted the
+  marks its wins had written; and www.youtube.com ran 17 flows for 17
+  failures with first bytes at 282 ms — connections opened, answered,
+  then died, all on the same pinned verified origin).
+- **Context:** the censor moved from IP-blackholing to killing
+  connections in flight (probe reset verdicts 0→35, DoH dials 6→59
+  thirteen hours apart). Under that regime a flow death is evidence
+  about ONE connection at ONE moment, not about the origin IP — but
+  the M8-y/M8-aa box treated every classified death as a 60 s-to-30 m
+  IP verdict, and the M8-ab demote drained the pool on every
+  terminal. The ADR-0023/0028 design's core assumption (deaths are
+  per-IP stable) broke; the machinery needed to stop fighting the new
+  evidence shape.
+- **Decision:**
+  1. **Class-weighted deaths.** markDeadIPClass(ip, reason): a RESET
+     death boxes for ResetIPPenalty=20 s (a within-retry-wave skip
+     that spreads candidates) and NEVER demotes the good mark; every
+     other first-byte death keeps DeadIPPenalty=60 s + the demote.
+     Probe verdicts follow the same weighting: reset → 60 s (was the
+     10-minute OriginProbeDeadTTL), silent → 10 m unchanged (a fresh
+     connection given a full 2.5 s budget and staying blackholed is
+     still the strong per-IP evidence it always was). Strike
+     escalation tiers drop to [60 s, 2 m, 5 m] — a 30-minute boxing
+     of a live origin is indefensible when the report's own probe
+     says it answers.
+  2. **The pending/idle stall demote.** The stall kill computes
+     pending = lastUp > lastDown (the client spoke after the origin's
+     last byte — a request the origin never answered). A PENDING kill
+     demotes the origin's good mark at BOTH tiers (dead with work
+     outstanding is dead-origin evidence whatever the budget); an
+     IDLE kill never demotes (the shape is ambiguous: the app's
+     pooled connection between requests OR a mid-body death — the
+     rotation handles any concentration, and a pooled-healthy origin
+     must not lose its preference).
+  3. **The rehabilitation.** ProbeOrigins samples up to
+     ProbeRehabPerPass=4 currently-boxed IPs (soonest-expiry first)
+     and re-verifies them with a neutral-SNI hello: "answered"
+     clears the box entry entirely (strikes gone), marks the IP good
+     (never gvideo-flagged — the neutral hello proves the path, not
+     the wildcard service), and counts probeRehabilitated; anything
+     else refreshes the box with the class-weighted TTL. The box now
+     self-corrects on fresh evidence instead of sitting wrong for its
+     whole escalated TTL.
+  4. **The rotation.** liveIPs and goodSubstitutes rotate their
+     verified-live fronts per call through one server-wide counter:
+     consecutive flows to the same host lead with DIFFERENT verified
+     origins, so the raced primaries and rotations spread across the
+     answer set instead of funneling onto the single freshest mark
+     (the debug.20 concentration: one pinned origin ate 17/17
+     failures). A pair-rate-limiting killer — the one shape the
+     dead-origin probe's "answered" verdicts are consistent with —
+     gets spread traffic for free.
+- **Evidence:** internal/proxy/flowkill_test.go (five shapes): the
+  rotating front (three calls, three different leads, neutral tail
+  intact), the reset-class death (mark kept, brief box; the neutered
+  control FAILS on the dropped mark), the pending demote (a request
+  written inside the wake gap so the M8-x pacing proof does not
+  escalate the flow first; the demote lands, cause=pending on the
+  line), the idle guard (cause=idle, mark kept), the rehabilitation
+  (a boxed echo origin cleared, marked, counted, rehab=1 on the pass
+  line; the neutered control leaves the box stale). Both-ways: the
+  rotation neutered → the two rotation tests FAIL on the static
+  front; the reset class neutered → the mark test FAILS; the pending
+  demote neutered → the demote test FAILS; the rehabilitation
+  neutered → the rehab test FAILS.
+- **What this ADR does NOT decide:** the stall budgets themselves
+  (ADR-0020/0022/0029 unchanged — the kills are doing their job; the
+  debug.20 kills carried genuine dead connections), the probe's
+  cadence (ADR-0035), cross-origin substitution (ADR-0031 unchanged —
+  it WORKED in the field: wins=5).
+- **How the next report verifies it:** rehabilitated > 0 says the box
+  was wrong and self-corrected; goodDrops tracks the pool's churn
+  (a draining pool with reset-heavy deaths says the weighting needs
+  another turn); the substitution line's pool (gvideo V) should hold
+  above single digits through a hostile window; and the Top-10's
+  failure rates should stop being 100%-on-one-host.
+
+## ADR-0035 — The cadence rebalance and the DoH brownout: the 45 s
+fast-start probe lane REMOVED (the persisted seed and the flow-fed
+marks own its job), the churn kick kept and debounced, and every
+background lane pauses while the DoH resolver's connections churn
+(M8-ac)
+
+- **Status:** Accepted 2026-10-20 (M8-ac; the debug.20 report's doh
+  line: dials 59, reuse 127 — the connection-killer was murdering the
+  resolver's warm HTTP/2 connections faster than they could serve,
+  and the engine's own background lanes kept piling queries and
+  scan-like probe bursts onto the dying lane while the app's flows
+  waited behind them).
+- **Context:** ADR-0032's fast-start lane (45 s passes while young
+  and thin-pooled) presupposed that more probing stocks the pool
+  faster. The debug.20 session falsified that premise under the new
+  regime: the gvideo pool never crossed the floor (reset verdicts
+  boxed what the passes verified), so the lane ran its whole 5-minute
+  window — six-plus probe bursts right at the session start, exactly
+  when the network was hostile and the first video was starting.
+  Meanwhile the pool-stocking job found better owners: the persisted
+  seed (ADR-0033) arms session N+1 before any probe runs, and the
+  flow-fed marks (ADR-0031) verify origins with real traffic the app
+  was sending anyway.
+- **Decision:**
+  1. **The fast-start lane is removed** (the ProbeFastStart* knobs
+     with it). The gvideo loop keeps exactly three lanes: the 5-minute
+     prewarm cadence, the 1 s churn watch (a googlevideo terminal
+     kicks an immediate prewarm+pass, debounced 10 s), and the 15 s
+     good-pool save tick.
+  2. **The DoH brownout.** A rolling window over the DoH transport's
+     dial counter: ≥ BrownoutDialThreshold=3 dials within
+     BrownoutWindow=60 s enters the brownout (counted, one WARN
+     line); the prewarm, the probe passes, and the churn kicks pause
+     while it is active, lifting after BrownoutQuiet=60 s without a
+     new dial. The app's own flows never pause — only the engine's
+     background traffic withdraws from a dying lane.
+  3. **Android-gated as before** (ADR-0028 decision 5): the desktops
+     keep the byte-for-byte M8-z loop; the brownout gates only lanes
+     the desktops never run.
+- **Evidence:** internal/engine/m8ac_test.go
+  TestDoHBrownoutTracker (injectable clock: enter at threshold, hold
+  under continued dials, lift after the quiet period, re-arm on the
+  next burst; the neutered control never enters) and the report's
+  brownouts= line.
+- **What this ADR does NOT decide:** the DoH transport itself (its
+  hedged walk, warm-ping health checks, and stale serving are
+  ADR-0025's, unchanged — the brownout does not touch the resolver,
+  it only stops the engine's background lanes from leaning on it
+  while it is being killed), the probe's wire shape (ADR-0028's).
+- **How the next report verifies it:** doh: … brownouts=N — N > 0
+  with the background quiet during the hostile windows (the log's
+  probe lines should cluster in the calm gaps between brownouts, not
+  inside them), and dials should stop climbing once the killer
+  relents.
+
+## ADR-0036 — The cause-split diagnostics: every stall kill says
+whether the flow died PENDING (the client's request was never
+answered — a dead origin) or IDLE (both ends quiet — either the
+app's pooled connection or a mid-body death), the counters split to
+match, and the report carries rehabilitated/goodDrops/brownouts
+(M8-ac)
+
+- **Status:** Accepted 2026-10-20 (M8-ac; the debug.20 report's seven
+  lean kills all carried 6-15 KB of partial responses and the one
+  visible www.youtube.com kill carried up=10.7 KB — the flows SPOKE
+  and then died, but the report could not say whether the client had
+  a request outstanding when the origin went silent, which is the
+  difference between "the engine is killing dead connections" and
+  "the engine is killing the app's healthy pool").
+- **Context:** the lean stall kill frees the app's retry by design,
+  but the debug.20 experience ("way way worse, doesn't even play")
+  made the kill itself a suspect. The discriminator already existed
+  inside the watch — the lastUp/lastDown activity stamps: a client
+  that wrote AFTER the origin's last response byte is waiting on a
+  request the origin never answered (the origin is dead — the kill
+  is right and the demote is earned); a client quiet since the last
+  byte is the ambiguous shape. The report needs the split so the
+  NEXT paste answers which world the engine is in instead of the
+  armchair guessing.
+- **Decision:** watchStall computes pending = lastUp > lastDown at
+  kill time; the stall line gains cause=pending|idle; the counters
+  split (stallLeanPending / stallLeanIdle under the lean total); the
+  report's stall-kills line renders "lean=N (pending=P idle=I)";
+  the origin-probe line gains rehabilitated=, the counters line
+  gains goodDrops, and the doh line gains brownouts= (ADR-0035's).
+  The split also weights the demote (ADR-0034 decision 2) — the
+  diagnostic and the policy read the same evidence.
+- **Evidence:** internal/proxy/flowkill_test.go shapes 3a/3b (the
+  pending kill: a request written inside the wake gap so the pacing
+  proof does not escalate the flow first — cause=pending on the
+  line, the mark demoted; the idle kill: cause=idle, the mark kept);
+  internal/engine/m8ac_test.go TestReportRendersM8acSections (every
+  new section renders, no-leak guards).
+- **What this ADR does NOT decide:** any budget change (the kills
+  carried genuine dead connections in the debug.20 paste — the 8 s
+  lean budget and the tiering stand; IF the next report shows
+  idle-kills dominating with data resuming after 9-15 s, THAT is the
+  evidence that revisits ADR-0029).
+- **How the next report verifies it:** pending dominating = the
+  killer is real and the engine's fast-fail+retry is the right shape
+  (and the demotes are earning their keep); idle dominating with the
+  app recovering = the pooled-connection world and the next round
+  lengthens the idle-lean budget or exempts no-pending flows; idle
+  dominating with no recovery = mid-body deaths and the data path
+  itself is the censor's target — a different tool than dial lists.
 
 ## Decision-change procedure
 

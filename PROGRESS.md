@@ -3932,3 +3932,78 @@ The round:
   versionCode 18→19 with the round's comment block; release notes /
   CHANGELOG / README updated; the webui dist rebuilt from frontend
   (the known fresh-checkout gap) before the mobile tests.
+
+## M8-ac — the hostile-network round (ADR-0034/0035/0036, debug.21, versionCode 20)
+
+Date: 2026-10-20 (Asia/Tehran), evening. Input: the tester's FIRST
+debug.20 report (versionCode 19, the escape-the-pool build, pasted
+2026-10-20T14:31Z, tested at 18:04 Tehran — evening peak; the
+debug.19 test was 04:17 — off-peak): "It became way way worse, it
+doesn't even play a video after a while!!"
+
+What the report said, read against the 13.5h-earlier debug.19 one:
+the NETWORK REGIME FLIPPED between the two tests — the one-shot
+dead-origin probe went silent→ANSWERED on both SNI variants (the IP
+blackholing is gone), probe reset verdicts 0→35, DoH dials 6→59 (the
+resolver's warm connections being killed), down 6.3MB→1.3MB. The
+debug.20 machinery itself WORKED under it: substitution attempts=7
+wins=5, first bytes 70-524ms everywhere, auto-timeline
+play→first-data 2500ms pairs=2 (the 45s cold-start SOLVED early in
+the session) — then the session decayed: 7 lean kills each carrying
+6-15KB of partial responses, www.youtube.com 17/17 flows failed with
+worstFirstByte=282ms (connections opened, answered, then died
+mid-flight), gvideoTerminals=17, the DoH servers failing in waves,
+dns=579-846ms late in the log. The app can't complete its API calls
+→ playback never starts.
+
+The self-harm diagnosis (five interactions of the debug.20 choices
+with the new regime): the box held penalized=12 while the dead-origin
+probe said those IPs ANSWER (deaths are temporal now, not per-IP);
+the flow-fed pool drained to gvideo=1 (17 terminals' all-dead rounds
+demoting the very marks the wins wrote — substitutes starved);
+liveIPs pinned every flow onto the same verified origin
+(www.youtube.com 17/17, the good-front plus raced rotations all
+inside the live prefix); every raced death invalidated DNS through
+the dying DoH lane (a churn spiral); the 45s fast-start cadence sent
+scan-like bursts exactly while the network was hostile (the report's
+own decay window correlates with the tick).
+
+The round: (1) ADR-0034 — markDeadIPClass (reset → 20s box, no
+demote; else 60s + demote), probe resets → 60s, escalation
+[60s,2m,5m], the pending/idle stall demote (pending demotes at both
+tiers — dead with work outstanding; idle never demotes), the probe
+rehabilitation (4 boxed IPs/pass re-verified, answered → cleared +
+good + counted, neutral-SNI marks never gvideo-flagged), and the
+front rotation (liveIPs + goodSubstitutes rotate per call through
+one server-wide counter); (2) ADR-0035 — the fast-start lane
+removed, the churn kick kept (debounced), and the dohBrownout tracker
+(≥3 dials/60s pauses the background lanes until 60s of quiet,
+counted, injectable clock); (3) ADR-0036 — cause=pending|idle on the
+stall lines, the pending/idle counter split, rehabilitated=/goodDrops/
+brownouts= on the report.
+
+Tests: proxy/flowkill_test.go (5: the rotating front, the reset-class
+mark kept + brief box, the pending demote — the request written
+INSIDE the wake gap so the M8-x pacing proof doesn't escalate the
+flow to rich first (a sub-tolerance discovery: a write that closes a
+≥wakeGap gap wakes the flow; the rich tier's pending kills demote
+too, but the lean budget is the fast path), the idle guard, the
+rehabilitation) + engine/m8ac_test.go (2: the brownout tracker over
+an injected clock, the section render with no-leak guards). Both-ways:
+rotation neutered → both rotation tests FAIL; reset-class neutered →
+the mark test FAILS; pending demote neutered → the demote test FAILS;
+rehab neutered → the rehab test FAILS; brownout neutered → the tracker
+test FAILS. Full suite green (18 packages + mobile);
+TestStallKillSparesStreamingDownload flaked 1/10 solo with the round's
+diff vs 0/10 at HEAD (n=10, same failure family the worklog has
+documented flaking under this CPU-starved sandbox for three rounds;
+the full package passes; the diff touches nothing in the first-byte
+path the failure lives in — recorded honestly here).
+
+Version: mobile facade "1.6.6-debug.21"; gradle versionCode 19→20
+with the round's comment block; ADR-0034/0035/0036, release notes
+(the time-of-day honesty: the two tests ran 4:17 AM vs 6:04 PM; the
+morning re-test ask), CHANGELOG, README, PROGRESS updated. The
+sandbox was wiped again before this round: repo re-cloned, Go
+1.26.3 reinstalled, the frontend rebuilt, the whole Android lane
+(JDK/SDK/NDK/gomobile) rebuilt from scratch.

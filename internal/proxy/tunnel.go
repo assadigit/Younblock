@@ -46,6 +46,18 @@ func (t *tunnelCloser) closeBoth() {
         })
 }
 
+// remoteB reports the tunnel's current origin IP ("" when unset) —
+// the stall watch's demote target (M8-ac, ADR-0034).
+func (t *tunnelCloser) remoteB() string {
+        t.mu.Lock()
+        b := t.b
+        t.mu.Unlock()
+        if b == nil {
+                return ""
+        }
+        return remoteIP(b)
+}
+
 // bufferedConn is the client side after request parsing: it first serves the
 // bytes bufio had already buffered, then the socket itself (file 01,
 // section 7 step 1: keep using the same bufio.Reader afterwards).
@@ -201,6 +213,15 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                         }
                         idle := now - newest
                         rich := escalate && (woke || flowDown.Load() >= richBytes)
+                        // The cause split (M8-ac, ADR-0036): the client speaking
+                        // AFTER the origin's last byte is a request the origin
+                        // never answered — the flow died with work outstanding
+                        // (pending); a quiet client since the last origin byte is
+                        // the ambiguous shape (pooled-healthy OR mid-body death —
+                        // idle). Only the PENDING lean kill demotes the origin's
+                        // good mark: definite dead-origin evidence, while an idle
+                        // kill says nothing the rotation doesn't already handle.
+                        pending := up > downStamp
                         if rich {
                                 if idle < richLimit {
                                         continue
@@ -209,15 +230,30 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                 // flow proved itself (payload or pacing), so
                                 // the answer set and the error counter stay
                                 // untouched — the line carries the evidence.
+                                // A PENDING rich kill still demotes (M8-ac,
+                                // ADR-0034): a request the origin left
+                                // unanswered for the whole rich budget is
+                                // dead-origin evidence at any tier — only the
+                                // noise stays quiet, the demote still lands.
                                 tc.closeBoth()
-                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), true)
+                                if pending {
+                                        if ip := tc.remoteB(); ip != "" {
+                                                s.dropGoodIP(ip)
+                                        }
+                                }
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), true, pending)
                                 return
                         }
                         if idle >= leanLimit {
                                 tc.closeBoth()
+                                if pending {
+                                        if ip := tc.remoteB(); ip != "" {
+                                                s.dropGoodIP(ip) // M8-ac (ADR-0034): dead-with-work-outstanding demotes, never boxes
+                                        }
+                                }
                                 s.invalidateDNS(host)
                                 s.countConnError()
-                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), false)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), false, pending)
                                 return
                         }
                 }
@@ -418,20 +454,34 @@ func (s *Server) logTunnelFirstByteSubstituted(host, class string, dials int) {
 }
 
 // logTunnelStallKilled records the stall kill (M8-v, ADR-0020; M8-x,
-// ADR-0022): a budgeted flow whose relay went silent in BOTH
-// directions for the whole effective budget — the debug.13 report's
-// dead cohort (first byte plus ~7 KB, then silence to the app's ~60 s
-// patience) on the lean tier, a proven flow's hygiene close on the
-// rich tier. The line rides in the report's ring like every other
-// tunnel line; the done line that follows carries the flow's totals,
-// and the tier marks which budget fired (the next report's primary
-// tuning evidence).
-func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich bool) {
+// ADR-0022; M8-ac adds the cause split, ADR-0036): a budgeted flow
+// whose relay went silent in BOTH directions for the whole effective
+// budget — the debug.13 report's dead cohort (first byte plus ~7 KB,
+// then silence to the app's ~60 s patience) on the lean tier, a
+// proven flow's hygiene close on the rich tier. pending says whether
+// the CLIENT had spoken after the origin's last byte (a request the
+// origin never answered — the flow died with work outstanding) or
+// had been quiet since (idle — EITHER the app's pooled connection
+// between requests OR a response that stopped mid-body; the split is
+// the next report's evidence for which world we are in, and it
+// weights the demote: a PENDING lean kill drops the origin's good
+// mark (definite dead-origin evidence), an idle one never does
+// (ambiguous — the origin may be perfectly healthy, and the rotation
+// already keeps the dial lists spread). The line rides in the
+// report's ring like every other tunnel line; the done line that
+// follows carries the flow's totals, and the tier marks which budget
+// fired (the next report's primary tuning evidence).
+func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich, pending bool) {
         s.noteFailure(host, class)
         if rich {
                 s.stats.StallKillRich() // the tier split the report reads (M8-aa, ADR-0029)
         } else {
-                s.stats.StallKillLean()
+                s.stats.StallKillLean() // the lean total (M8-aa) plus the cause split (M8-ac, ADR-0036)
+                if pending {
+                        s.stats.StallLeanPending()
+                } else {
+                        s.stats.StallLeanIdle()
+                }
         }
         if s.cfg.Logger == nil {
                 return
@@ -440,8 +490,12 @@ func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, do
         if rich {
                 tier = "rich"
         }
-        msg := fmt.Sprintf("tunnel stall killed class=%s idle=%dms down=%s tier=%s",
-                class, idle.Milliseconds(), config.FormatBytes(down), tier)
+        cause := "idle"
+        if pending {
+                cause = "pending"
+        }
+        msg := fmt.Sprintf("tunnel stall killed class=%s idle=%dms down=%s tier=%s cause=%s",
+                class, idle.Milliseconds(), config.FormatBytes(down), tier, cause)
         if s.cfg.LogHostnames {
                 msg += " host=" + host
         }
@@ -1099,7 +1153,10 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                 lastDeath = res.death
                 if res.deadIP != "" {
                         dialed = append(dialed, res.deadIP)
-                        s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
+                        // M8-ac (ADR-0034): the death's own class weights the mark —
+                        // a reset is a temporal signal (a brief skip, no demote), a
+                        // full-budget silence keeps the strong verdict.
+                        s.markDeadIPClass(res.deadIP, res.death)
                 }
                 if !res.subst {
                         s.invalidateDNS(host)
@@ -1122,7 +1179,8 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []ne
                         }
                         if !res.canceled {
                                 if res.deadIP != "" {
-                                        s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
+                                        // M8-ac: class-weighted like every death mark.
+                                        s.markDeadIPClass(res.deadIP, res.death)
                                 }
                                 if !res.subst {
                                         s.invalidateDNS(host)
@@ -1210,7 +1268,8 @@ func (s *Server) raceIPList(host string, port int, ips []net.IP, count int, snap
                 deaths++
                 out.death = res.death
                 if res.deadIP != "" {
-                        s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
+                        // M8-ac (ADR-0034): class-weighted like every death mark.
+                        s.markDeadIPClass(res.deadIP, res.death)
                 }
                 s.invalidateDNS(host)
                 if deaths == count {
@@ -1224,7 +1283,8 @@ func (s *Server) raceIPList(host string, port int, ips []net.IP, count int, snap
                                 res.conn.Close()
                         } else {
                                 if res.deadIP != "" {
-                                        s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
+                                        // M8-ac: class-weighted like every death mark.
+                                        s.markDeadIPClass(res.deadIP, res.death)
                                 }
                                 s.invalidateDNS(host)
                         }
@@ -1619,7 +1679,10 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 reason := firstByteReason(rerr)
                 if ip := remoteIP(origin); ip != "" {
                         deadIPs[ip] = true
-                        s.markDeadIP(ip) // the penalty box (M8-y, ADR-0023): the knowledge outlives the flow — terminal deaths mark too
+                        // M8-ac (ADR-0034): the death's class weights the mark — the
+                        // knowledge outlives the flow either way, but a reset is now a
+                        // temporal signal, not an IP verdict.
+                        s.markDeadIPClass(ip, reason)
                 }
                 if redials >= maxRedial || !replay.fits() {
                         s.invalidateDNS(host) // terminal: the set connects but never speaks (M8-s)

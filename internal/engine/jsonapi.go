@@ -355,9 +355,10 @@ func (e *Engine) GetDiagnosticReport() string {
 		d.PlainFirstByteTo, d.DialNear, d.DialFar, d.FirstByteSlow)
 	// M8-aa (ADR-0028/0029/0030): the tier split, the raced/salvage
 	// saves, the routed-flow starts, and the origin-probe verdicts;
-	// M8-ab adds the googlevideo terminal count the churn kick reads.
-	fmt.Fprintf(&b, "counters: stallKillsLean %d, stallKillsRich %d, racedSaves %d, salvagedSaves %d, routedFlows %d, gvideoTerminals %d\n",
-		d.StallKillLean, d.StallKillRich, d.RacedSaves, d.SalvagedSaves, d.RoutedFlows, d.GvideoTerminals)
+	// M8-ab adds the googlevideo terminal count the churn kick reads;
+	// M8-ac adds the good-mark drop count (the pool's churn).
+	fmt.Fprintf(&b, "counters: stallKillsLean %d, stallKillsRich %d, racedSaves %d, salvagedSaves %d, routedFlows %d, gvideoTerminals %d, goodDrops %d\n",
+		d.StallKillLean, d.StallKillRich, d.RacedSaves, d.SalvagedSaves, d.RoutedFlows, d.GvideoTerminals, d.GoodDrops)
 	// §8.3.3: the DoH transport's own counters (dials opened, reuse,
 	// hedge wins by server number) ride the header too.
 	dohd := e.resolver.Load().Diagnostic()
@@ -370,7 +371,10 @@ func (e *Engine) GetDiagnosticReport() string {
 	if len(hedgeBy) > 0 {
 		fmt.Fprintf(&b, " (%s)", strings.Join(hedgeBy, " "))
 	}
-	fmt.Fprintf(&b, "\n")
+	// M8-ac (ADR-0035): the DoH brownout periods — how many times the
+	// resolver's connections churned hard enough to pause the
+	// engine's background lanes (the connection-killer's fingerprint).
+	fmt.Fprintf(&b, " brownouts=%d\n", d.DoHBrownouts)
 	fmt.Fprintf(&b, "%s\n", e.lastSelfTestSummary())
 	// §8.3.1: Top 10 slowest or failed hosts — per host (count,
 	// failures, worst time to first byte, class); the host NAME rides
@@ -392,8 +396,14 @@ func (e *Engine) GetDiagnosticReport() string {
 	// M8-aa (ADR-0029): the stall tier split with the budget that
 	// fired — the next report's primary tuning evidence (the three
 	// 15 s lean kills of the debug.18 paste become three 8 s ones).
-	fmt.Fprintf(&b, "stall kills: lean=%d rich=%d leanBudget=%s\n",
-		d.StallKillLean, d.StallKillRich, e.stallLeanEffective())
+	// M8-ac (ADR-0036) adds the cause split: PENDING kills died with
+	// the client's request unanswered (the definite dead-origin
+	// shape, and the demote's trigger), IDLE kills were quiet on both
+	// ends (the ambiguous shape — the app's pooled connection OR a
+	// mid-body death). Which one dominates says which world the
+	// engine is in.
+	fmt.Fprintf(&b, "stall kills: lean=%d (pending=%d idle=%d) rich=%d leanBudget=%s\n",
+		d.StallKillLean, d.StallLeanPending, d.StallLeanIdle, d.StallKillRich, e.stallLeanEffective())
 	// M8-aa (ADR-0028): the origin-probe pass's own evidence — how
 	// many passes ran, how many answer IPs the fragmented hello
 	// verified, and the verdict split — plus the box's and the good
@@ -405,8 +415,8 @@ func (e *Engine) GetDiagnosticReport() string {
 		good = srv.GoodIPCount()
 		penalized, strikes = srv.DeadBoxStats()
 	}
-	fmt.Fprintf(&b, "origin probe: passes=%d ips=%d answered=%d silent=%d reset=%d good=%d penalized=%d strikes=%d\n",
-		d.ProbePasses, d.ProbeIPs, d.ProbeAnswered, d.ProbeSilent, d.ProbeReset, good, penalized, strikes)
+	fmt.Fprintf(&b, "origin probe: passes=%d ips=%d answered=%d silent=%d reset=%d good=%d penalized=%d strikes=%d rehabilitated=%d\n",
+		d.ProbePasses, d.ProbeIPs, d.ProbeAnswered, d.ProbeSilent, d.ProbeReset, good, penalized, strikes, d.ProbeRehabilitated)
 	// M8-ab (ADR-0031): the cross-origin substitution's own evidence —
 	// how many substitute candidates launched, how many won their
 	// round, and the pool they drew from (total verified-live origins,

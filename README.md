@@ -28,12 +28,12 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug20.apk` from the repo's
+releasing yet"): download `v1.6.6-debug21.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.20` release (a regular release in this private
+`v1.6.6-android-debug.21` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug20**; it installs over any earlier
+**make sure the filename says debug21**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
 this build removes the FIRST VIDEO'S remaining start lag the debug.18
 report measured: the engine now VERIFIES the video hosts' addresses

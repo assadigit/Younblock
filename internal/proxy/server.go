@@ -219,6 +219,16 @@ type Server struct {
 	goodMu    sync.Mutex
 	good      map[string]goodMark
 	goodOrder []string
+
+	// goodRot counts every liveIPs/goodSubstitutes call that rotates
+	// (M8-ac, ADR-0034): the anti-concentration turn — the debug.20
+	// report's www.youtube.com ran 17 flows at 17 failures with the
+	// good-front pinning every primary and rotation onto the same
+	// verified origin while the connection-killer worked the lane.
+	// Consecutive calls rotate the live-front so consecutive flows
+	// spread across the verified origins instead of funneling onto
+	// one.
+	goodRot atomic.Int64
 }
 
 // deadMark is one penalized origin IP's box entry (M8-aa, ADR-0028):
@@ -815,10 +825,7 @@ func strikeTTL(strikes int) time.Duration {
 // markDeadIP penalizes one origin IP for DeadIPPenalty (M8-y,
 // ADR-0023): the origin connected (or reset at the hello write) and
 // never spoke — the classified first-byte death, the pasted reports'
-// dead-origin signature. The censor's blackhole is per ORIGIN IP (cache
-// nodes shared across rr hostnames), so the knowledge outlives the
-// flow and crosses hostnames: the next video's fresh rr name resolving
-// to the same blackholed node skips it on sight. Stall kills,
+// dead-origin signature. Stall kills,
 // client-side deaths, teardown-canceled deaths and dial failures never
 // mark (no single-IP first-byte evidence). No-op when the knob is
 // disabled.
@@ -826,18 +833,37 @@ func (s *Server) markDeadIP(ip string) {
 	s.markDeadIPTTL(ip, s.cfg.DeadIPPenalty)
 }
 
-// markDeadIPTTL penalizes one origin IP for the given baseline TTL
-// with strike escalation (M8-aa, ADR-0028): a repeat mark while the
-// entry lives (or later — the strike count survives expiry until the
-// 512-entry FIFO evicts it) escalates the TTL to the escalation floor,
-// so a cache node that keeps killing flows stops being re-learned
-// every 60 s. A verified-live mark on the same IP is DROPPED (M8-ab,
-// ADR-0031 — the behavior ADR-0028's comment promised, actually
-// implemented): the death is the fresher evidence, and without the
-// drop a dead IP resurfaces at the FRONT of every dial list the
-// moment its box entry lapses — the debug.19 code's latent leak, and
-// a poisoned substitution pool the moment the pool started mattering.
-func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
+// markDeadIPClass penalizes one origin IP's first-byte death by its
+// EVIDENCE CLASS (M8-ac, ADR-0034): a reset death — the origin (or
+// something on the path) actively refused the connection at the
+// hello — is now a TEMPORAL signal, not an IP verdict: the debug.20
+// report measured the regime change (the one-shot dead-origin probe
+// ANSWERED on penalized IPs; 35 of 77 probe verdicts came back
+// reset), so a reset boxes the IP only ResetIPPenalty long — a
+// within-retry-wave skip that spreads candidates elsewhere — and
+// does NOT demote the good mark (a live origin stays preferred; the
+// rotation in liveIPs keeps it from being the ONLY origin dialed).
+// Every other first-byte death (a full budget of silence, a clean
+// close) keeps the M8-ab semantics: DeadIPPenalty + the demote.
+func (s *Server) markDeadIPClass(ip, reason string) {
+	if ip == "" {
+		return
+	}
+	if reason == "reset" {
+		if s.cfg.DeadIPPenalty <= 0 {
+			return
+		}
+		s.boxIP(ip, config.ResetIPPenalty)
+		return // no demote: the reset is evidence about ONE connection
+	}
+	s.markDeadIP(ip)
+}
+
+// boxIP writes one origin IP's penalty-box entry with strike
+// escalation, WITHOUT touching the good table (M8-ac, ADR-0034 — the
+// class-split core of markDeadIPTTL, shared by the reset path and
+// the probe's rehabilitation refresh).
+func (s *Server) boxIP(ip string, base time.Duration) {
 	if s.cfg.DeadIPPenalty <= 0 || base <= 0 || ip == "" {
 		return
 	}
@@ -862,23 +888,67 @@ func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
 	}
 	s.dead[ip] = m
 	s.deadMu.Unlock()
+}
+
+// clearDeadIP removes one origin IP's penalty-box entry entirely
+// (M8-ac, ADR-0034): the rehabilitation's write — fresh direct
+// evidence the IP answers outranks the stale death that boxed it.
+// The FIFO order entry is dropped with it (a later re-box re-learns
+// it at the end, its strikes gone).
+func (s *Server) clearDeadIP(ip string) {
+	if ip == "" {
+		return
+	}
+	s.deadMu.Lock()
+	delete(s.dead, ip)
+	for i, key := range s.deadOrder {
+		if key == ip {
+			s.deadOrder = append(s.deadOrder[:i], s.deadOrder[i+1:]...)
+			break
+		}
+	}
+	s.deadMu.Unlock()
+}
+
+// markDeadIPTTL penalizes one origin IP for the given baseline TTL
+// with strike escalation (M8-aa, ADR-0028): a repeat mark while the
+// entry lives (or later — the strike count survives expiry until the
+// 512-entry FIFO evicts it) escalates the TTL to the escalation floor,
+// so a cache node that keeps killing flows stops being re-learned
+// every 60 s. A verified-live mark on the same IP is DROPPED (M8-ab,
+// ADR-0031 — the behavior ADR-0028's comment promised, actually
+// implemented): the death is the fresher evidence, and without the
+// drop a dead IP resurfaces at the FRONT of every dial list the
+// moment its box entry lapses — the debug.19 code's latent leak, and
+// a poisoned substitution pool the moment the pool started mattering.
+func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
+	if s.cfg.DeadIPPenalty <= 0 || base <= 0 || ip == "" {
+		return
+	}
+	s.boxIP(ip, base)
 	// The demote (M8-ab): the box's verdict outranks the good mark
 	// while it lives, and the stale preference must not outlive it.
 	s.dropGoodIP(ip)
 }
 
 // dropGoodIP removes one origin IP's verified-live mark (M8-ab,
-// ADR-0031). The table's FIFO order entry is kept — a later re-mark
-// refreshes it in place, and expired entries sweep cheaply on access.
+// ADR-0031; M8-ac counts the drop, ADR-0034 — the pool's churn
+// number the report reads). The table's FIFO order entry is kept —
+// a later re-mark refreshes it in place, and expired entries sweep
+// cheaply on access.
 func (s *Server) dropGoodIP(ip string) {
 	if ip == "" {
 		return
 	}
 	s.goodMu.Lock()
-	if _, ok := s.good[ip]; ok {
-		m := s.good[ip]
+	if m, ok := s.good[ip]; ok && m.until.After(time.Now()) {
 		m.until = time.Now() // expires on the next access
 		s.good[ip] = m
+		s.goodMu.Unlock()
+		if s.cfg.Stats != nil {
+			s.cfg.Stats.GoodDrop()
+		}
+		return
 	}
 	s.goodMu.Unlock()
 }
@@ -918,6 +988,14 @@ func (s *Server) markGoodIP(ip string, gvideo bool) {
 // EMPTY returns unchanged — an all-penalized set gambles in full
 // exactly as before, never an instant fail. Single-IP lists return
 // untouched (nothing to prefer). No-op when the knob is disabled.
+//
+// M8-ac (ADR-0034) rotates the live FRONT per call: the debug.20
+// report's www.youtube.com ran 17 flows for 17 failures — every one
+// funneled onto the same pinned verified origin (the good-front plus
+// the raced rotations starting inside it) while the connection-killer
+// worked the lane. Consecutive calls now start the live-front at a
+// different verified origin, so consecutive flows spread across the
+// origins the engine has SEEN speak instead of concentrating on one.
 func (s *Server) liveIPs(ips []net.IP) []net.IP {
 	if s.cfg.DeadIPPenalty <= 0 || len(ips) < 2 {
 		return ips
@@ -938,7 +1016,9 @@ func (s *Server) liveIPs(ips []net.IP) []net.IP {
 	// The verified-live front (M8-aa): origins the probe watched answer
 	// come first — the primary dial and every rotation then start on
 	// the origins the engine has SEEN speak, while the neutral tail
-	// keeps its order for the raced rotations to cover.
+	// keeps its order for the raced rotations to cover. The front
+	// itself ROTATES per call (M8-ac): the rotation counter's next
+	// value picks which verified origin leads THIS list.
 	s.goodMu.Lock()
 	var live, neutral []net.IP
 	for _, ip := range out {
@@ -951,6 +1031,12 @@ func (s *Server) liveIPs(ips []net.IP) []net.IP {
 	s.goodMu.Unlock()
 	if len(live) == 0 {
 		return out
+	}
+	if len(live) > 1 {
+		rot := int(s.goodRot.Add(1)-1) % len(live)
+		if rot > 0 {
+			live = append(append([]net.IP(nil), live[rot:]...), live[:rot]...)
+		}
 	}
 	return append(live, neutral...)
 }
@@ -1057,7 +1143,10 @@ func (s *Server) SeedGoodIPs(ips []string) {
 // fragmented ClientHello — SNI unchanged — onto the pool origin. Nil
 // when the knob is off or the pool has nothing new to offer (the
 // round then keeps its own-set rotations, exactly the debug.19
-// shape).
+// shape). M8-ac (ADR-0034) rotates which verified origins lead the
+// list across calls — the same anti-concentration turn liveIPs takes,
+// so consecutive substitutes spread across the pool instead of always
+// betting its freshest mark.
 func (s *Server) goodSubstitutes(own []net.IP, max int) []net.IP {
 	if s.cfg.GoodIPSubstitution <= 0 || max <= 0 {
 		return nil
@@ -1105,10 +1194,18 @@ func (s *Server) goodSubstitutes(own []net.IP, max int) []net.IP {
 		return nil
 	}
 	// Freshest verdict first: the most recently verified pool origin
-	// leads the candidate's dial list.
+	// leads the candidate's dial list — then the rotation (M8-ac):
+	// consecutive rounds start that ordering at a different pool
+	// origin, so the substitute bet spreads too.
 	sort.Slice(out, func(i, j int) bool { return out[i].until.After(out[j].until) })
 	if len(out) > max {
 		out = out[:max]
+	}
+	if len(out) > 1 {
+		rot := int(s.goodRot.Add(1)-1) % len(out)
+		if rot > 0 {
+			out = append(append([]cand(nil), out[rot:]...), out[:rot]...)
+		}
 	}
 	ips := make([]net.IP, len(out))
 	for i, c := range out {
@@ -1246,6 +1343,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 		ip     net.IP
 		sni    string
 		gvideo bool
+		rehab  bool // a re-verification of a currently-boxed IP (M8-ac, ADR-0034)
 	}
 	var jobs []probeJob
 	for _, name := range names {
@@ -1285,6 +1383,45 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 			jobs = append(jobs, probeJob{ip: ip, sni: name, gvideo: gvideo})
 		}
 	}
+	// The rehabilitation sample (M8-ac, ADR-0034): up to
+	// ProbeRehabPerPass currently-boxed IPs get their verdict
+	// RE-CHECKED — soonest-expiring first — because the debug.20
+	// report proved the box now holds stale verdicts (penalized=12
+	// while the one-shot dead-origin probe answered on those same
+	// IPs): under the flow-killing regime a death says nothing
+	// stable about the IP, and the box must clear on fresh evidence,
+	// not on a 5-30-minute expiry. An "answered" verdict clears the
+	// box entry and marks the IP good (counted); anything else
+	// refreshes the box with the class-weighted TTL.
+	s.deadMu.Lock()
+	type rehabCand struct {
+		key   string
+		until time.Time
+	}
+	var rehabs []rehabCand
+	for _, key := range s.deadOrder {
+		if len(rehabs) >= config.ProbeRehabPerPass || len(jobs) >= maxIPs {
+			break
+		}
+		if m, ok := s.dead[key]; ok && now.Before(m.until) {
+			rehabs = append(rehabs, rehabCand{key: key, until: m.until})
+		}
+	}
+	s.deadMu.Unlock()
+	sort.Slice(rehabs, func(i, j int) bool { return rehabs[i].until.Before(rehabs[j].until) })
+	for _, rc := range rehabs {
+		if len(jobs) >= maxIPs {
+			break
+		}
+		if ip := net.ParseIP(rc.key); ip != nil {
+			// The rehab hello carries a neutral SNI (it verifies
+			// the PATH, not a service), so a rehabilitated mark is
+			// never gvideo-flagged — front-of-list preference only,
+			// never a substitution candidate (the wildcard-service
+			// claim needs the googlevideo-shaped verdict).
+			jobs = append(jobs, probeJob{ip: ip, sni: "www.google.com", gvideo: false, rehab: true})
+		}
+	}
 	if len(jobs) == 0 {
 		if s.cfg.Stats != nil {
 			s.cfg.Stats.ProbePass()
@@ -1297,6 +1434,7 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 	verdicts := make([]string, len(jobs))
 	probedIPs := make([]string, len(jobs))
 	probeGvideo := make([]bool, len(jobs))
+	probeRehab := make([]bool, len(jobs))
 	for i, j := range jobs {
 		if ctx.Err() != nil {
 			break
@@ -1311,9 +1449,11 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 			verdicts[i] = s.probeOneOrigin(pctx, j.ip, j.sni, port, preset, fcfg)
 			probedIPs[i] = j.ip.String()
 			probeGvideo[i] = j.gvideo
+			probeRehab[i] = j.rehab
 		}(i, j)
 	}
 	wg.Wait()
+	rehabbed := 0
 	for i, v := range verdicts {
 		if probedIPs[i] == "" {
 			continue // the pass was canceled before this probe launched
@@ -1322,13 +1462,28 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 		switch v {
 		case "answered":
 			sum.Answered++
+			if probeRehab[i] {
+				// The rehabilitation (M8-ac): fresh direct evidence
+				// the IP answers outranks the stale death that boxed
+				// it — the box entry is cleared entirely, the good
+				// mark takes its place, the counter says the box
+				// was wrong.
+				s.clearDeadIP(probedIPs[i])
+				rehabbed++
+				if s.cfg.Stats != nil {
+					s.cfg.Stats.ProbeRehabilitated()
+				}
+			}
 			s.markGoodIP(probedIPs[i], probeGvideo[i])
 			if s.cfg.Stats != nil {
 				s.cfg.Stats.ProbeAnswered()
 			}
 		case "reset":
 			sum.Reset++
-			s.markDeadIPTTL(probedIPs[i], config.OriginProbeDeadTTL)
+			// M8-ac (ADR-0034): the probe's fresh reset is the same
+			// TEMPORAL signal a flow's reset death is — a brief box,
+			// never the old 10-minute IP verdict, and never a demote.
+			s.boxIP(probedIPs[i], config.OriginProbeResetTTL)
 			if s.cfg.Stats != nil {
 				s.cfg.Stats.ProbeReset()
 			}
@@ -1348,8 +1503,8 @@ func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, max
 	}
 	if s.cfg.Logger != nil {
 		// R21: counts only — never a name, never an IP.
-		s.cfg.Logger.Info(fmt.Sprintf("origin probe: names=%d ips=%d answered=%d silent=%d reset=%d",
-			sum.Names, sum.IPs, sum.Answered, sum.Silent, sum.Reset))
+		s.cfg.Logger.Info(fmt.Sprintf("origin probe: names=%d ips=%d answered=%d silent=%d reset=%d rehab=%d",
+			sum.Names, sum.IPs, sum.Answered, sum.Silent, sum.Reset, rehabbed))
 	}
 	return sum
 }

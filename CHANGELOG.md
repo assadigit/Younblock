@@ -12,6 +12,47 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-20 — M8-ac; shipping in `v1.6.6-android-debug.21`, versionCode 20)
+
+- **"It became way way worse, it doesn't even play a video after a
+  while" — the tester's FIRST debug.20 report (tested at 6:04 PM
+  Tehran vs the 4:17 AM debug.19 test) measured a CENSOR REGIME
+  CHANGE (dead-origin probe silent→answered, probe resets 0→35, DoH
+  dials 6→59: the block moved from IP-blackholing to killing
+  connections in flight) plus five self-harming interactions of the
+  debug.20 machinery, and this round fixes the self-harm: the
+  hostile-network fixes (ADR-0034/0035/0036).** (1) **The
+  evidence-weighted marking (ADR-0034)**: markDeadIPClass — a RESET
+  death boxes 20 s (ResetIPPenalty) WITHOUT demoting (temporal
+  evidence), other first-byte deaths keep 60 s + demote; probe reset
+  verdicts box 60 s (was 10 m), silent keeps 10 m; strike escalation
+  [60s,5m,30m]→[60s,2m,5m]; PENDING stall kills (lastUp>lastDown: a
+  client request the origin never answered) demote at BOTH tiers,
+  IDLE kills never demote; the probe pass REHABILITATES up to 4 boxed
+  IPs/pass (answered → cleared + good-marked + counted; neutral-SNI
+  hellos never gvideo-flag the mark); liveIPs and goodSubstitutes
+  ROTATE their verified fronts per call (one server-wide counter —
+  consecutive flows spread across verified origins instead of the
+  debug.20 report's www.youtube.com 17/17 concentration on one pinned
+  origin). (2) **The cadence rebalance + DoH brownout (ADR-0035)**:
+  the 45 s fast-start probe lane REMOVED with its knobs (the
+  persisted seed + flow-fed marks own pool-stocking; the lane's
+  verdicts were mostly resets and its bursts scan-like during
+  hostility); the churn kick stays debounced 10 s; the dohBrownout
+  tracker (≥3 DoH dials in 60 s → the prewarm/probe/churn lanes pause
+  until 60 s of dial quiet; counted; injectable clock for tests).
+  (3) **The cause-split diagnostics (ADR-0036)**: stall lines carry
+  cause=pending|idle; stallLeanPending/Idle counters; the report's
+  stall kills line reads "lean=N (pending=P idle=I)", the origin
+  probe line gains rehabilitated=, the counters line gains goodDrops,
+  the doh line gains brownouts= — the numbers that decide the next
+  round (idle-dominant kills with recovery = lengthen the idle
+  budget; pending-dominant = the fast-fail shape is right). Tests:
+  proxy/flowkill_test.go (5 shapes) + engine/m8ac_test.go (2), all
+  both-ways proven (rotation/reset-class/pending-demote/rehab/brownout
+  neuters each FAIL their tests); full suite green (18 packages +
+  mobile).
+
 ### Fixed / Added (2026-10-20 — M8-ab; shipping in `v1.6.6-android-debug.20`, versionCode 19)
 
 - **"The problem persists" — the tester's FIRST debug.19 report

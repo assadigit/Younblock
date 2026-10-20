@@ -20,52 +20,52 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 19: the M8-ab build (debug.20 — the escape-the-pool
-        // round): the debug.19 report proved the dead-origin pool works
-        // but only ever inside ONE hostname's rotating answer set
-        // (auto-timeline elapsed=44999ms pairs=5 — five retry waves
-        // gambling fresh unknown qxau5 IPs while the good table held 24
-        // verified origins no dial list ever saw, the video starting
-        // only when the app itself fell back to a foreign cache), so:
-        // (1) the cross-origin substitution (ADR-0031) — a
-        // *.googlevideo.com flow's raced round gains ONE substitute
-        // candidate dialing the good pool's verified-live origins
-        // (not in the current answer set, not boxed, freshest verdict
-        // first; the identical fragmented ClientHello replays with the
-        // SNI unchanged — Google's video edge serves any
-        // *.googlevideo.com name, the Iranian hosts-file IP-pin
-        // practice rides exactly this; flat dial count — the
-        // substitute replaces one own-set rotation), flow first-byte
-        // SUCCESSES now feed the pool too (the session's own
-        // foreign-cache win arms every later flow), and a first-byte
-        // death on a pool origin drops its good mark and boxes it (the
-        // ADR-0028 demote actually implemented — the debug.19 code's
-        // latent leak that resurfaced dead IPs at the FRONT of dial
-        // lists once the box lapsed); (2) the probe coverage and
-        // cadence (ADR-0032) — the pass's name list walks the learned
-        // code store ROUND-ROBIN (one rr name per code, 12 codes a
-        // pass, 48 IPs the cap: every remembered code, foreign
-        // clusters included, is verified within a few passes instead
-        // of the freshest-2 local cluster forever), a fast-start
-        // cadence (45 s passes while the engine is young and the
-        // gvideo pool is thin — the debug.19 session ran ONE pass in
-        // its whole 45 s cold start), and the churn kick (a
-        // googlevideo terminal — all-dead raced round + dead salvage
-        // — bumps gvideoTerminals and the gvideo loop's 1 s watch
-        // kicks an immediate pass, 10 s debounce); (3) the persisted
-        // verified-live pool (ADR-0033) — googlevideo-good-ips.txt
-        // seeded back at start with the shorter 5-minute TTL so the
-        // FIRST video of session N+1 rides the origins session N
-        // verified (a stale seed self-corrects through the demote);
-        // and the substitution line in the report
-        // (attempts/wins/pool — the one line that says whether the
-        // cross-cache bet worked in the field). Android-gated lanes
-        // stay android-gated (ADR-0028 decision 5: desktops
-        // byte-for-byte). Installs over debug.19 (the same pinned
-        // debug certificate — D85). The D84 rule: every debug build
-        // bumps this. D103: the APK asset is named
-        // v1.6.6-debug20.apk.
-        versionCode = 19
+        // versionCode 20: the M8-ac build (debug.21 -- the hostile-network
+        // round): the tester's FIRST debug.20 report came from 6:04 PM
+        // Tehran (evening peak; the debug.19 test was 4:17 AM) and
+        // measured a REGIME CHANGE, not just a regression: the
+        // dead-origin probe answered on both SNI variants (the IP
+        // blackholing is GONE), 35 of 77 probe verdicts came back
+        // reset, and the DoH lane's connections churned (dials 59,
+        // was 6 thirteen hours earlier) -- the censor moved from
+        // blackholing cache-node IPs to killing connections in
+        // flight. The debug.20 machinery itself worked (substitution
+        // attempts=7 wins=5, first bytes 70-524ms everywhere,
+        // auto-timeline play->first-data elapsed=2500ms pairs=2 --
+        // the 45 s cold-start was SOLVED early in the session) but
+        // five of its choices became self-harm under the new regime:
+        // the box held 12 penalized IPs that all ANSWERED (deaths are
+        // temporal now, not per-IP), the flow-fed good pool drained
+        // to gvideo=1 (every terminal's deaths demoting the very
+        // marks its wins had written), liveIPs pinned every flow onto
+        // the same verified origin (www.youtube.com 17/17), every
+        // raced death invalidated DNS through the dying DoH lane, and
+        // the 45 s fast-start cadence sent scan-like bursts exactly
+        // while the network was hostile. The round: (1) the
+        // evidence-weighted marking (ADR-0034) -- reset-class deaths
+        // box 20 s WITHOUT demoting (a temporal signal), timeout
+        // deaths keep 60 s + demote, PENDING stall kills (the client
+        // spoke after the origin's last byte: a request left
+        // unanswered) demote at BOTH tiers, IDLE kills never demote,
+        // probe resets box 60 s (was 10 m), strike escalation capped
+        // at [60s, 2m, 5m], and the probe pass REHABILITATES boxed
+        // IPs (answered = cleared + marked good + counted); (2) the
+        // anti-concentration rotation (ADR-0034) -- liveIPs and
+        // goodSubstitutes rotate their fronts per call so consecutive
+        // flows spread across verified origins; (3) the cadence
+        // rebalance + DoH brownout (ADR-0035) -- the 45 s fast-start
+        // lane REMOVED (the persisted seed and flow-fed marks own its
+        // job), the churn kick stays debounced, and >=3 DoH dials in
+        // 60 s pauses every background lane until the resolver
+        // recovers (counted); (4) the cause-split diagnostics
+        // (ADR-0036) -- stall kills split pending/idle (THE number
+        // that says whether the engine is killing dead origins or
+        // the app's pooled connections), rehabilitated/goodDrops/
+        // brownouts on the report. Installs over debug.20 (the same
+        // pinned debug certificate -- D85). The D84 rule: every
+        // debug build bumps this. D103: the APK asset is named
+        // v1.6.6-debug21.apk.
+        versionCode = 20
         versionName = "1.6.6"
     }
 

@@ -1,6 +1,29 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-ab (2026-10-20 — the debug.20 round, the
+**Status:** updated at M8-ac (2026-10-20, evening — the debug.21
+round, the hostile-network fixes the FIRST debug.20 report measured:
+the evidence-weighted marking + box rehabilitation + the
+anti-concentration rotation (ADR-0034), the cadence rebalance + the
+DoH brownout (ADR-0035), and the pending/idle cause split +
+rehabilitated/goodDrops/brownouts diagnostics (ADR-0036). Read the
+tester's debug.20 report against their debug.19 one first — the two
+tests ran 13.5 HOURS APART (4:17 AM vs 6:04 PM Tehran: off-peak vs
+evening peak) and the NETWORK ITSELF changed between them: the
+dead-origin probe went silent→ANSWERED on both SNI variants (the IP
+blackholing is gone), probe reset verdicts went 0→35, DoH connection
+dials went 6→59 — the censor moved from blackholing cache-node IPs to
+killing connections in flight, including the resolver's. Under that
+regime the debug.20 round's own report card was mixed: substitution
+attempted 7 / won 5, first bytes 70-524 ms everywhere, and the
+auto-timeline measured play→first-data at 2.5 s pairs=2 (the 45 s
+cold-start was SOLVED early in the session) — but five of its choices
+became self-harm: the box penalized 12 IPs that all answered, the
+flow-fed pool drained to gvideo=1 (every terminal's deaths demoting
+the marks its wins had written), every www.youtube.com flow funneled
+onto one pinned verified origin (17/17 failures), every raced death
+invalidated DNS through the dying DoH lane, and the 45 s fast-start
+cadence sent scan-like bursts exactly while the network was hostile.
+Earlier at M8-ab (2026-10-20 — the debug.20 round, the
 escape-the-pool fixes the FIRST debug.19 report measured: the
 cross-origin substitution from the verified-live pool (ADR-0031), the
 probe pass's round-robin coverage + fast-start cadence + churn kick
@@ -16,22 +39,93 @@ googlevideo hosts with clean first-bytes in the whole window); plus
 the round's own confession, the one pass ran at engine start and its
 name list was the stable fronts plus the 2 FRESHEST learned codes —
 early in a session the local cluster twice, so the pool could not
-have escaped the blackhole even in principle. Earlier at M8-aa
-(2026-10-20 — the debug.19 round, the dead-origin-pool fixes the
-FIRST debug.18 report measured: the verified prewarm + strike
-escalation + the good table (ADR-0028), the raced-path salvage round
-over the untried origins (ADR-0028), the Android 8 s lean stall
-budget (ADR-0029), and the auto-timeline heuristic + the M8-aa
-counters (ADR-0030). The tester's debug.18 report answered the
-cold-start spec's own §12 grid: the plain lane healthy (H1 disproven —
-the debug.18 fixes held), DoH healthy, the QUIC fallback instant, the
-dead-origin probe silent on BOTH sni=alt AND sni=none — IP-level
-blackholing, "the penalty box is right" — and ALL 38 remaining errors
-class=routed: ~20 first-byte terminals at exactly one budget
-(dur≈2.6 s), three lean stall kills at exactly 15 s carrying
-half-finished responses, the top host 13 flows for 8 failures, the
-app's retry waves re-rolling the same mixed live-and-blackholed answer
-set.**v1.6.6-android-debug.20 (versionCode 19) is the CURRENT build** —
+have escaped the blackhole even in principle.**v1.6.6-android-debug.21 (versionCode 19+1=20) is the CURRENT
+build** — the hostile-network round. What changed, in plain words:
+
+- **First, the honest part: your two tests ran at very different
+  hours.** Your debug.19 test was ~4:17 AM (quiet hours); the
+  debug.20 test was 6:04 PM (evening peak). The two reports show the
+  blocking itself CHANGED between them — addresses that were
+  blackholed in the morning answered in the evening, and connections
+  that lived for minutes in the morning got killed mid-flight in the
+  evening. Some of "way worse" is the network, not the app. If
+  debug.21 still struggles in the evening, **please re-test the next
+  morning** and send both reports — that comparison alone tells us
+  how much is time-of-day.
+- **The engine stops punishing addresses for the new block's
+  behavior.** Under the evening regime a connection death says
+  nothing about the ADDRESS (your report's own one-shot probe said
+  every penalized address ANSWERED). Now: a RESET death only skips
+  that address for ~20 s (long enough to spread one retry wave), and
+  never demotes it from the verified pool; a full-timeout death keeps
+  the old 60 s skip; and the background verification now RE-CHECKS
+  boxed addresses every pass — an address that answers is cleared on
+  the spot (the report's new `rehabilitated=` count says how often
+  the box was wrong).
+- **Your traffic now spreads across verified addresses instead of
+  piling onto one.** The debug.20 report showed all 17 www.youtube.com
+  connections funneling onto a single pinned "verified" address —
+  when the killer took it, everything died together. Consecutive
+  connections now rotate through the verified list.
+- **A connection that stalls with YOUR request unanswered demotes its
+  address (a genuinely dead origin); a connection that stalls with
+  nothing pending never does** (it might just be the app's idle
+  pooled connection — killing it is cheap, blaming the address is
+  wrong). The stall lines now say which: `cause=pending` or
+  `cause=idle`, and the report splits the counts — **this is the one
+  number that tells us, next report, whether the engine is killing
+  dead connections (right) or killing your app's healthy pool
+  (fixable with a longer budget)**.
+- **The background lanes stand down when the DNS resolver itself is
+  under attack.** Your report showed the resolver's connections being
+  killed 10x faster than the morning (dials 59 vs 6) — while the
+  engine's own prewarm/probe bursts kept piling onto the dying lane.
+  Now ≥3 resolver replacements inside a minute pauses every
+  background lane until the resolver recovers (the report's
+  `brownouts=` counts the periods). The 45-second probe cadence is
+  gone entirely — the persisted pool from your last session and the
+  connections that actually work do its job without the scan-like
+  bursts.
+
+**The debug.21 artifact** (built this round, verified before packing):
+`v1.6.6-debug21.apk`, versionCode 20 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
+certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
+over every earlier debug build, D85), APK size and SHA-256 recorded
+below once built. Built from commit COMMIT_SHA_PLACEHOLDER. The
+gomobile bind ran with the debug-tester ldflags
+(`-X …/internal/config.DebugTesterBuild=true`) and the M8-ac
+signatures were verified present in libgojni.so in ALL THREE ABIs
+before gradle (the house ritual): cause=pending, rehabilitated=,
+brownouts=, goodDrops, rehab=, and 1.6.6-debug.21.
+
+**Tester checklist for debug.21 (the 5 steps):**
+
+1. Install debug.21 and open the app. Turn it **On**, then give it
+   ~15 seconds (the persisted pool from your last session seeds
+   immediately — the `substitution:` line's pool should be non-zero
+   from the start).
+2. Fully close the YouTube app, then open it fresh.
+3. Tap **"I pressed play"** in the Younblock diagnostics screen, then
+   play a **new** video in YouTube.
+4. When the first frame appears, tap **"First frame"**.
+5. Play two more new videos, turn Younblock **Off then On**, play one
+   more, then open **Diagnostics** and send the whole report —
+   **ideally twice: once in the evening and once the next morning.**
+
+What to look for: the play→first-frame time; the `stall kills:` line's
+**pending vs idle split** (pending dominating = the killer is real and
+the engine is failing fast correctly; idle dominating = tell us, the
+budget changes next round); `rehabilitated=` > 0 (the box
+self-correcting); `brownouts=` (the resolver under attack — with the
+background lanes paused during them); and the Top-10 failure rates no
+longer pinned at 100% on one host. If videos still won't play with
+clean-looking numbers (fast first bytes, substitution wins, few
+errors), the block is on the video DATA itself — try lower playback
+quality (Settings → Data saving in YouTube) so each chunk completes
+before the killer strikes, and send the report anyway.
+
+Earlier at M8-ab: **v1.6.6-android-debug.20 (versionCode 19)** was
 the escape-the-pool round. What changed, in plain words:
 
 - **A video connection whose own addresses keep dying now ESCAPES to

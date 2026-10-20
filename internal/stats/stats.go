@@ -51,6 +51,16 @@ type Counters struct {
 	substWins       atomic.Int64
 	gvideoTerminals atomic.Int64
 
+	// M8-ac (ADR-0034/0035/0036): the stall kill's pending/idle split
+	// (was the origin dead with work outstanding, or just quiet), the
+	// good-mark drop count (the pool's churn), the box's rehabilitation
+	// count, and the DoH brownout periods.
+	stallLeanPending   atomic.Int64
+	stallLeanIdle      atomic.Int64
+	goodDrops          atomic.Int64
+	probeRehabilitated atomic.Int64
+	dohBrownouts       atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -155,6 +165,36 @@ func (c *Counters) SubstWin() { c.substWins.Add(1) }
 // origin-probe pass on.
 func (c *Counters) GvideoTerminal() { c.gvideoTerminals.Add(1) }
 
+// StallLeanPending counts one lean stall kill whose client had spoken
+// after the origin's last byte (M8-ac, ADR-0036): a request the origin
+// never answered — the flow died with work outstanding, the definite
+// dead-origin shape.
+func (c *Counters) StallLeanPending() { c.stallLeanPending.Add(1) }
+
+// StallLeanIdle counts one lean stall kill whose client had been quiet
+// since the origin's last byte (M8-ac, ADR-0036): the flow was idle
+// when it died — EITHER the app's pooled connection sitting healthy
+// between requests (the kill costs a re-dial later) OR a response that
+// stopped mid-body (the origin died anyway). The split is the next
+// report's evidence for which world we are in.
+func (c *Counters) StallLeanIdle() { c.stallLeanIdle.Add(1) }
+
+// GoodDrop counts one verified-live mark dropped by a death's demote
+// (M8-ac, ADR-0034): the good pool's churn — the debug.20 report's
+// pool drained to gvideo=1 because every terminal's deaths demoted
+// the very marks its wins had written.
+func (c *Counters) GoodDrop() { c.goodDrops.Add(1) }
+
+// ProbeRehabilitated counts one boxed origin IP the probe pass
+// re-verified as ANSWERED and therefore cleared (M8-ac, ADR-0034) —
+// the number that says the box was wrong, directly.
+func (c *Counters) ProbeRehabilitated() { c.probeRehabilitated.Add(1) }
+
+// DoHBrownout counts one DoH brownout period entered (M8-ac,
+// ADR-0035): the resolver's connections churning fast enough that
+// the engine paused its background lanes.
+func (c *Counters) DoHBrownout() { c.dohBrownouts.Add(1) }
+
 // Snapshot is the 1-second UI snapshot (JSON shape from file 01, section 10).
 type Snapshot struct {
 	BytesDown   int64   `json:"bytesDown"`
@@ -224,41 +264,53 @@ type All struct {
 	ProbeSilent   int64 `json:"probeSilent"`
 	ProbeReset    int64 `json:"probeReset"`
 	// M8-ab (ADR-0031/0032/0033).
-	SubstAttempts   int64     `json:"substAttempts"`
-	SubstWins       int64     `json:"substWins"`
-	GvideoTerminals int64     `json:"gvideoTerminals"`
-	StartedAt       time.Time `json:"startedAt"`
+	SubstAttempts   int64 `json:"substAttempts"`
+	SubstWins       int64 `json:"substWins"`
+	GvideoTerminals int64 `json:"gvideoTerminals"`
+	// M8-ac (ADR-0034/0035/0036): the stall kill's pending/idle split,
+	// the good-mark drops, the box rehabilitations, the DoH brownouts.
+	StallLeanPending   int64     `json:"stallLeanPending"`
+	StallLeanIdle      int64     `json:"stallLeanIdle"`
+	GoodDrops          int64     `json:"goodDrops"`
+	ProbeRehabilitated int64     `json:"probeRehabilitated"`
+	DoHBrownouts       int64     `json:"dohBrownouts"`
+	StartedAt          time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
 func (c *Counters) Diagnostic() All {
 	return All{
-		BytesDown:        c.bytesDown.Load(),
-		BytesUp:          c.bytesUp.Load(),
-		ConnsTotal:       c.connsTotal.Load(),
-		ConnsLive:        c.connsLive.Load(),
-		ConnErrors:       c.connErrors.Load(),
-		DnsOK:            c.dnsOK.Load(),
-		DnsFail:          c.dnsFail.Load(),
-		Panics:           c.panics.Load(),
-		PlainFirstByteTo: c.plainFirstByteTimeouts.Load(),
-		DialNear:         c.dialNear.Load(),
-		DialFar:          c.dialFar.Load(),
-		FirstByteSlow:    c.firstByteSlow.Load(),
-		StallKillLean:    c.stallKillLean.Load(),
-		StallKillRich:    c.stallKillRich.Load(),
-		RacedSaves:       c.racedSaves.Load(),
-		SalvagedSaves:    c.salvagedSaves.Load(),
-		RoutedFlows:      c.routedFlows.Load(),
-		ProbePasses:      c.probePasses.Load(),
-		ProbeIPs:         c.probeIPs.Load(),
-		ProbeAnswered:    c.probeAnswered.Load(),
-		ProbeSilent:      c.probeSilent.Load(),
-		ProbeReset:       c.probeReset.Load(),
-		SubstAttempts:    c.substAttempts.Load(),
-		SubstWins:        c.substWins.Load(),
-		GvideoTerminals:  c.gvideoTerminals.Load(),
-		StartedAt:        c.startedAt,
+		BytesDown:          c.bytesDown.Load(),
+		BytesUp:            c.bytesUp.Load(),
+		ConnsTotal:         c.connsTotal.Load(),
+		ConnsLive:          c.connsLive.Load(),
+		ConnErrors:         c.connErrors.Load(),
+		DnsOK:              c.dnsOK.Load(),
+		DnsFail:            c.dnsFail.Load(),
+		Panics:             c.panics.Load(),
+		PlainFirstByteTo:   c.plainFirstByteTimeouts.Load(),
+		DialNear:           c.dialNear.Load(),
+		DialFar:            c.dialFar.Load(),
+		FirstByteSlow:      c.firstByteSlow.Load(),
+		StallKillLean:      c.stallKillLean.Load(),
+		StallKillRich:      c.stallKillRich.Load(),
+		RacedSaves:         c.racedSaves.Load(),
+		SalvagedSaves:      c.salvagedSaves.Load(),
+		RoutedFlows:        c.routedFlows.Load(),
+		ProbePasses:        c.probePasses.Load(),
+		ProbeIPs:           c.probeIPs.Load(),
+		ProbeAnswered:      c.probeAnswered.Load(),
+		ProbeSilent:        c.probeSilent.Load(),
+		ProbeReset:         c.probeReset.Load(),
+		SubstAttempts:      c.substAttempts.Load(),
+		SubstWins:          c.substWins.Load(),
+		GvideoTerminals:    c.gvideoTerminals.Load(),
+		StallLeanPending:   c.stallLeanPending.Load(),
+		StallLeanIdle:      c.stallLeanIdle.Load(),
+		GoodDrops:          c.goodDrops.Load(),
+		ProbeRehabilitated: c.probeRehabilitated.Load(),
+		DoHBrownouts:       c.dohBrownouts.Load(),
+		StartedAt:          c.startedAt,
 	}
 }
 

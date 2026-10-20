@@ -155,18 +155,19 @@ const OriginProbeGoodTTL = 15 * time.Minute
 const OriginProbeDeadTTL = 10 * time.Minute
 
 // DeadIPStrikeEscalation — the penalty TTL tiers for REPEATED dead
-// marks on the same origin IP (M8-aa, ADR-0028). The debug.18 report
-// measured the re-gamble this ends: the top failing host ran 13 flows
-// with 8 failures — the app's retry waves kept re-rolling the same
-// answer set faster than the 60 s penalty lapsed, and the fully-dead
-// hosts (failures=flows, worstFirstByte=0ms) re-gambled their whole
-// boxed set every wave. A first mark keeps the requested TTL (60 s for
-// a flow death, OriginProbeDeadTTL for a probe verdict); the second
-// strike escalates to 5 minutes, the third and beyond to 30 minutes —
-// persistent toxicity stops being re-learned. Never a refusal: an
-// all-penalized list still dials in full, and a recovered IP is simply
-// re-learned clean once its TTL lapses.
-var DeadIPStrikeEscalation = [3]time.Duration{60 * time.Second, 5 * time.Minute, 30 * time.Minute}
+// marks on the same origin IP (M8-aa, ADR-0028; M8-ac rebalances the
+// tiers for the flow-killing regime, ADR-0034). The debug.18 report
+// measured the re-gamble the escalation ended; the debug.20 report
+// measured the opposite failure: with the censor killing connections
+// temporally, the one-shot dead-origin probe ANSWERED on penalized
+// IPs — a 30-minute boxing of a live origin (the third-strike tier)
+// is indefensible when the death evidence says nothing about the IP.
+// The tiers now cap how long even a repeat offender is skipped
+// within one hostile window — 60 s, 2 min, 5 min — and the
+// rehabilitation sampling (ProbeRehabPerPass) re-verifies boxed IPs
+// so a wrong box clears on evidence, not on expiry. Never a refusal:
+// an all-penalized list still dials in full.
+var DeadIPStrikeEscalation = [3]time.Duration{60 * time.Second, 2 * time.Minute, 5 * time.Minute}
 
 // StallLeanTimeoutAndroid — the lean-tier stall budget on Android
 // (M8-aa, ADR-0029): 8 seconds, not the desktop's 15. The debug.18
@@ -428,32 +429,69 @@ const GoodPoolSaveEvery = 15 * time.Second
 // included — is verified within a few passes.
 const ProbeCodesPerPass = 12
 
-// ProbeFastStartEvery — the origin-probe pass cadence while the
-// engine is young (M8-ab, ADR-0032): passes every 45 s until the
-// gvideo good pool carries ProbeFastStartPoolFloor origins or
-// ProbeFastStartWindow passes, then the 5-minute prewarm cadence
-// takes over. The debug.19 session ran ONE pass in its whole cold
-// start; the 45 s window puts fresh verdicts inside the first
-// video's retry waves. Android lane only (ADR-0028 decision 5: the
-// desktops keep the byte-for-byte M8-z loop).
-const ProbeFastStartEvery = 45 * time.Second
-
-// ProbeFastStartWindow — how long the fast-start probe cadence may
-// run before settling to the prewarm cadence (M8-ab, ADR-0032).
-const ProbeFastStartWindow = 5 * time.Minute
-
-// ProbeFastStartPoolFloor — the gvideo good-pool size that ends the
-// fast-start cadence early (M8-ab, ADR-0032).
-const ProbeFastStartPoolFloor = 8
+// ProbeRehabPerPass — how many currently-BOXED origin IPs one
+// origin-probe pass re-verifies (M8-ac, ADR-0034): the debug.20
+// report's smoking gun was penalized=12 while the one-shot
+// dead-origin probe said those same IPs ANSWER — under the
+// flow-killing regime a death says nothing stable about the IP, so
+// the box fills with stale verdicts and dial lists skip live
+// origins. Each pass samples this many boxed IPs (soonest-expiry
+// first): an "answered" verdict clears the box entry and marks the
+// IP good (counted as a rehabilitation); anything else refreshes it.
+const ProbeRehabPerPass = 4
 
 // ProbeChurnKickDebounce — the minimum spacing between churn-kicked
-// origin-probe passes (M8-ab, ADR-0032): a googlevideo flow that
-// terminaled (its raced round AND its untried salvage all dead) bumps
-// the gvideoTerminals counter, and the gvideo loop's 1 s watch kicks
-// an immediate pass — verified origins land inside the app's next
-// retry wave instead of the next 5-minute cycle. The debounce keeps
-// a hopeless minute from spending the radio on back-to-back passes.
+// origin-probe passes (M8-ab, ADR-0032; M8-ac, ADR-0035 adds the
+// brownout gate): a googlevideo flow that terminaled (its raced
+// round AND its untried salvage all dead) bumps the gvideoTerminals
+// counter, and the gvideo loop's 1 s watch kicks an immediate pass —
+// verified origins land inside the app's next retry wave instead of
+// the next 5-minute cycle. The debounce keeps a hopeless minute from
+// spending the radio on back-to-back passes; the brownout gate keeps
+// it silent while the DoH lane itself is dying.
 const ProbeChurnKickDebounce = 10 * time.Second
+
+// ResetIPPenalty — how long an origin IP that RESET a flow's
+// first-byte attempt is skipped in dial lists (M8-ac, ADR-0034): a
+// WITHIN-WAVE skip, not an IP verdict. The debug.20 report measured
+// the regime change this answers: the censor moved from IP
+// blackholing (the dead-origin probe used to say silent) to killing
+// connections in flight — 35 of 77 probe verdicts came back reset,
+// the one-shot dead-origin probe ANSWERED on both SNI variants from
+// penalized IPs, and every flow-death mark therefore became stale the
+// moment it landed. A reset is now evidence about ONE connection,
+// not the origin: the next wave may well get a full response from
+// the same IP, so the box skips it only long enough to spread one
+// retry wave's candidates elsewhere.
+const ResetIPPenalty = 20 * time.Second
+
+// OriginProbeResetTTL — the box TTL a probe verdict of "reset" writes
+// (M8-ac, ADR-0034): the probe's own fresh reset is the same temporal
+// signal a flow's reset death is, so it boxes briefly — unlike the
+// probe's "silent" verdict (a fresh connection given a full 2.5 s
+// budget and staying blackholed — still the strong per-IP evidence
+// it always was, OriginProbeDeadTTL).
+const OriginProbeResetTTL = 60 * time.Second
+
+// BrownoutDialThreshold — how many DoH connection replacements within
+// BrownoutWindow trip the DoH brownout (M8-ac, ADR-0035): the
+// debug.20 report's doh line read dials 59 (was 6 thirteen hours
+// earlier) — the connection-killer was murdering the resolver's warm
+// HTTP/2 conns faster than they could serve. While the brownout is
+// live the engine's BACKGROUND lanes (the googlevideo prewarm, the
+// origin-probe passes, the churn kicks) pause — the app's own flows
+// keep the resolver busy enough — until BrownoutQuiet passes without
+// a new dial.
+const BrownoutDialThreshold = 3
+
+// BrownoutWindow — the rolling window the DoH dial count is read
+// over (M8-ac, ADR-0035).
+const BrownoutWindow = 60 * time.Second
+
+// BrownoutQuiet — how long the DoH lane must stay dial-quiet before
+// the brownout lifts and the background lanes resume (M8-ac,
+// ADR-0035).
+const BrownoutQuiet = 60 * time.Second
 
 // StallTimeout — how long a processed host's relay may stay silent in
 // BOTH directions before the flow is closed as a mid-stream stall

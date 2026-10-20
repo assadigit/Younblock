@@ -546,6 +546,19 @@ func (e *Engine) timelineMarks() []Mark {
 // app's next retry wave instead of the next 5-minute cycle. The loop
 // also flushes the persisted good pool on change
 // (GoogleVideoGoodIPsFile, ADR-0033).
+//
+// M8-ac (ADR-0035) removes the 45 s fast-start lane the debug.20
+// round added: its job — stocking the pool before the first video —
+// is now owned by the PERSISTED seed (ADR-0033) and the flow-fed
+// marks (ADR-0031), while under the flow-killing regime its verdicts
+// mostly come back reset (the debug.20 session: the gvideo pool never
+// crossed the floor, so the lane ran its whole 5-minute window
+// sending scan-like bursts exactly while the network was hostile).
+// The M8-ac lanes are all BROWNOUT-GATED: while the DoH resolver's
+// connections are churning (the connection-killer at work — dials 59
+// in the debug.20 session, 6 thirteen hours earlier), the prewarm,
+// the probe passes, and the churn kicks pause until the lane recovers;
+// the app's own flows keep the resolver busy enough.
 func (e *Engine) startGvideoLoop() {
 	e.resolver.Load().WarmProbe()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -559,16 +572,14 @@ func (e *Engine) startGvideoLoop() {
 	go func() {
 		e.prewarmGvideoCodes(ctx)
 		e.probeOriginsPass(ctx)
-		started := time.Now()
-		lastKick := started
+		lastKick := time.Now()
 		churnSeen := e.stats.Diagnostic().GvideoTerminals
 		android := e.platform.Name() == "android"
+		brownout := newDoHBrownout()
 		slow := time.NewTicker(config.GoogleVideoPrewarmEvery)
-		fast := time.NewTicker(config.ProbeFastStartEvery)
 		watch := time.NewTicker(time.Second)
 		pool := time.NewTicker(config.GoodPoolSaveEvery)
 		defer slow.Stop()
-		defer fast.Stop()
 		defer watch.Stop()
 		defer pool.Stop()
 		for {
@@ -577,23 +588,25 @@ func (e *Engine) startGvideoLoop() {
 				e.saveGoodPoolIfChanged() // the Stop-time flush (ADR-0033)
 				return
 			case <-slow.C:
-				e.prewarmGvideoCodes(ctx)
-				e.probeOriginsPass(ctx)
-			case <-fast.C:
-				// The young-engine lane: 45 s passes until the
-				// pool is stocked or the window closes. The
-				// desktops never enter (byte-for-byte).
-				if !android || e.probeFastStartOver(started) {
-					continue
+				if brownout.active() {
+					continue // M8-ac (ADR-0035): the DoH lane is dying — the background stays quiet
 				}
 				e.prewarmGvideoCodes(ctx)
 				e.probeOriginsPass(ctx)
 			case <-watch.C:
+				// The brownout tracker steps every second on the
+				// DoH dial counter (a replacement storm = the
+				// connection-killer working the lane).
+				if brownout.step(e.resolver.Load().Diagnostic().Dials) {
+					e.stats.DoHBrownout()
+					e.logger.Warn("doh brownout: background lanes paused (resolver connections churning)")
+				}
 				// The churn lane: a fresh googlevideo terminal
 				// (all-dead raced round + dead salvage) means the
 				// answer sets just rolled black — verify new
-				// origins NOW. The desktops never enter.
-				if !android {
+				// origins NOW. The desktops never enter; neither
+				// does a brownout.
+				if !android || brownout.active() {
 					continue
 				}
 				cur := e.stats.Diagnostic().GvideoTerminals
@@ -613,20 +626,75 @@ func (e *Engine) startGvideoLoop() {
 	}()
 }
 
-// probeFastStartOver reports whether the fast-start probe cadence is
-// done (M8-ab, ADR-0032): past ProbeFastStartWindow, or the gvideo
-// good pool already carries ProbeFastStartPoolFloor verified origins.
-func (e *Engine) probeFastStartOver(started time.Time) bool {
-	if time.Since(started) >= config.ProbeFastStartWindow {
-		return true
+// dohBrownout tracks the DoH lane's connection churn (M8-ac,
+// ADR-0035): a rolling window of fresh DoH dials, entered when
+// BrownoutDialThreshold land inside BrownoutWindow, lifted after
+// BrownoutQuiet passes without a new dial. step() takes the DoH
+// transport's cumulative dial counter once a second and reports
+// whether THIS step entered the brownout.
+type dohBrownout struct {
+	lastDials int64       // the cumulative dial count at the last step
+	window    []time.Time // the dial timestamps inside the rolling window
+	quiet     time.Time   // the last dial-free moment seen while active
+	active_   bool
+	now       func() time.Time // the clock (injected by the tests)
+}
+
+func newDoHBrownout() *dohBrownout {
+	return &dohBrownout{now: time.Now}
+}
+
+// step advances the tracker with the cumulative dial count and the
+// clock, returning true when the brownout is newly entered.
+func (b *dohBrownout) step(dials int64) bool {
+	now := b.now()
+	if dials > b.lastDials {
+		// New dials since the last step: stamp one per dial (the exact
+		// count within the window is what matters, not the spacing).
+		for i := b.lastDials; i < dials; i++ {
+			b.window = append(b.window, now)
+		}
+		b.lastDials = dials
+		b.quiet = now
 	}
-	if srv := e.RunningServer(); srv != nil {
-		if _, gvideo := srv.GoodIPStats(); gvideo >= config.ProbeFastStartPoolFloor {
+	// Prune the window.
+	cutoff := now.Add(-config.BrownoutWindow)
+	kept := b.window[:0]
+	for _, t := range b.window {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	b.window = kept
+	if !b.active_ {
+		if len(b.window) >= config.BrownoutDialThreshold {
+			b.active_ = true
+			b.quiet = now
 			return true
 		}
+		return false
+	}
+	// Active: lift only after a full quiet period without a dial.
+	if now.Sub(b.quiet) >= config.BrownoutQuiet && len(b.window) == 0 {
+		b.active_ = false
+		return false
 	}
 	return false
 }
+
+func (b *dohBrownout) active() bool { return b.active_ }
+
+// NewDoHBrownoutForTest, StepForTest, ActiveForTest, SetClockForTest —
+// the engine tests' one reach into the brownout tracker (the engine
+// package keeps its API surface otherwise untouched; the tracker is
+// loop-internal logic).
+func NewDoHBrownoutForTest() *dohBrownout { return newDoHBrownout() }
+
+func (b *dohBrownout) StepForTest(dials int64) bool { return b.step(dials) }
+
+func (b *dohBrownout) ActiveForTest() bool { return b.active() }
+
+func (b *dohBrownout) SetClockForTest(now func() time.Time) { b.now = now }
 
 // stopGvideoLoop halts the prewarm loop (Stop's path).
 func (e *Engine) stopGvideoLoop() {
