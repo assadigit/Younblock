@@ -528,9 +528,12 @@ D100/D101), M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/D99),
 A0/A0-R2/A0-R3
 — **the account gate is CANCELLED (D97)**, see the closing note
 below. This document now holds two things: §1 the **shipped** debug
-test-circle releases (`v1.6.6-android-debug.22` is the CURRENT
+test-circle releases (`v1.6.6-android-debug.23` is the CURRENT
 build — a regular release in the private repo per D89, the same text
-lives on the GitHub release itself; beneath it: debug.21 the
+lives on the GitHub release itself; beneath it: debug.22 the
+long-lived-connection build (superseded by debug.23: its round
+produced the doesn't-even-open-video-anymore report, which
+debug.23 acts on), debug.21 the
 hostile-network build (superseded by debug.22: its round produced
 the minute-5 mid-video report, which debug.22 acts on), debug.16 the
 tiered-stall-watch build (superseded by debug.17: its round produced
