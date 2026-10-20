@@ -107,6 +107,30 @@ type Config struct {
 	// Zero → the config default; negative → never escalate on bytes
 	// (only a survived idle gap escalates).
 	StallRichBytes int64
+	// StallRichPendingTimeout is the fast budget for a rich flow that
+	// died with the client's request OUTSTANDING (M8-ad, ADR-0037): the
+	// player's next range request riding a dead pooled conn — the
+	// mid-video wedge ("goes loading; refresh fixes it"). The kill
+	// demotes the good mark (definite dead-with-work evidence) but stays
+	// quiet: no error count, tier=rich cause=pending. Zero → the config
+	// default; negative (or ≥ StallRichTimeout) → disabled, pending
+	// rich kills wait the full rich budget (the M8-x/M8-ac semantics).
+	StallRichPendingTimeout time.Duration
+	// TrickleWindow is the rolling window of delivered-down bytes the
+	// trickle detector watches on rich flows (M8-ad, ADR-0037): the
+	// per-connection throttle shape (bytes keep arriving, the down stamp
+	// keeps refreshing, the stall watch never fires) gets a quiet close
+	// so the app's retry lands on a fresh, unthrottled conn. Zero → the
+	// config default; negative → the detector is off.
+	TrickleWindow time.Duration
+	// TrickleMinBytes is the byte floor a rich flow must deliver inside
+	// TrickleWindow to count as alive (M8-ad, ADR-0037). Zero → the
+	// config default; negative → the detector is off.
+	TrickleMinBytes int64
+	// TrickleFloorBytes is the delivered-down total that arms the
+	// trickle detector (M8-ad, ADR-0037). Zero → the config default;
+	// negative → the detector is off.
+	TrickleFloorBytes int64
 	// DeadIPPenalty is how long an origin IP that connected but never
 	// spoke (the classified first-byte death: a reset at the hello
 	// write, or silence to the budget) is skipped when building dial
@@ -283,6 +307,18 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.StallRichBytes == 0 {
 		cfg.StallRichBytes = config.StallRichBytes
+	}
+	if cfg.StallRichPendingTimeout == 0 {
+		cfg.StallRichPendingTimeout = config.StallRichPendingTimeout
+	}
+	if cfg.TrickleWindow == 0 {
+		cfg.TrickleWindow = config.TrickleWindow
+	}
+	if cfg.TrickleMinBytes == 0 {
+		cfg.TrickleMinBytes = config.TrickleMinBytes
+	}
+	if cfg.TrickleFloorBytes == 0 {
+		cfg.TrickleFloorBytes = config.TrickleFloorBytes
 	}
 	if cfg.DeadIPPenalty == 0 {
 		cfg.DeadIPPenalty = config.DeadIPPenalty

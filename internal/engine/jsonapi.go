@@ -401,9 +401,14 @@ func (e *Engine) GetDiagnosticReport() string {
 	// shape, and the demote's trigger), IDLE kills were quiet on both
 	// ends (the ambiguous shape — the app's pooled connection OR a
 	// mid-body death). Which one dominates says which world the
-	// engine is in.
-	fmt.Fprintf(&b, "stall kills: lean=%d (pending=%d idle=%d) rich=%d leanBudget=%s\n",
-		d.StallKillLean, d.StallLeanPending, d.StallLeanIdle, d.StallKillRich, e.stallLeanEffective())
+	// engine is in. M8-ad (ADR-0037) splits the rich tier too:
+	// pending = the fast-budget kill that bounds the mid-video wedge
+	// ("goes loading; refresh fixes it"), trickle = the per-connection
+	// throttle the both-silent clock could never see (bytes kept
+	// arriving, under the floor) — the two numbers that say whether
+	// the long-lived-conn round is catching what the tester saw.
+	fmt.Fprintf(&b, "stall kills: lean=%d (pending=%d idle=%d) rich=%d (pending=%d trickle=%d) leanBudget=%s\n",
+		d.StallKillLean, d.StallLeanPending, d.StallLeanIdle, d.StallKillRich, d.StallRichPending, d.StallTrickle, e.stallLeanEffective())
 	// M8-aa (ADR-0028): the origin-probe pass's own evidence — how
 	// many passes ran, how many answer IPs the fragmented hello
 	// verified, and the verdict split — plus the box's and the good

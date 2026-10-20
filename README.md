@@ -28,24 +28,21 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug21.apk` from the repo's
+releasing yet"): download `v1.6.6-debug22.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.21` release (a regular release in this private
+`v1.6.6-android-debug.22` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug21**; it installs over any earlier
+**make sure the filename says debug22**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build removes the FIRST VIDEO'S remaining start lag the debug.18
-report measured: the engine now VERIFIES the video hosts' addresses
-in the background (a fragmented hello exactly like a real
-connection's, answered→tried-first for 15 min, silent→skipped with
-strike escalation), a connection whose racing all failed gets ONE
-more in-engine rescue round over the untried addresses before it
-gives up, a stalled half-finished response is cut at 8 s on Android
-(was 15 — three of those held the app's retry for nearly half the
-minute), and the diagnostics report now measures the play→video time
-by itself (an "auto-timeline" heuristic — the "I pressed play" /
-"First frame" buttons remain the honest measurement)).
+this build fixes the MID-VIDEO stall the debug.21 report measured
+(minute 5 of a 10-minute video goes loading; a refresh fixed it —
+now three automatic kills do the refresh's job engine-side: an
+unanswered request on a proven connection closes at 10 s, a
+blackholed connection surfaces via tuned keepalive in ~30 s, and a
+throttled connection closes on the spot) and moves auto to the old
+Python's own 299-cut hello; the release notes carry the round's
+full story (and every earlier round's, in place).
 Sign in with your
 GitHub account, then sideload it:
 

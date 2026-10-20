@@ -170,6 +170,36 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
         if richBytes < 0 {
                 richBytes = math.MaxInt64 // negative: bytes never escalate — only a survived gap can
         }
+        // The PENDING fast budget (M8-ad, ADR-0037): a rich flow whose
+        // client has a request OUTSTANDING is closed at
+        // StallRichPendingTimeout, not the rich hygiene budget — the
+        // tester's post-debug.21 report named the wedge ("minute 5 …
+        // goes loading … refresh fixes it"): the player's pooled video
+        // conn died mid-life, its next range request rode the corpse
+        // unanswered, and the 90 s budget held the app hostage far
+        // past its patience. Disabled (≤ 0, or ≥ the rich budget)
+        // leaves the exact M8-x/M8-ac semantics.
+        pendingLimit := int64(-1)
+        if p := s.cfg.StallRichPendingTimeout; p > 0 && p < s.cfg.StallRichTimeout {
+                pendingLimit = p.Milliseconds()
+        }
+        // The trickle detector's ring (M8-ad, ADR-0037): cumulative
+        // delivered-down snapshots, one per tick, TrickleWindow wide.
+        // The per-connection throttle keeps the down stamp refreshing
+        // (the stall clock never accumulates), so the only signal left
+        // is the RATE: a proven flow whose window keeps landing above
+        // zero but under the floor is being policed, not slow. The
+        // ring fills with zeros first, so a young flow's window equals
+        // its total — a fast start can never look like a trickle.
+        ringN := 0
+        if s.cfg.TrickleWindow > 0 && s.cfg.TrickleMinBytes > 0 && s.cfg.TrickleFloorBytes > 0 && s.cfg.TrickleWindow >= 4*tick {
+                ringN = int(s.cfg.TrickleWindow / tick)
+                if ringN > 64 {
+                        ringN = 64
+                }
+        }
+        ring := make([]int64, ringN)
+        ringPos := 0
         // The wake gap: an activity gap this wide that CLOSED — bytes
         // flowed again after it — proves the flow paces and escalates
         // the budget like real payload does. A fifth of the lean
@@ -212,7 +242,12 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                 prevNewest = newest
                         }
                         idle := now - newest
-                        rich := escalate && (woke || flowDown.Load() >= richBytes)
+                        downNow := flowDown.Load()
+                        if ringN > 0 {
+                                ring[ringPos] = downNow
+                                ringPos = (ringPos + 1) % ringN
+                        }
+                        rich := escalate && (woke || downNow >= richBytes)
                         // The cause split (M8-ac, ADR-0036): the client speaking
                         // AFTER the origin's last byte is a request the origin
                         // never answered — the flow died with work outstanding
@@ -223,7 +258,43 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                         // kill says nothing the rotation doesn't already handle.
                         pending := up > downStamp
                         if rich {
+                                // The PENDING fast kill (M8-ad, ADR-0037): the
+                                // client's request has been outstanding this
+                                // whole fast budget on a PROVEN conn — dead
+                                // with work, the same evidence the lean tier
+                                // acts on, and the wedge the tester measured
+                                // sat on the full 90 s. The demote still lands
+                                // (the M8-ac ruling), the noise stays quiet.
+                                if pending && pendingLimit > 0 && idle >= pendingLimit {
+                                        tc.closeBoth()
+                                        if ip := tc.remoteB(); ip != "" {
+                                                s.dropGoodIP(ip)
+                                        }
+                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, true, false)
+                                        return
+                                }
                                 if idle < richLimit {
+                                        // The trickle kill (M8-ad, ADR-0037):
+                                        // the conn is DELIVERING — but its
+                                        // window keeps landing under the
+                                        // floor. TCP delivery of a range
+                                        // response is line-rate bursty (the
+                                        // player paces REQUESTS, not bytes),
+                                        // so a sustained crawl on a proven
+                                        // flow is per-connection policing:
+                                        // close both ends quietly (no demote —
+                                        // a fresh conn to the same origin
+                                        // runs at full speed; no error count)
+                                        // and the app's retry lands on a
+                                        // fresh conn through the race.
+                                        if ringN > 0 && downNow >= s.cfg.TrickleFloorBytes {
+                                                window := downNow - ring[ringPos]
+                                                if window > 0 && window < s.cfg.TrickleMinBytes {
+                                                        tc.closeBoth()
+                                                        s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, false, true)
+                                                        return
+                                                }
+                                        }
                                         continue
                                 }
                                 // Hygiene close, not a dead-origin signal: the
@@ -241,7 +312,7 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                                 s.dropGoodIP(ip)
                                         }
                                 }
-                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), true, pending)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, pending, false)
                                 return
                         }
                         if idle >= leanLimit {
@@ -251,9 +322,21 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                                 s.dropGoodIP(ip) // M8-ac (ADR-0034): dead-with-work-outstanding demotes, never boxes
                                         }
                                 }
-                                s.invalidateDNS(host)
+                                // M8-ad (ADR-0038): NO invalidateDNS here — the
+                                // kill is an ORIGIN-CONN death, and the per-IP
+                                // demote above already carries that evidence
+                                // into the dial lists. Forcing a re-resolve on
+                                // every kill fed the churn spiral the debug.20
+                                // report measured (dns=579-846 ms late-session,
+                                // 59 DoH dials): each killed flow sent the next
+                                // request back through the struggling DoH lane
+                                // for a fresh answer set whose old IPs were fine.
+                                // The old Python cached DNS forever and never
+                                // re-queried on a flow death; the answer set's
+                                // own refresh stays with the dial-failure path
+                                // (M8-o) where a whole set failed to connect.
                                 s.countConnError()
-                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, flowDown.Load(), false, pending)
+                                s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, false, pending, false)
                                 return
                         }
                 }
@@ -454,7 +537,8 @@ func (s *Server) logTunnelFirstByteSubstituted(host, class string, dials int) {
 }
 
 // logTunnelStallKilled records the stall kill (M8-v, ADR-0020; M8-x,
-// ADR-0022; M8-ac adds the cause split, ADR-0036): a budgeted flow
+// ADR-0022; M8-ac adds the cause split, ADR-0036; M8-ad adds the
+// trickle cause, ADR-0037): a budgeted flow
 // whose relay went silent in BOTH directions for the whole effective
 // budget — the debug.13 report's dead cohort (first byte plus ~7 KB,
 // then silence to the app's ~60 s patience) on the lean tier, a
@@ -471,10 +555,19 @@ func (s *Server) logTunnelFirstByteSubstituted(host, class string, dials int) {
 // report's ring like every other tunnel line; the done line that
 // follows carries the flow's totals, and the tier marks which budget
 // fired (the next report's primary tuning evidence).
-func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich, pending bool) {
+func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich, pending, trickle bool) {
         s.noteFailure(host, class)
         if rich {
                 s.stats.StallKillRich() // the tier split the report reads (M8-aa, ADR-0029)
+                // M8-ad (ADR-0037): the rich tier's own cause split — the
+                // pending fast kill (the mid-video wedge's recovery bound)
+                // and the trickle kill (the per-connection throttle, the
+                // shape the both-silent clock could never see).
+                if trickle {
+                        s.stats.StallTrickle()
+                } else if pending {
+                        s.stats.StallRichPending()
+                }
         } else {
                 s.stats.StallKillLean() // the lean total (M8-aa) plus the cause split (M8-ac, ADR-0036)
                 if pending {
@@ -493,6 +586,9 @@ func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, do
         cause := "idle"
         if pending {
                 cause = "pending"
+        }
+        if trickle {
+                cause = "trickle"
         }
         msg := fmt.Sprintf("tunnel stall killed class=%s idle=%dms down=%s tier=%s cause=%s",
                 class, idle.Milliseconds(), config.FormatBytes(down), tier, cause)

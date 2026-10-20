@@ -550,6 +550,79 @@ const StallRichTimeout = 90 * time.Second
 // escalate (only a survived idle gap escalates).
 const StallRichBytes = 32 * 1024
 
+// StallRichPendingTimeout — M8-ad (ADR-0037): a PROVEN (rich) flow whose
+// client has a request OUTSTANDING (it spoke after the origin's last
+// byte) is closed at this budget, not StallRichTimeout. The tester's
+// post-debug.21 report named the wedge exactly: "minute 5 of a 10-minute
+// video goes loading, and as soon as you refresh it fixes" — the
+// player's pooled video connection dies mid-life, the player's next
+// range request rides the dead conn unanswered, and the 90 s rich
+// hygiene budget held the app hostage far past its own patience; the
+// REFRESH closed everything and a fresh connection (through the race +
+// substitution machinery that works) recovered in ~2 s. A pending rich
+// kill is definite dead-with-work evidence — it demotes the good mark
+// like the lean pending kill (M8-ac) but stays QUIET (no error count,
+// tier=rich cause=pending on the line). 10 s bounds the wedge at
+// playback: far past any live origin's response latency on a proven
+// conn, far under the 90 s hygiene. Zero in a proxy Config → this
+// default; negative (or ≥ StallRichTimeout) → disabled, pending rich
+// kills wait the full rich budget (the exact M8-x/M8-ac semantics).
+const StallRichPendingTimeout = 10 * time.Second
+
+// OriginKeepAliveIdle — M8-ad (ADR-0037): TCP keepalive idle period on
+// every ORIGIN socket the engine dials (netx applies it post-dial). The
+// connection-killing regime the debug.20/21 reports measured — resets
+// and silent blackholes mid-life — leaves a dead pooled conn
+// undetectable to the stall watch (both directions quiet looks EXACTLY
+// like a healthy pooled conn) until the 90 s rich budget or the 300 s
+// idle timeout; Go's default keepalive probes 9 times at 15 s (~2 h).
+// Tuned probes surface a blackholed peer as a read error in ~15 s +
+// 3 × 5 s, and the relay then closes the app's side — the app retries
+// on a fresh origin in seconds. Zero (with Interval zero) → the Go
+// default (since 1.23, 15 s interval, OS-default count) — deliberately
+// conservative, not off.
+const OriginKeepAliveIdle = 15 * time.Second
+
+// OriginKeepAliveInterval — the gap between keepalive probes once the
+// idle period lapses (M8-ad, ADR-0037). See OriginKeepAliveIdle.
+const OriginKeepAliveInterval = 5 * time.Second
+
+// OriginKeepAliveCount — probes without an ACK before the kernel marks
+// the conn dead (M8-ad, ADR-0037): 3 × 5 s after a 15 s idle ≈ a
+// blackholed origin surfacing within ~30 s. Zero → the OS default (9
+// on Linux).
+const OriginKeepAliveCount = 3
+
+// TrickleWindow — M8-ad (ADR-0037): the rolling window the trickle
+// detector watches on a rich flow's delivered-down bytes. The regime's
+// other mid-life weapon is the per-connection THROTTLE: the conn stays
+// open, bytes keep arriving, and the stall watch never fires because
+// the down stamp keeps refreshing — the player's buffer drains at
+// minute ~5 while the connection crawls, and only a REFRESH (a fresh
+// conn at full speed) recovers it. TCP delivery of a range response is
+// line-rate bursty (the player paces REQUESTS, not bytes), so a rich
+// flow whose window delivered > 0 but < TrickleMinBytes sustained is
+// being policed, not slow: the kill closes both ends quietly (no
+// demote — policing follows the CONNECTION, and a fresh conn to the
+// same origin runs at full speed; no error count) and the player's
+// retry lands on a fresh conn through the race machinery. Zero in a
+// proxy Config → this default; negative → the detector is off.
+const TrickleWindow = 12 * time.Second
+
+// TrickleMinBytes — the byte floor a rich flow must deliver inside
+// TrickleWindow to count as alive (M8-ad, ADR-0037). 128 KB over 12 s
+// ≈ 11 KB/s — under the bitrate of even 144p playback as DELIVERY
+// (responses stream at line rate), and an order under the 1080p+ the
+// tester actually watches. Zero → this default; negative → off.
+const TrickleMinBytes = 128 * 1024
+
+// TrickleFloorBytes — the delivered-down total that arms the trickle
+// detector (M8-ad, ADR-0037): below it a flow is still proving itself
+// and slow bytes are the lean tier's own subject. 1 MB sits past the
+// first media segments into steady-state playback. Zero → this
+// default; negative → off.
+const TrickleFloorBytes = 1024 * 1024
+
 // IdleTimeout — quiet connections are closed after this long (refreshed by activity).
 const IdleTimeout = 300 * time.Second
 
@@ -623,7 +696,14 @@ const LogFileCount = 3
 var PrewarmNames = []string{"www.youtube.com", "youtube.com", "i.ytimg.com", "yt3.ggpht.com"}
 
 // HealSweepOrder — methods tried, in order, by the automatic repair sweep.
-var HealSweepOrder = []Method{MethodBalanced, MethodStrong, MethodLight, MethodLegacy}
+// M8-ad (ADR-0039): legacy leads. The regime the debug.20/21 reports
+// measured — resets on recognizably-shaped hellos — punishes weak
+// splitting, and legacy (the old Python app's 299-cut rule, the shape
+// the tester's own network proved for years) is the strongest shape we
+// ship; auto STARTS there now, so the sweep walks down the strength
+// ladder (legacy → strong → balanced → light) instead of saving its
+// strongest card for last.
+var HealSweepOrder = []Method{MethodLegacy, MethodStrong, MethodBalanced, MethodLight}
 
 // defaultDoHServers — secure-DNS services tried in order until one answers.
 // M8-z (ADR-0025 §6.3) appends two IP-literal endpoints at the END:

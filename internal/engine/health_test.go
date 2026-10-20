@@ -901,8 +901,8 @@ func TestHealSweepSurvivesFreshNegativeCache(t *testing.T) {
         if st.Error != nil {
                 t.Errorf("state error = %+v, want none (the network recovered)", st.Error)
         }
-        if st.Method != config.MethodBalanced {
-                t.Errorf("method = %s, want balanced (the first method the sweep probes)", st.Method)
+        if st.Method != config.MethodLegacy {
+                t.Errorf("method = %s, want legacy (the first method the sweep probes — M8-ad/ADR-0039 walks DOWN the strength ladder)", st.Method)
         }
         // The report's log ring carries the baked evidence line from the
         // QuickCheck's failure (server index + reason in the message — M8-r).

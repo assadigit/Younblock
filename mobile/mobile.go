@@ -27,14 +27,14 @@
 package mobile
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
-	"sync"
+        "encoding/json"
+        "fmt"
+        "strings"
+        "sync"
 
-	"github.com/assadigit/Younblock/internal/engine"
-	"github.com/assadigit/Younblock/internal/platform/android"
-	"github.com/assadigit/Younblock/internal/webui"
+        "github.com/assadigit/Younblock/internal/engine"
+        "github.com/assadigit/Younblock/internal/platform/android"
+        "github.com/assadigit/Younblock/internal/webui"
 )
 
 // SocketProtector protects one engine-upstream socket before it connects.
@@ -44,36 +44,36 @@ import (
 // aborts the dial (fail safe: an unprotected socket would loop back into
 // the TUN).
 type SocketProtector interface {
-	// Protect exempts one file descriptor from the VPN's routing.
-	Protect(fd int32) bool
+        // Protect exempts one file descriptor from the VPN's routing.
+        Protect(fd int32) bool
 }
 
 // EventSink receives engine events and notices. Event names today:
 // "state" (full state JSON), "stats" (counters sample), "notice"
 // ({"kind":"failure"|"recovery","text":"..."}).
 type EventSink interface {
-	OnEvent(name string, json string)
+        OnEvent(name string, json string)
 }
 
 // Engine is the bound engine facade. All JSON methods forward to the
 // engine's string API verbatim (internal/engine/jsonapi.go).
 type Engine struct {
-	mu sync.Mutex
+        mu sync.Mutex
 
-	eng  *engine.Engine
-	plat *android.Platform
-	sink EventSink // nil means no bridge callbacks
+        eng  *engine.Engine
+        plat *android.Platform
+        sink EventSink // nil means no bridge callbacks
 
-	webUI    *webui.Server
-	webUISrv chan struct{} // closed when the Serve goroutine returned
+        webUI    *webui.Server
+        webUISrv chan struct{} // closed when the Serve goroutine returned
 
-	tun *tunState // the live TUN stack (nil when none); see tun.go
+        tun *tunState // the live TUN stack (nil when none); see tun.go
 
-	// shellVersion (M8-p, ADR-0015) is the APK's identity string as
-	// Kotlin reports it from PackageManager ("1.6.6 (versionCode 8)"), so
-	// a pasted diagnostic report names the exact build it came from —
-	// versionName alone stays 1.6.6 across debug rounds. Guarded by mu.
-	shellVersion string
+        // shellVersion (M8-p, ADR-0015) is the APK's identity string as
+        // Kotlin reports it from PackageManager ("1.6.6 (versionCode 8)"), so
+        // a pasted diagnostic report names the exact build it came from —
+        // versionName alone stays 1.6.6 across debug rounds. Guarded by mu.
+        shellVersion string
 }
 
 // NewEngine builds the engine for the Android shell: the platform adapter
@@ -96,12 +96,12 @@ type Engine struct {
 // then a started engine honestly holds at "connecting": it never
 // reports "on" while nothing can route.
 func NewEngine(configDir string, protector SocketProtector, sink EventSink) (*Engine, error) {
-	m, err := newEngineForTest(configDir, protector, sink, nil)
-	if err != nil {
-		return nil, err
-	}
-	m.plat.SetStartReady(false)
-	return m, nil
+        m, err := newEngineForTest(configDir, protector, sink, nil)
+        if err != nil {
+                return nil, err
+        }
+        m.plat.SetStartReady(false)
+        return m, nil
 }
 
 // newEngineForTest is NewEngine's test seam: same construction path, with
@@ -110,47 +110,48 @@ func NewEngine(configDir string, protector SocketProtector, sink EventSink) (*En
 // The start gate is left OPEN (host tests drive it explicitly through
 // m.plat / SetVpnReady); NewEngine is the only path that arms it closed.
 func newEngineForTest(configDir string, protector SocketProtector, sink EventSink, mutate func(*engine.Options)) (*Engine, error) {
-	var protect android.ProtectFunc
-	if protector != nil {
-		p := protector
-		protect = p.Protect
-	}
-	var notify android.NotifyFunc
-	if sink != nil {
-		s := &protectedSink{target: sink}
-		notify = func(kind engine.NoticeKind, text string) {
-			payload, err := json.Marshal(map[string]string{"kind": string(kind), "text": text})
-			if err != nil {
-				return
-			}
-			s.OnEvent("notice", string(payload))
-		}
-	}
-	plat := android.New(android.Options{
-		ConfigDir: configDir,
-		Protect:   protect,
-		Notify:    notify,
-	})
-	// M8-aa (debug.19, versionCode 18): the report header names the exact
-	// debug round — versionName stays 1.6.6 across rounds, the -debug.NN
-	// suffix is what a pasted report maps to its release.
-	opts := engine.Options{Platform: plat, Version: "1.6.6-debug.21"}
-	if mutate != nil {
-		mutate(&opts)
-	}
-	eng, err := engine.New(opts)
-	if err != nil {
-		return nil, fmt.Errorf("mobile: %w", err)
-	}
-	m := &Engine{eng: eng, plat: plat, sink: sink}
-	if sink != nil {
-		eng.SetEventSink(&protectedSink{target: sink})
-	}
-	// M8-p (ADR-0015): the facade owns evidence the engine cannot see —
-	// the TUN counters and the shell version — so the diagnostic report
-	// the WebView copies carries them too (engine.SetReportExtra).
-	eng.SetReportExtra(m.diagnosticsExtra)
-	return m, nil
+        var protect android.ProtectFunc
+        if protector != nil {
+                p := protector
+                protect = p.Protect
+        }
+        var notify android.NotifyFunc
+        if sink != nil {
+                s := &protectedSink{target: sink}
+                notify = func(kind engine.NoticeKind, text string) {
+                        payload, err := json.Marshal(map[string]string{"kind": string(kind), "text": text})
+                        if err != nil {
+                                return
+                        }
+                        s.OnEvent("notice", string(payload))
+                }
+        }
+        plat := android.New(android.Options{
+                ConfigDir: configDir,
+                Protect:   protect,
+                Notify:    notify,
+        })
+        // M8-aa (debug.19, versionCode 18): the report header names the exact
+        // debug round — versionName stays 1.6.6 across rounds, the -debug.NN
+        // suffix is what a pasted report maps to its release.
+        // M8-ad (debug.22, versionCode 21): the long-lived-connection round.
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.22"}
+        if mutate != nil {
+                mutate(&opts)
+        }
+        eng, err := engine.New(opts)
+        if err != nil {
+                return nil, fmt.Errorf("mobile: %w", err)
+        }
+        m := &Engine{eng: eng, plat: plat, sink: sink}
+        if sink != nil {
+                eng.SetEventSink(&protectedSink{target: sink})
+        }
+        // M8-p (ADR-0015): the facade owns evidence the engine cannot see —
+        // the TUN counters and the shell version — so the diagnostic report
+        // the WebView copies carries them too (engine.SetReportExtra).
+        eng.SetReportExtra(m.diagnosticsExtra)
+        return m, nil
 }
 
 // GetState returns the state JSON ({"phase":"off",...}).
@@ -198,9 +199,9 @@ func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
 // the diagnostic report's android section so a pasted report names the
 // exact debug round it came from. Empty until set; never fails.
 func (m *Engine) SetShellVersion(v string) {
-	m.mu.Lock()
-	m.shellVersion = v
-	m.mu.Unlock()
+        m.mu.Lock()
+        m.shellVersion = v
+        m.mu.Unlock()
 }
 
 // diagnosticsExtra is the report section the facade installs on the
@@ -211,25 +212,25 @@ func (m *Engine) SetShellVersion(v string) {
 // in the report's style — no addresses, no hostnames (the R21 redaction
 // applies to this section too).
 func (m *Engine) diagnosticsExtra() string {
-	var b strings.Builder
-	m.mu.Lock()
-	shell := m.shellVersion
-	t := m.tun
-	m.mu.Unlock()
-	if shell != "" {
-		fmt.Fprintf(&b, "android shell: %s\n", shell)
-	}
-	if t == nil {
-		b.WriteString("tun: inactive\n")
-	} else {
-		st := t.stack.Stats()
-		// M8-z (ADR-0027 §8.4): v6Dropped rides the tun line — the
-		// engine-side counters cannot see the stack's own discards.
-		fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d v6Dropped=%d\n",
-			st.FlowsOpened, st.FlowsRSTUnmapped, st.FlowsOverCap,
-			st.DoorFailures, st.DNSQueries, st.UDPDropped, st.V6Dropped)
-	}
-	return strings.TrimSuffix(b.String(), "\n")
+        var b strings.Builder
+        m.mu.Lock()
+        shell := m.shellVersion
+        t := m.tun
+        m.mu.Unlock()
+        if shell != "" {
+                fmt.Fprintf(&b, "android shell: %s\n", shell)
+        }
+        if t == nil {
+                b.WriteString("tun: inactive\n")
+        } else {
+                st := t.stack.Stats()
+                // M8-z (ADR-0027 §8.4): v6Dropped rides the tun line — the
+                // engine-side counters cannot see the stack's own discards.
+                fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d v6Dropped=%d\n",
+                        st.FlowsOpened, st.FlowsRSTUnmapped, st.FlowsOverCap,
+                        st.DoorFailures, st.DNSQueries, st.UDPDropped, st.V6Dropped)
+        }
+        return strings.TrimSuffix(b.String(), "\n")
 }
 
 // SetVpnReady is the M5 lifecycle door (D77): true once the VPN consent
@@ -256,15 +257,15 @@ func (m *Engine) SetVpnReady(ready bool) { m.plat.SetStartReady(ready) }
 // honest-stop path owns a serving engine; log it), or {"error":"BAD_CODE"}
 // for any code outside the whitelisted vocabulary.
 func (m *Engine) FailStart(code string) string {
-	switch code {
-	case "NO_TARGET_APPS":
-	default:
-		return `{"error":"BAD_CODE"}`
-	}
-	if !m.plat.RefuseStart(code) {
-		return `{"error":"NOT_HELD"}`
-	}
-	return `{"error":null}`
+        switch code {
+        case "NO_TARGET_APPS":
+        default:
+                return `{"error":"BAD_CODE"}`
+        }
+        if !m.plat.RefuseStart(code) {
+                return `{"error":"NOT_HELD"}`
+        }
+        return `{"error":null}`
 }
 
 // RoutedApps is the M6 settings surface for the Kotlin service: the
@@ -284,18 +285,18 @@ func (m *Engine) FailStart(code string) string {
 // broken enough to lose its settings must refuse, not silently route
 // anything.
 func (m *Engine) RoutedApps() string {
-	apps := m.eng.Settings().Apps
-	if apps == nil {
-		apps = []string{} // marshal [] — an explicit, honest empty list
-	}
-	out, err := json.Marshal(map[string][]string{"apps": apps})
-	if err != nil {
-		// Unreachable for a []string; if it ever fires, fail toward the
-		// empty list — the NO_TARGET_APPS refusal owns what happens next,
-		// never route-everything.
-		out = []byte(`{"apps":[]}`)
-	}
-	return string(out)
+        apps := m.eng.Settings().Apps
+        if apps == nil {
+                apps = []string{} // marshal [] — an explicit, honest empty list
+        }
+        out, err := json.Marshal(map[string][]string{"apps": apps})
+        if err != nil {
+                // Unreachable for a []string; if it ever fires, fail toward the
+                // empty list — the NO_TARGET_APPS refusal owns what happens next,
+                // never route-everything.
+                out = []byte(`{"apps":[]}`)
+        }
+        return string(out)
 }
 
 // StartWebUI starts the in-process loopback control server (ADR-0005) on
@@ -303,48 +304,48 @@ func (m *Engine) RoutedApps() string {
 // While it runs, engine events fan out to the SSE hub AND the EventSink.
 // Idempotent: returns the existing URL if already running.
 func (m *Engine) StartWebUI(port int32) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.webUI != nil {
-		return m.webUI.URL(), nil
-	}
-	srv := webui.New(m.eng, int(port))
-	// webui.New just installed its hub as the engine's only sink; put the
-	// bridge back in alongside it (hub first: the page, then the shell).
-	if m.sink != nil {
-		m.eng.SetEventSink(&fanoutSink{hub: srv.Events(), bridge: &protectedSink{target: m.sink}})
-	}
-	if _, err := srv.Listen(); err != nil {
-		return "", fmt.Errorf("mobile: webui: %w", err)
-	}
-	m.webUI = srv
-	m.webUISrv = make(chan struct{})
-	go func() {
-		defer close(m.webUISrv)
-		_ = srv.Serve()
-	}()
-	return srv.URL(), nil
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        if m.webUI != nil {
+                return m.webUI.URL(), nil
+        }
+        srv := webui.New(m.eng, int(port))
+        // webui.New just installed its hub as the engine's only sink; put the
+        // bridge back in alongside it (hub first: the page, then the shell).
+        if m.sink != nil {
+                m.eng.SetEventSink(&fanoutSink{hub: srv.Events(), bridge: &protectedSink{target: m.sink}})
+        }
+        if _, err := srv.Listen(); err != nil {
+                return "", fmt.Errorf("mobile: webui: %w", err)
+        }
+        m.webUI = srv
+        m.webUISrv = make(chan struct{})
+        go func() {
+                defer close(m.webUISrv)
+                _ = srv.Serve()
+        }()
+        return srv.URL(), nil
 }
 
 // StopWebUI closes the control server (idempotent). The EventSink keeps
 // receiving engine events afterwards.
 func (m *Engine) StopWebUI() {
-	m.mu.Lock()
-	srv := m.webUI
-	srvDone := m.webUISrv
-	m.webUI = nil
-	m.webUISrv = nil
-	m.mu.Unlock()
-	if srv == nil {
-		return
-	}
-	_ = srv.Close()
-	if srvDone != nil {
-		<-srvDone
-	}
-	if m.sink != nil {
-		m.eng.SetEventSink(&protectedSink{target: m.sink})
-	}
+        m.mu.Lock()
+        srv := m.webUI
+        srvDone := m.webUISrv
+        m.webUI = nil
+        m.webUISrv = nil
+        m.mu.Unlock()
+        if srv == nil {
+                return
+        }
+        _ = srv.Close()
+        if srvDone != nil {
+                <-srvDone
+        }
+        if m.sink != nil {
+                m.eng.SetEventSink(&protectedSink{target: m.sink})
+        }
 }
 
 // Shutdown stops the TUN stack (if any), the webui and the engine,
@@ -352,35 +353,35 @@ func (m *Engine) StopWebUI() {
 // after it returns; the engine's sink contract (no events after
 // Shutdown) is inherited as-is.
 func (m *Engine) Shutdown() {
-	m.StopTun()
-	m.StopWebUI()
-	m.eng.Shutdown()
+        m.StopTun()
+        m.StopWebUI()
+        m.eng.Shutdown()
 }
 
 // protectedSink guards the bridge: a throwing Kotlin callback must not
 // kill the engine goroutine that emitted the event. The event is dropped
 // in that case (nothing else is safe to do from here).
 type protectedSink struct {
-	target EventSink
+        target EventSink
 }
 
 func (p *protectedSink) OnEvent(name string, payload string) {
-	defer func() { _ = recover() }()
-	p.target.OnEvent(name, payload)
+        defer func() { _ = recover() }()
+        p.target.OnEvent(name, payload)
 }
 
 // fanoutSink delivers one event to both consumers: the SSE hub (the
 // WebView page) first, the bridge (the Kotlin shell) second.
 type fanoutSink struct {
-	hub    engine.EventSink
-	bridge EventSink
+        hub    engine.EventSink
+        bridge EventSink
 }
 
 func (f *fanoutSink) OnEvent(name string, payload string) {
-	if f.hub != nil {
-		f.hub.OnEvent(name, payload)
-	}
-	if f.bridge != nil {
-		f.bridge.OnEvent(name, payload)
-	}
+        if f.hub != nil {
+                f.hub.OnEvent(name, payload)
+        }
+        if f.bridge != nil {
+                f.bridge.OnEvent(name, payload)
+        }
 }

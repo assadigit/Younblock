@@ -4007,3 +4007,87 @@ morning re-test ask), CHANGELOG, README, PROGRESS updated. The
 sandbox was wiped again before this round: repo re-cloned, Go
 1.26.3 reinstalled, the frontend rebuilt, the whole Android lane
 (JDK/SDK/NDK/gomobile) rebuilt from scratch.
+
+## M8-ad — the long-lived-connection round (ADR-0037/0038/0039, debug.22, versionCode 21)
+
+Date: 2026-10-20 (Asia/Tehran), night. Input: the tester's
+post-debug.21 report — no diagnostics paste this time, three
+sentences instead: "the problem is not solved yet (video lags to
+begin)"; "I found another weird bug (more in linux, less in
+windows), that after a while playing and seeing a video like minute
+5 of a 10min video, it goes loading, and as soon as you refresh it
+fixes"; and "I think you need to read the backend script again,
+maybe it gives you ideas" — pointing at the legacy Python's
+backend.py (the app's own proven prototype: 300-fragment hellos at
+1 ms, DoH routed through its own fragmented lane, DNS cached
+forever, one plain dial per flow, TCP_NODELAY, 21 s timeouts).
+
+What the code read said (tunnel.go's watchStall against the
+report's words): the minute-5 wedge is three death shapes of a
+PROVEN ("rich") connection the budgets never covered — (a) a
+PENDING death: the player's next range request rides the dead
+pooled conn, both directions go quiet, and the kill waits the full
+90 s StallRichTimeout (the M8-ac round even demoted on pending rich
+kills but left the budget untouched); (b) a BLACKHOLED conn: no
+tuned keepalive ever notices (Go's default: 9 probes at 15 s ≈ 2 h
+to surface), the relay sits blocked in Read; (c) a THROTTLED conn:
+bytes keep arriving under the floor, the down stamp keeps
+refreshing, and the both-silent clock never even STARTS — the
+debug.20 report's 5×-less-down was this shape's fingerprint. In all
+three the player buffers, drains, spins — and the user's refresh
+closes everything and recovers in ~2 s through the race +
+substitution machinery that already works. Plus the two backend.py
+ideas the rewrite never adopted: legacy fragmentation was
+unreachable from auto (presetFor(auto)=balanced,
+HealSweepOrder tried legacy LAST), and the DNS cache got
+re-resolved on every stall kill (the churn spiral the debug.20
+report measured: dns=579-846 ms late-session, 59 DoH dials).
+
+The round: (1) ADR-0037 — StallRichPendingTimeout (10 s) closes a
+rich flow with an outstanding request (demote lands, noise quiet,
+tier=rich cause=pending); netx gains KeepAliveIdle/Interval/Count
+(net.KeepAliveConfig{15 s, 5 s, 3} applied post-dial on every
+origin dial — the engine's dialer AND the DoH lane's own); the
+trickle kill (TrickleWindow 12 s / TrickleMinBytes 128 KB /
+TrickleFloorBytes 1 MB) closes a rich flow whose rolling window
+keeps landing above zero but under the floor — quietly, no demote
+(policing follows the CONNECTION; the dead-origin probe already
+showed the IPs answer). Considered and rejected: proactive
+idle-gvideo rotation (~30 s) — handshake churn under a censor that
+punishes scan-like shapes, with keepalive+pending already bounding
+the waste. (2) ADR-0038 — the lean stall kill's invalidateDNS
+REMOVED (the kill is an origin-conn death; the per-IP demote
+carries the evidence; the M8-o dial-failure path keeps the answer
+set's refresh). (3) ADR-0039 — presetFor(auto)=fragment.Legacy and
+HealSweepOrder = legacy→strong→balanced→light. (4) Diagnostics —
+stallRichPending/stallTrickle counters; the stall line reads
+"rich=N (pending=Q trickle=T)".
+
+Tests: proxy/liveness_test.go (3: the rich pending fast kill — the
+line, the demote, the app-side close, the kept answer set; the
+trickle kill — the line, the mark KEPT, the app-side close; the
+stall kill keeps the answer set) + netx/keepalive_linux_test.go
+(TCP_KEEPIDLE/KEEPINTVL/KEEPCNT read back off the socket) +
+engine/m8ad_test.go (3: auto starts at legacy, the sweep leads with
+legacy, the report renders the rich cause split with no-leak
+guards). Three M8-v/x-era pins updated to the ADR-0038 contract
+(stall kills never invalidate): TestStallKillClosesSilentRelayFlow,
+TestStallLeanKillStaysLoud, TestStallRichEscalationDisabledByConfig
+— their kill/tier/error assertions stand, the invalidate assertions
+inverted; the M8-r sweep test's first-method pin updated to legacy.
+Both-ways, executed: the pending budget neutered →
+TestRichPendingKillAtTheFastBudget FAILS; the trickle ring neutered
+→ TestTrickleKillClosesTheThrottledFlow FAILS; invalidateDNS
+restored at the kill site → TestStallKillKeepsTheAnswerSet FAILS;
+presetFor reverted to balanced → TestAutoStartsAtLegacy FAILS. Full
+suite green (18 packages + mobile). Honest flake note:
+TestStallKillClosesSilentRelayFlow (first-flight EOF family, the
+same first-byte path documented flaking for three rounds) measured
+1/20 solo with this diff vs 4+/20 at HEAD in the same session —
+pre-existing and, if anything, less frequent with the round; the
+full package passes.
+
+Version: mobile facade "1.6.6-debug.22"; gradle versionCode 20→21
+with the round's comment block; ADR-0037/0038/0039, release notes
+(the minute-5 story in plain words, the browser-per-OS ask for the
+Linux/Windows asymmetry), CHANGELOG, README, PROGRESS updated.

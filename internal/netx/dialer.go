@@ -25,6 +25,17 @@ type Dialer struct {
 	OverallTimeout time.Duration
 	// Control is the optional socket hook (nil on desktop).
 	Control ControlFunc
+	// KeepAliveIdle, KeepAliveInterval and KeepAliveCount tune TCP
+	// keepalive on every dialed origin socket (M8-ad, ADR-0037):
+	// the connection-killing regime leaves silently-blackholed
+	// peers indistinguishable from healthy pooled conns until an
+	// tuned probe fails and the blocked Read wakes with the error.
+	// Idle ≤ 0 leaves the socket on the Go/runtime default (since
+	// Go 1.23 a 15 s interval with the OS-default probe count);
+	// Count 0 means the OS default (9 on Linux).
+	KeepAliveIdle     time.Duration
+	KeepAliveInterval time.Duration
+	KeepAliveCount    int
 	// FallbackDelay is how long one address attempt may hold the
 	// stage before the NEXT address is started alongside it
 	// (Happy-Eyeballs style, RFC 8305's reasoning: a filtered
@@ -53,7 +64,28 @@ func New(perIP, overall time.Duration, control ControlFunc) *Dialer {
 func (d *Dialer) DialIP(ctx context.Context, network string, ip net.IP, port int) (net.Conn, error) {
 	nd := net.Dialer{Timeout: d.PerIPTimeout, Control: d.Control}
 	addr := net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port))
-	return nd.DialContext(ctx, network, addr)
+	conn, err := nd.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+	applyKeepAlive(conn, d.KeepAliveIdle, d.KeepAliveInterval, d.KeepAliveCount)
+	return conn, nil
+}
+
+// applyKeepAlive tunes a dialed TCP socket's keepalive when the config
+// asks for it (M8-ad, ADR-0037). Non-TCP conns and unsupported
+// platforms keep their defaults — the failure is a missing tuning, not
+// an error worth failing the dial over.
+func applyKeepAlive(conn net.Conn, idle, interval time.Duration, count int) {
+	if idle <= 0 {
+		return
+	}
+	tc, ok := conn.(*net.TCPConn)
+	if !ok {
+		return
+	}
+	cfg := net.KeepAliveConfig{Idle: idle, Interval: interval, Count: count}
+	_ = tc.SetKeepAliveConfig(cfg) // unsupported → the runtime default stands
 }
 
 // DialHost tries the addresses with staggered parallel attempts

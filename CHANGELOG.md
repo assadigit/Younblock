@@ -12,6 +12,52 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-20 — M8-ad; shipping in `v1.6.6-android-debug.22`, versionCode 21)
+
+- **"After a while playing … minute 5 of a 10min video, it goes
+  loading, and as soon as you refresh it fixes" + "the problem is
+  not solved yet (video lags to begin)" + "read the backend script
+  again, maybe it gives you ideas" — the tester's post-debug.21
+  report named the mid-video wedge and pointed back at the legacy
+  Python's proven techniques, and this round delivers both: the
+  long-lived-connection fixes (ADR-0037/0038/0039).** (1) **Rich-flow
+  liveness (ADR-0037)**: StallRichPendingTimeout (10 s) — a PROVEN
+  flow whose client has a request outstanding (the player's next
+  range request riding a dead pooled conn) closes at the fast budget
+  with the demote landing and the noise quiet (the 90 s hygiene
+  budget held the wedge far past the app's patience); tuned TCP
+  keepalive on every origin dial (netx KeepAliveConfig Idle 15 s /
+  Interval 5 s / Count 3, the DoH lane's dialer included — a
+  blackholed peer surfaces as a read error in ~30 s instead of Go's
+  default ~2 h, and the relay closes the app's side so its retry
+  lands on a fresh origin); the trickle kill (TrickleWindow 12 s /
+  TrickleMinBytes 128 KB / TrickleFloorBytes 1 MB) — a rich flow
+  whose rolling window keeps delivering above zero but under the
+  floor is being per-connection throttled (TCP delivery of a range
+  response is line-rate bursty; the player paces REQUESTS, not
+  bytes), and the kill closes both ends QUIETLY (no demote — a fresh
+  conn to the same origin runs at full speed; no error count) so the
+  player's retry lands on a fresh conn: engine-side what the tester's
+  REFRESH did by hand. (2) **Stall kills never invalidate the answer
+  set (ADR-0038)**: the lean stall kill's invalidateDNS call REMOVED
+  (the kill is an origin-conn death; the per-IP demote carries the
+  evidence; forcing a re-resolve fed the debug.20 report's churn
+  spiral — dns=579-846 ms late-session, 59 DoH dials; the old Python
+  cached DNS forever). The answer set's refresh stays with the
+  dial-failure path (M8-o) where a whole set failed to connect. (3)
+  **Auto starts at legacy (ADR-0039)**: presetFor(auto) returns
+  fragment.Legacy — the old Python's 299-cut 1 ms hello, a preset
+  that existed since the rewrite but was unreachable (auto started
+  balanced, the sweep tried legacy LAST) — and HealSweepOrder walks
+  DOWN the strength ladder (legacy → strong → balanced → light);
+  under a censor that now RSTs recognizably-shaped hellos (35 of 77
+  probe verdicts), weak splitting was never in the fight. (4)
+  **Diagnostics**: the stall line gains the rich cause split
+  (`rich=N (pending=Q trickle=T)`) — pending = the mid-video
+  wedge's killer now bounded at 10 s, trickle = the per-connection
+  throttle; stallRichPending/stallTrickle counters on the Diagnostic
+  struct.
+
 ### Fixed / Added (2026-10-20 — M8-ac; shipping in `v1.6.6-android-debug.21`, versionCode 20)
 
 - **"It became way way worse, it doesn't even play a video after a

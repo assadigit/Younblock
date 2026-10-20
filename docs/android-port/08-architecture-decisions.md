@@ -13,7 +13,9 @@ dead-origin-pool fixes the first debug.18 report measured);
 ADR-0031…0033 record the debug.20 round (M8-ab, the escape-the-pool
 fixes the first debug.19 report measured); ADR-0034…0036 record the
 debug.21 round (M8-ac, the hostile-network fixes the first debug.20
-report measured).
+report measured); ADR-0037…0039 record the debug.22 round (M8-ad, the
+long-lived-connection fixes the post-debug.21 report named — the
+mid-video wedge and the legacy hello the tester pointed back at).
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -2139,6 +2141,143 @@ match, and the report carries rehabilitated/goodDrops/brownouts
   lengthens the idle-lean budget or exempts no-pending flows; idle
   dominating with no recovery = mid-body deaths and the data path
   itself is the censor's target — a different tool than dial lists.
+
+
+## ADR-0037 — Rich-flow liveness: the pending fast budget, the tuned
+keepalive, and the trickle kill — every mid-life death of a proven
+connection recovers in seconds, not at the app's patience (M8-ad)
+
+- **Status:** Accepted 2026-10-20 (M8-ad; the tester's post-debug.21
+  report, verbatim: "after a while playing and seeing a video like
+  minute 5 of a 10min video, it goes loading, and as soon as you
+  refresh it fixes" — the refresh IS the recovery mechanism the engine
+  was missing, delivered by hand).
+- **Context:** the M8-x tiering (ADR-0022) protects PROVEN flows from
+  the lean budget's false kills — and with it, a rich flow that died
+  mid-life waits the full 90 s hygiene budget before the engine closes
+  it. Three death shapes hide inside that window: the player's next
+  range request rides the dead conn UNANSWERED (pending — the stall
+  watch sees both-silent and waits 90 s); the conn is blackholed with
+  no data either way and no tuned keepalive ever notices (Go's default
+  probes 9× at 15 s ≈ 2 h); and the per-connection THROTTLE — bytes
+  keep arriving under the floor, the down stamp keeps refreshing, and
+  the both-silent clock NEVER accumulates (the debug.20 report's
+  5×-less-down shape). In all three the player buffers, drains, spins
+  — and the user's refresh closes everything and recovers in ~2 s
+  through the race + substitution machinery that already works.
+- **Decision:** (1) `StallRichPendingTimeout` (10 s) — a rich flow
+  whose client spoke after the origin's last byte (a request
+  outstanding) closes at the fast budget: the demote lands (the M8-ac
+  dead-with-work ruling, at any tier), the noise stays quiet (no error
+  count), tier=rich cause=pending. (2) Tuned TCP keepalive on EVERY
+  origin dial (netx applies `net.KeepAliveConfig{Idle: 15 s,
+  Interval: 5 s, Count: 3}` when the engine configures it — the DoH
+  lane's own dialer included): a blackholed peer surfaces as a read
+  error in ~15 s + 3 × 5 s and the relay closes the app's side. (3)
+  The trickle kill — a ring of cumulative delivered-down snapshots,
+  one per stall-watch tick, `TrickleWindow` (12 s) wide; a rich flow
+  past `TrickleFloorBytes` (1 MB) whose window keeps landing above
+  zero but under `TrickleMinBytes` (128 KB ≈ 11 KB/s — TCP delivery
+  of a range response is line-rate bursty, the player paces REQUESTS,
+  not bytes) is closed QUIETLY: no demote (policing follows the
+  CONNECTION — a fresh conn to the same origin runs at full speed; the
+  debug.20 report's dead-origin probe showed the IPs themselves
+  answer), no error count, tier=rich cause=trickle. Considered and
+  REJECTED: proactive idle-gvideo rotation at ~30 s — it multiplies
+  handshaves under a censor that punishes scan-like shapes, and the
+  keepalive + pending budget already bound the pooled-conn waste.
+- **Evidence:** internal/proxy/liveness_test.go — the rich pending
+  kill fires at the fast budget with the demote and the app-side
+  close; the trickle kill closes the throttled flow with the mark
+  KEPT; internal/netx/keepalive_linux_test.go reads TCP_KEEPIDLE /
+  TCP_KEEPINTVL / TCP_KEEPCNT back off the socket the dialer
+  produced. Both-ways: the pending budget neutered → the pending test
+  FAILS waiting for the kill; the ring neutered → the trickle test
+  FAILS on the surviving flow.
+- **Consequences:** the player's own retry becomes the recovery path
+  for mid-life deaths (a kill is only as good as the app noticing —
+  the close is the deliverable); the report's stall line gains the
+  rich cause split (`rich=N (pending=Q trickle=T)`) so the next paste
+  says which death shape dominates; a false-positive trickle kill
+  costs one re-handshake on a conn that was crawling anyway.
+- **What this ADR does NOT decide:** the lean tier's budgets (M8-v/x
+  stand); any change to the race or substitution width (M8-w/ab
+  stand — the scan-signature question stays open for a report that
+  shows fresh-conn deaths immediately after bursts).
+
+## ADR-0038 — Stall kills never invalidate the answer set: the kill is
+an origin-connection death, and the resolver's cache is not the
+suspect (M8-ad)
+
+- **Status:** Accepted 2026-10-20 (M8-ad; the debug.20 report measured
+  the churn this fed: dns=579-846 ms late-session, DoH dials 6→59 —
+  every killed flow sent the next request back through the struggling
+  DoH lane for a fresh answer set whose old IPs were fine).
+- **Context:** the M8-v stall kill closed with `invalidateDNS(host)`
+  — the M8-o feedback loop's reflex, imported from the dial-failure
+  path where a WHOLE answer set failed to connect. But a mid-stream
+  stall is a per-CONNECTION death: the per-IP demote (which the kill
+  already performs on pending evidence, ADR-0034) carries the origin
+  evidence into the dial lists, and the rotation spreads the rest. The
+  old Python backend cached DNS forever and never re-queried on a flow
+  death; the tester pointed back at it ("read the backend script
+  again").
+- **Decision:** remove the `invalidateDNS` call from the stall-kill
+  site (lean tier; the rich tiers never had it). The answer set's own
+  refresh stays exclusively with the dial-failure path (M8-o), where
+  every address of the set failed to CONNECT — the shape that
+  actually implicates the resolver's answers.
+- **Evidence:** internal/proxy/liveness_test.go
+  TestStallKillKeepsTheAnswerSet (the lean idle kill fires, the line
+  logs, the resolver's Invalidate is NEVER called); the three M8-v/x
+  era pins updated to the new contract
+  (TestStallKillClosesSilentRelayFlow, TestStallLeanKillStaysLoud,
+  TestStallRichEscalationDisabledByConfig). Both-ways: the call
+  restored at the kill site → every one of them FAILS on the recorded
+  invalidation.
+- **Consequences:** a killed flow's retry reuses the cached answer
+  set immediately (the demoted IP is skipped by the dial-list
+  rotation, not by a re-resolve); the DoH lane's load during
+  kill-storms drops to the queries the app itself causes.
+- **What this ADR does NOT decide:** the DNS cache's TTL or the
+  negative-cache re-ask (M8-z stands).
+
+## ADR-0039 — Auto starts at LEGACY: the strength ladder is walked
+DOWN, not up (M8-ad)
+
+- **Status:** Accepted 2026-10-20 (M8-ad; the tester's own words —
+  "read the backend script again, maybe it gives you ideas, because
+  the problem is not solved yet (video lags to begin)" — the legacy
+  Python's 299-cut hello is the shape his network proved for years).
+- **Context:** auto mapped to balanced (80-200-byte pieces, ~4-6
+  packets for a real ClientHello) since the rewrite, and
+  `HealSweepOrder` tried legacy LAST — the strongest shape we ship
+  was effectively unreachable. Meanwhile the regime changed (the
+  debug.20/21 reports): probe reset verdicts 0→35 — the censor now
+  RSTs recognizably-shaped hellos instead of blackholing IPs. Weak
+  splitting is exactly what a reassembling DPI wants to see.
+- **Decision:** `presetFor(auto)` returns `fragment.Legacy` (the
+  Python rule, byte-for-byte: 299 random cuts at 1 ms pause — the
+  preset has existed since the rewrite, un-reachable from auto);
+  `config.HealSweepOrder` becomes legacy → strong → balanced → light
+  so a failed start check tries the STRONGEST shape before conceding.
+  The ~300 ms serialization cost rides inside the 2.5 s first-byte
+  budget, parallel across the race's candidates, and the DoH lane
+  follows the method (its hellos fragment with the same preset,
+  exactly as the Python routed DoH through its own fragmented lane).
+- **Evidence:** internal/engine/m8ad_test.go TestAutoStartsAtLegacy
+  (auto → legacy; the explicit methods keep their direct mapping) and
+  TestHealSweepLeadsWithLegacy (the order); the M8-r sweep test
+  updated to the new first method. Both-ways: presetFor reverted to
+  balanced → TestAutoStartsAtLegacy FAILS.
+- **Consequences:** every auto session leads with the most
+  DPI-resistant hello we have; a heal sweep can still walk DOWN to
+  weaker shapes when legacy genuinely fails; users who picked an
+  explicit method are untouched.
+- **What this ADR does NOT decide:** the legacy preset's piece rule
+  itself (byte-for-byte the Python's, by design); uTLS-style hello
+  mimicry (a different tool for a report that shows even 299-cut
+  hellos being RST).
 
 ## Decision-change procedure
 

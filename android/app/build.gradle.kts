@@ -20,52 +20,46 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 20: the M8-ac build (debug.21 -- the hostile-network
-        // round): the tester's FIRST debug.20 report came from 6:04 PM
-        // Tehran (evening peak; the debug.19 test was 4:17 AM) and
-        // measured a REGIME CHANGE, not just a regression: the
-        // dead-origin probe answered on both SNI variants (the IP
-        // blackholing is GONE), 35 of 77 probe verdicts came back
-        // reset, and the DoH lane's connections churned (dials 59,
-        // was 6 thirteen hours earlier) -- the censor moved from
-        // blackholing cache-node IPs to killing connections in
-        // flight. The debug.20 machinery itself worked (substitution
-        // attempts=7 wins=5, first bytes 70-524ms everywhere,
-        // auto-timeline play->first-data elapsed=2500ms pairs=2 --
-        // the 45 s cold-start was SOLVED early in the session) but
-        // five of its choices became self-harm under the new regime:
-        // the box held 12 penalized IPs that all ANSWERED (deaths are
-        // temporal now, not per-IP), the flow-fed good pool drained
-        // to gvideo=1 (every terminal's deaths demoting the very
-        // marks its wins had written), liveIPs pinned every flow onto
-        // the same verified origin (www.youtube.com 17/17), every
-        // raced death invalidated DNS through the dying DoH lane, and
-        // the 45 s fast-start cadence sent scan-like bursts exactly
-        // while the network was hostile. The round: (1) the
-        // evidence-weighted marking (ADR-0034) -- reset-class deaths
-        // box 20 s WITHOUT demoting (a temporal signal), timeout
-        // deaths keep 60 s + demote, PENDING stall kills (the client
-        // spoke after the origin's last byte: a request left
-        // unanswered) demote at BOTH tiers, IDLE kills never demote,
-        // probe resets box 60 s (was 10 m), strike escalation capped
-        // at [60s, 2m, 5m], and the probe pass REHABILITATES boxed
-        // IPs (answered = cleared + marked good + counted); (2) the
-        // anti-concentration rotation (ADR-0034) -- liveIPs and
-        // goodSubstitutes rotate their fronts per call so consecutive
-        // flows spread across verified origins; (3) the cadence
-        // rebalance + DoH brownout (ADR-0035) -- the 45 s fast-start
-        // lane REMOVED (the persisted seed and flow-fed marks own its
-        // job), the churn kick stays debounced, and >=3 DoH dials in
-        // 60 s pauses every background lane until the resolver
-        // recovers (counted); (4) the cause-split diagnostics
-        // (ADR-0036) -- stall kills split pending/idle (THE number
-        // that says whether the engine is killing dead origins or
-        // the app's pooled connections), rehabilitated/goodDrops/
-        // brownouts on the report. Installs over debug.20 (the same
-        // pinned debug certificate -- D85). The D84 rule: every
-        // debug build bumps this. D103: the APK asset is named
-        // v1.6.6-debug21.apk.
-        versionCode = 20
+        // versionCode 21: the M8-ad build (debug.22 -- the
+        // long-lived-connection round): the tester's post-debug.21
+        // report brought the round's whole brief in two sentences --
+        // "the problem is not solved yet (video lags to begin)" and
+        // "after a while playing and seeing a video like minute 5 of
+        // a 10min video, it goes loading, and as soon as you refresh
+        // it fixes" (more on Linux, less on Windows), plus a pointer
+        // back at the legacy Python backend: "read the backend script
+        // again, maybe it gives you ideas." The ideas it gave: (1)
+        // ADR-0037 rich-flow liveness -- the minute-5 wedge was three
+        // death shapes the 90 s hygiene budget sat on: a PENDING
+        // death (the player's next range request riding the dead
+        // pooled conn) now closes at StallRichPendingTimeout=10 s
+        // with the demote landing; a blackholed conn now surfaces in
+        // ~30 s via tuned TCP keepalive (15 s idle + 3x5 s probes,
+        // every origin dial including the DoH lane's); and the
+        // per-connection THROTTLE (bytes keep arriving under the
+        // floor -- the both-silent clock never even started, and the
+        // debug.20 report's 5x-less-down was its fingerprint) now
+        // dies to the trickle kill: a 12 s rolling window that keeps
+        // landing above zero but under 128 KB on a 1 MB+ flow closes
+        // both ends QUIETLY so the player's retry lands on a fresh,
+        // unthrottled conn -- engine-side what the tester's REFRESH
+        // did by hand. (2) ADR-0038 -- stall kills never invalidate
+        // the answer set anymore (the debug.20 churn spiral's feed:
+        // dns=579-846 ms late-session, 59 DoH dials; the Python
+        // cached DNS forever). (3) ADR-0039 -- auto STARTS at legacy,
+        // the Python's own 299-cut 1 ms hello (the preset existed
+        // since the rewrite but auto started at balanced and the
+        // sweep tried legacy LAST; under a censor that now RSTs
+        // recognizably-shaped hellos -- 35 of 77 probe verdicts --
+        // weak splitting was never in the fight), and the heal sweep
+        // walks DOWN the strength ladder from there. The report's
+        // stall line gains the rich cause split: rich=N
+        // (pending=Q trickle=T) -- the numbers that say whether this
+        // round caught what the tester saw. Installs over debug.21
+        // (the same pinned debug certificate -- D85). The D84 rule:
+        // every debug build bumps this. D103: the APK asset is named
+        // v1.6.6-debug22.apk.
+        versionCode = 21
         versionName = "1.6.6"
     }
 

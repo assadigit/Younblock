@@ -1,46 +1,87 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-ac (2026-10-20, evening — the debug.21
-round, the hostile-network fixes the FIRST debug.20 report measured:
-the evidence-weighted marking + box rehabilitation + the
-anti-concentration rotation (ADR-0034), the cadence rebalance + the
-DoH brownout (ADR-0035), and the pending/idle cause split +
-rehabilitated/goodDrops/brownouts diagnostics (ADR-0036). Read the
-tester's debug.20 report against their debug.19 one first — the two
-tests ran 13.5 HOURS APART (4:17 AM vs 6:04 PM Tehran: off-peak vs
-evening peak) and the NETWORK ITSELF changed between them: the
-dead-origin probe went silent→ANSWERED on both SNI variants (the IP
-blackholing is gone), probe reset verdicts went 0→35, DoH connection
-dials went 6→59 — the censor moved from blackholing cache-node IPs to
-killing connections in flight, including the resolver's. Under that
-regime the debug.20 round's own report card was mixed: substitution
-attempted 7 / won 5, first bytes 70-524 ms everywhere, and the
-auto-timeline measured play→first-data at 2.5 s pairs=2 (the 45 s
-cold-start was SOLVED early in the session) — but five of its choices
-became self-harm: the box penalized 12 IPs that all answered, the
-flow-fed pool drained to gvideo=1 (every terminal's deaths demoting
-the marks its wins had written), every www.youtube.com flow funneled
-onto one pinned verified origin (17/17 failures), every raced death
-invalidated DNS through the dying DoH lane, and the 45 s fast-start
-cadence sent scan-like bursts exactly while the network was hostile.
-Earlier at M8-ab (2026-10-20 — the debug.20 round, the
-escape-the-pool fixes the FIRST debug.19 report measured: the
-cross-origin substitution from the verified-live pool (ADR-0031), the
-probe pass's round-robin coverage + fast-start cadence + churn kick
-(ADR-0032), and the persisted good pool (ADR-0033). The tester's
-debug.19 report proved the dead-origin pool WORKS — racedSaves=9, the
-box and probe verdicts healthy — but only ever inside ONE hostname's
-rotating answer set: auto-timeline play->first-data elapsed=44999ms
-pairs=5, five app retry waves gambling fresh unknown qxau5 cache IPs
-while the good table held 24 verified origins no dial list ever saw,
-the video starting only when the app ITSELF fell back to a foreign
-cache hostname (r5---sn-4g5e6nsy / r2---sn-nv47lnsr — the only
-googlevideo hosts with clean first-bytes in the whole window); plus
-the round's own confession, the one pass ran at engine start and its
-name list was the stable fronts plus the 2 FRESHEST learned codes —
-early in a session the local cluster twice, so the pool could not
-have escaped the blackhole even in principle.**v1.6.6-android-debug.21 (versionCode 19+1=20) is the CURRENT
-build** — the hostile-network round. What changed, in plain words:
+**Status:** updated at M8-ad (2026-10-20, night — the debug.22 round,
+the long-lived-connection fixes the post-debug.21 report named: the
+rich-flow liveness trio (ADR-0037 — the pending fast budget, the
+tuned origin keepalive, the trickle kill), stall kills never
+invalidating the answer set (ADR-0038), and auto starting at legacy
+— the old Python backend's own 299-cut hello (ADR-0039). The
+tester's report this time was two sentences and a pointer: "the
+problem is not solved yet (video lags to begin)" and "after a while
+playing and seeing a video like minute 5 of a 10min video, it goes
+loading, and as soon as you refresh it fixes" (more on Linux, less
+on Windows) — plus "read the backend script again, maybe it gives
+you ideas." The backend script's ideas are now the round: the
+minute-5 wedge was the engine holding PROVEN connections to budgets
+measured for dead strangers (90 s hygiene, OS-default keepalive,
+and a both-silent clock that a throttled connection never even
+starts — bytes keep arriving, under the floor); the refresh that
+fixed it is now three automatic kills; and the legacy fragmentation
+that carried the Python for years is now where auto starts, with
+the heal sweep walking DOWN the strength ladder instead of saving
+its strongest card for last.**v1.6.6-android-debug.22 (versionCode
+20+1=21) is the CURRENT build** — the long-lived-connection round.
+What changed, in plain words:
+
+- **The minute-5 bug has three killers now, and none of them is
+  you pressing refresh.** Your report: a video plays fine, then at
+  ~minute 5 the spinner comes and only a refresh fixes it. That is
+  a PROVEN connection dying mid-life (or being throttled to a
+  crawl) while the engine's budgets for proven connections were
+  sized for polite cleanup, not recovery: an unanswered request
+  waited the full 90 s hygiene budget; a silently-dead pooled
+  connection waited for an OS keepalive that takes ~2 HOURS; and a
+  throttled connection (bytes still arriving, just never enough —
+  the same shape as your debug.20 report's 5×-less-down) never
+  tripped ANY stall clock, because the clock only starts when
+  bytes STOP. Now: a request the origin leaves unanswered on a
+  proven connection closes BOTH ends at 10 s (the player's own
+  retry then lands on a fresh connection through the machinery
+  that works — engine-side exactly what your refresh did by hand);
+  every origin connection carries tuned keepalive probes
+  (15 s idle, 3×5 s — a blackholed peer surfaces in ~30 s and the
+  app's side closes); and a proven flow whose last 12 s delivered
+  more than zero but under ~11 KB/s is closed on the spot — TCP
+  delivery of video is bursty at line rate, so a sustained crawl
+  is per-connection policing, and a FRESH connection to the same
+  origin runs at full speed. Your refresh becomes the fallback,
+  not the recovery.
+- **A killed connection no longer drags the resolver into it.**
+  Your debug.20 report's late-session "dns=579-846 ms" and 59 DoH
+  dials were partly our own doing: every stall kill forced the next
+  request to re-resolve through the (struggling) DoH lane, even
+  though the old answer set's IPs were fine and the dead one is
+  already skipped by rotation. Kills now leave the cache alone —
+  the old Python cached DNS forever, and it was right to.
+- **Auto now starts at the old Python's own hello shape.** You
+  pointed back at backend.py, and the sharpest idea in it was the
+  one we had as a preset but never actually used: 299 tiny cuts at
+  1 ms — the fragmentation your network proved for years. Auto has
+  been starting at "balanced" (~4-6 pieces of 80-200 bytes) and the
+  repair sweep tried legacy LAST, so the strongest shape almost
+  never ran. Under a censor that now resets recognizable hellos
+  (35 of 77 probe verdicts in your last report), that was backwards
+  — auto starts at legacy, and the sweep walks DOWN (legacy →
+  strong → balanced → light) only when legacy genuinely fails.
+  Costs ~300 ms per handshake, inside the first-byte budget, and
+  in parallel across the race's candidates.
+- **The report tells us which death shape your network actually
+  uses.** The stall line now splits the proven-connection kills by
+  cause: `rich=N (pending=Q trickle=T)`. pending>0 = requests dying
+  on dead pooled connections (the wedge — now bounded at 10 s);
+  trickle>0 = the per-connection throttle (the refresh-fixes-it
+  shape, caught engine-side). If minute-5 stalls survive this
+  build, that line says which killer to sharpen.
+- **One ask for the next report:** you wrote "more in Linux, less
+  in Windows" — please note WHICH BROWSER you tested on each OS
+  (Firefox/Chrome/other) and whether the desktop build was the
+  same version on both. The fix is browser-agnostic, but if the
+  asymmetry is a browser's connection pooling rather than the OS,
+  the next tuning pass wants to know.
+
+**v1.6.6-android-debug.21 (versionCode 19+1=20) — superseded by
+debug.22** — the hostile-network round. What changed, in plain
+words (kept for the record):
 
 - **First, the honest part: your two tests ran at very different
   hours.** Your debug.19 test was ~4:17 AM (quiet hours); the
@@ -380,9 +421,11 @@ D100/D101), M8-n/M8-o (the stall fixes, ADR-0013/0014 + D98/D99),
 A0/A0-R2/A0-R3
 — **the account gate is CANCELLED (D97)**, see the closing note
 below. This document now holds two things: §1 the **shipped** debug
-test-circle releases (`v1.6.6-android-debug.17` is the CURRENT
+test-circle releases (`v1.6.6-android-debug.22` is the CURRENT
 build — a regular release in the private repo per D89, the same text
-lives on the GitHub release itself; beneath it: debug.16 the
+lives on the GitHub release itself; beneath it: debug.21 the
+hostile-network build (superseded by debug.22: its round produced
+the minute-5 mid-video report, which debug.22 acts on), debug.16 the
 tiered-stall-watch build (superseded by debug.17: its round produced
 the eighth pasted report, which debug.17 acts on — and its own fix
 VERIFIED on-device by Ali's words), debug.15 the

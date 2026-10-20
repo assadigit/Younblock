@@ -60,6 +60,15 @@ type Config struct {
 	TLS *tls.Config
 	// Control is the netx socket hook (nil on desktop).
 	Control netx.ControlFunc
+	// KeepAliveIdle, KeepAliveInterval and KeepAliveCount tune TCP
+	// keepalive on the resolver's own origin sockets (M8-ad, ADR-0037):
+	// the multiplexed H2 DoH conns the connection-killing regime murders
+	// mid-life surface as read errors in ~15 s + 3 × 5 s instead of
+	// riding the read-idle ping's failure path or hanging to the Go
+	// default's ~2 h. Idle ≤ 0 → the runtime default.
+	KeepAliveIdle     time.Duration
+	KeepAliveInterval time.Duration
+	KeepAliveCount    int
 	// FragmentPreset and FragmentConfig shape the DoH ClientHello splitting.
 	FragmentPreset fragment.Preset
 	FragmentConfig fragment.Config
@@ -867,6 +876,11 @@ func (r *Resolver) dialServer(ctx context.Context, network, addr string) (net.Co
 		return nil, fmt.Errorf("server has no valid bootstrap addresses")
 	}
 	d := netx.New(r.cfg.Timeout, r.cfg.Timeout, r.cfg.Control)
+	// M8-ad (ADR-0037): the resolver's origin conns carry the tuned
+	// keepalive like every other origin dial.
+	d.KeepAliveIdle = r.cfg.KeepAliveIdle
+	d.KeepAliveInterval = r.cfg.KeepAliveInterval
+	d.KeepAliveCount = r.cfg.KeepAliveCount
 	// Race the bootstrap IPs Happy-Eyeballs-style (ADR-0013's dialer,
 	// M8-o): a filtered network that blackholes the front bootstrap
 	// silently must not cost a full Timeout before the next IP — the

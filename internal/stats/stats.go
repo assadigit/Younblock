@@ -61,6 +61,14 @@ type Counters struct {
 	probeRehabilitated atomic.Int64
 	dohBrownouts       atomic.Int64
 
+	// M8-ad (ADR-0037): the rich tier's own cause split — the pending
+	// fast kill (a proven conn died with the player's request
+	// outstanding; the mid-video wedge's recovery bound) and the
+	// trickle kill (a proven conn being per-connection throttled; the
+	// refresh-fixes-it shape detected engine-side).
+	stallRichPending atomic.Int64
+	stallTrickle     atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -179,6 +187,22 @@ func (c *Counters) StallLeanPending() { c.stallLeanPending.Add(1) }
 // report's evidence for which world we are in.
 func (c *Counters) StallLeanIdle() { c.stallLeanIdle.Add(1) }
 
+// StallRichPending counts one rich-tier stall kill fired at the
+// pending fast budget (M8-ad, ADR-0037): a flow that had proven
+// itself died with the client's request outstanding — the definite
+// dead-with-work shape on a proven conn, the mid-video wedge the
+// tester's post-debug.21 report named ("minute 5 … goes loading …
+// refresh fixes it"), and the kill that bounds its recovery at
+// StallRichPendingTimeout instead of the player's own patience.
+func (c *Counters) StallRichPending() { c.stallRichPending.Add(1) }
+
+// StallTrickle counts one rich-tier trickle kill (M8-ad, ADR-0037): a
+// proven flow whose rolling window kept delivering bytes — but under
+// the trickle floor, the per-connection throttle shape the stall watch
+// could never see (the down stamp kept refreshing). Closed quietly so
+// the player's retry lands on a fresh, unthrottled connection.
+func (c *Counters) StallTrickle() { c.stallTrickle.Add(1) }
+
 // GoodDrop counts one verified-live mark dropped by a death's demote
 // (M8-ac, ADR-0034): the good pool's churn — the debug.20 report's
 // pool drained to gvideo=1 because every terminal's deaths demoted
@@ -269,12 +293,17 @@ type All struct {
 	GvideoTerminals int64 `json:"gvideoTerminals"`
 	// M8-ac (ADR-0034/0035/0036): the stall kill's pending/idle split,
 	// the good-mark drops, the box rehabilitations, the DoH brownouts.
-	StallLeanPending   int64     `json:"stallLeanPending"`
-	StallLeanIdle      int64     `json:"stallLeanIdle"`
-	GoodDrops          int64     `json:"goodDrops"`
-	ProbeRehabilitated int64     `json:"probeRehabilitated"`
-	DoHBrownouts       int64     `json:"dohBrownouts"`
-	StartedAt          time.Time `json:"startedAt"`
+	StallLeanPending   int64 `json:"stallLeanPending"`
+	StallLeanIdle      int64 `json:"stallLeanIdle"`
+	GoodDrops          int64 `json:"goodDrops"`
+	ProbeRehabilitated int64 `json:"probeRehabilitated"`
+	DoHBrownouts       int64 `json:"dohBrownouts"`
+
+	// M8-ad (ADR-0037): the rich tier's cause split — the pending
+	// fast kill and the trickle kill.
+	StallRichPending int64     `json:"stallRichPending"`
+	StallTrickle     int64     `json:"stallTrickle"`
+	StartedAt        time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
@@ -310,6 +339,8 @@ func (c *Counters) Diagnostic() All {
 		GoodDrops:          c.goodDrops.Load(),
 		ProbeRehabilitated: c.probeRehabilitated.Load(),
 		DoHBrownouts:       c.dohBrownouts.Load(),
+		StallRichPending:   c.stallRichPending.Load(),
+		StallTrickle:       c.stallTrickle.Load(),
 		StartedAt:          c.startedAt,
 	}
 }
