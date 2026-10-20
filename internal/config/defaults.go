@@ -93,6 +93,96 @@ const GoogleVideoPrewarmEvery = 5 * time.Minute
 // googlevideo pre-resolution loop (M8-z, ADR-0025 §6.4).
 const GoogleVideoPrewarmInflight = 3
 
+// OriginProbeNames — the STABLE routed names the origin-probe pass
+// verifies first, before the googlevideo rr names, every cycle (M8-aa,
+// ADR-0028): the player request itself rides youtubei.googleapis.com,
+// and the app's first-play wave leans on the same handful of Google
+// API fronts every time. Their answer sets get the fragmented-hello
+// verification treatment at engine start and on every prewarm cycle,
+// so the first flow to each of them dials an origin the engine has
+// already SEEN speak. Infrastructure names, never per-user: the probe
+// verdicts ride counters only (R21 — no names, no IPs in any log or
+// report).
+var OriginProbeNames = []string{
+	"youtubei.googleapis.com",
+	"www.googleapis.com",
+	"www.youtube.com",
+	"youtube.com",
+	"i.ytimg.com",
+	"yt3.ggpht.com",
+}
+
+// OriginProbeBudget — the per-probe wall budget of the background
+// origin-probe pass (M8-aa, ADR-0028): a TCP dial plus one fragmented
+// ClientHello plus the wait for the origin's first byte, exactly the
+// FirstByteTimeout shape a real flow spends. A probe verdict past this
+// budget is "silent" — the same evidence a flow's dead-origin
+// classification would produce, bought in the background where no app
+// flow is waiting on it.
+const OriginProbeBudget = 2500 * time.Millisecond
+
+// OriginProbePerPass — how many answer IPs one origin-probe pass
+// verifies at most (M8-aa, ADR-0028): the stable OriginProbeNames
+// first, then the freshest learned googlevideo codes' rr names until
+// the budget fills. The pass runs while the engine is On, off the app's
+// critical path, on the same 5-minute cadence as the prewarm loop.
+const OriginProbePerPass = 32
+
+// OriginProbeInflight — the concurrency cap of the origin-probe pass
+// (M8-aa, ADR-0028): at most this many probe connections in flight,
+// keeping the background verification polite on a phone's radio.
+const OriginProbeInflight = 3
+
+// OriginProbeGoodTTL — how long an origin IP the probe watched ANSWER
+// stays preferred in dial lists (M8-aa, ADR-0028): live-first ordering
+// for every dial list (both doors' primaries, the raced extras, the
+// salvage candidates), refreshed by every pass that re-verifies the
+// IP. Three prewarm cycles of stickiness for a verdict that costs a
+// handshake to buy.
+const OriginProbeGoodTTL = 15 * time.Minute
+
+// OriginProbeDeadTTL — the baseline penalty an origin IP the probe
+// watched stay SILENT (or reset) carries (M8-aa, ADR-0028): longer
+// than a flow-death's DeadIPPenalty because the probe's evidence is
+// direct — the exact wire shape a real flow sends, sent, and never
+// answered — and the blackhole is per cache-node IP, stable for far
+// longer than a minute. The pass re-runs every cycle; an IP that stays
+// silent keeps its mark refreshed, one that recovers is simply
+// re-probed clean after it lapses. Still only ever a preference: a
+// dial list the filter would empty dials in full.
+const OriginProbeDeadTTL = 10 * time.Minute
+
+// DeadIPStrikeEscalation — the penalty TTL tiers for REPEATED dead
+// marks on the same origin IP (M8-aa, ADR-0028). The debug.18 report
+// measured the re-gamble this ends: the top failing host ran 13 flows
+// with 8 failures — the app's retry waves kept re-rolling the same
+// answer set faster than the 60 s penalty lapsed, and the fully-dead
+// hosts (failures=flows, worstFirstByte=0ms) re-gambled their whole
+// boxed set every wave. A first mark keeps the requested TTL (60 s for
+// a flow death, OriginProbeDeadTTL for a probe verdict); the second
+// strike escalates to 5 minutes, the third and beyond to 30 minutes —
+// persistent toxicity stops being re-learned. Never a refusal: an
+// all-penalized list still dials in full, and a recovered IP is simply
+// re-learned clean once its TTL lapses.
+var DeadIPStrikeEscalation = [3]time.Duration{60 * time.Second, 5 * time.Minute, 30 * time.Minute}
+
+// StallLeanTimeoutAndroid — the lean-tier stall budget on Android
+// (M8-aa, ADR-0029): 8 seconds, not the desktop's 15. The debug.18
+// report's cold start carried THREE lean-tier kills at exactly the 15 s
+// budget — flows that had spoken (first byte plus 5.0–7.4 KB of a
+// response) and then gone totally silent, the mid-response corpse
+// shape — each one holding the app's retry hostage for the whole
+// budget before the watch handed the failure back. A lean flow (never
+// proved itself: under StallRichBytes, no survived gap) that has
+// already spoken and then goes silent for 8 full seconds is dead on
+// this network — the same number the plain-relay safety net already
+// trusts for a never-spoken origin (PlainFirstByteTimeout) — and the
+// app's retry lands on a fresh origin 7 s sooner, 21 s across the
+// report's three stalls. Desktop keeps StallTimeout byte-for-byte
+// (the platform gate lives in the engine's listener build, the proxy's
+// semantics are untouched).
+const StallLeanTimeoutAndroid = 8 * time.Second
+
 // PlainFirstByteTimeout — how long a NOT-budgeted (class=plain) TLS
 // flow's origin may stay silent after the tunnel wrote the client's
 // first record upstream (M8-z, ADR-0024 work item B): a TLS server

@@ -20,38 +20,38 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 17: the M8-z build (debug.18 — the cold-start
-        // round per docs/specs/debug18-cold-start.md): fragment EVERY
-        // routed app's TLS on Android (FragmentAllRouted, settings v5,
-        // Android-default-on — the debug.16 evidence's plain cohort:
-        // the ad/attestation hosts the YouTube app needs at first
-        // play, un-fragmented and hanging to the app's ~60 s
-        // patience), the plain-relay 8 s safety net
-        // (plainFirstByteTimeouts + class=plain kill lines — never a
-        // dead-IP mark), the one-warm-connection hedged DoH
-        // (http2.Transport + DialTLSContext over the fragmented
-        // bootstrap dial, ReadIdleTimeout 15 s / PingTimeout 5 s,
-        // WarmProbe at start + re-warm within 1 s of a
-        // connection-shaped failure, the sticky server at t=0 and the
-        // next at +300 ms with fast failures triggering the next
-        // immediately, two no-SNI IP-literal endpoints appended to the
-        // default list, the learned googlevideo sn-<code> codes
-        // pre-resolved rr1..rr5 every 5 minutes and persisted to
-        // googlevideo-codes.txt), the measurable QUIC fallback
-        // (udp443 dropped + the next-TCP-flow elapsed line + v6Dropped;
-        // the ICMP 3/3 reply stays gVisor's, pinned by the M8-j
-        // guard test), and the ADR-0027 diagnostics surface (class=
-        // on every tunnel line, rtt-class=near|far, the Top-10
-        // slowest-or-failed hosts, the plain-relay summary, the DNS
-        // detail with server/phase/latency, the one-shot dead-origin
-        // SNI probe, the MARK timeline with the "I pressed play" /
-        // "First frame" buttons, the DEBUG BUILD hostnames notice —
-        // this lane's -ldflags sets config.DebugTesterBuild=true, a
-        // release build never does). Installs over debug.17 (the same
-        // pinned debug certificate — D85). The D84 rule: every debug
-        // build bumps this. D103: the APK asset is named
-        // v1.6.6-debug18.apk.
-        versionCode = 17
+        // versionCode 18: the M8-aa build (debug.19 — the dead-origin-pool
+        // round): the verified prewarm (the 5-minute googlevideo loop
+        // now PROBES the answer sets with the exact wire shape a real
+        // flow sends — a fragmented ClientHello carrying the prewarmed
+        // name as SNI — through the one netx dialer, at engine start
+        // and on every cycle: "answered" marks the origin IP
+        // verified-live for 15 minutes and every dial list starts
+        // there, "silent"/"reset" marks it dead for 10 minutes with
+        // strike escalation 60s->5m->30m ending the debug.18 report's
+        // re-gamble — the top failing host ran 13 flows for 8
+        // failures, every wave re-rolling the same mixed live-and-
+        // blackholed answer set the 60 s penalty kept re-serving; the
+        // stable API fronts probe first, the freshest sn-codes'
+        // rr1..rr5 right behind), the raced-path salvage round (an
+        // all-dead race now runs ONE more raced round over the answer
+        // set's untried unboxed origins before the terminal — the
+        // app's retry wave collapses into an in-engine budget, gated
+        // so a hopeless set keeps the fast ~2.6 s terminal), the
+        // Android lean stall budget 15s->8s (ADR-0029: the report's
+        // three mid-response corpses each held the app's retry for
+        // the whole 15 s desktop budget; the platform gate lives in
+        // the engine's listener build, desktop keeps 15 s
+        // byte-for-byte), and the ADR-0030 diagnostics (the
+        // auto-timeline heuristic — play-suspected after routed quiet,
+        // first-data on the down-burst, the buttons stay authoritative
+        // — plus the origin-probe counters, the box's live/strikes
+        // counts, the good count, the stall tier split with the
+        // budget that fired, racedSaves/salvagedSaves/routedFlows).
+        // Installs over debug.18 (the same pinned debug certificate —
+        // D85). The D84 rule: every debug build bumps this. D103: the
+        // APK asset is named v1.6.6-debug19.apk.
+        versionCode = 18
         versionName = "1.6.6"
     }
 

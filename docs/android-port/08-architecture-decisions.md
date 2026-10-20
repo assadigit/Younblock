@@ -6,7 +6,10 @@ moved from Proposed to **Accepted** on 2026-10-16 with the evidence
 below; ADR-0008…0012 record the new decisions this phase produced;
 ADR-AUTH-0001 (2026-10-18) opened the auth lane from D94 ruling 1 and
 was **RETIRED the same day by D97** (the gate cancelled before
-implementation — kept below as history).
+implementation — kept below as history). ADR-0013…0027 record the
+debug-circle rounds M8-n…M8-z (the reliability ladder through Ali's
+pasted reports); ADR-0028…0030 record the debug.19 round (M8-aa, the
+dead-origin-pool fixes the first debug.18 report measured).
 Update records when evidence changes.
 
 ## ADR-0001 — Keep desktop app working; isolate Android integration
@@ -1532,6 +1535,221 @@ play" / "First frame") (M8-z, work item E)
   the MARK pair's elapsed time (the single number that says whether
   the work succeeded), the class=plain rows in the Top-10, the DNS
   phase column, and the probe's SNI-vs-IP verdict.
+
+## ADR-0028 — The verified prewarm and the raced-path salvage: the
+origin-probe pass (a fragmented ClientHello carrying the prewarmed
+name, answered→verified-live / silent→dead) feeding the good table
+and the strike-escalated penalty box, plus ONE raced salvage round
+over the untried origins before the terminal (M8-aa, the debug.19
+dead-origin-pool round)
+
+- **Status:** Accepted 2026-10-19 (M8-aa; the debug.18 report's own
+  numbers named the round: 38 errors on 70 conns, every one of them
+  class=routed, the top host 13 flows for 8 failures, the dead-origin
+  probe silent on BOTH sni=alt and sni=none — per the spec's §12 grid,
+  "the IP is blackholed and the penalty box is right").
+- **Context:** the debug.18 report closed every hypothesis the
+  cold-start spec opened: the plain lane is healthy (plain-relay
+  flows=6, firstByteTimeouts=0, worst 295 ms — H1 disproven, A+B did
+  fix it), DoH is healthy (dials 4 / reuse 48, dns 137/0 — H2 fixed),
+  the QUIC fallback instant. What remained is the ROUTED lane's
+  dead-origin lottery: Google's authoritative answers mix live and
+  IP-blackholed cache nodes, every raced flow gambles three of them,
+  an all-dead round terminals at ~1 budget (the paste's ~20
+  reason=timeout terminals at dur≈2.6 s), and the app retries in
+  waves — 13 flows on one host — faster than the 60 s penalty lapses,
+  re-rolling the same toxic mix. The first video pays the whole
+  discovery cost; the next ride the warm box (Ali's original
+  "first video 1–2 minutes, the rest instant", now measured). The
+  prewarm loop fills the cache with rr1..rr5 answers but never
+  VERIFIES them — the cache is pre-populated with the same gamble.
+- **Decision:**
+  1. **The origin-probe pass.** On the existing 5-minute googlevideo
+     prewarm cadence (and once at engine start, right after the
+     cache-fill), the engine runs one pass through the running proxy:
+     for each name in priority order — the stable OriginProbeNames
+     (youtubei.googleapis.com, www.googleapis.com, www.youtube.com,
+     youtube.com, i.ytimg.com, yt3.ggpht.com — the player request's
+     own fronts) first, then the FRESHEST learned sn-codes' rr1..rr5 —
+     resolve through the same resolver the flows use, and verify every
+     answer IP that is neither verified-live nor penalized right now,
+     at most OriginProbePerPass=32 per pass, at most
+     OriginProbeInflight=3 in flight, each inside
+     OriginProbeBudget=2.5 s. The probe is the EXACT wire shape a real
+     flow sends: one fragmented ClientHello (the live preset, captured
+     once per pass — D102's discipline) with the prewarmed name as
+     SNI, through the engine's one netx dialer (ADR-0011 loop safety),
+     tls.Client with InsecureSkipVerify — only whether bytes come
+     back matters. This is not the report's one-shot SNI-vs-IP probe
+     (ADR-0027 §8.3.5 stays unfragmented and SNI-swapped by design):
+     the tuple measured here is the one a real flow will use.
+  2. **The good table.** An "answered" verdict marks the IP
+     verified-live for OriginProbeGoodTTL=15 min: liveIPs puts the
+     verified-live IPs at the FRONT of every dial list it builds (the
+     doors' primaries, the raced extras' rotations, the salvage
+     candidates) — a preference with the same never-a-verdict
+     discipline as the box: an IP without the mark dials exactly as
+     before, first place is its only prize. Bounded 512, FIFO.
+  3. **The strike-escalated box.** A probe "silent"/"reset" verdict
+     marks the IP dead for OriginProbeDeadTTL=10 min (direct
+     evidence — the exact hello a flow would send, sent and never
+     answered); a flow's classified first-byte death keeps its 60 s.
+     Every mark on an already-known IP escalates its TTL to the
+     DeadIPStrikeEscalation floor (60 s → 5 min → 30 min): the
+     report's re-gamble — waves re-rolling a set the 60 s penalty
+     kept re-serving — ends. The box stays a PREFERENCE, never a
+     verdict (ADR-0023 unchanged): an all-penalized list dials in
+     full, a recovered IP is simply re-learned clean once its TTL
+     lapses.
+  4. **The raced-path salvage round.** When a raced round dies on
+     every candidate it dialed, the flow now computes the answer
+     set's UNTRIED origins (a fresh resolve minus every IP the round
+     dialed minus everything the box penalizes — verified-live first)
+     and, when any exist, races ONE more round over exactly those
+     before the terminal: the replay stays byte-exact, the client
+     stays frozen exactly as the round kept it (the M8-v proven
+     semantics), the app never sees the failure. A set with nothing
+     untried keeps the fast M8-w terminal — a hopeless host must not
+     burn a second budget (the debug.18 paste's 100%-failure hosts
+     keep their ~2.6 s terminal). The candidate core lives in
+     raceIPList, shared with the serial path's own salvage (the
+     M8-v machinery, extracted, byte-for-byte).
+  5. **Android-only.** The probe pass runs on the Android platform
+     only (the engine's gvideo loop gates on the platform name): the
+     desktop lanes keep the M8-z prewarm-resolution behavior
+     byte-for-byte (hard constraint 5's letter), and the stub
+     platform that every host test builds on never dials a probe —
+     the test herd stays hermetic.
+- **Evidence:** internal/proxy/originprobe_test.go (new, six tests,
+  four shapes plus two guards): the probe-cleaned pool (the corpse
+  never dialed, the flow delivered byte-exact, no terminal), the
+  neutered control (DeadIPPenalty=-1, the exact M8-x box-off shape:
+  the same fixture gambles the corpse and terminals — the report's
+  own pre-fix signature, proving the MARKING changed the flow's
+  fate), the raced salvage over the untried origin (retry + salvaged
+  lines, no terminal, the live origin dialed once), the fast-terminal
+  guard, the strike escalation (live=2 escalated=1, the
+  all-penalized list dials in full), and the probe line's R21 pin
+  (counts only — no IP, no name). Verified BOTH WAYS: with tunnel.go
+  stashed (the debug.18 shape) `TestRacedSalvageCoversTheUntriedOrigin`
+  FAILS with exactly the report's signature ("read echo … EOF" — the
+  terminal, the live origin never dialed) while every guard and the
+  probe tests pass on both sides; the marking's both-ways is the
+  in-test neuter (shapes 1 vs 2 on the same fixture). Full suite
+  green; -race on doh/engine/stats/tunstack and the touched proxy
+  surface green, ZERO data races; the full-package -race stall-timing
+  flakes are the documented pre-existing sandbox shape (identical
+  failures at HEAD, stashed and re-run this round).
+- **What this ADR does NOT decide:** the report's one-shot
+  dead-origin probe (ADR-0027 §8.3.5) keeps its own unfragmented,
+  SNI-swapped shape — it answers SNI-vs-IP, a different question;
+  the race width stays FirstByteRaceDials=2 (Q5's ruling stands —
+  the fix is pool hygiene, not width); no SNI is ever rewritten (the
+  engine stays a transparent relay); no QUIC relay (Q4 stands).
+- **How the next report verifies it:** the `origin probe:` line
+  (passes/ips/answered/silent/reset plus good/penalized/strikes) says
+  the pass ran and what it found; the first-play wave's terminals
+  collapse (fewer `first-byte failed` lines, `salvagedSaves` >
+  0 when mixed sets still appear); the Top-10's failure counts drop
+  below the debug.18 baseline; and the auto-timeline pair (ADR-0030)
+  carries the wall-clock proof.
+
+## ADR-0029 — The Android lean stall budget: 8 s, platform-gated in
+the engine's listener build, the proxy's tiered watch untouched, the
+desktop's 15 s byte-for-byte (M8-aa)
+
+- **Status:** Accepted 2026-10-19 (M8-aa; the debug.18 report's three
+  lean-tier kills at exactly idle=15325–15362 ms, each carrying
+  5.0–7.4 KB of a response that never finished — the mid-response
+  corpse shape, 45 s of the minute the tester still waited).
+- **Context:** the tiered stall watch (ADR-0022) tuned the LEAN tier
+  at 15 s for the cohort it then knew: never-proved flows. The
+  debug.18 paste shows what that budget costs on a cold start: a
+  player-API flow speaks once (first byte plus part of a response),
+  goes totally silent — the blackholed cache node died mid-stream —
+  and the watch holds the app's retry hostage for the whole 15 s
+  before handing the failure back. Three of them is 45 s: nearly half
+  the measured minute. A lean flow that has already spoken and then
+  sits silent for 8 s is dead on this network — the same number the
+  plain-relay safety net already trusts for a never-spoken origin
+  (PlainFirstByteTimeout, ADR-0024 work item B).
+- **Decision:** Android's engine listener builds the proxy with
+  StallTimeout = StallLeanTimeoutAndroid = 8 s; every desktop build
+  keeps config.StallTimeout = 15 s byte-for-byte. The gate lives in
+  the ENGINE's startListener (the platform name it already reads for
+  the settings loader) — the proxy's watch semantics, tiers, and
+  knobs are untouched, and the report prints the budget that fired
+  (`stall kills: lean=N rich=N leanBudget=8s|15s`) so the next paste
+  says which one ran. The rich tier (90 s, StallRichBytes, the
+  survived-gap pacing proof) is unchanged — the M8-x protection for
+  pooled video connections stands exactly as built.
+- **Evidence:** internal/engine/m8aa_test.go
+  `TestStallLeanBudgetAndroid`: an android-named platform's report
+  carries leanBudget=8s, a desktop-shaped platform's 15s. Verified
+  BOTH WAYS: with the engine's M8-aa additions stashed the section
+  assertion FAILS (the line is absent — the section-render proof
+  shape of ADR-0027's own report test). The stall-tier pins
+  (stalltier_test.go) pass unchanged — the proxy semantics moved
+  nowhere.
+- **What this ADR does NOT decide:** the rich tier, StallRichBytes,
+  and the survived-gap escalation stay ADR-0022's exactly; no
+  user-facing setting is added (the budget is engine timing, not
+  policy — the platform default IS the knob, like the M8-s budgets
+  before it).
+- **How the next report verifies it:** the lean kills land at
+  idle≈8.3 s (three of them ≈ 25 s, not 45), the leanBudget= line
+  says 8s, and the auto-timeline pair shrinks accordingly.
+
+## ADR-0030 — The auto-timeline heuristic and the M8-aa counters: a
+play-suspected→first-data pair measured WITHOUT the buttons, the
+buttons staying authoritative; the tier split, the saves, the routed
+flow starts, and the probe's verdicts on the report (M8-aa)
+
+- **Status:** Accepted 2026-10-19 (M8-aa; the debug.18 report's own
+  confession: "timeline: no marks (the \"I pressed play\" / \"First
+  frame\" buttons stamp it)" — the tester never pressed them, and
+  the one number that says whether the round succeeded was missing).
+- **Context:** ADR-0027's timeline depends on the tester tapping two
+  buttons at the right moments. The debug.18 circle proved that is
+  not a dependable measurement path — the report arrived with no
+  marks and no play→frame number, exactly the evidence the spec
+  called "the single number that says whether the work succeeded".
+- **Decision:**
+  1. **The auto-timeline.** While the engine is On (degraded
+     included), a 500 ms poller over the counters the flows already
+     feed: a routed-flow burst after ≥5 s of routed quiet stamps
+     "auto: play-suspected" (the player wave opening connections);
+     a ≥100 KB down-burst while a stamp is open pairs it with "auto:
+     first-data" (video bytes flowing). Both stamps ride the log
+     ring as AUTO-MARK lines (timestamps included in the paste); the
+     report renders the LAST pair's elapsed time and the pair count
+     beside the manual marks, labeled "heuristic; the buttons stay
+     authoritative" — the heuristic cannot tell a feed load from a
+     play, only the buttons can. Pairs bounded at 8; everything
+     resets with the ring on Stop (R21 hygiene).
+  2. **The M8-aa counters and sections.** The report header gains
+     `counters: stallKillsLean N, stallKillsRich N, racedSaves N,
+     salvagedSaves N, routedFlows N`; the plain-relay summary is
+     followed by `stall kills: lean=N rich=N leanBudget=…` and
+     `origin probe: passes=… ips=… answered=… silent=… reset=…
+     good=… penalized=… strikes=…` (counts only — no IP, no name,
+     R21; the good/penalized/strikes numbers come from the running
+     proxy's box and good table, zero-safe when off).
+- **Evidence:** internal/engine/m8aa_test.go (three tests): the
+  pair-from-counters flow (burst → stamp → burst → pair → report →
+  Stop reset), the Android/desktop lean budget split, and the
+  full-section render with the R21 no-leak guards. Verified BOTH
+  WAYS: with the engine's M8-aa additions stashed, all three FAIL on
+  the missing sections (the section-render proof shape); the no-leak
+  guards pass on both sides.
+- **What this ADR does NOT decide:** the buttons stay the
+  authoritative measurement (ADR-0027 §8.3.6 unchanged); the
+  heuristic adds no UI, no persistence, and no per-host data — two
+  timestamps and a byte threshold over counters that already exist.
+- **How the next report verifies it:** the `auto-timeline:` line
+  carries the play→data elapsed time even when the buttons go
+  unpressed; `racedSaves`/`salvagedSaves` say the machinery saved
+  flows; `origin probe:` says the pool was verified before the wave.
 
 ## Decision-change procedure
 

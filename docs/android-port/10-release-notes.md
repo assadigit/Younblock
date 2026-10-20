@@ -1,11 +1,26 @@
 # 10 — Release Notes (v1 DRAFT + the shipped debug test circle)
 
-**Status:** updated at M8-z (2026-10-19, night — the debug.18 round,
-the cold-start fix per docs/specs/debug18-cold-start.md: fragment
-EVERY routed app's TLS on Android + the plain-relay 8 s safety net
-(ADR-0024), the one-warm-connection hedged DoH (ADR-0025), the
-measurable QUIC fallback (ADR-0026), and the diagnostics surface that
-can PROVE it all (ADR-0027). Earlier at M8-y (2026-10-19, evening —
+**Status:** updated at M8-aa (2026-10-20 — the debug.19 round, the
+dead-origin-pool fixes the FIRST debug.18 report measured: the
+verified prewarm + strike escalation + the good table (ADR-0028), the
+raced-path salvage round over the untried origins (ADR-0028), the
+Android 8 s lean stall budget (ADR-0029), and the auto-timeline
+heuristic + the M8-aa counters (ADR-0030). The tester's debug.18
+report answered the cold-start spec's own §12 grid: the plain lane
+healthy (H1 disproven — the debug.18 fixes held), DoH healthy, the
+QUIC fallback instant, the dead-origin probe silent on BOTH sni=alt
+AND sni=none — IP-level blackholing, "the penalty box is right" —
+and ALL 38 remaining errors class=routed: ~20 first-byte terminals at
+exactly one budget (dur≈2.6 s), three lean stall kills at exactly
+15 s carrying half-finished responses, the top host 13 flows for 8
+failures, the app's retry waves re-rolling the same mixed
+live-and-blackholed answer set. Earlier at M8-z (2026-10-19, night —
+the debug.18 round, the cold-start fix per
+docs/specs/debug18-cold-start.md: fragment EVERY routed app's TLS on
+Android + the plain-relay 8 s safety net (ADR-0024), the
+one-warm-connection hedged DoH (ADR-0025), the measurable QUIC
+fallback (ADR-0026), and the diagnostics surface that can PROVE it
+all (ADR-0027). Earlier at M8-y (2026-10-19, evening —
 Ali's EIGHTH
 pasted report round; the FIRST from the right build: the shell line
 reads versionCode 15 = the debug.16 build, both of its signatures
@@ -20,8 +35,83 @@ fresh per-video hostnames) and the dead-origin re-gamble (~17
 timeout terminals at 2892–4304 ms plus ~8 resets through the raced
 round, the second video's start paying the full discovery cost
 again).
-**v1.6.6-android-debug.18 (versionCode 17) is the CURRENT build** —
-the cold-start round. What changed, in plain words:
+**v1.6.6-android-debug.19 (versionCode 18) is the CURRENT build** —
+the dead-origin-pool round. What changed, in plain words:
+
+- **The engine now VERIFIES the video hosts' addresses before your
+  first play needs them** (Android only; desktops unchanged). Every
+  5 minutes — and once the moment the app turns On — it takes the
+  addresses DNS returned for the player's API hosts and the video
+  cache nodes and asks each one a tiny fragmented hello, exactly the
+  shape a real connection would send. An address that ANSWERS is
+  remembered as verified-live for 15 minutes and every new connection
+  tries it FIRST; an address that stays SILENT is skipped for 10
+  minutes — and if it keeps dying, longer (1 strike 60 s, 2 strikes
+  5 min, 3+ strikes 30 min). Your debug.18 report showed the first
+  video's connections gambling on addresses that connect but never
+  speak (IP-blackholed cache nodes) — 38 failed connections, the top
+  host retried 13 times. The gamble now happens in the background,
+  before the first flow pays for it.
+- **A connection whose race all died gets ONE more in-engine rescue
+  round** before giving up: if the address list still holds origins
+  nobody tried yet, the engine dials exactly those and only fails the
+  flow when they die too — your app's own retry wave (its backoff,
+  its fresh gamble) is replaced by one fast internal round you never
+  see. A host with nothing left to try still fails fast (~2.6 s), so
+  hopeless addresses don't burn double.
+- **A stalled half-finished response is cut at 8 seconds on Android**
+  (was 15): your report carried three connections that each delivered
+  a few KB of a response and then went silent, holding the app's
+  retry for the full 15 s each — nearly half the minute you waited.
+  Proven video connections (the ones that carried real data) keep
+  their 90 s budget exactly as before; only the never-proved corpse
+  shape is cut sooner.
+- **The report now measures the play→video time even if you don't tap
+  the buttons**: the engine watches for the connection burst that
+  looks like a play press and the data burst that follows, and prints
+  the pair ("auto-timeline", labeled a heuristic — the buttons stay
+  the honest measurement). New lines also show how many addresses the
+  verification pass checked and what it found (answered / silent /
+  reset / verified-live / skipped / strikes), how many flows the race
+  and the rescue round saved, and the stall-kill tier split with the
+  budget that fired.
+
+**The debug.19 artifact** (built this round, verified before packing):
+`v1.6.6-debug19.apk`, versionCode 18 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
+certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
+over every earlier debug build, D85). Built from commit
+COMMIT_SHA_PLACEHOLDER. The gomobile bind ran with the debug-tester
+ldflags (`-X …/internal/config.DebugTesterBuild=true`) and the M8-aa
+signatures were verified present in libgojni.so in ALL THREE ABIs
+before gradle (the house ritual): the origin probe line, the
+AUTO-MARK line, the salvage retry line, stall kills leanBudget=, and
+the auto-timeline line.
+
+**Tester checklist for debug.19 (the 5 steps):**
+
+1. Install debug.19 and open the app. Turn it **On**, then give it
+   about 15 seconds before the next step (the address verification
+   pass warms up in the background — the "origin probe:" line in the
+   report will show what it did).
+2. Fully close the YouTube app, then open it fresh.
+3. Tap **"I pressed play"** in the Younblock diagnostics screen, then
+   play a **new** video in YouTube. (If you forget, the report's new
+   "auto-timeline" line measures it anyway — but the buttons are the
+   honest number.)
+4. When the first frame appears, tap **"First frame"**.
+5. Play two more new videos, then open **Diagnostics** and send the
+   whole report.
+
+What to look for: the elapsed time between your two taps (target
+under 5 s, ideally 1–3 s); the `origin probe:` line should show
+passes≥1 with answered>0 (the pool was verified); `salvagedSaves` and
+`racedSaves` may be >0; the lean stall kills (if any) should land at
+~8 s with `leanBudget=8s`; and the Top-10's failure counts should be
+well below the debug.18 baseline (8/6/6/5/5/4).
+
+Earlier at M8-z: **v1.6.6-android-debug.18 (versionCode 17)** was the
+cold-start round. What changed, in plain words:
 
 - **Every routed app's TLS is now fragmented on Android** (a new
   "fragment all routed" behavior, ON by default on Android only —

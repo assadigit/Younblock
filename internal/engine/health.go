@@ -363,7 +363,8 @@ func (e *Engine) goOn() {
 	e.startWatchdog()
 	e.startNetMon()
 	e.prewarm()
-	e.startGvideoLoop() // M8-z (ADR-0025 §6.2/§6.4): warm DoH conn + googlevideo prewarm
+	e.startGvideoLoop()   // M8-z (ADR-0025 §6.2/§6.4): warm DoH conn + googlevideo prewarm
+	e.startAutoTimeline() // M8-aa (ADR-0030): the heuristic play detector
 }
 
 // goDegraded transitions to degraded with the SELFTEST_FAILED error
@@ -386,7 +387,8 @@ func (e *Engine) goDegraded(notifyText string) {
 	e.startStatsLoop()
 	e.startWatchdog()
 	e.startNetMon()
-	e.startGvideoLoop() // degraded still serves traffic (an honest "on"): keep the DoH conn warm
+	e.startGvideoLoop()   // degraded still serves traffic (an honest "on"): keep the DoH conn warm
+	e.startAutoTimeline() // M8-aa: the heuristic runs in degraded too — traffic still flows
 	if notifyText != "" {
 		e.notifyLimited(NoticeFailure, notifyText)
 	}

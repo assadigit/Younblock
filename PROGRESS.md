@@ -3703,3 +3703,166 @@ proxy: zero data races, with the pre-existing sub-second stall-timing
 tests flaking under full-suite -race load in this CPU-starved sandbox
 EXACTLY as they do at HEAD (verified by `git stash -u` → identical
 failures); they pass under -race when not competing with the soak.
+
+## M8-aa — the dead-origin-pool round (ADR-0028/0029/0030, debug.19, versionCode 18)
+
+Date: 2026-10-20 (Asia/Tehran), after midnight. Input: the tester's
+FIRST debug.18 report (versionCode 17, the cold-start build, pasted
+2026-10-19T22:55Z) — "The problem persists."
+
+What the report said, read through the cold-start spec's own §12
+grid: the plain lane the debug.18 round fixed is HEALTHY
+(plain-relay flows=6 firstByteTimeouts=0 worstFirstByte=295ms, zero
+class=plain rows in the Top-10 — H1 disproven, A+B held), DoH is
+healthy (dials 4 / reuse 48 / hedgeWins 0, dns ok 137 / fail 0 — H2
+fixed), the QUIC fallback instant (60 drops, elapsed 0–3 ms mostly),
+and the one-shot dead-origin probe answered SILENT on both
+sni=www.google.com and sni=none — per the spec's grid, "the IP is
+blackholed and the penalty box is right". What remained was ALL
+38 errors on 70 conns in class=routed: ~20 first-byte timeout
+terminals at exactly one 2.5 s budget (dur≈2.6 s, down=0 B — the
+all-dead raced round), ~6 resets, THREE lean-tier stall kills at
+exactly idle=15.3 s each carrying 5.0–7.4 KB of half-finished
+responses (the mid-response corpse shape), the top host at flows=13
+failures=8 (the app's retry waves re-rolling the same mixed
+live-and-blackholed answer set faster than the 60 s penalty
+lapsed), two hosts at failures=flows with worstFirstByte=0 ms, and
+`timeline: no marks` — the tester never pressed the buttons, so the
+one number the spec called "the single number that says whether the
+work succeeded" was missing. The minute the tester still waited ≈
+(the app's serial retry waves × 2.6 s) + (3 × 15 s stalls) — the
+measured cold-start cost, in the routed lane alone.
+
+What was done, in the order the evidence demanded:
+
+- **The verified prewarm (ADR-0028, the pool fix).** The 5-minute
+  googlevideo prewarm loop (plus one pass the moment the engine
+  goes On) now runs an origin-probe pass through the running proxy:
+  for each name in priority order — the stable OriginProbeNames
+  (youtubei.googleapis.com, www.googleapis.com, www.youtube.com,
+  youtube.com, i.ytimg.com, yt3.ggpht.com) first, then the freshest
+  learned sn-codes' rr1..rr5 — resolve through the same resolver the
+  flows use, then verify every answer IP that is neither
+  verified-live nor penalized right now, at most 32 per pass, at
+  most 3 in flight, each inside a 2.5 s budget. The probe sends the
+  EXACT wire shape a real flow sends: one fragmented ClientHello
+  (the live preset, captured once per pass — D102's discipline)
+  with the prewarmed name as SNI, through the engine's one netx
+  dialer, tls.Client with InsecureSkipVerify — only whether bytes
+  come back matters. "answered" → markGoodIP for 15 min (liveIPs
+  puts verified-live IPs at the FRONT of every dial list);
+  "silent"/"reset" → markDeadIPTTL for 10 min. Android-only (the
+  platform gate lives in the engine — the desktops keep the M8-z
+  prewarm byte-for-byte, hard rule 5, and the stub platform every
+  host test builds on never dials a probe).
+- **Strike escalation (ADR-0028, the re-gamble fix).** Every mark on
+  an already-known origin IP escalates its penalty TTL to the
+  DeadIPStrikeEscalation floor (60 s → 5 min → 30 min): the report's
+  13-flows-for-8-failures host stopped being re-learned every 60 s.
+  The box stays a PREFERENCE, never a verdict — an all-penalized
+  list dials in full (pinned by test).
+- **The raced-path salvage round (ADR-0028, the wave fix).** When a
+  raced round dies on every candidate it dialed, the flow computes
+  the answer set's UNTRIED origins (a fresh resolve minus the IPs
+  the round dialed minus everything the box penalizes —
+  verified-live first) and, when any exist, races ONE more round
+  over exactly those before the terminal: the replay stays
+  byte-exact, the client stays frozen (the M8-v proven semantics),
+  the app never sees the failure. A set with nothing untried keeps
+  the fast M8-w terminal — the report's 100%-failure hosts keep
+  their ~2.6 s death. The candidate core was extracted into
+  raceIPList and shared with the serial path's own salvage (the
+  M8-v machinery, byte-for-byte); raceFirstByte now takes its answer
+  set explicitly and reports the IPs every candidate dialed.
+- **The Android lean stall budget, 15 s → 8 s (ADR-0029, the stall
+  fix).** The three mid-response corpses each held the app's retry
+  for the whole 15 s desktop budget — 45 s of the minute. The gate
+  lives in the engine's startListener (android →
+  StallLeanTimeoutAndroid=8 s; every desktop keeps 15 s
+  byte-for-byte); the proxy's tiered watch semantics moved nowhere.
+  The report now prints the budget that fired
+  (`stall kills: lean=N rich=N leanBudget=8s|15s`).
+- **The auto-timeline heuristic + the M8-aa counters (ADR-0030, the
+  proof fix).** A 500 ms poller over the counters the flows already
+  feed: a routed-flow burst after ≥5 s of routed quiet stamps "auto:
+  play-suspected", a ≥100 KB down-burst pairs it with "auto:
+  first-data" — both stamps ride the log ring (AUTO-MARK lines), the
+  report renders the last pair's elapsed time and count, labeled
+  "heuristic; the buttons stay authoritative". The report also gains
+  the origin-probe line (passes/ips/answered/silent/reset plus
+  good/penalized/strikes — counts only, R21), the tier split with
+  the budget, and the racedSaves/salvagedSaves/routedFlows counters.
+- **Version:** mobile facade Version "1.6.6-debug.19"; gradle
+  versionCode 17 → 18 with the round's comment block; the APK asset
+  is v1.6.6-debug19.apk (D103); build-android.sh's debug-tester
+  ldflags lane unchanged.
+
+Tests (both-ways, the ADR-0019…0023 discipline):
+
+- internal/proxy/originprobe_test.go (NEW, six tests, four shapes
+  plus two guards): the probe-cleaned pool (the corpse never dialed
+  by the flow, the record delivered byte-exact, no terminal line);
+  the neutered control (DeadIPPenalty=-1, the exact M8-x box-off
+  shape — the same fixture gambles the corpse and terminals, the
+  report's own pre-fix signature); the raced salvage over the
+  untried origin (retry + salvaged lines, no terminal, the live
+  origin dialed exactly once); the fast-terminal guard (nothing
+  untried → the M8-w terminal, no salvage, no second budget); the
+  strike escalation (live=2 escalated=1, the all-penalized list
+  dials in full); and the probe line's R21 pin (counts only, no IP,
+  no name).
+- internal/engine/m8aa_test.go (NEW, three tests): the android 8 s
+  vs desktop-shaped 15 s lean budget; the auto-timeline pair from
+  the counters (burst → stamp → burst → pair → report → Stop reset);
+  and the full M8-aa section render with the R21 no-leak guards.
+- Both-ways runs this round: tunnel.go stashed (the debug.18 shape)
+  → `TestRacedSalvageCoversTheUntriedOrigin` FAILS with "read echo
+  (the salvage must save the flow): EOF" — the exact terminal the
+  debug.18 report showed, the live origin never dialed — while
+  every guard and the probe tests pass on both sides; the engine's
+  M8-aa additions stashed → all three engine tests FAIL on the
+  missing sections (the ADR-0027 section-render proof shape); the
+  probe-marking's both-ways is the in-test neuter (shapes 1 vs 2 on
+  the same fixture, one flip of the box knob).
+- Baseline and verification: `go vet ./...` clean; `go test ./...`
+  18 packages + mobile ALL GREEN (0 failures). Race detector:
+  doh / engine / stats / tunstack CLEAN; the touched proxy surface
+  (all new tests + the deadip/firstrace/stalltier/salvage pins)
+  CLEAN; the full-package proxy -race run flakes on the SAME
+  stall-timing tests that flake at HEAD in this CPU-starved sandbox
+  (verified by `git stash -u` → identical failures; ZERO data-race
+  reports anywhere).
+
+### The debug.19 build lane record
+
+(Sandbox was wiped between rounds: re-cloned the repo, reinstalled
+Go 1.26.3 to /home/z/.local/go, rebuilt the frontend bundle,
+reinstalled the Android lane — system JDK 21 (the D74 pin),
+cmdline-tools, platform-tools, platforms;android-26/36,
+build-tools;36.1.0, NDK 29.0.14206865, gomobile@latest + init.)
+
+The lane: Temurin JDK 21.0.12.1 (the sandbox's system JDK was a
+JRE-only install; the D74 pin is JDK 21), cmdline-tools +
+platform-tools + platforms;android-26/36 + build-tools;36.1.0 +
+NDK 29.0.14206865 at /home/z/android-sdk, gomobile@latest + init.
+The bind (3 ABIs — android/arm, android/arm64, android/amd64 —
+min API 26, the debug-tester ldflags
+`-X …/internal/config.DebugTesterBuild=true`) produced
+android/app/libs/younblock.aar, and the M8-aa signatures were
+verified present in libgojni.so in ALL THREE ABIs BEFORE gradle (the
+house ritual): `origin probe: names=`, `AUTO-MARK play-suspected`,
+`stall kills: lean=`, `auto-timeline: no pair yet`,
+`1.6.6-debug.19`, `first-byte retry class=`, and
+`tunnel first-byte salvaged class=`. Clean `./gradlew
+assembleDebug` (the wrapper's exec bit restored to the committed
+mode after the fresh clone). APK 55,050,833 B, SHA-256
+`6659864ebcc10a54dfe304673ca49db1cd7e3a53d80f866de28f9c74fff051e4`,
+apksigner verify OK on the PINNED debug certificate
+(`c76bb7c61ec623892eabc37ac90ac1bc0041d39490f2d48073676d6e2ed8551d`
+— installs over every earlier debug build, D85), aapt2 badging
+versionCode 18 / versionName 1.6.6 / targetSdk 36 (minSdk 26). The
+named asset is android/release/v1.6.6-debug19.apk (D103) — kept out
+of the tree like every round's APK, uploaded as the release asset.
+
+Final verification: `go vet ./...` clean; `go test ./...` 18
+packages ok, 0 failures.

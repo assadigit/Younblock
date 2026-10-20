@@ -179,13 +179,33 @@ type Server struct {
 
 	active int32
 
-	// The origin-IP penalty box (M8-y, ADR-0023): origin IP →
-	// penalized until. Written by the classified first-byte deaths (the
-	// origin connected and never spoke), read when every dial list is
-	// built; bounded FIFO, guarded by deadMu.
+	// The origin-IP penalty box (M8-y, ADR-0023; M8-aa escalates it,
+	// ADR-0028): origin IP → penalized until, with the strike count
+	// that escalates repeat offenders. Written by the classified
+	// first-byte deaths (the origin connected and never spoke) and by
+	// the origin-probe pass's silent/reset verdicts; read when every
+	// dial list is built; bounded FIFO, guarded by deadMu.
 	deadMu    sync.Mutex
-	dead      map[string]time.Time
+	dead      map[string]deadMark
 	deadOrder []string
+
+	// The verified-live table (M8-aa, ADR-0028): origin IP → preferred
+	// until, written by the origin-probe pass's "answered" verdicts and
+	// read by liveIPs to put origins the engine has SEEN speak at the
+	// FRONT of every dial list. Bounded FIFO like the box, guarded by
+	// goodMu. Equally a preference, never a verdict — an IP's absence
+	// costs it nothing but first place.
+	goodMu    sync.Mutex
+	good      map[string]time.Time
+	goodOrder []string
+}
+
+// deadMark is one penalized origin IP's box entry (M8-aa, ADR-0028):
+// the penalty's expiry and how many times this IP has been marked
+// dead — the strike count the TTL escalation reads.
+type deadMark struct {
+	until   time.Time
+	strikes int
 }
 
 // Start binds the listener (with the AutoPort fallback) and serves until
@@ -730,6 +750,27 @@ func (s *Server) invalidateDNS(host string) {
 // to scan trivially.
 const deadIPBoxMax = 512
 
+// goodIPTableMax bounds the verified-live table (M8-aa, ADR-0028) —
+// the same bound, the same trivial scan.
+const goodIPTableMax = 512
+
+// strikeTTL maps a strike count to its escalation floor (M8-aa,
+// ADR-0028): the first mark keeps the caller's requested TTL, the
+// second and beyond never sit below the escalation tiers. The dead
+// box is a PREFERENCE, never a verdict (ADR-0023) — escalation only
+// lengthens how long a repeatedly-dead IP is skipped, never whether a
+// list may dial it.
+func strikeTTL(strikes int) time.Duration {
+	tiers := config.DeadIPStrikeEscalation
+	if strikes <= 1 {
+		return tiers[0]
+	}
+	if strikes == 2 {
+		return tiers[1]
+	}
+	return tiers[2]
+}
+
 // markDeadIP penalizes one origin IP for DeadIPPenalty (M8-y,
 // ADR-0023): the origin connected (or reset at the hello write) and
 // never spoke — the classified first-byte death, the pasted reports'
@@ -741,15 +782,34 @@ const deadIPBoxMax = 512
 // mark (no single-IP first-byte evidence). No-op when the knob is
 // disabled.
 func (s *Server) markDeadIP(ip string) {
-	if s.cfg.DeadIPPenalty <= 0 || ip == "" {
+	s.markDeadIPTTL(ip, s.cfg.DeadIPPenalty)
+}
+
+// markDeadIPTTL penalizes one origin IP for the given baseline TTL
+// with strike escalation (M8-aa, ADR-0028): a repeat mark while the
+// entry lives (or later — the strike count survives expiry until the
+// 512-entry FIFO evicts it) escalates the TTL to the escalation floor,
+// so a cache node that keeps killing flows stops being re-learned
+// every 60 s. A verified-live mark on the same IP is dropped — a fresh
+// "answered" verdict is newer evidence than a stale death, and vice
+// versa (markGoodIP drops the box entry's PREFERENCE by letting the
+// good TTL lapse; the box entry itself stays for its strike memory).
+func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
+	if s.cfg.DeadIPPenalty <= 0 || base <= 0 || ip == "" {
 		return
 	}
-	until := time.Now().Add(s.cfg.DeadIPPenalty)
 	s.deadMu.Lock()
 	defer s.deadMu.Unlock()
 	if s.dead == nil {
-		s.dead = make(map[string]time.Time)
+		s.dead = make(map[string]deadMark)
 	}
+	m := s.dead[ip]
+	m.strikes++
+	ttl := base
+	if esc := strikeTTL(m.strikes); esc > ttl {
+		ttl = esc
+	}
+	m.until = time.Now().Add(ttl)
 	if _, ok := s.dead[ip]; !ok {
 		for len(s.dead) >= deadIPBoxMax && len(s.deadOrder) > 0 {
 			oldest := s.deadOrder[0]
@@ -758,24 +818,49 @@ func (s *Server) markDeadIP(ip string) {
 		}
 		s.deadOrder = append(s.deadOrder, ip)
 	}
-	s.dead[ip] = until
+	s.dead[ip] = m
 }
 
-// liveIPs filters penalized origin IPs out of a dial list (M8-y,
-// ADR-0023). The box is a preference, never a verdict: a list the
-// filter would EMPTY returns unchanged — an all-penalized set gambles
-// in full exactly as before, never an instant fail. Single-IP lists
-// return untouched (nothing to prefer). No-op when the knob is
-// disabled.
+// markGoodIP prefers one origin IP for OriginProbeGoodTTL (M8-aa,
+// ADR-0028): the origin-probe pass watched this IP answer the exact
+// wire shape a real flow sends, so every dial list built while the
+// mark lives starts there. The mark NEVER gates anything — an IP
+// without one dials exactly as before, first place is its only prize.
+func (s *Server) markGoodIP(ip string) {
+	if ip == "" {
+		return
+	}
+	s.goodMu.Lock()
+	defer s.goodMu.Unlock()
+	if s.good == nil {
+		s.good = make(map[string]time.Time)
+	}
+	if _, ok := s.good[ip]; !ok {
+		for len(s.good) >= goodIPTableMax && len(s.goodOrder) > 0 {
+			oldest := s.goodOrder[0]
+			s.goodOrder = s.goodOrder[1:]
+			delete(s.good, oldest)
+		}
+		s.goodOrder = append(s.goodOrder, ip)
+	}
+	s.good[ip] = time.Now().Add(config.OriginProbeGoodTTL)
+}
+
+// liveIPs filters penalized origin IPs out of a dial list and puts
+// verified-live ones at its front (M8-y, ADR-0023; M8-aa, ADR-0028).
+// The box is a preference, never a verdict: a list the filter would
+// EMPTY returns unchanged — an all-penalized set gambles in full
+// exactly as before, never an instant fail. Single-IP lists return
+// untouched (nothing to prefer). No-op when the knob is disabled.
 func (s *Server) liveIPs(ips []net.IP) []net.IP {
 	if s.cfg.DeadIPPenalty <= 0 || len(ips) < 2 {
 		return ips
 	}
-	s.deadMu.Lock()
 	now := time.Now()
+	s.deadMu.Lock()
 	out := make([]net.IP, 0, len(ips))
 	for _, ip := range ips {
-		if until, ok := s.dead[ip.String()]; ok && now.Before(until) {
+		if m, ok := s.dead[ip.String()]; ok && now.Before(m.until) {
 			continue
 		}
 		out = append(out, ip)
@@ -784,7 +869,58 @@ func (s *Server) liveIPs(ips []net.IP) []net.IP {
 	if len(out) == 0 {
 		return ips
 	}
-	return out
+	// The verified-live front (M8-aa): origins the probe watched answer
+	// come first — the primary dial and every rotation then start on
+	// the origins the engine has SEEN speak, while the neutral tail
+	// keeps its order for the raced rotations to cover.
+	s.goodMu.Lock()
+	var live, neutral []net.IP
+	for _, ip := range out {
+		if until, ok := s.good[ip.String()]; ok && now.Before(until) {
+			live = append(live, ip)
+		} else {
+			neutral = append(neutral, ip)
+		}
+	}
+	s.goodMu.Unlock()
+	if len(live) == 0 {
+		return out
+	}
+	return append(live, neutral...)
+}
+
+// DeadBoxStats reports the penalty box's shape for the diagnostic
+// report (M8-aa, ADR-0028): how many origin IPs are penalized right
+// now, and how many of those carry escalated strikes. Counts only —
+// the IPs themselves never leave the box (R21).
+func (s *Server) DeadBoxStats() (live, escalated int) {
+	now := time.Now()
+	s.deadMu.Lock()
+	defer s.deadMu.Unlock()
+	for _, ip := range s.deadOrder {
+		if m, ok := s.dead[ip]; ok && now.Before(m.until) {
+			live++
+			if m.strikes >= 2 {
+				escalated++
+			}
+		}
+	}
+	return live, escalated
+}
+
+// GoodIPCount reports how many origin IPs are verified-live right now
+// (M8-aa, ADR-0028) — the dial lists' preferred front.
+func (s *Server) GoodIPCount() int {
+	now := time.Now()
+	s.goodMu.Lock()
+	defer s.goodMu.Unlock()
+	n := 0
+	for _, ip := range s.goodOrder {
+		if until, ok := s.good[ip]; ok && now.Before(until) {
+			n++
+		}
+	}
+	return n
 }
 
 // PenalizedIPs returns up to n origin IPs currently in the dead-IP
@@ -800,7 +936,7 @@ func (s *Server) PenalizedIPs(n int) []string {
 	defer s.deadMu.Unlock()
 	var out []string
 	for _, ip := range s.deadOrder {
-		if until, ok := s.dead[ip]; ok && until.After(now) {
+		if m, ok := s.dead[ip]; ok && m.until.After(now) {
 			out = append(out, ip)
 			if len(out) >= n {
 				break
@@ -841,6 +977,183 @@ func (s *Server) ProbeDeadOrigin(ctx context.Context, ip net.IP, sni string) str
 	// after the ServerHello, EOF mid-flight) means the origin SPOKE —
 	// bytes came back within the budget.
 	return "answered"
+}
+
+// ProbeSummary is one origin-probe pass's outcome (M8-aa, ADR-0028):
+// counts only — the pass's names, the answer IPs it verified, and the
+// verdicts it handed the box and the good table. No IP, no name, ever
+// (R21).
+type ProbeSummary struct {
+	Names    int
+	IPs      int
+	Answered int
+	Silent   int
+	Reset    int
+}
+
+// probeOneOrigin answers whether one origin IP speaks to the EXACT wire
+// shape a real flow sends (M8-aa, ADR-0028): one fragmented ClientHello
+// with the name a flow would carry as SNI, through the engine's one netx
+// dialer (ADR-0011 loop safety), inside one OriginProbeBudget. This is
+// the verified-prewarm half of the fix — the same evidence a flow's
+// dead-origin classification would produce, bought in the background
+// where no app flow is waiting on it. The verdict classification mirrors
+// ProbeDeadOrigin's (timeout → silent, reset → reset, anything else that
+// comes back → answered); unlike the report's one-shot SNI-vs-IP probe,
+// the hello here is FRAGMENTED with the live preset, because the tuple
+// being measured is the one a real flow will use.
+func (s *Server) probeOneOrigin(ctx context.Context, ip net.IP, sni string, port int, preset fragment.Preset, fcfg fragment.Config) string {
+	conn, err := s.cfg.Dialer.DialHost(ctx, "tcp", ip.String(), port, []net.IP{ip})
+	if err != nil {
+		return "silent" // not even a TCP answer: the IP's path is dead
+	}
+	defer conn.Close()
+	fconn := fragment.NewConn(conn, preset, fcfg, s.cfg.RNG)
+	tlsCfg := &tls.Config{ServerName: sni, InsecureSkipVerify: true}
+	tc := tls.Client(fconn, tlsCfg)
+	err = tc.HandshakeContext(ctx)
+	if err == nil {
+		return "answered"
+	}
+	if isTimeout(err) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+		return "silent"
+	}
+	if strings.Contains(err.Error(), "connection reset") {
+		return "reset"
+	}
+	// Any other handshake failure means the origin SPOKE within the budget.
+	return "answered"
+}
+
+// ProbeOrigins runs one origin-probe pass (M8-aa, ADR-0028): for each
+// name in priority order, resolve it and verify every answer IP that is
+// neither verified-live nor penalized right now — the unknown middles of
+// the answer sets, exactly the IPs a cold flow would gamble on. Answered
+// verdicts mark the IP verified-live (dial lists start there); silent
+// and reset verdicts mark it dead with the probe's direct-evidence TTL
+// (strike-escalated like every dead mark). Already-marked IPs are
+// skipped both ways — the box's verdict stands until it lapses, and a
+// verified-live mark is simply re-learned on a later pass once it does.
+// The pass stops at maxIPs verifications or ctx's end; the per-probe
+// budget is OriginProbeBudget, the concurrency cap OriginProbeInflight.
+// port is the origin port (443 in production; tests inject theirs).
+// Returns the counters-only summary; the pass also logs one line.
+func (s *Server) ProbeOrigins(ctx context.Context, names []string, port int, maxIPs int) ProbeSummary {
+	var sum ProbeSummary
+	if len(names) == 0 || maxIPs <= 0 {
+		return sum
+	}
+	// The pass's wire shape is captured once (D102's discipline: one
+	// preset per pass, the method's current shape — the same one every
+	// flow this method serves is sending right now).
+	preset, fcfg := s.fragmentData()
+	now := time.Now()
+	type probeJob struct {
+		ip  net.IP
+		sni string
+	}
+	var jobs []probeJob
+	for _, name := range names {
+		if ctx.Err() != nil || len(jobs) >= maxIPs {
+			break
+		}
+		sum.Names++
+		ips, err := s.resolve(name)
+		if err != nil {
+			continue
+		}
+		for _, ip := range dedupeIPs(ips) {
+			if len(jobs) >= maxIPs {
+				break
+			}
+			key := ip.String()
+			s.deadMu.Lock()
+			_, boxed := s.dead[key]
+			if boxed {
+				if m, ok := s.dead[key]; ok && !now.Before(m.until) {
+					boxed = false // expired: the entry is strike memory only
+				}
+			}
+			s.deadMu.Unlock()
+			s.goodMu.Lock()
+			_, live := s.good[key]
+			if live {
+				if until, ok := s.good[key]; ok && !now.Before(until) {
+					live = false // expired: re-learn it
+				}
+			}
+			s.goodMu.Unlock()
+			if boxed || live {
+				continue
+			}
+			jobs = append(jobs, probeJob{ip: ip, sni: name})
+		}
+	}
+	if len(jobs) == 0 {
+		if s.cfg.Stats != nil {
+			s.cfg.Stats.ProbePass()
+		}
+		return sum
+	}
+	sum.IPs = 0
+	sem := make(chan struct{}, config.OriginProbeInflight)
+	var wg sync.WaitGroup
+	verdicts := make([]string, len(jobs))
+	probedIPs := make([]string, len(jobs))
+	for i, j := range jobs {
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, j probeJob) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			pctx, cancel := context.WithTimeout(ctx, config.OriginProbeBudget)
+			defer cancel()
+			verdicts[i] = s.probeOneOrigin(pctx, j.ip, j.sni, port, preset, fcfg)
+			probedIPs[i] = j.ip.String()
+		}(i, j)
+	}
+	wg.Wait()
+	for i, v := range verdicts {
+		if probedIPs[i] == "" {
+			continue // the pass was canceled before this probe launched
+		}
+		sum.IPs++
+		switch v {
+		case "answered":
+			sum.Answered++
+			s.markGoodIP(probedIPs[i])
+			if s.cfg.Stats != nil {
+				s.cfg.Stats.ProbeAnswered()
+			}
+		case "reset":
+			sum.Reset++
+			s.markDeadIPTTL(probedIPs[i], config.OriginProbeDeadTTL)
+			if s.cfg.Stats != nil {
+				s.cfg.Stats.ProbeReset()
+			}
+		default:
+			sum.Silent++
+			s.markDeadIPTTL(probedIPs[i], config.OriginProbeDeadTTL)
+			if s.cfg.Stats != nil {
+				s.cfg.Stats.ProbeSilent()
+			}
+		}
+		if s.cfg.Stats != nil {
+			s.cfg.Stats.ProbeIP()
+		}
+	}
+	if s.cfg.Stats != nil {
+		s.cfg.Stats.ProbePass()
+	}
+	if s.cfg.Logger != nil {
+		// R21: counts only — never a name, never an IP.
+		s.cfg.Logger.Info(fmt.Sprintf("origin probe: names=%d ips=%d answered=%d silent=%d reset=%d",
+			sum.Names, sum.IPs, sum.Answered, sum.Silent, sum.Reset))
+	}
+	return sum
 }
 
 // register tracks a live tunnel so Stop can force-close it.

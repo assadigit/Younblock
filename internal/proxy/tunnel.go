@@ -271,6 +271,9 @@ func (s *Server) notePlainKill(host string)      { s.cfg.Hosts.NotePlainKill(hos
 // handler drops attrs, so the values ride in the message itself).
 func (s *Server) logTunnelUp(host, class string, dnsMS, dialMS int64) {
         s.noteFlow(host, class)
+        if class == "routed" {
+                s.stats.RoutedFlowStart() // the auto-timeline heuristic's burst signal (M8-aa, ADR-0030)
+        }
         if dialMS < 200 {
                 s.stats.DialNear()
         } else {
@@ -365,6 +368,7 @@ func (s *Server) logTunnelFirstByteRetry(host, class, reason string, attempt int
 // after re-dials (M8-t): the evidence a salvage saved a video start the
 // app would otherwise have retried itself.
 func (s *Server) logTunnelFirstByteSalvaged(host, class string, dials int) {
+        s.stats.SalvagedSave() // one flow a salvage round saved (M8-aa, ADR-0030's counter)
         if s.cfg.Logger == nil {
                 return
         }
@@ -383,6 +387,7 @@ func (s *Server) logTunnelFirstByteSalvaged(host, class string, dials int) {
 // still landed at the fastest live origin. A clean primary stays quiet
 // (nothing happened the pre-race shape would report).
 func (s *Server) logTunnelFirstByteRaced(host, class string, dials int) {
+        s.stats.RacedSave() // one flow the race saved (M8-aa, ADR-0030's counter)
         if s.cfg.Logger == nil {
                 return
         }
@@ -404,6 +409,11 @@ func (s *Server) logTunnelFirstByteRaced(host, class string, dials int) {
 // tuning evidence).
 func (s *Server) logTunnelStallKilled(host, class string, idle time.Duration, down int64, rich bool) {
         s.noteFailure(host, class)
+        if rich {
+                s.stats.StallKillRich() // the tier split the report reads (M8-aa, ADR-0029)
+        } else {
+                s.stats.StallKillLean()
+        }
         if s.cfg.Logger == nil {
                 return
         }
@@ -896,20 +906,23 @@ type racedCandidate struct {
 }
 
 // raceFirstByte runs one raced first-byte round (M8-w, ADR-0021): the
-// primary origin (already dialed — its natural head start) plus raceN
-// extra candidates compete for the origin's first byte, each replaying
-// the client's buffered bytes byte-exact through a fresh fragment conn
-// onto its own rotated start of the answer set (DialHost still walks
-// the whole list with its stagger, so a blackholed front address fails
-// over inside the candidate). The first origin to speak wins; the
-// losers are closed and reaped (a late natural death still demotes the
-// answer set — one per dead candidate, the M8-o loop — while a death
-// the teardown itself caused never does). The client stays frozen for
-// the round exactly like the M8-v salvage race freezes it: bytes beyond
-// the first record wait in the socket and flow to the winner in order
-// through the plain relay. Returns the winner with its first bytes, or
-// a nil conn with the last natural death's reason when every candidate
-// died.
+// primary origin (already dialed — its natural head start; nil = no
+// primary, the salvage round's shape) plus raceN extra candidates
+// compete for the origin's first byte, each replaying the client's
+// buffered bytes byte-exact through a fresh fragment conn onto its own
+// rotated start of the caller's answer set (DialHost still walks the
+// whole list with its stagger, so a blackholed front address fails over
+// inside the candidate). The first origin to speak wins; the losers are
+// closed and reaped (a late natural death still demotes the answer set
+// — one per dead candidate, the M8-o loop — while a death the teardown
+// itself caused never does). The client stays frozen for the round
+// exactly like the M8-v salvage race freezes it: bytes beyond the first
+// record wait in the socket and flow to the winner in order through the
+// plain relay. Returns the winner with its first bytes, or a nil conn
+// with the last natural death's reason when every candidate died, plus
+// the origin IPs every candidate actually dialed — the M8-aa salvage
+// round's untried computation (a dial failure reports no IP; the
+// primary's IP rides its own result).
 //
 // The debug.14 report's evidence this shape answers: attempt 0 still
 // walked its budget ALONE before the M8-v race launched (six timeout
@@ -919,21 +932,14 @@ type racedCandidate struct {
 // per-moment, so spending the dial budget in parallel from t=0 lands a
 // mixed-window flow at its fastest live origin and terminals an
 // all-dead flow at ~1 budget instead of 2.
-func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot []byte, firstLen int, isTLS bool, preset fragment.Preset, fcfg fragment.Config, raceN int) (net.Conn, []byte, string) {
-        // The extras dial the current answer set (cached fresh — the
-        // handleTunnel resolve landed milliseconds ago; a sibling flow's
-        // demotion in between makes this the fresher set, exactly the
-        // M8-o intent). A resolve failure here degenerates the round to
-        // the primary alone rather than failing a flow that already has
-        // a connected origin.
-        var ips []net.IP
-        if resolved, err := s.resolve(host); err == nil {
-                ips = s.liveIPs(dedupeIPs(resolved)) // the penalty box prefers live origins (M8-y, ADR-0023)
-        } else {
-                raceN = 0
+func (s *Server) raceFirstByte(primary net.Conn, host string, port int, ips []net.IP, snapshot []byte, firstLen int, isTLS bool, preset fragment.Preset, fcfg fragment.Config, raceN int) (net.Conn, []byte, string, []string) {
+        total := raceN
+        if primary != nil {
+                total++
         }
-
-        total := raceN + 1
+        if total == 0 {
+                return nil, nil, "", nil
+        }
         results := make(chan racedCandidate, total)
         stopRound := make(chan struct{})
         var stopOnce sync.Once
@@ -1002,9 +1008,17 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                 }(pre, list)
         }
 
-        launch(primary, nil)
-        for i := 0; i < raceN; i++ {
-                launch(nil, rotateIPs(ips, i+1))
+        dialed := make([]string, 0, total)
+        if primary != nil {
+                launch(primary, nil)
+                for i := 0; i < raceN; i++ {
+                        launch(nil, rotateIPs(ips, i+1))
+                }
+        } else {
+                // The salvage round's shape: no primary, the rotations start at 0.
+                for i := 0; i < raceN; i++ {
+                        launch(nil, rotateIPs(ips, i))
+                }
         }
 
         // Collect: the first speaking origin wins; every natural death
@@ -1021,16 +1035,20 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                 }
                 if res.conn != nil {
                         winner, winnerFirst = res.conn, res.first
+                        if ip := remoteIP(res.conn); ip != "" {
+                                dialed = append(dialed, ip)
+                        }
                         break
                 }
                 lastDeath = res.death
                 if res.deadIP != "" {
+                        dialed = append(dialed, res.deadIP)
                         s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
                 }
                 s.invalidateDNS(host)
         }
         if winner == nil {
-                return nil, nil, lastDeath
+                return nil, nil, lastDeath, dialed
         }
         // The round ended with a winner: the still-pending candidates are
         // reaped in the background — a late speaker is closed (it lost),
@@ -1052,7 +1070,154 @@ func (s *Server) raceFirstByte(primary net.Conn, host string, port int, snapshot
                         }
                 }
         }(pending)
-        return winner, winnerFirst, ""
+        return winner, winnerFirst, "", dialed
+}
+
+// racedSalvage is one raced salvage round's outcome: the winning origin
+// with its first downstream bytes, or the last natural death's reason
+// when every candidate died.
+type racedSalvage struct {
+        conn  net.Conn
+        first []byte
+        death string
+}
+
+// raceIPList races count candidates over the answer set (M8-aa,
+// ADR-0028 — the M8-v salvage race's candidate core, extracted so the
+// raced path's salvage round runs the identical machinery the serial
+// path always had): candidate i dials its rotated start of ips
+// (DialHost still walks the whole list with its stagger, so a
+// blackholed front address fails over inside the candidate), replays
+// the buffered client bytes byte-exact through a fresh fragment conn,
+// and waits one budget for the origin's first byte — the first origin
+// to speak wins, the losers are closed and reaped, every natural death
+// marks its origin IP for the box (M8-y) and demotes the answer set
+// (the M8-o loop).
+func (s *Server) raceIPList(host string, port int, ips []net.IP, count int, snapshot []byte, firstLen int, isTLS bool, preset fragment.Preset, fcfg fragment.Config) racedSalvage {
+        var out racedSalvage
+        if count <= 0 || len(ips) == 0 {
+                return out
+        }
+        results := make(chan racedCandidate, count)
+        for i := 0; i < count; i++ {
+                list := rotateIPs(ips, i)
+                go func(list []net.IP) {
+                        ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
+                        defer cancel()
+                        conn, derr := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, list)
+                        if derr != nil {
+                                results <- racedCandidate{death: "dial"}
+                                return
+                        }
+                        if werr := s.writeReplay(conn, snapshot, firstLen, isTLS, preset, fcfg); werr != nil {
+                                deadIP := remoteIP(conn)
+                                conn.Close()
+                                results <- racedCandidate{death: firstByteReason(werr), deadIP: deadIP}
+                                return
+                        }
+                        cbuf := getBuf()
+                        conn.SetReadDeadline(time.Now().Add(s.cfg.FirstByteTimeout))
+                        cn, cerr := conn.Read(*cbuf)
+                        conn.SetReadDeadline(time.Time{})
+                        if cn > 0 {
+                                firstDown := append([]byte(nil), (*cbuf)[:cn]...)
+                                putBuf(cbuf)
+                                results <- racedCandidate{conn: conn, first: firstDown}
+                                return
+                        }
+                        putBuf(cbuf)
+                        deadIP := remoteIP(conn)
+                        conn.Close()
+                        results <- racedCandidate{death: firstByteReason(cerr), deadIP: deadIP}
+                }(list)
+        }
+
+        // Collect: the first speaking origin wins; the still-pending
+        // candidates are reaped in the background (their conns closed, their
+        // late deaths still demoted — one per dead candidate, the M8-o loop).
+        deaths := 0
+        for {
+                res := <-results
+                if res.conn != nil {
+                        out.conn, out.first = res.conn, res.first
+                        break
+                }
+                deaths++
+                out.death = res.death
+                if res.deadIP != "" {
+                        s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
+                }
+                s.invalidateDNS(host)
+                if deaths == count {
+                        return out
+                }
+        }
+        go func(pending int) {
+                for i := 0; i < pending; i++ {
+                        res := <-results
+                        if res.conn != nil {
+                                res.conn.Close()
+                        } else {
+                                if res.deadIP != "" {
+                                        s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
+                                }
+                                s.invalidateDNS(host)
+                        }
+                }
+        }(count - deaths - 1)
+        return out
+}
+
+// untriedIPs computes the raced-path salvage round's candidates (M8-aa,
+// ADR-0028): the host's CURRENT answer set (a fresh resolve — the
+// round's deaths demoted the old one, the M8-o loop) minus every IP the
+// flow already dialed (the round's candidates, live or dead) minus
+// everything the box penalizes right now, with verified-live origins
+// first — only origins this flow has NOT gambled on and the engine does
+// not already know dead. An exhausted or fully boxed set returns nil and
+// the flow keeps the fast M8-w terminal: a hopeless host must not burn
+// a second budget.
+func (s *Server) untriedIPs(host string, dialed []string) []net.IP {
+        ips, err := s.resolve(host)
+        if err != nil {
+                return nil
+        }
+        ips = dedupeIPs(ips)
+        dialedSet := make(map[string]bool, len(dialed))
+        for _, ip := range dialed {
+                dialedSet[ip] = true
+        }
+        now := time.Now()
+        s.deadMu.Lock()
+        kept := make([]net.IP, 0, len(ips))
+        for _, ip := range ips {
+                key := ip.String()
+                if dialedSet[key] {
+                        continue
+                }
+                if m, ok := s.dead[key]; ok && now.Before(m.until) {
+                        continue // the box knows this one dead
+                }
+                kept = append(kept, ip)
+        }
+        s.deadMu.Unlock()
+        if len(kept) == 0 {
+                return nil
+        }
+        s.goodMu.Lock()
+        var live, neutral []net.IP
+        for _, ip := range kept {
+                if until, ok := s.good[ip.String()]; ok && now.Before(until) {
+                        live = append(live, ip)
+                } else {
+                        neutral = append(neutral, ip)
+                }
+        }
+        s.goodMu.Unlock()
+        if len(live) == 0 {
+                return kept
+        }
+        return append(live, neutral...)
 }
 
 // copyFirstByteBudgeted is the processed-host relay shape (M8-s,
@@ -1188,7 +1353,20 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
         // this path, so the serial loop below is the racing-disabled
         // shape only.
         if raceN > 0 && replay.fits() {
-                winner, winnerFirst, lastDeath := s.raceFirstByte(upstream, host, port, replay.bytes(), len(first), isTLS, preset, fcfg, raceN)
+                // The extras dial the current answer set (cached fresh — the
+                // handleTunnel resolve landed milliseconds ago; a sibling flow's
+                // demotion in between makes this the fresher set, exactly the
+                // M8-o intent) through the box's preference and the verified-live
+                // front (M8-aa). A resolve failure degenerates the round to the
+                // primary alone rather than failing a flow that already has a
+                // connected origin.
+                raceIPs := []net.IP(nil)
+                if resolved, err := s.resolve(host); err == nil {
+                        raceIPs = s.liveIPs(dedupeIPs(resolved))
+                } else {
+                        raceN = 0
+                }
+                winner, winnerFirst, lastDeath, dialedIPs := s.raceFirstByte(upstream, host, port, raceIPs, replay.bytes(), len(first), isTLS, preset, fcfg, raceN)
                 // The first record went upstream on every candidate; it
                 // counts once (the winner's copy is the flow's).
                 if len(first) > 0 {
@@ -1196,6 +1374,49 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         flow.up.Add(int64(len(first)))
                 }
                 if winner == nil {
+                        // M8-aa (ADR-0028): the raced round died on every candidate
+                        // it dialed — one budget spent, the app's own retry wave the
+                        // next cost (its backoff, a fresh resolve, a fresh gamble:
+                        // the debug.18 report's top failing host ran 13 flows for 8
+                        // failures). Before the terminal, ONE more raced round over
+                        // exactly the answer set's UNTRIED, unboxed origins — the
+                        // rotations covered only the round's slice of a mixed answer
+                        // set (live and blackholed cache nodes together, the report's
+                        // whole remaining cold-start cost). The replay stays
+                        // byte-exact, the client stays frozen exactly as the round
+                        // kept it, and the app never sees the failure. A set with
+                        // nothing untried keeps the fast M8-w terminal — a hopeless
+                        // host must not burn a second budget.
+                        untried := s.untriedIPs(host, dialedIPs)
+                        if len(untried) > 0 && replay.fits() {
+                                s.logTunnelFirstByteRetry(host, class, lastDeath, 1)
+                                link.swap(nil) // the round already closed the primary's corpse
+                                salv := s.raceIPList(host, port, untried, len(untried), replay.bytes(), len(first), isTLS, preset, fcfg)
+                                if salv.conn != nil {
+                                        totalDials := raceN + 1 + len(untried)
+                                        tc.setB(salv.conn)   // Stop's sweep must hit the live origin
+                                        link.swap(salv.conn)      // the salvage winner owns the flow now
+                                        if err := writeFull(client, salv.first, s.cfg.IdleTimeout); err != nil {
+                                                // The origin spoke but the client is gone: a
+                                                // client-side death, not a suspect-origin
+                                                // signal (the M8-s branch — no demotion).
+                                                link.swap(nil)
+                                                tc.closeBoth()
+                                                s.countConnError()
+                                                s.logTunnelDone(host, class, time.Since(tstart), flow)
+                                                return
+                                        }
+                                        s.stats.AddBytesDown(int64(len(salv.first)))
+                                        flow.down.Add(int64(len(salv.first)))
+                                        onFirst()
+                                        s.logTunnelFirstByteSalvaged(host, class, totalDials)
+                                        relayEntry(salv.conn)
+                                        return
+                                }
+                                if salv.death != "" {
+                                        lastDeath = salv.death
+                                }
+                        }
                         s.invalidateDNS(host) // terminal: the set connects but never speaks (M8-s)
                         failFlow(lastDeath)
                         return
@@ -1347,86 +1568,19 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 // blackholed address still fails over inside the candidate),
                 // replays the buffered client bytes byte-exact through a
                 // fresh fragment conn, and waits one budget for the first
-                // byte. First speaker wins.
-                type salvageResult struct {
-                        conn   net.Conn
-                        first  []byte
-                        death  string
-                        deadIP string // the penalty-box evidence (M8-y, ADR-0023)
+                // byte. First speaker wins. (M8-aa, ADR-0028: the candidate
+                // core now lives in raceIPList — the raced path's salvage
+                // round runs the identical machinery.)
+                salv := s.raceIPList(host, port, ips, raced, snapshot, len(first), isTLS, preset, fcfg)
+                if salv.conn == nil {
+                        death := salv.death
+                        if death == "" {
+                                death = reason
+                        }
+                        failFlow(death)
+                        return
                 }
-                results := make(chan salvageResult, raced)
-                for i := 0; i < raced; i++ {
-                        list := rotateIPs(ips, i)
-                        go func(list []net.IP) {
-                                ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DialTimeoutOverall)
-                                defer cancel()
-                                conn, derr := s.cfg.Dialer.DialHost(ctx, "tcp", host, port, list)
-                                if derr != nil {
-                                        results <- salvageResult{death: "dial"}
-                                        return
-                                }
-                                if werr := s.writeReplay(conn, snapshot, len(first), isTLS, preset, fcfg); werr != nil {
-                                        deadIP := remoteIP(conn)
-                                        conn.Close()
-                                        results <- salvageResult{death: firstByteReason(werr), deadIP: deadIP}
-                                        return
-                                }
-                                cbuf := getBuf()
-                                conn.SetReadDeadline(time.Now().Add(s.cfg.FirstByteTimeout))
-                                cn, cerr := conn.Read(*cbuf)
-                                conn.SetReadDeadline(time.Time{})
-                                if cn > 0 {
-                                        firstDown := append([]byte(nil), (*cbuf)[:cn]...)
-                                        putBuf(cbuf)
-                                        results <- salvageResult{conn: conn, first: firstDown}
-                                        return
-                                }
-                                putBuf(cbuf)
-                                deadIP := remoteIP(conn)
-                                conn.Close()
-                                results <- salvageResult{death: firstByteReason(cerr), deadIP: deadIP}
-                        }(list)
-                }
-
-                // Collect: the first speaking origin wins; the still-pending
-                // candidates are reaped in the background (their conns
-                // closed, their late deaths still demoted — one per dead
-                // attempt, the M8-o loop).
-                var winner net.Conn
-                var winnerFirst []byte
-                deaths := 0
-                lastDeath := reason
-                for {
-                        res := <-results
-                        if res.conn != nil {
-                                winner = res.conn
-                                winnerFirst = res.first
-                                break
-                        }
-                        deaths++
-                        lastDeath = res.death
-                        if res.deadIP != "" {
-                                s.markDeadIP(res.deadIP) // the penalty box (M8-y, ADR-0023)
-                        }
-                        s.invalidateDNS(host)
-                        if deaths == raced {
-                                failFlow(lastDeath)
-                                return
-                        }
-                }
-                go func(pending int) {
-                        for i := 0; i < pending; i++ {
-                                res := <-results
-                                if res.conn != nil {
-                                        res.conn.Close()
-                                } else {
-                                        if res.deadIP != "" {
-                                                s.markDeadIP(res.deadIP) // a silent-through-the-budget sibling (M8-y)
-                                        }
-                                        s.invalidateDNS(host)
-                                }
-                        }
-                }(raced - deaths - 1)
+                winner, winnerFirst := salv.conn, salv.first
                 origin = winner
                 tc.setB(winner)
                 link.swap(winner)

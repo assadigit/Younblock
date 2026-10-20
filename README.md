@@ -28,25 +28,24 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug18.apk` from the repo's
+releasing yet"): download `v1.6.6-debug19.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.18` release (a regular release in this private
+`v1.6.6-android-debug.19` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug18**; it installs over any earlier
+**make sure the filename says debug19**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build attacks the FIRST VIDEO'S MINUTE-LONG START: every routed
-app's TLS is now fragmented on Android (before, only the 7 YouTube
-domains were — every other host the app needed crossed plain and, when
-blocked, hung silently to the app's ~60 s patience), silent non-listed
-TLS hosts now close at 8 s and get counted instead of hanging, DoH
-shares ONE warm pinged HTTP/2 connection and hedges its servers
-(300 ms) with two no-SNI IP endpoints as last resorts, the learned
-video-cache hostnames pre-resolve every 5 minutes, and the diagnostics
-report can PROVE it: class= on every tunnel line, a Top-10
-slowest-or-failed hosts section, per-DNS-failure phase lines
-(TCP/TLS/HTTP), a QUIC-fallback timer, and "I pressed play" / "First
-frame" buttons that measure the exact start window).
+this build removes the FIRST VIDEO'S remaining start lag the debug.18
+report measured: the engine now VERIFIES the video hosts' addresses
+in the background (a fragmented hello exactly like a real
+connection's, answered→tried-first for 15 min, silent→skipped with
+strike escalation), a connection whose racing all failed gets ONE
+more in-engine rescue round over the untried addresses before it
+gives up, a stalled half-finished response is cut at 8 s on Android
+(was 15 — three of those held the app's retry for nearly half the
+minute), and the diagnostics report now measures the play→video time
+by itself (an "auto-timeline" heuristic — the "I pressed play" /
+"First frame" buttons remain the honest measurement)).
 Sign in with your
 GitHub account, then sideload it:
 

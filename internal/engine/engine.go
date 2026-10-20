@@ -196,6 +196,18 @@ type Engine struct {
 	probeDone    bool        // the dead-origin probe ran this run
 	probeLines   []string    // its lines, rendered once per report section
 
+	// M8-aa (ADR-0029): the effective lean stall budget this run's
+	// proxy carries — Android's platform default (8 s), the
+	// desktop's config.StallTimeout — printed beside the report's
+	// tier counts so the next paste says which budget fired.
+	stallLean time.Duration
+
+	// M8-aa (ADR-0030): the auto-timeline heuristic's poller —
+	// play-suspected (a routed burst after quiet) and first-data
+	// (a down-burst on its heels) — plus its cancel.
+	autoTL       *autoTimeline
+	autoTLCancel context.CancelFunc
+
 	measuredSleep time.Duration
 	stopWait      sync.WaitGroup
 }
@@ -217,6 +229,44 @@ type markWindow struct {
 	connErrors    int64
 	plainKills    int64
 	slowFirstByte int64
+}
+
+// The auto-timeline heuristic's knobs (M8-aa, ADR-0030): the routed
+// quiet that precedes a suspected play burst, the down-burst that
+// pairs it with real data, the poll cadence, and the pair history's
+// bound (the manual marks' own bound).
+const (
+	autoTLQuiet      = 5 * time.Second
+	autoTLBurstBytes = 100 * 1024
+	autoTLPollEvery  = 500 * time.Millisecond
+	autoTLMaxPairs   = 8
+)
+
+// autoPair is one closed auto-timeline measurement (M8-aa, ADR-0030):
+// a play-suspected stamp and the first-data stamp that answered it.
+type autoPair struct {
+	play, data time.Time
+}
+
+// autoTimeline is the engine's heuristic play detector (M8-aa,
+// ADR-0030): the debug.18 report came back with "timeline: no marks"
+// — the tester never pressed the buttons, and the one number that
+// says whether the round succeeded (play -> first frame) was missing.
+// The poller watches the counters the flows already feed: a routed
+// flow burst after at least autoTLQuiet of routed quiet stamps
+// "auto: play-suspected" (the app's player wave opening its
+// connections); a down-burst of at least autoTLBurstBytes right after
+// it stamps "auto: first-data" (video bytes actually flowing). The
+// pairs land in the report beside the manual marks — which stay
+// AUTHORITATIVE: the heuristic cannot tell a feed load from a play,
+// only the buttons can — and the stamps ride the log ring as
+// AUTO-MARK lines so the tester's paste carries them with timestamps.
+type autoTimeline struct {
+	lastRoutedAt time.Time  // the last poll that saw routed flow starts
+	routedFlows  int64      // the routed flow counter at lastRoutedAt
+	lastDown     int64      // the down byte counter at the last poll
+	playAt       *time.Time // an unpaired play-suspected stamp
+	pairs        []autoPair // the closed pairs (bounded)
 }
 
 // New builds an engine: loads settings, opens logs, measures the real sleep
@@ -433,6 +483,24 @@ func (e *Engine) Mark(label string) {
 	e.logger.Info("MARK " + label)
 }
 
+// stallLeanEffective reports the lean stall budget this run's proxy
+// carries (M8-aa, ADR-0029): the platform default when a run is live
+// (Android's 8 s, the desktop's config.StallTimeout), the same default
+// derived from the platform when no run has started yet. The report
+// prints it beside the tier counts.
+func (e *Engine) stallLeanEffective() time.Duration {
+	e.mu.Lock()
+	d := e.stallLean
+	e.mu.Unlock()
+	if d > 0 {
+		return d
+	}
+	if e.platform.Name() == "android" {
+		return config.StallLeanTimeoutAndroid
+	}
+	return config.StallTimeout
+}
+
 // timelineMarks returns the bounded mark history (the report reads the
 // last pair).
 func (e *Engine) timelineMarks() []Mark {
@@ -460,6 +528,7 @@ func (e *Engine) startGvideoLoop() {
 	}
 	go func() {
 		e.prewarmGvideoCodes(ctx)
+		e.probeOriginsPass(ctx) // M8-aa (ADR-0028): verify the answer sets the moment the cache is warm
 		ticker := time.NewTicker(config.GoogleVideoPrewarmEvery)
 		defer ticker.Stop()
 		for {
@@ -468,6 +537,7 @@ func (e *Engine) startGvideoLoop() {
 				return
 			case <-ticker.C:
 				e.prewarmGvideoCodes(ctx)
+				e.probeOriginsPass(ctx) // M8-aa: every cycle, the freshest codes first
 			}
 		}
 	}()
@@ -517,6 +587,129 @@ func (e *Engine) prewarmGvideoCodes(ctx context.Context) {
 		}(name)
 	}
 	wg.Wait()
+}
+
+// probeOriginsPass runs one origin-probe pass through the running
+// proxy (M8-aa, ADR-0028): the stable OriginProbeNames first — the
+// player request's own API fronts — then the FRESHEST learned
+// googlevideo codes' rr names (the store is oldest-first, the next
+// video's hostname rides the newest code). The pass resolves through
+// the same resolver the flows use (the prewarm that just ran filled
+// the cache), verifies each answer IP with the exact wire shape a
+// real flow sends, and hands its verdicts to the box and the good
+// table. Bounded by OriginProbePerPass and the loop's own ctx; the
+// verdicts ride counters only (R21 — no names, no IPs anywhere).
+func (e *Engine) probeOriginsPass(ctx context.Context) {
+	// ADR-0028 decision 5: the pass runs on the phone's lane only —
+	// the desktops keep the M8-z prewarm-resolution behavior
+	// byte-for-byte (the cold-start spec's hard rule 5), and the stub
+	// platform every host test builds on never dials a probe (the
+	// test herd stays hermetic).
+	if e.platform.Name() != "android" {
+		return
+	}
+	srv := e.RunningServer()
+	if srv == nil {
+		return
+	}
+	names := make([]string, 0, len(config.OriginProbeNames)+10)
+	names = append(names, config.OriginProbeNames...)
+	codes := e.resolver.Load().GvideoCodes()
+	for i := len(codes) - 1; i >= 0 && len(codes)-i <= 2; i-- {
+		for j := 1; j <= 5; j++ {
+			names = append(names, fmt.Sprintf("rr%d---%s.googlevideo.com", j, codes[i]))
+		}
+	}
+	srv.ProbeOrigins(ctx, names, 443, config.OriginProbePerPass)
+}
+
+// startAutoTimeline runs the heuristic play detector while the engine
+// is On (M8-aa, ADR-0030): a 500 ms poller over the counters the flows
+// already feed. Idempotent across the degraded->on flap (the old
+// poller is cancelled first, the state survives).
+func (e *Engine) startAutoTimeline() {
+	ctx, cancel := context.WithCancel(context.Background())
+	e.mu.Lock()
+	old := e.autoTLCancel
+	e.autoTLCancel = cancel
+	if e.autoTL == nil {
+		e.autoTL = &autoTimeline{}
+	}
+	e.autoTL.routedFlows = e.stats.Diagnostic().RoutedFlows
+	e.mu.Unlock()
+	if old != nil {
+		old()
+	}
+	go func() {
+		ticker := time.NewTicker(autoTLPollEvery)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				e.autoTLPoll()
+			}
+		}
+	}()
+}
+
+// stopAutoTimeline halts the heuristic poller (Stop's path).
+func (e *Engine) stopAutoTimeline() {
+	e.mu.Lock()
+	cancel := e.autoTLCancel
+	e.autoTLCancel = nil
+	e.autoTL = nil
+	e.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// autoTLPoll is one heuristic tick (M8-aa, ADR-0030): a routed flow
+// burst after at least autoTLQuiet of routed quiet stamps an unpaired
+// play-suspected; a down-burst of at least autoTLBurstBytes closes the
+// pair. Both stamps ride the log ring (AUTO-MARK lines — the paste
+// carries their timestamps even when the report's last-pair line has
+// since been replaced by a newer measurement).
+func (e *Engine) autoTLPoll() {
+	d := e.stats.Diagnostic()
+	now := e.opts.Now()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	a := e.autoTL
+	if a == nil {
+		return
+	}
+	if d.RoutedFlows > a.routedFlows {
+		if now.Sub(a.lastRoutedAt) >= autoTLQuiet && a.playAt == nil {
+			play := now
+			a.playAt = &play
+			e.logger.Info("AUTO-MARK play-suspected (routed burst after quiet)")
+		}
+		a.routedFlows = d.RoutedFlows
+		a.lastRoutedAt = now
+	}
+	if a.playAt != nil && d.BytesDown-a.lastDown >= autoTLBurstBytes {
+		a.pairs = append(a.pairs, autoPair{play: *a.playAt, data: now})
+		if len(a.pairs) > autoTLMaxPairs {
+			a.pairs = a.pairs[len(a.pairs)-autoTLMaxPairs:]
+		}
+		a.playAt = nil
+		e.logger.Info("AUTO-MARK first-data (down burst)")
+	}
+	a.lastDown = d.BytesDown
+}
+
+// autoTLPairs returns the heuristic's closed pairs (the report reads
+// the last one and the count).
+func (e *Engine) autoTLPairs() []autoPair {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.autoTL == nil {
+		return nil
+	}
+	return append([]autoPair(nil), e.autoTL.pairs...)
 }
 
 // Resolver exposes the DoH resolver (for the self-test and diagnostics).
@@ -569,6 +762,16 @@ func (e *Engine) startListener() error {
 	if e.settings.Advanced.IdleTimeoutSec > 0 {
 		idle = time.Duration(e.settings.Advanced.IdleTimeoutSec) * time.Second
 	}
+	// M8-aa (ADR-0029): Android's lean stall budget is 8 s — the
+	// debug.18 report's three mid-response corpses each held the
+	// app's retry hostage for the whole 15 s desktop budget. The
+	// platform gate lives HERE (the engine's listener build); the
+	// proxy's stall semantics are untouched and every desktop
+	// build keeps config.StallTimeout byte-for-byte.
+	stall := config.StallTimeout
+	if e.platform.Name() == "android" {
+		stall = config.StallLeanTimeoutAndroid
+	}
 	srv, err := proxy.Start(proxy.Config{
 		Host:                  config.ListenHost,
 		Port:                  e.settings.Port,
@@ -579,7 +782,7 @@ func (e *Engine) startListener() error {
 		FirstByteTimeout:      config.FirstByteTimeout,
 		FirstByteSalvageDials: config.FirstByteSalvageDials,
 		FirstByteRaceDials:    config.FirstByteRaceDials,
-		StallTimeout:          config.StallTimeout,
+		StallTimeout:          stall,
 		StallRichTimeout:      config.StallRichTimeout,
 		StallRichBytes:        config.StallRichBytes,
 		DeadIPPenalty:         config.DeadIPPenalty,
@@ -609,6 +812,7 @@ func (e *Engine) startListener() error {
 	e.mu.Lock()
 	e.server = srv
 	e.port = srv.Port()
+	e.stallLean = stall
 	e.mu.Unlock()
 	e.logger.Info("proxy started", "port", e.port)
 	return nil
@@ -673,20 +877,23 @@ func (e *Engine) Stop() error {
 	e.stopStatsLoop()
 	e.stopWatchdog()
 	e.stopNetMon()
-	e.stopGvideoLoop() // M8-z: the prewarm loop dies with the run
+	e.stopGvideoLoop()   // M8-z: the prewarm loop dies with the run
+	e.stopAutoTimeline() // M8-aa (ADR-0030): the heuristic poller too
 	e.stopListener()
 	if err := e.platform.Detach(); err != nil {
 		e.logger.Warn("detach failed", "reason", errKind(err))
 	}
 	// R21: the in-memory ring is cleared on Stop — and the timeline
 	// marks and the dead-origin probe's once-per-run latch with it (the
-	// next run's report starts clean; M8-z).
+	// next run's report starts clean; M8-z). M8-aa: the effective lean
+	// budget resets too (the next run re-derives it from its platform).
 	e.logger.Ring.Clear()
 	e.mu.Lock()
 	e.marks = nil
 	e.markSnapshot = nil
 	e.probeDone = false
 	e.probeLines = nil
+	e.stallLean = 0
 	e.mu.Unlock()
 	e.mu.Lock()
 	e.latencyMs = 0 // a live metric; it stops with the proxy

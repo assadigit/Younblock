@@ -12,6 +12,41 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-20 — M8-aa; shipped in `v1.6.6-android-debug.19`, versionCode 18)
+
+- **The first video is STILL slow after debug.18 — the tester's
+  report measured the remaining cost and this round removes it: the
+  dead-origin-pool fixes (ADR-0028/0029/0030).** The debug.18
+  report's own numbers: all 38 remaining errors class=routed, ~20
+  first-byte terminals at exactly one 2.5 s budget, three lean stall
+  kills at exactly 15 s carrying half-finished responses, the top
+  host 13 flows for 8 failures, and the dead-origin probe silent on
+  BOTH sni=alt and sni=none (IP-level blackholing — the plain lane
+  and DoH the debug.18 round fixed are now healthy). (1) **The
+  verified prewarm (ADR-0028, Android-only)**: the 5-minute
+  googlevideo prewarm loop (plus one pass at Start) now PROBES the
+  answer sets with the exact wire shape a real flow sends — a
+  fragmented ClientHello carrying the prewarmed name as SNI through
+  the one netx dialer — and marks each answer IP: "answered" →
+  verified-live for 15 min (every dial list starts there), "silent"
+  or "reset" → dead for 10 min with strike escalation (60 s → 5 min
+  → 30 min) ending the re-gamble. (2) **The raced-path salvage
+  round (ADR-0028)**: an all-dead race now runs ONE more raced round
+  over the answer set's untried unboxed origins before the terminal
+  — the app's retry wave collapses into an in-engine budget;
+  hopeless sets keep the fast ~2.6 s terminal. (3) **The Android
+  lean stall budget 15 s → 8 s (ADR-0029)**: the three
+  mid-response corpses each held the app's retry for the whole 15 s
+  desktop budget; the platform gate lives in the engine's listener
+  build, desktops keep 15 s byte-for-byte, and the report prints the
+  budget that fired. (4) **Diagnostics (ADR-0030)**: an
+  auto-timeline heuristic (play-suspected after routed quiet →
+  first-data on the down-burst — the buttons stay authoritative)
+  measures play→video even when the tester doesn't tap; new report
+  lines carry the origin-probe pass's verdicts, the box's
+  live/strikes counts, the good count, the stall tier split, and the
+  racedSaves/salvagedSaves/routedFlows counters.
+
 ### Fixed / Added (2026-10-19 — M8-z; shipped in `v1.6.6-android-debug.18`, versionCode 17)
 
 - **The FIRST video after opening the app takes 1–2 minutes (the

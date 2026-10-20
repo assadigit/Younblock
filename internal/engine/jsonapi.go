@@ -353,6 +353,10 @@ func (e *Engine) GetDiagnosticReport() string {
 	// classes, the slow first-bytes.
 	fmt.Fprintf(&b, "counters: plainFirstByteTimeouts %d, dialNear %d, dialFar %d, slowFirstBytes %d\n",
 		d.PlainFirstByteTo, d.DialNear, d.DialFar, d.FirstByteSlow)
+	// M8-aa (ADR-0028/0029/0030): the tier split, the raced/salvage
+	// saves, the routed-flow starts, and the origin-probe verdicts.
+	fmt.Fprintf(&b, "counters: stallKillsLean %d, stallKillsRich %d, racedSaves %d, salvagedSaves %d, routedFlows %d\n",
+		d.StallKillLean, d.StallKillRich, d.RacedSaves, d.SalvagedSaves, d.RoutedFlows)
 	// §8.3.3: the DoH transport's own counters (dials opened, reuse,
 	// hedge wins by server number) ride the header too.
 	dohd := e.resolver.Load().Diagnostic()
@@ -384,6 +388,24 @@ func (e *Engine) GetDiagnosticReport() string {
 	plain := e.hostTable.Plain()
 	fmt.Fprintf(&b, "plain-relay: flows=%d firstByteTimeouts=%d worstFirstByte=%dms\n",
 		plain.Flows, d.PlainFirstByteTo, plain.WorstFirstMS)
+	// M8-aa (ADR-0029): the stall tier split with the budget that
+	// fired — the next report's primary tuning evidence (the three
+	// 15 s lean kills of the debug.18 paste become three 8 s ones).
+	fmt.Fprintf(&b, "stall kills: lean=%d rich=%d leanBudget=%s\n",
+		d.StallKillLean, d.StallKillRich, e.stallLeanEffective())
+	// M8-aa (ADR-0028): the origin-probe pass's own evidence — how
+	// many passes ran, how many answer IPs the fragmented hello
+	// verified, and the verdict split — plus the box's and the good
+	// table's current shape (counts only, R21). The good count is the
+	// dial lists' preferred front; penalized is the box's live size
+	// and strikes its escalated entries.
+	good, penalized, strikes := 0, 0, 0
+	if srv := e.RunningServer(); srv != nil {
+		good = srv.GoodIPCount()
+		penalized, strikes = srv.DeadBoxStats()
+	}
+	fmt.Fprintf(&b, "origin probe: passes=%d ips=%d answered=%d silent=%d reset=%d good=%d penalized=%d strikes=%d\n",
+		d.ProbePasses, d.ProbeIPs, d.ProbeAnswered, d.ProbeSilent, d.ProbeReset, good, penalized, strikes)
 	// §8.3.3: the DNS detail — per recent failure, the server number,
 	// the phase that failed (tcp, tls, http, status, parse) and the
 	// latency.
@@ -417,6 +439,18 @@ func (e *Engine) GetDiagnosticReport() string {
 		}
 		fmt.Fprintf(&b, "timeline: MARK %s -> MARK %s elapsed=%dms failedFlows=%d plainKills=%d slowFirstBytes=%d\n",
 			a.Label, z.Label, z.At.Sub(a.At).Milliseconds(), failed, kills, slow)
+	}
+	// M8-aa (ADR-0030): the auto-timeline — the heuristic's answer to
+	// the debug.18 report's "timeline: no marks". It measures play ->
+	// data WITHOUT the buttons (a routed burst after quiet, then the
+	// down-burst that answered it); the manual marks stay authoritative
+	// (the heuristic cannot tell a feed load from a play).
+	if pairs := e.autoTLPairs(); len(pairs) > 0 {
+		last := pairs[len(pairs)-1]
+		fmt.Fprintf(&b, "auto-timeline: play-suspected -> first-data elapsed=%dms pairs=%d (heuristic; the buttons stay authoritative)\n",
+			last.data.Sub(last.play).Milliseconds(), len(pairs))
+	} else {
+		fmt.Fprintf(&b, "auto-timeline: no pair yet (heuristic; the buttons stay authoritative)\n")
 	}
 	// The embedder's section (M8-p, ADR-0015): snapshot under the lock,
 	// run OUTSIDE it — the hook is free to touch engine state (GetState

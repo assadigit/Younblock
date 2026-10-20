@@ -131,10 +131,10 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
 		Protect:   protect,
 		Notify:    notify,
 	})
-	// M8-z (debug.18, versionCode 17): the report header names the exact
+	// M8-aa (debug.19, versionCode 18): the report header names the exact
 	// debug round — versionName stays 1.6.6 across rounds, the -debug.NN
 	// suffix is what a pasted report maps to its release.
-	opts := engine.Options{Platform: plat, Version: "1.6.6-debug.18"}
+	opts := engine.Options{Platform: plat, Version: "1.6.6-debug.19"}
 	if mutate != nil {
 		mutate(&opts)
 	}

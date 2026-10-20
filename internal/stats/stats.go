@@ -29,6 +29,21 @@ type Counters struct {
 	dialFar                atomic.Int64
 	firstByteSlow          atomic.Int64
 
+	// M8-aa (ADR-0028/0029/0030): the stall tier split (lean vs rich
+	// kills), the raced/salvaged save counts, the routed-flow starts the
+	// auto-timeline heuristic reads, and the origin-probe pass's own
+	// verdict counters.
+	stallKillLean atomic.Int64
+	stallKillRich atomic.Int64
+	racedSaves    atomic.Int64
+	salvagedSaves atomic.Int64
+	routedFlows   atomic.Int64
+	probePasses   atomic.Int64
+	probeIPs      atomic.Int64
+	probeAnswered atomic.Int64
+	probeSilent   atomic.Int64
+	probeReset    atomic.Int64
+
 	// rate sampling
 	mu         sync.Mutex
 	lastDown   int64
@@ -83,6 +98,40 @@ func (c *Counters) DialFar() { c.dialFar.Add(1) }
 // the timeline window's "slow flows" metric).
 func (c *Counters) FirstByteSlow() { c.firstByteSlow.Add(1) }
 
+// StallKillLean counts one lean-tier stall kill (M8-aa, ADR-0029: the
+// report's tier split — the never-proved flow's mid-response death).
+func (c *Counters) StallKillLean() { c.stallKillLean.Add(1) }
+
+// StallKillRich counts one rich-tier hygiene close (M8-aa, ADR-0029).
+func (c *Counters) StallKillRich() { c.stallKillRich.Add(1) }
+
+// RacedSave counts one flow the first-dial race saved (an extra
+// candidate delivered the first byte; M8-aa, ADR-0030's counter).
+func (c *Counters) RacedSave() { c.racedSaves.Add(1) }
+
+// SalvagedSave counts one flow a salvage round saved (M8-aa, ADR-0028's
+// raced-path salvage included).
+func (c *Counters) SalvagedSave() { c.salvagedSaves.Add(1) }
+
+// RoutedFlowStart counts one established budgeted (class=routed)
+// tunnel (M8-aa, ADR-0030: the auto-timeline heuristic's burst signal).
+func (c *Counters) RoutedFlowStart() { c.routedFlows.Add(1) }
+
+// ProbePass counts one completed origin-probe pass (M8-aa, ADR-0028).
+func (c *Counters) ProbePass() { c.probePasses.Add(1) }
+
+// ProbeIP counts one answer IP the origin-probe pass verified.
+func (c *Counters) ProbeIP() { c.probeIPs.Add(1) }
+
+// ProbeAnswered counts a probe verdict of "answered".
+func (c *Counters) ProbeAnswered() { c.probeAnswered.Add(1) }
+
+// ProbeSilent counts a probe verdict of "silent".
+func (c *Counters) ProbeSilent() { c.probeSilent.Add(1) }
+
+// ProbeReset counts a probe verdict of "reset".
+func (c *Counters) ProbeReset() { c.probeReset.Add(1) }
+
 // Snapshot is the 1-second UI snapshot (JSON shape from file 01, section 10).
 type Snapshot struct {
 	BytesDown   int64   `json:"bytesDown"`
@@ -127,19 +176,31 @@ func (c *Counters) Sample() Snapshot {
 
 // All is every counter, used by the diagnostic report.
 type All struct {
-	BytesDown        int64     `json:"bytesDown"`
-	BytesUp          int64     `json:"bytesUp"`
-	ConnsTotal       int64     `json:"connsTotal"`
-	ConnsLive        int64     `json:"connsLive"`
-	ConnErrors       int64     `json:"connErrors"`
-	DnsOK            int64     `json:"dnsOK"`
-	DnsFail          int64     `json:"dnsFail"`
-	Panics           int64     `json:"panics"`
-	PlainFirstByteTo int64     `json:"plainFirstByteTimeouts"`
-	DialNear         int64     `json:"dialNear"`
-	DialFar          int64     `json:"dialFar"`
-	FirstByteSlow    int64     `json:"firstByteSlow"`
-	StartedAt        time.Time `json:"startedAt"`
+	BytesDown        int64 `json:"bytesDown"`
+	BytesUp          int64 `json:"bytesUp"`
+	ConnsTotal       int64 `json:"connsTotal"`
+	ConnsLive        int64 `json:"connsLive"`
+	ConnErrors       int64 `json:"connErrors"`
+	DnsOK            int64 `json:"dnsOK"`
+	DnsFail          int64 `json:"dnsFail"`
+	Panics           int64 `json:"panics"`
+	PlainFirstByteTo int64 `json:"plainFirstByteTimeouts"`
+	DialNear         int64 `json:"dialNear"`
+	DialFar          int64 `json:"dialFar"`
+	FirstByteSlow    int64 `json:"firstByteSlow"`
+	// M8-aa (ADR-0028/0029/0030): the tier split, the saves, the routed
+	// flow starts, and the origin-probe verdicts.
+	StallKillLean int64     `json:"stallKillLean"`
+	StallKillRich int64     `json:"stallKillRich"`
+	RacedSaves    int64     `json:"racedSaves"`
+	SalvagedSaves int64     `json:"salvagedSaves"`
+	RoutedFlows   int64     `json:"routedFlows"`
+	ProbePasses   int64     `json:"probePasses"`
+	ProbeIPs      int64     `json:"probeIPs"`
+	ProbeAnswered int64     `json:"probeAnswered"`
+	ProbeSilent   int64     `json:"probeSilent"`
+	ProbeReset    int64     `json:"probeReset"`
+	StartedAt     time.Time `json:"startedAt"`
 }
 
 // Diagnostic returns every counter, for the diagnostic report only.
@@ -157,6 +218,16 @@ func (c *Counters) Diagnostic() All {
 		DialNear:         c.dialNear.Load(),
 		DialFar:          c.dialFar.Load(),
 		FirstByteSlow:    c.firstByteSlow.Load(),
+		StallKillLean:    c.stallKillLean.Load(),
+		StallKillRich:    c.stallKillRich.Load(),
+		RacedSaves:       c.racedSaves.Load(),
+		SalvagedSaves:    c.salvagedSaves.Load(),
+		RoutedFlows:      c.routedFlows.Load(),
+		ProbePasses:      c.probePasses.Load(),
+		ProbeIPs:         c.probeIPs.Load(),
+		ProbeAnswered:    c.probeAnswered.Load(),
+		ProbeSilent:      c.probeSilent.Load(),
+		ProbeReset:       c.probeReset.Load(),
 		StartedAt:        c.startedAt,
 	}
 }
