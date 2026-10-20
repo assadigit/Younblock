@@ -173,10 +173,20 @@ phone in the same place:**
 packing): `v1.6.6-debug24.apk`, versionCode 23 / versionName
 1.6.6 / minSdk 26 / targetSdk 36 (aapt2 badging), signed by the
 pinned test-circle debug certificate (SHA-256 `c76bb7c6…8551d`,
-apksigner verify — installs over every earlier debug build, D85).
-[The build's size, SHA-256, commit and the verified libgojni.so
-signatures are recorded in the docs follow-up commit — the house
-ritual.]
+apksigner verify — installs over every earlier debug build, D85),
+APK 56,063,397 B, SHA-256
+`0552f70d7501b983117c9b7f6f12136692bb4d1c85037c9763fc983568c8e09f`.
+Built from commit f05f2e7. The gomobile bind ran with the
+debug-tester ldflags
+(`-X …/internal/config.DebugTesterBuild=true`) and the M8-af
+signatures were verified present in libgojni.so in ALL THREE
+ABIs before gradle (the house ritual): `tcp verdicts:
+upstream-lost=`, `network test:`, `experiment: method=`,
+`silent-after-handshake`, `tcpinfo=unavailable`, `first-app-byte`,
+`media-verified:`, `1.6.6-debug.24`, `MarkMediaVerifiedIP`,
+`SetDeviceInfo`, `SetNetworkInfo`, and `ExperimentNodes`; the
+uploaded asset re-downloaded and verified byte-identical
+(`cmp` + SHA-256).
 
 **v1.6.6-android-debug.23 (versionCode 21+1=22) — superseded by
 debug.24** — the wire-discipline round. What changed, in plain
