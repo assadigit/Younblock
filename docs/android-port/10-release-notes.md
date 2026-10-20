@@ -91,8 +91,8 @@ build** — the hostile-network round. What changed, in plain words:
 `v1.6.6-debug21.apk`, versionCode 20 / versionName 1.6.6 / minSdk 26 /
 targetSdk 36 (aapt2 badging), signed by the pinned test-circle debug
 certificate (SHA-256 `c76bb7c6…8551d`, apksigner verify — installs
-over every earlier debug build, D85), APK size and SHA-256 recorded
-below once built. Built from commit COMMIT_SHA_PLACEHOLDER. The
+over every earlier debug build, D85), APK 55,197,201 B, SHA-256
+`bf66bd831e813a74791e74827ebce987699531e1602cb9482acd7cf5d111c368`. Built from commit 6391221. The
 gomobile bind ran with the debug-tester ldflags
 (`-X …/internal/config.DebugTesterBuild=true`) and the M8-ac
 signatures were verified present in libgojni.so in ALL THREE ABIs
