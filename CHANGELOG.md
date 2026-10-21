@@ -14,6 +14,16 @@ every release are on the
 
 ### Fixed / Added (2026-10-21 — M8-aj; shipping in `v1.6.6-android-debug.28`, versionCode 27)
 
+- **Build artifact:** commit `874b768` ("M8-aj: the lane retires
+  round (ADR-0049) -- debug.28, versionCode 27"); release
+  `v1.6.6-android-debug.28` (id 419378998, the repo's Latest), APK
+  asset `v1.6.6-debug28.apk` (57,097,057 B, SHA-256
+  `4fda35bc9559b5144c4b7326cf857863ca9410913eb74c7a539d1c15135e2116`,
+  the pinned debug certificate c76bb7c6…8551d, versionCode 27 /
+  versionName 1.6.6 / minSdk 26 / targetSdk 36 by aapt; the
+  version/settings/verdict-lane strings verified in libgojni.so; the
+  asset re-downloaded and cmp'd byte-identical).
+
 - **"This one did not even open a single video, only feed refreshed" —
   the debug.27 report was the cleanest experiment result the project
   has had, and it killed the bet (ADR-0049).** `attempts=40 wins=37

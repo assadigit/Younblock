@@ -4615,3 +4615,11 @@ the lane's absence the only difference.
 Version: mobile facade "1.6.6-debug.28"; gradle versionCode 26→27
 with the round's comment block; ADR-0049, release notes, CHANGELOG,
 README, PROGRESS updated.
+Build artifact: commit 874b768; release v1.6.6-android-debug.28
+(id 419378998, the repo's Latest), APK v1.6.6-debug28.apk
+57,097,057 B, SHA-256 4fda35bc9559b5144c4b7326cf857863ca9410913
+eb74c7a539d1c15135e2116, aapt badging versionCode 27 / versionName
+1.6.6 / minSdk 26 / targetSdk 36, apksigner pinned cert
+c76bb7c6…8551d, the version/settings/verdict-lane strings verified
+in libgojni.so, and the release asset re-downloaded byte-identical
+(cmp + SHA-256).
