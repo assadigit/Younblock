@@ -4542,3 +4542,11 @@ verdicts=vs fastFails= timing).
 Version: mobile facade "1.6.6-debug.27"; gradle versionCode 25→26
 with the round's comment block; ADR-0048, release notes, CHANGELOG,
 README, PROGRESS updated.
+Build artifact: commit bfc18ed; release v1.6.6-android-debug.27
+(id 419074187, the repo's Latest), APK v1.6.6-debug27.apk
+56,144,837 B, SHA-256 3c402d83ddbcae8ab352f06a5d8b5f6081012e1b5a
+ddd6e0804627c97a0aaa9a, aapt badging versionCode 26 / versionName
+1.6.6 / minSdk 26 / targetSdk 36, apksigner pinned cert
+c76bb7c6…8551d, the M8-ai verdict-lane/door-reason/version strings
+verified in libgojni.so, and the release asset re-downloaded
+byte-identical (cmp + SHA-256).
