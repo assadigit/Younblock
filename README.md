@@ -28,28 +28,29 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're
-not releasing yet" — the release candidate, now with its first
-field report answered): download `v1.6.6-debug31.apk` from the
+not releasing yet" — the release candidate, now wearing the owner's
+own logo): download `v1.6.6-debug32.apk` from the
 repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.31` release (a regular release in this private
+`v1.6.6-android-debug.32` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug31**; it installs over any earlier
+**make sure the filename says debug32**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-debug.30 carried the owner's two pre-release asks (his icon mark as
-the launcher icon; the connect-time YouTube hand-off), and its
-field report sent the first video back to a 1–2 minute open. This
-build answers that report at its two roots: **the hand-off now
-waits** — the connect screen holds "Connecting… Getting the first
-video ready…" for a few seconds while the freshly-routing tunnel
-settles and re-proves its chain, and only then opens YouTube
-(never longer than a 15 s cap; the tester's own prescription,
-D106) — and **the tunnel's blackhole memory persists across
-sessions** (the clusters it learned dead yesterday are marked dead
-from second zero today, so the app's first video never re-pays the
-discovery — D107, doc 11 §5.3's pre-registered fix). The icon and
-the hand-off setting (still on by default) ride on unchanged; the
+**the launcher icon is now the owner's own logo** (his
+`younblock-logo-v1.png`: the 3D padlock with the play button, the
+silver shackle, the red sparks, the younblock wordmark on his dark
+gradient, recomposed for Android's masks so nothing is cropped on
+any launcher — D108), and beneath it the wait-until-ready round
+carries on: **the hand-off waits** — the connect screen holds
+"Connecting… Getting the first video ready…" for a few seconds
+while the freshly-routing tunnel settles and re-proves its chain,
+and only then opens YouTube (never longer than a 15 s cap; the
+tester's own prescription, D106) — and **the tunnel's blackhole
+memory persists across sessions** (the clusters it learned dead
+yesterday are marked dead from second zero today, so the app's
+first video never re-pays the discovery — D107, doc 11 §5.3's
+pre-registered fix). The hand-off setting stays on by default; the
 engine's measured playback behavior — **every video 5–6 seconds
 with the engine's share at half a second** (debug.29's field
 verdict), and the warm-gated hand-off now promising the first

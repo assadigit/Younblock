@@ -20,7 +20,29 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 30: the M8-an build (debug.31 -- the
+        // versionCode 31: the M8-ao build (debug.32 -- the
+        // logo-icon round, ADR-0054, D108). The owner uploaded
+        // younblock-logo-v1.png (a 449px finished icon design: the
+        // 3D padlock with the play button, the silver shackle, the
+        // red sparks, the younblock wordmark, on his own dark
+        // gradient squircle) and ruled it the app's icon. His
+        // design is a full-bleed tile -- the wordmark sits in the
+        // bottom quarter, where every Android launcher mask would
+        // crop it away -- so scripts/gen_android_icons.py (rewritten
+        // for the raster source; the M8-am icon.ico trace retires)
+        // recomposes it: the tile's own gradient as the full-bleed
+        // adaptive background, the art soft-matted out of it as the
+        // foreground with every element inside the 66dp safe circle
+        // (z=0.647, the content's extent centered; the render gates
+        // measured IoU 0.97-0.98 against the matte on every density,
+        // and the composed icon VLM-verified complete and faithful),
+        // the same silhouette as the Android 13+ monochrome layer,
+        // and the legacy tiles carry his squircle exactly as drawn.
+        // Engine and playback behavior are untouched -- no proxy,
+        // dialer, pool, tier or setting change rides in this build.
+        // Installs over debug.31 (the same pinned debug
+        // certificate -- D85).
+        // versionCode 30 was: the M8-an build (debug.31 -- the
         // wait-until-ready round, ADR-0052/0053, D106/D107).
         // The debug.30 field report: "the app reverted to our
         // old problem... 1-2 minutes... I think the app
@@ -71,7 +93,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 30
+        versionCode = 31
         versionName = "1.6.6"
     }
 

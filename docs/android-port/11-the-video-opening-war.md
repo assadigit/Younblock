@@ -28,6 +28,7 @@ persistence fix and the warm gate.
 | debug.29 | M8-ak | "I think it became better — every video opened in 5–6 seconds" | auto-timeline **500 ms × 6 pairs** (gvideo-gated) — the engine's share measured at ~10% of the felt load; the rest is the app's own ladder (fastFails=84) and buffering (§5.1) |
 | debug.30 | M8-am | "the app reverted to our old problem… 1–2 minutes… other videos opened fine" | the hand-off fired at second zero (code-read: the first serving event + TUN bound) into an empty per-session cluster memory — the discovery burn re-entered, §5.2 |
 | **debug.31** | M8-an | the answer to the prescription: "make the user wait and see connecting, only you're sure" | the warm gate (ADR-0052: 3 s settle + one re-check, a 15 s never-trap cap) + the persisted dead-cluster marks (ADR-0053: §5.3's pre-registered fix, seeded from second zero) — what the next report reads: `dead=0 (seeded=1)` right after connect, then the first video |
+| debug.32 | M8-ao | the owner's own logo on the home screen ("use this picture for app's icon") | no engine number moves — the icon recomposition (ADR-0054: his gradient full-bleed, his art matted inside the 66dp safe circle, IoU 0.97–0.98); the war's state carries from debug.31 |
 
 The arc in one sentence: a 1–2 minute video open became ~1 second by
 learning, from the tester's own diagnostic reports, **which wire
@@ -178,6 +179,13 @@ holds the hand-off until the serving run settled and re-proved its
 chain (bounded, never trapped), and the dead-cluster marks persist
 so the tunnel the app wakes into is finally the one §5.2 claimed
 (§5.3).
+
+**M8-ao (debug.32, ADR-0054) — the logo-icon round.** The owner's
+parked upload (`younblock-logo-v1.png`) was ruled the app's icon; a
+surface round by design — no proxy, dialer, pool or tier change —
+existing so that nothing of his design is eaten by a launcher mask:
+the wordmark whole on every shape, his gradient behind it, the
+war's debug.31 state carrying unchanged beneath.
 
 ---
 

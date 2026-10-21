@@ -3425,3 +3425,95 @@ a measurement note, without a full re-litigation.
   own seeding (ADR-0033/0047, already shipped) — the marks and the
   pool together are the "already marked dead and already fed" state
   doc 11 §5.2 claimed, now actually true at second zero.
+
+## ADR-0054 — The owner's logo becomes the icon: the raster recomposition (M8-ao)
+
+- **Status:** Accepted 2026-10-21 (M8-ao, debug.32, versionCode 31 —
+  decided on the owner's ruling, D108; the round after M8-an shipped
+  the wait-until-ready gate and the persisted marks).
+- **Context:** the owner uploaded `younblock-logo-v1.png` (commit
+  35dfcc1 — a 449×449 RGBA finished icon design, parked untouched
+  for his word in M8-an) and then ruled: "use this picture for app's
+  icon." The M8-am icon was a mark TRACED from a 32px icon.ico
+  because that source was too small to upscale; this source is the
+  opposite problem — a complete full-bleed design: his own squircle
+  tile (a ~10% corner radius, a 1px light rim, a top glow band, a
+  dark blue-grey gradient) carrying the 3D padlock with the play
+  button, the silver open shackle, three red impact sparks, and the
+  "younblock" wordmark ("youn" white, "block" red) in the bottom
+  quarter.
+- **Decision:**
+  1. **Recomposed, not redrawn — his pixels everywhere.** His tile
+     cannot go on the adaptive canvas full-bleed: the wordmark
+     spans 79% of the tile width in the bottom quarter, which every
+     launcher mask (the 72dp visible window) would crop away
+     entirely, and the content's reach (224.6px of the 224.5px
+     half-tile) exceeds what any full-bleed scale keeps whole. The
+     art is split the way the adaptive spec intends: the
+     **background** layer is his own dark gradient — reconstructed
+     as a smooth 2D field (a masked 32px average-pool of the tile's
+     107k background samples, nearest-cell fill, bicubic upsample;
+     mean fidelity 3.24 RGB units) rendered FULL-BLEED on the
+     108dp canvas, so the launcher's mask supplies the shape his
+     squircle owns on other platforms; the **foreground** is his
+     raster soft-matted against that field — alpha ramps on the
+     local difference from the reconstructed background (the art
+     solid, his drop shadows semi-transparent, plain background
+     fully transparent, so no tile boundary exists to show), the
+     2px rim band and the top glow band (tile-edge features, not
+     art) killed, the matte scaled z=0.647 with its extent rigidly
+     centered (a measured −20px y shift buys 5.6% larger art; his
+     arrangement untouched) so every element sits inside the 66dp
+     safe circle — the strictest mask guarantee, no
+     corner-rounding asterisks; the **monochrome** layer is the
+     same matte sharpened to a silhouette at the identical geometry
+     (the letter counters survive because the matte follows his
+     pixels); the **legacy** tiles are his squircle exactly as
+     drawn, one per density.
+  2. **The red-detection lesson, recorded:** the padlock body's 3D
+     shadow side drops to brightness ~73 — BELOW the background's
+     own ~270 — so no brightness threshold can split his red from
+     the tile's dark (the first implementation's field averaged
+     red into itself and its fidelity gate caught it, mean 19.03).
+     The content detector is chroma-based: r−g>40 (the tile's
+     background is neutral-blue, r−g≈−1; his red reads 65–174 at
+     every shading).
+  3. **The M8-am trace retires:** `drawable/ic_launcher_foreground.xml`
+     (the icon.ico vector) is deleted, the `launcher_background`
+     color entry leaves colors.xml (the background is his gradient
+     raster now), and `scripts/gen_android_icons.py` is rewritten
+     for the raster pipeline (vtracer/cairosvg leave with the
+     trace). The pill glyph stays the notification mark
+     (ADR-0051's split: the status bar tints small icons
+     monochrome, where the simple mark reads).
+- **Evidence:** the generator's gates — every one evaluated on
+  in-memory renders BEFORE any file is written: the source shape
+  gate (449×449 RGBA, the tile bbox pinned ±2px, sha256
+  a93c9c9f… printed), the field fidelity gate (mean 3.24 ≤ 6.0),
+  the per-density safe-circle reach gates (32≤33.8, 49≤50.3,
+  65≤66.8, 98≤99.8, 131≤132.8 px), the geometry proof (the
+  rendered foreground vs the source matte resampled to the same
+  geometry: IoU 0.970–0.982 ≥ 0.92 on every density), the
+  background opacity + dark-family gates, the foreground/monochrome
+  alignment gate, the composed-preview content gates (11,475 red /
+  3,119 white px at 432), the legacy tile gates. The visual proof:
+  the composed 432px icon VLM-verified on the circle and squircle
+  masks — every element (padlock, shackle, sparks, all the
+  wordmark's letters) fully inside both masks, the gradient
+  seamless, no fringes/halos/ghosts — and VLM-verified FAITHFUL
+  against the owner's original (same design, colors, wordmark,
+  gradient feel; only the expected mask crop and safe-zone scale).
+  The both-ways proof: a tampered source (bright art planted in
+  the glow band, where the band-kill rule would silently eat it)
+  fails the content-top gate at exit 1 with the res tree
+  byte-unchanged and the source restored byte-exact.
+- **Consequences:** the tester sees the owner's logo as the
+  launcher icon on every mask shape (the wordmark whole on circles
+  too), the Android 13+ themed icon carries the same silhouette,
+  and engine/playback behavior is untouched — no proxy, dialer,
+  pool, tier or setting change rides in this build; the warm gate
+  and the persisted dead-cluster marks from debug.31 carry
+  unchanged. The pipeline's pinned knobs (EXPECTED_TILE,
+  GLOW_BAND, CONTENT_RED) belong to THIS source; a future logo
+  upload re-measures them or the gates refuse rather than ship a
+  silent corruption.

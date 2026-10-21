@@ -12,6 +12,26 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (2026-10-21 — M8-ao, debug.32, versionCode 31; the logo-icon round — the owner's ruling, D108)
+
+- **The launcher icon is now the owner's own logo (D108,
+  ADR-0054).** His `younblock-logo-v1.png` upload — the finished
+  449px icon design (the 3D padlock with the play button, the
+  silver shackle, the red sparks, the "younblock" wordmark on his
+  own dark-gradient squircle) — replaces the icon.ico-traced mark
+  of debug.30. His design is a full-bleed tile whose wordmark every
+  Android launcher mask would crop away, so it ships as a faithful
+  recomposition, never a redraw: his gradient fills the masked
+  shape edge-to-edge, his art (drop shadows included) sits fully
+  inside the 66dp safe circle — nothing clipped on any launcher,
+  the render gates measured IoU 0.97–0.98 against the source matte
+  on every density and the composed icon VLM-verified complete and
+  faithful — the Android 13+ themed icon carries the same
+  silhouette, and the legacy tiles show his squircle exactly as
+  drawn. Engine and playback behavior are untouched: the warm gate
+  and the persisted dead-cluster marks from debug.31 ride on
+  unchanged.
+
 ### Fixed (2026-10-21 — M8-an, debug.31, versionCode 30; the wait-until-ready round — the debug.30 field report answered, D106/D107)
 
 - **The first-video regression the hand-off introduced, fixed at its

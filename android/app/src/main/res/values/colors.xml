@@ -2,8 +2,4 @@
 <resources>
     <color name="window_bg">#272730</color>
     <color name="brand_red">#EE3029</color>
-    <!-- The launcher icon's background layer (M8-am, ADR-0051):
-         the brand dark gen_icons.py tiles the Windows app icon
-         with — the same dark, every edition. -->
-    <color name="launcher_background">#1E1F21</color>
 </resources>

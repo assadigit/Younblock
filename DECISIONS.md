@@ -2448,3 +2448,32 @@ video is smooth and fast").**
 3. Next decision ID: D108. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D108 — the owner's logo v1 is the app's icon (the icon.ico mark
+retires, 2026-10-21, the M8-ao round — "use this picture for
+app's icon").**
+
+1. **RECORDED as ruled — `younblock-logo-v1.png` (his upload,
+   commit 35dfcc1, parked for his word in M8-an) is the launcher
+   icon's source, superseding D104's icon.ico trace.** D104's
+   structure carries: the adaptive mipmap set, the Android 13+
+   monochrome layer, the pill glyph as the notification mark. His
+   design is a finished full-bleed squircle tile — the wordmark
+   sits in the bottom quarter where every Android launcher mask
+   would crop it away — so it ships as a faithful RECOMPOSITION,
+   never a redraw: his own dark gradient as the full-bleed
+   background layer (the launcher's mask is the shape his squircle
+   owns elsewhere), his art soft-matted out of it as the foreground
+   with every element — padlock, shackle, sparks, all the
+   wordmark's letters — inside the 66dp safe circle (z=0.647, the
+   content's extent centered; render gates IoU 0.97–0.98 against
+   the matte on every density, VLM-verified complete and faithful),
+   the same silhouette as the monochrome layer, and the legacy
+   tiles carry his squircle exactly as drawn. ADR-0054 holds the
+   full record and the gate inventory.
+2. **Engine and playback behavior are untouched by this ruling** —
+   the warm gate (D106) and the persisted dead-cluster marks
+   (D107) ride into debug.32 unchanged.
+3. Next decision ID: D109. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

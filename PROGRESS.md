@@ -4913,3 +4913,94 @@ re-downloaded byte-identical (cmp + SHA-256). Decisions D106/D107
 in DECISIONS.md; ADR-0052/0053 in doc 08; doc 11 §5.2's field
 result + §5.3 the shipped record; CHANGELOG and README carry the
 round.
+
+## M8-ao — the logo-icon round (debug.32, versionCode 31)
+
+The owner's word arrived for the file M8-an parked: "use this
+picture for app's icon" — younblock-logo-v1.png, his 449×449 RGBA
+upload (commit 35dfcc1). The ruling supersedes D104's icon.ico
+source while keeping its structure (D108; ADR-0054 holds the
+record).
+
+**What the source is:** a finished full-bleed icon design — his own
+squircle tile (a ~10% corner radius, a 1px light rim, a top glow
+band, a dark blue-grey gradient) carrying the 3D padlock with the
+play button, the silver open shackle, three red impact sparks, and
+the "younblock" wordmark ("youn" white, "block" red) in the bottom
+quarter. The M8-am problem was a source too small (32px, traced to
+vector); this one is the opposite — a complete design that cannot
+go on the adaptive canvas as-is: the wordmark spans 79% of the tile
+width in the bottom quarter, where every launcher mask (the 72dp
+visible window) would crop it away ENTIRELY, and the content's
+reach (224.6px) exceeds what any full-bleed scale keeps whole.
+
+**The recomposition (D108, his pixels everywhere, never a
+redraw):** the background layer is his own dark gradient,
+reconstructed as a smooth 2D field (a masked 32px average-pool of
+the tile's 107k background samples, nearest-cell fill, bicubic
+upsample — mean fidelity 3.24 RGB units) and rendered FULL-BLEED,
+so the launcher's mask supplies the shape his squircle owns on
+other platforms; the foreground is his raster soft-matted against
+that field (alpha ramps on the local difference from the
+reconstructed background — the art solid, his drop shadows
+semi-transparent, plain background fully transparent, so no tile
+boundary exists to show; the rim band and the top glow band —
+tile-edge features, not art — killed); the matte is scaled z=0.647
+with its extent rigidly centered (a measured −20px y shift buys
+5.6% larger art; his arrangement untouched) so every element sits
+inside the 66dp safe circle, the strictest mask guarantee; the
+monochrome layer is the same matte sharpened to a silhouette at
+the identical geometry; the legacy tiles are his squircle exactly
+as drawn.
+
+**The red-detection lesson (the round's bug, caught by the
+gates):** the first implementation detected art by brightness
+(r+g+b>300) — and the padlock body's 3D shadow side drops to
+brightness ~73, BELOW the background's own ~270, so the field
+averaged his red into itself (fidelity gate: mean 19.03, refuse).
+The fix is chroma: r−g>40 splits his red from the tile's
+neutral-blue background (r−g≈−1) at every shading — the recorded
+lesson is that brightness is not a content signal on a darkly-shaded
+3D source.
+
+**The generator (scripts/gen_android_icons.py, rewritten for the
+raster pipeline; vtracer/cairosvg retire with the trace):** every
+gate evaluates on in-memory renders BEFORE any file is written —
+the source shape gate (the tile bbox pinned ±2px, sha256
+a93c9c9f… printed), the field fidelity gate (mean 3.24 ≤ 6.0), the
+per-density safe-circle reach gates (32≤33.8, 49≤50.3, 65≤66.8,
+98≤99.8, 131≤132.8 px), the geometry proof (the rendered foreground
+vs the source matte resampled: IoU 0.970–0.982 ≥ 0.92 on every
+density), the background opacity + dark-family gates, the
+foreground/monochrome alignment gate, the composed-preview content
+gates (11,475 red / 3,119 white px at 432), the legacy tile gates.
+
+**The round's verification:** the composed 432px icon
+VLM-verified on the circle and squircle masks — every element
+(padlock, shackle, sparks, all the wordmark's letters) fully
+inside both masks, the gradient seamless, no fringes/halos/ghosts
+— and VLM-verified FAITHFUL against the owner's original (same
+design, colors, wordmark, gradient feel). The both-ways proof: a
+tampered source (bright art planted in the glow band, where the
+band-kill rule would silently eat it) fails the content-top gate
+at exit 1 with the res tree byte-unchanged and the source restored
+byte-exact. No Go code changed except the mobile version string
+(1.6.6-debug.32, byte-exact patch); gofmt set identical to the
+baseline; no frontend change (the webui's wordmark favicon is the
+brand's existing mark — the launcher icon is the ruling's scope).
+Gradle versionCode 31.
+
+**The suite, honestly:** 18 of 19 packages green; the engine
+package green in full EXCEPT TestNetworkTestGatingAndStatus ("the
+network test never finished" — its 5 s poll). Proven
+environmental, not this round's: the engine code is untouched (git
+carries zero changes under internal/), and a PRISTINE HEAD worktree
+fails the same test 3/3 right now (one pass earlier, when the DoH
+endpoint answered fast — the lane's resolver.Lookup rides the real
+DoH resolver with context.Background(), so its completion time is
+the sandbox's DoH latency, which straddles the test's poll
+window); the engine suite minus that test is green in 15.7 s. The
+network-test lane is untouched by this round and no engine change
+rides in debug.32 — the M8-am precedent's "known real-network
+flake" family, today not rerun-clean because the sandbox's DoH
+path degraded mid-session.
