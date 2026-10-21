@@ -12,6 +12,32 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-al, no build; the debug.29 field verdict, recorded)
+
+- **"I think it became better — every video opened in 5–6 seconds
+  initial load."** The gvideo-gated auto-timeline's first field
+  verdict: **play → first video data = 500 ms over 6 pairs** — the
+  engine's share of the tester's felt load is ~10%, and it is the
+  chain's structural price (every live-host first byte this session
+  sat in the 443–650 ms band; DoH + dial + TLS + first byte). The
+  remaining ~5 s is the YouTube app's own dead-host ladder — the
+  report's log shows it cycling the blackholed `sn-qxau5` set
+  before every open (the same host retried across 11+ seconds at
+  the app's own ~1.3 s rhythm, each attempt answered instantly at
+  the door, `fastFails=84`) before its ladder escalates to a fresh
+  player fetch — plus first-frame buffering. The pre-registered
+  persistence candidate is NOT indicted (no pair escaped the
+  average; the dead mark held all session; the pool fed itself five
+  times). Recorded in
+  `docs/android-port/11-the-video-opening-war.md` §5.1 (plus the
+  scoreboard row and arc paragraph): **this is the release
+  state** — a 1–2 minute open became 5–6 seconds, of which the
+  engine's share is half a second. The one untried lever (DNS-layer
+  failure for dead-cluster hostnames) is noted there as a
+  post-release experiment candidate, not a blocker. No code, no
+  versionCode consumed; `v1.6.6-android-debug.29` (versionCode 28)
+  remains the latest artifact and the release candidate.
+
 ### Fixed / Added (2026-10-21 — M8-ak; shipping in `v1.6.6-android-debug.29`, versionCode 28)
 
 - **Build artifact:** commit `f84d562` ("M8-ak: the

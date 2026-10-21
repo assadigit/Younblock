@@ -47,11 +47,18 @@ so the remaining 5–10% mobile-only delay finally measures what the
 tester actually feels: play → video data, not feed bursts (the old
 heuristic's pairs were being closed by 1.4 MB image loads that
 carried no video). Playback behavior is identical to the debug.28
-the victory report measured — the next diagnostic report's timeline
-pairs, read against the fast-fail timestamps, will say which of the
-decomposed candidates owns the residual: the app's own retry ladder,
-the ~500–600 ms per-connection setup cost through the chain, the
-first-video cluster-discovery cost, or player buffering). The
+the victory report measured — and the field report has now come
+back with the answer: **every video opened in 5–6 seconds, and the
+engine's measured share of that is half a second** (play → first
+video data = 500 ms over 6 gvideo-gated pairs; every live-host
+first byte sat in the 443–650 ms band). The remaining ~5 s is the
+YouTube app's own dead-host retry ladder — the report's log shows
+it cycling the blackholed cluster's URLs before every open at the
+app's own ~1.3 s rhythm, each attempt answered instantly at the
+door — plus first-frame buffering (the verdict:
+[doc 11 §5.1](docs/android-port/11-the-video-opening-war.md)).
+That is the release state: the 1–2 minute opens of the first
+builds became 5–6 seconds, of which the chain's share is 0.5 s. The
 previous round's summary (the LANE RETIRES round: the four-round
 cross-origin substitution experiment concluded OFF, the off-switch
 no-op since debug.24 fixed, and the door back to the reset ladder

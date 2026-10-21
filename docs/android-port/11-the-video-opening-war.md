@@ -7,6 +7,8 @@ for it directly: *"document whatever you did to not miss this
 accomplishment/method."* It is the synthesis; the round-by-round
 primary sources are `08-architecture-decisions.md` (ADR-0027 through
 ADR-0050), `PROGRESS.md` (the M8 sections), and the CHANGELOG.
+**§5.1, same day: the verdict** — the debug.29 field report answered
+the question §5 decomposed.
 
 ---
 
@@ -20,6 +22,7 @@ ADR-0050), `PROGRESS.md` (the M8 sections), and the CHANGELOG.
 | debug.26 | M8-ah | "first video still buffers (less though), later videos mostly fast" | dead=1 (the cluster memory), payloadVerified=6 (the pool fed itself), fastFails=150 (the app's reset ladder) |
 | debug.27 | M8-ai | "did not even open a single video, only feed refreshed" | attempts=40 wins=37 **big=0** — the verdict lane pinned the player to the dead URL set; dead=0 (substituted flows never terminal) |
 | **debug.28** | M8-aj | **"by far our best version yet — 90% of the initial delay gone"** | dead=1, fastFails=90, cooldowns=1 lifted in 730 ms, auto-timeline **1000 ms** average over 5 pairs, 2.1 MB delivered on a live cluster |
+| debug.29 | M8-ak | "I think it became better — every video opened in 5–6 seconds" | auto-timeline **500 ms × 6 pairs** (gvideo-gated) — the engine's share measured at ~10% of the felt load; the rest is the app's own ladder (fastFails=84) and buffering (§5.1) |
 
 The arc in one sentence: a 1–2 minute video open became ~1 second by
 learning, from the tester's own diagnostic reports, **which wire
@@ -145,6 +148,13 @@ video data — instead of being closed by feed bursts (the debug.28
 report's 1.4 MB `i.ytimg` bursts were closing pairs that carried no
 video).
 
+**M8-al (no build) — the verdict.** The debug.29 field report
+answered §5's question: the engine's share of the open measured at
+**500 ms** (6 gvideo-gated pairs), the tester's felt load at 5–6 s —
+the difference is the app's own dead-host ladder plus buffering, not
+the chain (§5.1). The engine's levers on the ladder are
+field-tested exhausted; the war ends at the release state.
+
 ---
 
 ## 4. The semantic discoveries (the reusable knowledge)
@@ -223,6 +233,56 @@ each with its measurement path:
 The next report decides which of these owns the residual; none of
 them is a regression, and none justifies touching the machinery that
 produced the 90%.
+
+### 5.1 The verdict (the debug.29 report, 2026-10-21)
+
+The tester: *"I think it became better — every video opened in 5–6
+seconds initial load."* The instrument read: **auto-timeline
+play → first-data elapsed=500 ms over 6 pairs** (gvideo-gated),
+`dead=1 fastFails=84 verdicts=0`, `payloadVerified=5`,
+`cooldowns=1 lifts=1 scouts=1`, 12.5 MB delivered on the session.
+The decomposition resolves:
+
+- **The engine's share of the felt load is ~10%, and it is
+candidate 2 — the chain's structural price, measured.** Play →
+video data through DoH + dial + TLS + first byte = 500 ms, and
+uniformly: every live-host `tunnel first-byte` this session sat in
+the 443–650 ms band. Candidate 3 (the discovery cost, the
+pre-registered persistence fix) is **not indicted**: six pairs
+averaging 500 ms leaves no room for a multi-second outlier (the
+worst possible single pair is ≲1.5 s even if the other five ran at
+300 ms), the dead mark held all session (`dead=1`, marked early),
+and the pool fed itself five times — the memory did its job from
+the first open.
+- **Candidate 1 owns the residual.** The log shows the app cycling
+the dead `sn-qxau5` set before every open — the same host
+(`rr2---sn-qxau5-btqk`) retried across 11+ seconds at the app's
+own ~1.3 s rhythm, every attempt answered instantly at the door
+(zero wire, `fastFails=84`), until its ladder escalates to a fresh
+player fetch; then the engine's 500 ms; then first-data →
+first-frame buffering (~0.5–1 s at the observed throughput) —
+**press-play → frame ≈ 5–6 s, matching the felt number**. The
+engine cannot run the app's ladder faster than the app's own
+timers: the instant reset is the field-tested optimum (the
+HTTP-verdict alternative was the debug.27 sedative — §3, M8-aj).
+- **Candidate 4 stays post-open lifecycle** (`stallKillsRich=7`,
+all killed at 10 s+ idle — between-videos connection churn, not
+initial load).
+- **Why the desktop lanes barely feel it:** the same dead-URL
+ladder exists in the browser player, but pooled connections and a
+different retry schedule amortize the cycling the app pays per
+video.
+
+**Conclusion: this is the release state.** The one untried lever —
+failing dead-cluster hostnames at the DNS layer, so the app may
+skip unresolvable URLs instead of cycling them — stays a
+**post-release experiment candidate** (the pre-registered shape:
+an A/B knob, `dnsSkips=` counters, the retreat plan), not a blocker:
+the app's reaction shape is unknown, and negative DNS caching could
+outlive the engine's dead mark (10-minute TTL), undermining the
+probe/rehabilitate path. The arc ends where §1 said it did: a 1–2
+minute open became 5–6 seconds, of which the engine's share is half
+a second.
 
 ---
 

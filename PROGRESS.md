@@ -4695,3 +4695,54 @@ Build artifact: commit f84d562; release v1.6.6-android-debug.29
 c76bb7c6…8551d, the round's timeline/version strings verified in
 libgojni.so, and the release asset re-downloaded byte-identical
 (cmp + SHA-256).
+
+## M8-al — the verdict round (no build; the debug.29 field report)
+
+The tester's debug.29 report: "I think it became better, every
+video opened in 5-6 seconds initial load." The instrument's first
+verdict: auto-timeline play-suspected -> first-data elapsed=500ms
+pairs=6 (heuristic, gvideo-gated) — the engine's share of the felt
+load, measured for the first time as what the tester actually
+waits: play -> video data. Beside it: dead=1 fastFails=84
+verdicts=0, payloadVerified=5, cooldowns=1 lifts=1 scouts=1,
+substitution attempts=0 (the tombstone steady), 12.5 MB down on
+the session, no panics.
+
+The attribution, from the report's own evidence: the 5-6s felt
+load minus the 500ms engine share is the app's own dead-host
+ladder — the log shows it cycling the dead sn-qxau5 set before
+every open (the same host rr2---sn-qxau5-btqk retried across 11+
+seconds at the app's own ~1.3s rhythm, each attempt answered at
+zero wire) until the ladder escalates to a fresh player fetch —
+plus first-data -> first-frame buffering (~0.5-1s at the observed
+throughput). Candidate 3 (the pre-registered persistence fix,
+doc 11 §5.3) is NOT indicted: six pairs averaging 500ms leaves no
+room for a multi-second outlier, the dead mark held all session,
+the pool fed itself five times. Candidate 4 stays post-open
+lifecycle (stallKillsRich=7, all at 10s+ idle).
+
+The conclusion (doc 11 §5.1): the engine's levers on the app's
+ladder are field-tested exhausted — the instant reset is the
+field-tested optimum (the HTTP-verdict alternative was the
+debug.27 sedative), and the engine cannot run the app's ladder
+faster than the app's own timers. This is the release state: the
+arc stands at 1-2 minute opens -> 5-6 seconds, the engine's share
+half a second of it. The one untried lever (DNS-layer failure for
+dead-cluster hostnames, so the app may skip unresolvable URLs
+instead of cycling them) is recorded as a post-release experiment
+candidate (unknown app reaction shape; negative-caching risk
+against the 10-minute dead TTL and the rehab path), not a release
+blocker.
+
+Docs-only round (no behavior change, no versionCode consumed —
+debug.29 / versionCode 28 remains the latest artifact and the
+release candidate): doc 11 gains the debug.29 scoreboard row, the
+M8-al arc paragraph, and §5.1 (the verdict); the README's debug.29
+paragraph records the field verdict; this section and the CHANGELOG
+entry. Release-readiness stands as M8-ak left it: the owner's go +
+version naming (1.6.6 to align with the desktop line vs 1.7.0 to
+mark the milestone), the lane-off release build (versionCode 29
+next per D84), the owner-side release-keystore signing (D88/D90 —
+the key never leaves the owner's machine; a one-time uninstall
+from the debug certificate), the GitHub Latest + byte-verified
+asset loop.
