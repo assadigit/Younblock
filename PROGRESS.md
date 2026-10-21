@@ -4459,3 +4459,11 @@ HEAD rate; untouched.
 Version: mobile facade "1.6.6-debug.26"; gradle versionCode
 24→25 with the round's comment block; ADR-0047, release notes,
 CHANGELOG, README, PROGRESS updated.
+Build artifact: commit 6eddbab; release v1.6.6-android-debug.26
+(id 419033462, the repo's Latest), APK v1.6.6-debug26.apk
+56,141,329 B, SHA-256 e4148c8bedbe882ecaacdc97b054b14c3399df418
+0d509456fc42407330ad3ff, aapt badging versionCode 25 / versionName
+1.6.6 / minSdk 26 / targetSdk 36, apksigner pinned cert
+c76bb7c6…8551d, the M8-ah cluster/payload/version strings verified
+in libgojni.so, and the release asset re-downloaded byte-identical
+(cmp + SHA-256).

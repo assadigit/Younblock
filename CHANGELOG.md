@@ -14,6 +14,16 @@ every release are on the
 
 ### Fixed / Added (2026-10-21 — M8-ah; shipping in `v1.6.6-android-debug.26`, versionCode 25)
 
+- **Build artifact:** commit `6eddbab` ("M8-ah: the dead-cluster
+  memory round (ADR-0047) -- debug.26, versionCode 25"); release
+  `v1.6.6-android-debug.26` (id 419033462, the repo's Latest), APK
+  asset `v1.6.6-debug26.apk` (56,141,329 B, SHA-256
+  `e4148c8bedbe882ecaacdc97b054b14c3399df4180d509456fc42407330ad3ff`,
+  the pinned debug certificate c76bb7c6…8551d, versionCode 25 /
+  versionName 1.6.6 / minSdk 26 / targetSdk 36 by aapt; the M8-ah
+  cluster strings verified in libgojni.so; the asset re-downloaded
+  and cmp'd byte-identical).
+
 - **"Every video takes initially 1-2 minutes to open, after opening
   it's smooth" — the debug.25 report decomposed the delay exactly, and
   none of it was the breaker's fault this time (ADR-0047).** The whole
