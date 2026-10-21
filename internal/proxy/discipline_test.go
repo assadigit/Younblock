@@ -302,7 +302,10 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 		t.Fatalf("door reply = %q err=%v, want the cooldown's 502", string(buf[:n]), rerr)
 	}
 	_ = c.Close()
-	if door := pollLines(log, "WARN tunnel gvideo cooldown", 1, 2*time.Second); len(door) == 0 {
+	// M8-ai (ADR-0048): the door's rejection line now names its REASON
+	// — this flow is the breaker's cooldown (the pool is empty, the
+	// scout is spent), so reason=breaker-cooldown.
+	if door := pollLines(log, "WARN tunnel gvideo door blocked reason=breaker-cooldown", 1, 2*time.Second); len(door) == 0 {
 		t.Fatalf("the door's cooldown line must log")
 	}
 	if still := corpse1.count() + corpse2.count(); still != wire+1 {

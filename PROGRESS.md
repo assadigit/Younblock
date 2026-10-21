@@ -4467,3 +4467,78 @@ Build artifact: commit 6eddbab; release v1.6.6-android-debug.26
 c76bb7c6…8551d, the M8-ah cluster/payload/version strings verified
 in libgojni.so, and the release asset re-downloaded byte-identical
 (cmp + SHA-256).
+
+## M8-ai — the pool keeps its food round (debug.27, versionCode 26)
+
+The tester's debug.26 report: "I think we're closer than ever, this is
+probably our best so far… first video still buffers (less than
+before), later videos mostly open nearly quickly, some take a little
+longer." The M8-ah machinery measured WORKING (dead=1, payloadVerified=6,
+cooldowns=1 lifts=1 scouts=1, attempts=14 wins=12) — what remained was
+the app's dead-cluster LADDER: fastFails=150, doorFailures=150, the
+player grinding its hostname rotation against instant resets for ~40s
+per unlucky open while the verdict lane (the door's pool pass) starved
+mid-storm — pool gvideo 2 at the end, the two payload-fed marks gone
+through the storm's middle with goodDrops=16 and penalized=4 strikes=4
+beside them.
+
+The drain had three mouths (ADR-0048): (a) a substitute candidate's
+natural death demoted its pool origin (markDeadIPTTL's dropGoodIP —
+the M8-ab rule written when pool entries were handshake-certified
+guesses); (b) a pending stall kill on a substituted flow demoted the
+origin it rode; and (c) — the biggest, found by the round's own test
+before the field ever saw it — markGoodIP(ip, false) on every
+first-byte WIN REPLACED the winner's good entry, un-flagging
+media-certified origins one flow at a time: six certifications in,
+the session ended holding two. Two hypotheses retired with readings:
+the 12 substituted wins all delivered ~5KB answers (the debug.23
+shape on true positives — the cross-cluster substitute is the
+fast-verdict lane, not a media carrier; every payloadVerified rode
+win=orig), and the udp443 "fallback elapsed" samples (8.3s/23.9s) are
+heuristic pairings, not QUIC timeouts (gVisor's ICMP port-unreachable
+is already on the wire, M8-j's pin) — no QUIC work.
+
+The round (ADR-0048), one property — a media certification (the
+≥64KB payload feed or an answered real-SNI probe verdict, the only
+two writers) is revocable ONLY by its 15-minute TTL: (1) the
+no-downgrade rule — markGoodIP keeps the flag when a handshake mark
+refreshes a certified origin; (2) the demote guard — dropGoodIP
+skips gvideo-flagged marks (the strike-escalated penalty box stays
+the rotation guard both goodSubstitutes and liveIPs read);
+(3) the feed clears the box — MarkMediaVerifiedIP also clearDeadIPs
+(a fresh delivery outranks the stale death that boxed it);
+(4) the verdict lane made visible — the door's dead-cluster pool
+pass counts and logs (GvideoClusterVerdict → verdicts= on the
+clusters line, "gvideo cluster verdict" INFO line), every substituted
+flow classifies by size at flow end (SubstBig/SubstSmall → big=/
+small= on the substitution line, the bar PayloadVerifiedMinimum), and
+both doors log their refusal REASON ("cluster-dead" vs
+"breaker-cooldown") instead of the M8-ae-era message that blamed 150
+refusals on a breaker that armed once.
+
+Tests: m8ai_test.go, five shapes (TestSubstituteLossKeepsTheMediaMark,
+TestMediaFeedClearsThePenaltyBox, TestSubstitutedFlowsClassifyBySize,
+TestDoorVerdictLaneCountsAndReasons — the fourth carries the
+no-downgrade pin inside its flow-B leg). Six both-ways proofs
+EXECUTED (stash → FAIL → restore): the dropGoodIP guard, the
+clearDeadIP call, the size classification, the no-downgrade guard,
+the verdict counter, and the door reason string — every one
+FAIL-as-expected / PASS-restored. discipline_test.go's door pin
+re-pointed at the honest reason line; m8af_test.go's clusters-line
+pin extended with verdicts=0. Full 19-package suite green; -race
+green on the house gate (proxy 82s + probe + netx); gofmt -l
+identical to HEAD's list (tunnel.go's HEAD space indentation
+preserved through a python-inserted hunk; the new m8ai_test.go
+gofmt-clean).
+
+What the next report reads: substitution "big=… small=…" (is the
+lane ever a media carrier, or purely the fast-verdict lane), clusters
+"verdicts=" against fastFails= (did the lane hold through the
+storm), and the timeline's "first-byte substituted" lines beside the
+app's next move (does a verdict retire the URL set faster than a
+reset did — the round's open field question, answered by
+verdicts=vs fastFails= timing).
+
+Version: mobile facade "1.6.6-debug.27"; gradle versionCode 25→26
+with the round's comment block; ADR-0048, release notes, CHANGELOG,
+README, PROGRESS updated.

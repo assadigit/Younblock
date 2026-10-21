@@ -46,9 +46,13 @@ type Counters struct {
 
 	// M8-ab (ADR-0031/0032/0033): the cross-origin substitution's
 	// attempts and wins, and the googlevideo terminal count the
-	// gvideo loop's churn watch kicks a probe pass on.
+	// gvideo loop's churn watch kicks a probe pass on. M8-ai
+	// (ADR-0048) splits the wins by size: media-carried (big) vs the
+	// fast small verdict answer (small).
 	substAttempts   atomic.Int64
 	substWins       atomic.Int64
+	substBig        atomic.Int64
+	substSmall      atomic.Int64
 	gvideoTerminals atomic.Int64
 
 	// M8-ac (ADR-0034/0035/0036): the stall kill's pending/idle split
@@ -85,9 +89,12 @@ type Counters struct {
 	// M8-ah (ADR-0047): the dead-cluster memory and the payload-fed
 	// pool — clusters marked dead, flows fast-failed at the door for
 	// a dead cluster, the periodic re-probes, rehabilitations, and
-	// origins media-verified by delivered payload.
+	// origins media-verified by delivered payload. M8-ai (ADR-0048)
+	// adds the verdict lane's door engagements — dead-cluster flows
+	// the pool served instead of refusing.
 	gvideoClusterDeads    atomic.Int64
 	gvideoClusterFastFail atomic.Int64
+	gvideoClusterVerdicts atomic.Int64
 	gvideoClusterProbes   atomic.Int64
 	gvideoClusterRehabs   atomic.Int64
 	gvideoPayloadFeeds    atomic.Int64
@@ -201,6 +208,19 @@ func (c *Counters) SubstAttempt() { c.substAttempts.Add(1) }
 // next report reads to say the escape worked in the field.
 func (c *Counters) SubstWin() { c.substWins.Add(1) }
 
+// SubstBig counts one substituted flow that carried real media —
+// downstream bytes at or above PayloadVerifiedMinimum, the same bar
+// that certifies the origin (M8-ai, ADR-0048). big>0 in a report says
+// the cross-origin lane carried payload at least once; big=0 beside
+// small>0 says the lane is purely the fast-verdict lane.
+func (c *Counters) SubstBig() { c.substBig.Add(1) }
+
+// SubstSmall counts one substituted flow that ended below the media
+// bar (M8-ai, ADR-0048): the fast small answer — the 403/redirect
+// verdict shape both the debug.23 and debug.26 reports measured on
+// every cross-cluster substitute win.
+func (c *Counters) SubstSmall() { c.substSmall.Add(1) }
+
 // GvideoTerminal counts one googlevideo flow that terminaled after
 // its raced round AND its untried salvage all died (M8-ab, ADR-0032):
 // the churn signal the gvideo loop's 1 s watch kicks an immediate
@@ -247,6 +267,14 @@ func (c *Counters) GvideoClusterDead() { c.gvideoClusterDeads.Add(1) }
 // ADR-0047): the instant 502 that keeps the app's hostname rotation
 // cycling instead of burning a 3 s first-byte budget per attempt.
 func (c *Counters) GvideoClusterFastFail() { c.gvideoClusterFastFail.Add(1) }
+
+// GvideoClusterVerdict counts one dead-cluster flow the door passed
+// to the pool — the VERDICT LANE's engagement (M8-ai, ADR-0048): the
+// flow rides a substitute and answers on live wire instead of taking
+// an instant reset. verdicts= read against fastFails= says whether
+// the lane held through the storm; the debug.26 report read 150
+// fast-fails beside a lane that had starved on demoted pool marks.
+func (c *Counters) GvideoClusterVerdict() { c.gvideoClusterVerdicts.Add(1) }
 
 // GvideoClusterProbe counts one flow the door let through to a
 // dead-marked cluster as its periodic re-test (M8-ah, ADR-0047).
@@ -398,9 +426,12 @@ type All struct {
 	ProbeAnswered int64 `json:"probeAnswered"`
 	ProbeSilent   int64 `json:"probeSilent"`
 	ProbeReset    int64 `json:"probeReset"`
-	// M8-ab (ADR-0031/0032/0033).
+	// M8-ab (ADR-0031/0032/0033); M8-ai (ADR-0048) splits the wins by
+	// size class — media-carried vs the fast small verdict answer.
 	SubstAttempts   int64 `json:"substAttempts"`
 	SubstWins       int64 `json:"substWins"`
+	SubstBig        int64 `json:"substBig"`
+	SubstSmall      int64 `json:"substSmall"`
 	GvideoTerminals int64 `json:"gvideoTerminals"`
 	// M8-ac (ADR-0034/0035/0036): the stall kill's pending/idle split,
 	// the good-mark drops, the box rehabilitations, the DoH brownouts.
@@ -424,8 +455,10 @@ type All struct {
 	GvideoLifts  int64 `json:"gvideoLifts"`
 	// M8-ah (ADR-0047): the dead-cluster memory and the payload-fed
 	// pool — the report's "gvideo clusters:" line reads these.
+	// M8-ai (ADR-0048) adds the verdict lane's door engagements.
 	GvideoClusterDeads    int64 `json:"gvideoClusterDeads"`
 	GvideoClusterFastFail int64 `json:"gvideoClusterFastFail"`
+	GvideoClusterVerdicts int64 `json:"gvideoClusterVerdicts"`
 	GvideoClusterProbes   int64 `json:"gvideoClusterProbes"`
 	GvideoClusterRehabs   int64 `json:"gvideoClusterRehabs"`
 	GvideoPayloadFeeds    int64 `json:"gvideoPayloadFeeds"`
@@ -465,6 +498,8 @@ func (c *Counters) Diagnostic() All {
 		ProbeReset:            c.probeReset.Load(),
 		SubstAttempts:         c.substAttempts.Load(),
 		SubstWins:             c.substWins.Load(),
+		SubstBig:              c.substBig.Load(),
+		SubstSmall:            c.substSmall.Load(),
 		GvideoTerminals:       c.gvideoTerminals.Load(),
 		StallLeanPending:      c.stallLeanPending.Load(),
 		StallLeanIdle:         c.stallLeanIdle.Load(),
@@ -479,6 +514,7 @@ func (c *Counters) Diagnostic() All {
 		GvideoLifts:           c.gvideoLifts.Load(),
 		GvideoClusterDeads:    c.gvideoClusterDeads.Load(),
 		GvideoClusterFastFail: c.gvideoClusterFastFail.Load(),
+		GvideoClusterVerdicts: c.gvideoClusterVerdicts.Load(),
 		GvideoClusterProbes:   c.gvideoClusterProbes.Load(),
 		GvideoClusterRehabs:   c.gvideoClusterRehabs.Load(),
 		GvideoPayloadFeeds:    c.gvideoPayloadFeeds.Load(),

@@ -202,10 +202,13 @@ func (s *Server) serveSocks5(conn net.Conn) {
 	// the app's own door. Same contract as the HTTP door: googlevideo
 	// during a cooldown gets its failure reply with ZERO wire so the
 	// player rotates hostnames and the flag decays; every other SNI
-	// class passes untouched.
-	if s.gvideoDoorBlocked(host) {
+	// class passes untouched. M8-ai (ADR-0048): the door logs the
+	// REASON it refused ("cluster-dead" vs "breaker-cooldown") — the
+	// debug.26 report's ring blamed 150 refusals on a breaker that
+	// armed once (the rest were dead-cluster fast-fails).
+	if reason := s.gvideoDoorBlockReason(host); reason != "" {
 		if s.cfg.Logger != nil {
-			s.cfg.Logger.Warn("socks5 gvideo cooldown (emission breaker: wire quiet)")
+			s.cfg.Logger.Warn("socks5 gvideo door blocked reason=" + reason)
 		}
 		s.socks5Reply(conn, socks5RepGeneralFailure)
 		s.countConnError()

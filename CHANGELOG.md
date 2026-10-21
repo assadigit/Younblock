@@ -12,6 +12,42 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-ai; shipping in `v1.6.6-android-debug.27`, versionCode 26)
+
+- **"First video still buffers (less than before), later videos mostly
+  open nearly quickly" — the debug.26 report showed the M8-ah machinery
+  working and the remaining cost was the app's dead-cluster ladder
+  (ADR-0048).** dead=1 (the cluster memory engaged), payloadVerified=6
+  (the pool fed itself), cooldowns=1 lifts=1 scouts=1 (the breaker
+  nearly silent), attempts=14 wins=12 (the substitute lane carried
+  flows) — but fastFails=150: the player ground its hostname rotation
+  against instant resets for ~40s per unlucky open because the verdict
+  lane STARVED mid-storm. The pool was an OUTFLOW machine, drained
+  through three mouths: substitute race losses demoted their pool
+  origins (the M8-ab rule), pending stall kills demoted the origins
+  substituted flows rode, and — the biggest, found by this round's own
+  test before the field saw it — every first-byte WIN replaced the
+  winner's good-table entry with a handshake mark, un-flagging
+  media-certified origins one flow at a time (six certifications in,
+  the session ended holding two).
+- **The four fixes (ADR-0048), one property — a media certification
+  (≥64KB delivered payload or an answered real-SNI probe) is revocable
+  ONLY by its 15-minute TTL:** (1) the no-downgrade rule (a handshake
+  mark refreshes a certified origin without clearing the flag);
+  (2) the demote guard (death demotes skip media-certified marks — the
+  strike-escalated penalty box stays the rotation guard); (3) the feed
+  clears the box (a fresh media delivery outranks the stale death that
+  boxed it); (4) the verdict lane made visible — the door's
+  dead-cluster pool pass counts and logs (`verdicts=` on the clusters
+  line), every substituted flow classifies by size (`big=`/`small=` on
+  the substitution line), and the doors log their refusal REASON
+  (`cluster-dead` vs `breaker-cooldown`) instead of blaming every
+  refusal on the breaker. With the pool fed, every dead-cluster flow
+  the app sends rides a substitute and answers on live wire instead of
+  taking a reset — IF the player retires a URL set faster on an HTTP
+  verdict than on resets, the unlucky opens lose their whole ladder
+  (the next report's verdicts= vs fastFails= settles it).
+
 ### Fixed / Added (2026-10-21 — M8-ah; shipping in `v1.6.6-android-debug.26`, versionCode 25)
 
 - **Build artifact:** commit `6eddbab` ("M8-ah: the dead-cluster

@@ -685,6 +685,26 @@ func (s *Server) logTunnelDone(host, class string, d time.Duration, m *flowMeter
                         }
                 }
         }
+        // M8-ai (ADR-0048): the verdict lane's size class. A substituted
+        // flow that carried real media (down ≥ PayloadVerifiedMinimum —
+        // the same bar that certifies the origin) is big; every fast
+        // small answer is small — the 403/redirect verdict shape BOTH the
+        // debug.23 (18 wins, every flow ≤12.1 KB) and debug.26 (12 wins,
+        // every flow ~5 KB) reports measured on cross-cluster
+        // substitutes, while every payload verification rode an own-dial
+        // win=orig flow. big= vs small= on the substitution line settles
+        // next report whether the lane ever carries media or is purely
+        // the fast-verdict lane — and the timeline's "first-byte
+        // substituted" lines beside the app's next move tell whether the
+        // verdict retired the URL set faster than a reset did. Counted
+        // before the Logger guard: behavior, not logging.
+        if ev != nil && ev.winnerClass() == "subst" {
+                if s.cfg.PayloadVerifiedMinimum > 0 && m.down.Load() >= s.cfg.PayloadVerifiedMinimum {
+                        s.stats.SubstBig()
+                } else {
+                        s.stats.SubstSmall()
+                }
+        }
         if s.cfg.Logger == nil {
                 return
         }

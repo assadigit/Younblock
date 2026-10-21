@@ -2904,6 +2904,134 @@ DOWN, not up (M8-ad)
   and whether the qxau5 blackhole is stable across days (the probe's
   rehabilitated= count and the next session's discovery cost say so).
 
+## ADR-0048 — The pool keeps its food: media certification becomes non-downgradable, and the verdict lane stays fed (M8-ai)
+
+- **Status:** Accepted 2026-10-21 (M8-ai, debug.27 — decided entirely
+  on the debug.26 field report, the first report carrying M8-ah's
+  dead-cluster/payload-fed telemetry).
+- **Context:** "I think we're closer than ever, this is probably our
+  best so far… first video still buffers (less than before), later
+  videos mostly open nearly quickly, some take a little longer." The
+  M8-ah machinery measured WORKING: dead=1 (the sn-qxau5 memory
+  engaged), payloadVerified=6 (the pool fed itself from real
+  traffic), cooldowns=1 lifts=1 scouts=1 (the breaker and its
+  escapes nearly silent — the arm gate holds), attempts=14 wins=12
+  (the substitute lane carried flows). What remained was the app's
+  dead-cluster LADDER: fastFails=150, doorFailures=150 — the player
+  ground its hostname rotation against instant resets for ~40 s per
+  unlucky open, because the verdict lane (the door's pool pass that
+  answers a dead-cluster flow on live wire) STARVED mid-storm: pool=13
+  → the two payload-fed gvideo marks were gone by the storm's middle,
+  with goodDrops=16 and penalized=4 strikes=4 beside them. The
+  drain had three mouths, all found in the code this round and one
+  of them by the round's own test before the field ever saw it:
+  (a) a substitute candidate's natural death demoted its pool origin
+  (markDeadIPTTL's dropGoodIP — the M8-ab rule, written when pool
+  entries were handshake-certified guesses); (b) a pending stall
+  kill on a substituted flow demoted the origin it rode
+  (tunnel.go's dropGoodIP); and (c) — the biggest, found when
+  TestSubstitutedFlowsClassifyBySize's second flow lost its
+  substitute — markGoodIP(ip, false) on every first-byte WIN
+  REPLACED the winner's good entry, so a media-certified origin was
+  UN-FLAGGED by the very next flow that used it: its own cluster's
+  next dial, or a substituted verdict flow riding it. Six payload
+  certifications in, the session ended holding two — the pool was an
+  outflow machine. Two more readings retired old hypotheses: the
+  substituted flows' 12 wins all delivered ~5 KB answers (the
+  debug.23 report measured the identical shape — 18 wins, every
+  flow ≤12.1 KB — on a pool of false positives; now the same shape
+  on TRUE positives says the cross-cluster substitute is the
+  fast-verdict lane, not a media carrier: every payloadVerified
+  event rode an own-dial win=orig flow), and the two
+  "udp443 fallback elapsed" samples (8.3 s / 23.9 s) are heuristic
+  pairings (a drop beside the NEXT TCP flow to the same host,
+  whenever the app's ladder got there) — NOT the app's QUIC timeout
+  (gVisor's ICMPv4 type 3/code 3 for udp443 is already on the wire,
+  pinned by the M8-j test; no QUIC work is warranted).
+- **Decision:** four changes, all in service of one property — a
+  media certification is the strongest evidence the engine owns
+  (a ≥64 KB delivered payload or an answered real-SNI probe
+  verdict, the only two writers), so it is revocable ONLY by its
+  15-minute TTL. (1) THE NO-DOWNGRADE RULE (markGoodIP): a
+  handshake mark on a media-certified origin refreshes the
+  preference and KEEPS the flag — first-byte wins and probe
+  handshake verdicts stop un-flagging the origins that carry them.
+  (2) THE DEMOTE GUARD (dropGoodIP): death demotes (substitute
+  race losses via markDeadIPTTL, pending stall kills) skip
+  gvideo-flagged marks entirely — the penalty BOX with its strike
+  escalation (60 s → 2 m → 5 m) is the rotation guard both
+  goodSubstitutes and liveIPs already read, so a genuinely dead
+  media origin still leaves every dial list; only the TTL revokes
+  the certification. (3) THE FEED CLEARS THE BOX
+  (MarkMediaVerifiedIP now also calls clearDeadIP): a fresh media
+  delivery is direct liveness evidence that outranks the stale
+  death that boxed it — the rehabilitation write's own contract —
+  so a re-certified origin re-enters the lane at once instead of
+  sitting invisible through its whole escalated box.
+  (4) THE VERDICT LANE MADE VISIBLE: the door's dead-cluster pool
+  pass counts (GvideoClusterVerdict → `verdicts=` on the clusters
+  line) and logs ("gvideo cluster verdict (pool serves the dead
+  cluster's flow)"); every substituted flow classifies at flow end
+  by size — down ≥ PayloadVerifiedMinimum is big (real media
+  cross-cluster), below is small (the fast 403/redirect verdict)
+  — on the substitution line as `big=… small=…`; and both doors
+  log the REASON they refused a googlevideo flow
+  ("cluster-dead" vs "breaker-cooldown") instead of the M8-ae-era
+  message that blamed 150 refusals on a breaker that armed once.
+- **Evidence:** internal/proxy/m8ai_test.go, all shapes with
+  EXECUTED both-ways proofs (stash → FAIL → restore): shape 1
+  TestSubstituteLossKeepsTheMediaMark (a substitute's natural death
+  on a media-certified origin: the mark survives, goodDrops stays
+  0, the box holds the lane dry, and the next media feed re-opens
+  it — with the dropGoodIP guard stashed the test FAILS on the
+  demoted mark); shape 2 TestMediaFeedClearsThePenaltyBox (with
+  clearDeadIP stashed, FAILS on the still-boxed origin); shape 3
+  TestSubstitutedFlowsClassifyBySize (small echo answer → small,
+  8 KB carried payload → big + payload feed — with the
+  classification stashed, FAILS at small=0; with the no-downgrade
+  guard stashed, FAILS on the un-flagged pool: flow B loses its
+  substitute and terminals, the exact field starvation in
+  miniature); shape 4 TestDoorVerdictLaneCountsAndReasons
+  (cluster-dead with an empty pool, the counted verdict pass with
+  a fed one, non-gvideo never gated — with the counter stashed,
+  FAILS at verdicts=0; with the reason swapped, FAILS on the wrong
+  word). discipline_test.go's door pin re-pointed at the honest
+  reason line; m8af_test.go's clusters-line pin extended with
+  verdicts=0. Full 19-package suite green; -race green on the
+  house gate (proxy 82 s + probe + netx); gofmt -l identical to
+  HEAD's list (the edit-tool space-ification caught and restored
+  again, tunnel.go's HEAD indentation preserved through a
+  python-inserted hunk).
+- **Consequences:** the storm's shape inverts. With the pool fed
+  (marks survive wins, deaths and re-certifications), every
+  dead-cluster flow the app sends rides the verdict lane — one
+  substitute dial, a fast HTTP answer on live wire — instead of an
+  instant reset: verdicts= rises against fastFails=, and IF the
+  player retires a URL set faster on a 403/redirect than on
+  connection resets (the field question big=/small= plus the
+  timeline's "first-byte substituted" lines beside the app's next
+  move will settle), the unlucky opens lose their whole reset
+  ladder. If verdicts change nothing for the app, the lane costs
+  one dial per attempt (bounded by the app's own retry cadence)
+  and the report says so honestly — the counters exist precisely
+  so the next round decides with numbers. The report reads:
+  `substitution: attempts=… wins=… big=… small=… pool=… (gvideo …)`
+  and `gvideo clusters: dead=… fastFails=… verdicts=… probes=…
+  rehabilitated=… payloadVerified=…`; the doors' WARN lines name
+  their gate. The A/B switches keep their meanings (substitution
+  off empties the lane exactly as before, the guards are no-ops on
+  preference marks).
+- **What this ADR does NOT decide:** whether an HTTP verdict
+  actually shortens the player's URL-set ladder (the next report's
+  verdicts= vs fastFails= timeline answers; if not, the door goes
+  back to fast-fail and the lane stays a diagnostic); whether big=
+  is ever nonzero in the field (a cross-cluster media carry would
+  falsify the mn-binding reading of videoplayback URLs — zero
+  across two debug builds so far); and whether 15 minutes is the
+  right certification TTL (a session shorter than the censor's
+  cluster churn keeps it; the pool file's media lines re-seed the
+  next session regardless).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

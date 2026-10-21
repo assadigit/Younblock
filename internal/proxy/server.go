@@ -777,10 +777,13 @@ func (s *Server) handleTunnel(client net.Conn, br *bufio.Reader, target string) 
 	// host: reply 502 NOW, zero wire, no resolve, no dial — the app's
 	// player re-fetches and rotates hostnames while the cooldown lets
 	// any per-source SNI flag decay. The feed's hosts (a different SNI
-	// class) pass untouched, which is the whole point.
-	if s.gvideoDoorBlocked(host) {
+	// class) pass untouched, which is the whole point. M8-ai
+	// (ADR-0048): the door logs the REASON it refused — the debug.26
+	// report's ring blamed 150 refusals on a breaker that armed once
+	// (the rest were dead-cluster fast-fails).
+	if reason := s.gvideoDoorBlockReason(host); reason != "" {
 		if s.cfg.Logger != nil {
-			s.cfg.Logger.Warn("tunnel gvideo cooldown (emission breaker: wire quiet)")
+			s.cfg.Logger.Warn("tunnel gvideo door blocked reason=" + reason)
 		}
 		s.reply(client, statusBadGateway)
 		s.countConnError()
@@ -1107,12 +1110,32 @@ func (s *Server) markDeadIPTTL(ip string, base time.Duration) {
 // number the report reads). The table's FIFO order entry is kept —
 // a later re-mark refreshes it in place, and expired entries sweep
 // cheaply on access.
+//
+// M8-ai (ADR-0048): a MEDIA-certified mark (gvideo=true — a ≥64 KB
+// delivered payload or an answered real-SNI probe verdict, the only
+// two writers) is NOT droppable by a death demote. The debug.26
+// report measured the verdict lane starving exactly this way: the
+// session's two payload-fed marks were demoted mid-storm (with the
+// pending-kill demotes beside them, goodDrops=16), the door went
+// back to fast-failing, and the app ground 150 resets against a
+// blackholed cluster for half a minute — the debug.23 report's
+// "pool consuming itself" (goodDrops=17, gvideo 4→0) on the new
+// payload-fed pool. A death still BOXES the origin (strike-
+// escalated — the rotation guard goodSubstitutes and liveIPs already
+// read), so a genuinely dead media origin still leaves the lane;
+// only the 15-minute TTL revokes the certification itself.
 func (s *Server) dropGoodIP(ip string) {
 	if ip == "" {
 		return
 	}
 	s.goodMu.Lock()
 	if m, ok := s.good[ip]; ok && m.until.After(time.Now()) {
+		if m.gvideo {
+			// M8-ai (ADR-0048): media certification survives death
+			// demotes — the box owns rotation, the TTL owns expiry.
+			s.goodMu.Unlock()
+			return
+		}
 		m.until = time.Now() // expires on the next access
 		s.good[ip] = m
 		s.goodMu.Unlock()
@@ -1134,11 +1157,22 @@ func (s *Server) dropGoodIP(ip string) {
 // is now MEDIA-VERIFIED evidence, written ONLY by the W7 network
 // test's "answered" verdicts (a deliberately bad GET /videoplayback
 // that still got an HTTP status line — the one proof an address can
-// carry video). First-byte wins and handshake-only probe verdicts
-// still prefer (gvideo=false), but they can never feed the
-// substitution pool again: the debug.23 report measured that pool
-// consuming itself on false positives — 18 substitution "wins", every
-// flow <=12.1 KB, goodDrops=17, pool gvideo 4->0.
+// carry video) and by delivered payload (M8-ah). First-byte wins and
+// handshake-only probe verdicts still prefer (gvideo=false), but they
+// can never feed the substitution pool again: the debug.23 report
+// measured that pool consuming itself on false positives — 18
+// substitution "wins", every flow <=12.1 KB, goodDrops=17, pool
+// gvideo 4->0.
+//
+// M8-ai (ADR-0048): a handshake mark must not ERASE media evidence
+// either. The old write REPLACED the entry, so every first-byte win
+// on a media-certified origin — its own cluster's next flow, or a
+// substituted verdict flow riding it — flipped the flag back to false
+// and silently drained the pool: the debug.26 session fed six
+// payload certifications and ended holding two, every winner
+// un-flagging the origin that carried it. A handshake mark on a
+// media-certified origin now refreshes the preference and KEEPS the
+// certification; only TTL expiry clears it.
 func (s *Server) markGoodIP(ip string, gvideo bool) {
 	if ip == "" {
 		return
@@ -1156,6 +1190,12 @@ func (s *Server) markGoodIP(ip string, gvideo bool) {
 		}
 		s.goodOrder = append(s.goodOrder, ip)
 	}
+	if m, ok := s.good[ip]; ok && m.gvideo {
+		// M8-ai (ADR-0048): media certification is never downgraded by
+		// a handshake mark — refreshed, kept, expired only by TTL.
+		s.good[ip] = goodMark{until: time.Now().Add(config.OriginProbeGoodTTL), gvideo: true}
+		return
+	}
 	s.good[ip] = goodMark{until: time.Now().Add(config.OriginProbeGoodTTL), gvideo: gvideo}
 }
 
@@ -1167,8 +1207,17 @@ func (s *Server) markGoodIP(ip string, gvideo bool) {
 // feed): the only two evidence classes that may feed the googlevideo
 // substitution pool. Same TTL as every good mark; the gvideo flag
 // only these paths write.
+//
+// M8-ai (ADR-0048): the certification also CLEARS the origin's
+// penalty box — a fresh media delivery (or an answered real-SNI
+// probe) is direct liveness evidence that outranks the stale death
+// that boxed it, exactly the rehabilitation write's own contract.
+// Without this a boxed-but-verified origin sat invisible to the
+// substitute lane for its whole escalated box even while its own
+// cluster's flows kept re-certifying it.
 func (s *Server) MarkMediaVerifiedIP(ip string) {
 	s.markGoodIP(ip, true)
+	s.clearDeadIP(ip)
 }
 
 // gvideoTerminalStamp is one googlevideo death in the emission
@@ -1312,11 +1361,14 @@ func (s *Server) liftGvideoBreaker(reason string) {
 	}
 }
 
-// gvideoDoorBlocked reports whether the doors refuse THIS googlevideo
-// host without a dial (M8-ae, ADR-0041; M8-ag, ADR-0046; M8-ah,
-// ADR-0047). Googlevideo hosts only — youtube.com, ytimg, ggpht and
-// every other SNI class keeps full service, which is why the FEED
-// keeps refreshing while the video path goes quiet.
+// gvideoDoorBlockReason reports why the doors refuse THIS googlevideo
+// host without a dial — "" when they pass it (M8-ae, ADR-0041; M8-ag,
+// ADR-0046; M8-ah, ADR-0047; M8-ai, ADR-0048). Googlevideo hosts only
+// — youtube.com, ytimg, ggpht and every other SNI class keeps full
+// service, which is why the FEED keeps refreshing while the video path
+// goes quiet. The doors log the reason they return, so the report's
+// ring never blames the wrong gate ("cluster-dead" or
+// "breaker-cooldown").
 //
 // Two gates, in order:
 //
@@ -1330,6 +1382,14 @@ func (s *Server) liftGvideoBreaker(reason string) {
 // probe is due. An answered own-dial rehabilitates the cluster at
 // once (noteGvideoClusterAlive).
 //
+// M8-ai (ADR-0048): the pool pass here is the VERDICT LANE, and it
+// now counts and logs — the debug.26 report's storm read 150
+// fast-fails beside a pool that had served verdict flows 30 seconds
+// earlier: the lane had starved on demoted marks while the app ground
+// its hostname ladder against instant resets. verdicts= on the
+// clusters line is the lane's engagement number the next report reads
+// against fastFails=.
+//
 // (2) The emission breaker's cooldown (M8-ae/M8-ag): the pool escape
 // and the scout as debug.25 shipped them.
 //
@@ -1339,13 +1399,21 @@ func (s *Server) liftGvideoBreaker(reason string) {
 // silenced. Respects the substitution switch and knob
 // (goodSubstitutes): substitution off keeps both gates at their pure
 // shapes.
-func (s *Server) gvideoDoorBlocked(host string) bool {
+func (s *Server) gvideoDoorBlockReason(host string) string {
 	if !isGvideoHost(host) {
-		return false
+		return ""
 	}
 	if s.gvideoClusterDead(host) {
 		if s.goodSubstitutes(nil, 1) != nil {
-			return false // the pool serves this flow — verified wire
+			s.stats.GvideoClusterVerdict()
+			if s.cfg.Logger != nil {
+				msg := "gvideo cluster verdict (pool serves the dead cluster's flow)"
+				if s.cfg.LogHostnames {
+					msg += " host=" + host
+				}
+				s.cfg.Logger.Info(msg)
+			}
+			return "" // the pool serves this flow — verified wire
 		}
 		if s.claimGvideoClusterProbe(host) {
 			s.stats.GvideoClusterProbe()
@@ -1356,7 +1424,7 @@ func (s *Server) gvideoDoorBlocked(host string) bool {
 				}
 				s.cfg.Logger.Info(msg)
 			}
-			return false
+			return ""
 		}
 		s.stats.GvideoClusterFastFail()
 		if s.cfg.Logger != nil {
@@ -1366,22 +1434,22 @@ func (s *Server) gvideoDoorBlocked(host string) bool {
 			}
 			s.cfg.Logger.Warn(msg)
 		}
-		return true
+		return "cluster-dead"
 	}
 	if !s.gvideoCoolingDown() {
-		return false
+		return ""
 	}
 	if s.goodSubstitutes(nil, 1) != nil {
-		return false // the pool serves this flow — verified wire
+		return "" // the pool serves this flow — verified wire
 	}
 	if s.claimGvideoScout() {
 		s.stats.GvideoScout()
 		if s.cfg.Logger != nil {
 			s.cfg.Logger.Info("gvideo emission breaker scout (one flow probes the wire)")
 		}
-		return false
+		return ""
 	}
-	return true
+	return "breaker-cooldown"
 }
 
 // gvideoClusterTable is the googlevideo dead-cluster memory (M8-ah,

@@ -459,13 +459,18 @@ func (e *Engine) GetDiagnosticReport() string {
 	// escape worked in the field: attempts without wins means the
 	// cross-cache bet failed and the next round needs a different
 	// shape; wins with a shrinking auto-timeline means it worked.
-	// Counts only (R21).
+	// M8-ai (ADR-0048) adds the size class: big= substituted flows that
+	// carried real media (down at the PayloadVerifiedMinimum bar),
+	// small= the fast small verdict answers — debug.23 and debug.26
+	// both measured every win small, so big=0 beside small>0 says the
+	// lane is the fast-verdict lane, not a media carrier. Counts only
+	// (R21).
 	poolTotal, poolGvideo := 0, 0
 	if srv := e.RunningServer(); srv != nil {
 		poolTotal, poolGvideo = srv.GoodIPStats()
 	}
-	fmt.Fprintf(&b, "substitution: attempts=%d wins=%d pool=%d (gvideo %d)\n",
-		d.SubstAttempts, d.SubstWins, poolTotal, poolGvideo)
+	fmt.Fprintf(&b, "substitution: attempts=%d wins=%d big=%d small=%d pool=%d (gvideo %d)\n",
+		d.SubstAttempts, d.SubstWins, d.SubstBig, d.SubstSmall, poolTotal, poolGvideo)
 	// M8-ah (ADR-0047): the dead-cluster memory and the payload-fed
 	// pool — dead= how many sn-clusters carry a live dead mark,
 	// fastFails= the instant door refusals that kept the app's
@@ -476,8 +481,13 @@ func (e *Engine) GetDiagnosticReport() string {
 	// The debug.25 report read dead clusters nowhere and an empty
 	// pool (gvideo 0, attempts 0) beside scout-carried 1.8 MB flows;
 	// this line says which of those worlds the next report is in.
-	fmt.Fprintf(&b, "gvideo clusters: dead=%d fastFails=%d probes=%d rehabilitated=%d payloadVerified=%d\n",
-		d.GvideoClusterDeads, d.GvideoClusterFastFail, d.GvideoClusterProbes, d.GvideoClusterRehabs, d.GvideoPayloadFeeds)
+	// M8-ai (ADR-0048) adds verdicts= — dead-cluster flows the pool
+	// SERVED at the door (the verdict lane's engagements): the
+	// debug.26 report read 150 fast-fails beside a lane that had
+	// starved on demoted pool marks; verdicts= read against
+	// fastFails= says whether the lane held this time.
+	fmt.Fprintf(&b, "gvideo clusters: dead=%d fastFails=%d verdicts=%d probes=%d rehabilitated=%d payloadVerified=%d\n",
+		d.GvideoClusterDeads, d.GvideoClusterFastFail, d.GvideoClusterVerdicts, d.GvideoClusterProbes, d.GvideoClusterRehabs, d.GvideoPayloadFeeds)
 	// M8-ae (ADR-0042): the wire-discipline evidence — the googlevideo
 	// hellos the engine actually put on the wire this session (flow
 	// candidates + substitutes + probe jobs) and the emission breaker's

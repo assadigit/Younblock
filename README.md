@@ -28,33 +28,33 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug26.apk` from the repo's
+releasing yet"): download `v1.6.6-debug27.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.26` release (a regular release in this private
+`v1.6.6-android-debug.27` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug26**; it installs over any earlier
+**make sure the filename says debug27**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build is the DEAD-CLUSTER MEMORY round the debug.25 field
-report forced ("every video takes initially 1-2 minutes to open,
-after opening it's smooth"): the whole qxau5 video-cache cluster is
-blackholed on the tester's network — every dial accepts and no
-video-server byte ever returns — so each attempt burned its full
-3-second budget while the app rotated through the same dead hosts,
-and the substitution pool sat empty because only the manually
-pressed network test could feed it. Now three silent deaths on one
-cluster mark the CLUSTER dead: its hosts fail instantly at the door
-(no burn, the app's rotation reaches live clusters in seconds), a
-flow that delivered real video bytes feeds the pool automatically,
-the emission breaker no longer arms on single-cluster deaths, and
-the pool persists across restarts — so the first video of every
-later session rides the previously verified origin; the report gains
-a "gvideo clusters:" line that says which of these fired). The
-previous round's summary (the BREAKER-STOPS-STARVING round: the
-emission breaker let media-proven addresses serve through a
-cooldown, sent the cooldown's first video flow to the wire as a
-scout, lifted the cooldown the moment any video server answered, and
-capped it at 15 seconds — see ADR-0046 and the release notes); the
+this build is the POOL KEEPS ITS FOOD round the debug.26 field
+report forced (first video still buffered, later videos mostly
+opening fast — the report showed every piece of the dead-cluster
+machinery working, but the player still ground ~40 seconds of
+connection resets against the blackholed cluster whenever a video's
+URLs landed there, because the substitution pool kept DRAINING
+itself mid-storm: a lost substitute race demoted its origin, a
+pending-kill demoted another, and — the big one this round's own
+test caught before the field did — every successful flow silently
+UN-FLAGGED the very origin it rode. Now a media certification (an
+origin that delivered real video bytes) survives wins, deaths and
+re-certifications, only its 15-minute TTL retires it; the pool stays
+fed, so every dead-cluster attempt answers on live wire through a
+substitute instead of taking a reset; and the report gains the
+numbers that prove which happened — `verdicts=` on the clusters line
+and `big=`/`small=` on the substitution line). The
+previous round's summary (the DEAD-CLUSTER MEMORY round: the
+cluster-keyed blackhole detection with instant door fast-fails, the
+payload-fed pool, the multi-cluster breaker gate, and the persisted
+pool file — see ADR-0047 and the release notes); the
 release notes
 carry every earlier round's story in place.
 Sign in with your
