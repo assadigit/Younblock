@@ -4687,3 +4687,11 @@ list.
 Version: mobile facade "1.6.6-debug.29"; gradle versionCode 27→28
 with the round's comment block; ADR-0050, doc 11, the pack README
 index, release notes, CHANGELOG, README, PROGRESS updated.
+Build artifact: commit f84d562; release v1.6.6-android-debug.29
+(id 419414818, the repo's Latest), APK v1.6.6-debug29.apk
+57,114,657 B, SHA-256 e1a306b4b230f242846ea2d05c12439c4752cf39a
+902a07a656405132cfd9904, aapt badging versionCode 28 / versionName
+1.6.6 / minSdk 26 / targetSdk 36, apksigner pinned cert
+c76bb7c6…8551d, the round's timeline/version strings verified in
+libgojni.so, and the release asset re-downloaded byte-identical
+(cmp + SHA-256).

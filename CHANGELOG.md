@@ -14,6 +14,17 @@ every release are on the
 
 ### Fixed / Added (2026-10-21 — M8-ak; shipping in `v1.6.6-android-debug.29`, versionCode 28)
 
+- **Build artifact:** commit `f84d562` ("M8-ak: the
+  method-documentation round (ADR-0050, doc 11) -- debug.29,
+  versionCode 28"); release `v1.6.6-android-debug.29` (id 419414818,
+  the repo's Latest), APK asset `v1.6.6-debug29.apk` (57,114,657 B,
+  SHA-256
+  `e1a306b4b230f242846ea2d05c12439c4752cf39a902a07a656405132cfd9904`,
+  the pinned debug certificate c76bb7c6…8551d, versionCode 28 /
+  versionName 1.6.6 / minSdk 26 / targetSdk 36 by aapt; the round's
+  timeline/version strings verified in libgojni.so; the asset
+  re-downloaded and cmp'd byte-identical).
+
 - **"By far our best version yet — 90% of the initial delay of each
   video is gone… still worth investigating the remaining 10-5% delay
   in mobile… document whatever you did to not miss this
