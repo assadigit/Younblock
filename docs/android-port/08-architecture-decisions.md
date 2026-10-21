@@ -3138,6 +3138,64 @@ DOWN, not up (M8-ad)
   stability across days changes the calculus (the pool file's media
   lines still seed dial-list preference either way).
 
+## ADR-0050 — The timeline measures video: the auto-timeline re-scopes to googlevideo (M8-ak)
+
+- **Status:** Accepted 2026-10-21 (M8-ak, debug.29 — decided on the
+  debug.28 field report, the round the tester called the best yet and
+  asked for the method to be documented: doc 11).
+- **Context:** "90% of the initial delay of each video is gone…
+  still worth investigating the remaining 10-5% delay in mobile,
+  which almost doesn't happen in pc and linux." The instrument for
+  that investigation — the auto-timeline's play-suspected →
+  first-data pairs — cannot currently measure the tester's quantity:
+  the play stamp fires on ANY routed flow burst (a feed refresh looks
+  exactly like a play wave) and the first-data stamp closes on ANY
+  down burst (the debug.28 report's own log shows a 1.4 MB i.ytimg
+  feed burst — no video at all — closing a pair). The 1000 ms/pairs=5
+  average it reported is a mixture of feed loads and plays.
+- **Decision:** both stamps re-scope to googlevideo at the source. A
+  play-suspected is a GOOGLEVIDEO flow start after at least 5 s of
+  googlevideo quiet (the app only dials googlevideo for
+  videoplayback/redirector machinery — feed images and API calls
+  never touch it); a first-data is a GOOGLEVIDEO first byte beyond
+  the baseline the play stamped at (with the substitution lane
+  retired there are no verdict answers left to fool it — a googlevideo
+  first byte is a live video flow answering). Two new counters
+  (GvideoFlows at logTunnelUp's routed branch, GvideoFirstByte beside
+  the breaker lift at logTunnelFirstByte's gvideo branch); the
+  burst-bytes knob retires with the old close; the report line says
+  what it is now ("gvideo-gated" — R21 keeps the domain word out of
+  the release-shaped report, caught by the leak guards on the first
+  attempt this round). The manual marks stay authoritative.
+- **Evidence:** internal/proxy/m8ak_test.go
+  TestGvideoTimelineSignalsAreVideoScoped (a googlevideo flow's start
+  and first byte count; a routed www.youtube.com flow — the feed's
+  own class — moves neither while RoutedFlows moves for both);
+  m8aa_test.go TestAutoTimelinePairsPlayWithData re-driven on the new
+  counters. Both-ways proofs EXECUTED (stash → FAIL → restore): each
+  tunnel hook, the play-stamp gate, and the first-data gate — all
+  FAIL-as-expected / PASS-restored (the play-gate proof needed its
+  second attempt: the first stash broke the baseline, not the gate —
+  redone against the condition itself). Full suite green; -race green
+  on the house gate; gofmt -l identical to HEAD's list.
+- **Consequences:** the next report's auto-timeline pairs measure
+  play → video data — the tester's "initial delay" — and the residual
+  investigation (doc 11 §5) gets its decisive instrument: pair
+  elapsed against the fast-fail log timestamps decomposes the
+  residual into the app's ladder time vs the engine's setup cost.
+  Feed activity no longer stamps or closes anything. The heuristic's
+  known limits stay: poll granularity is 500 ms (same-tick answers
+  read as ~0), autoplay previews produce their own fast pairs, and
+  the buttons remain the authoritative marks.
+- **What this ADR does NOT decide:** the residual's owner (the next
+  report's gvideo-gated pairs against the fast-fail timestamps say
+  whether it is the app's ladder, the per-flow setup cost, or
+  buffering); whether the dead-cluster memory should persist across
+  sessions (doc 11 §5.3's candidate — a future round with its own
+  ADR if the first-video discovery cost proves to own the residual);
+  and whether the stall-killer budgets for API hosts should loosen
+  (untouched while the counts stay low).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

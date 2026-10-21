@@ -416,6 +416,12 @@ func (s *Server) logTunnelUp(host, class string, dnsMS, dialMS int64) {
         s.noteFlow(host, class)
         if class == "routed" {
                 s.stats.RoutedFlowStart() // the auto-timeline heuristic's burst signal (M8-aa, ADR-0030)
+                // M8-ak (ADR-0050): the video-scoped twin — the app only
+                // dials googlevideo for videoplayback/redirector machinery,
+                // so this is the play signal the auto-timeline reads now.
+                if isGvideoHost(host) {
+                        s.stats.GvideoFlowStart()
+                }
         }
         if dialMS < 200 {
                 s.stats.DialNear()
@@ -445,6 +451,13 @@ func (s *Server) logTunnelFirstByte(host, class string, d time.Duration) {
                 s.stats.FirstByteSlow() // the timeline window's "slow flows" metric (ADR-0027 §8.3.6)
         }
         if isGvideoHost(host) {
+                // M8-ak (ADR-0050): the video-scoped DATA signal — with the
+                // substitution lane retired, a googlevideo first byte is a
+                // live video flow answering; the auto-timeline's first-data
+                // stamp reads this counter, not any down burst (the
+                // debug.28 report's 1.4 MB i.ytimg feed bursts used to close
+                // pairs that carried no video at all).
+                s.stats.GvideoFirstByte()
                 // M8-ag (ADR-0046): the wire spoke on googlevideo — an armed
                 // breaker's premise (a flagged wire stays silent) is falsified
                 // right now, so the cooldown ends early. Every first-byte path

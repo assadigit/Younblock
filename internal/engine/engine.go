@@ -251,13 +251,12 @@ type markWindow struct {
         slowFirstByte int64
 }
 
-// The auto-timeline heuristic's knobs (M8-aa, ADR-0030): the routed
-// quiet that precedes a suspected play burst, the down-burst that
-// pairs it with real data, the poll cadence, and the pair history's
-// bound (the manual marks' own bound).
+// The auto-timeline heuristic's knobs (M8-aa, ADR-0030; M8-ak,
+// ADR-0050 re-scopes both stamps to googlevideo): the googlevideo
+// quiet that precedes a suspected play, the poll cadence, and the
+// pair history's bound (the manual marks' own bound).
 const (
         autoTLQuiet      = 5 * time.Second
-        autoTLBurstBytes = 100 * 1024
         autoTLPollEvery  = 500 * time.Millisecond
         autoTLMaxPairs   = 8
 )
@@ -269,23 +268,30 @@ type autoPair struct {
 }
 
 // autoTimeline is the engine's heuristic play detector (M8-aa,
-// ADR-0030): the debug.18 report came back with "timeline: no marks"
-// — the tester never pressed the buttons, and the one number that
-// says whether the round succeeded (play -> first frame) was missing.
-// The poller watches the counters the flows already feed: a routed
-// flow burst after at least autoTLQuiet of routed quiet stamps
-// "auto: play-suspected" (the app's player wave opening its
-// connections); a down-burst of at least autoTLBurstBytes right after
-// it stamps "auto: first-data" (video bytes actually flowing). The
-// pairs land in the report beside the manual marks — which stay
-// AUTHORITATIVE: the heuristic cannot tell a feed load from a play,
-// only the buttons can — and the stamps ride the log ring as
-// AUTO-MARK lines so the tester's paste carries them with timestamps.
+// ADR-0030; M8-ak, ADR-0050 re-scopes it to googlevideo): the
+// debug.18 report came back with "timeline: no marks" — the tester
+// never pressed the buttons, and the one number that says whether
+// the round succeeded (play -> first frame) was missing. The poller
+// watches the counters the flows already feed: a GOOGLEVIDEO flow
+// start after at least autoTLQuiet of googlevideo quiet stamps
+// "auto: play-suspected" (the app only dials googlevideo for
+// videoplayback/redirector machinery — feed images and API calls
+// never touch it, where the old any-routed-flow burst could not tell
+// a feed load from a play); a GOOGLEVIDEO first byte while a play is
+// unpaired stamps "auto: first-data" (a live video flow answered —
+// with the substitution lane retired there are no verdict answers
+// left to fool it, where the old any-down-burst close let the
+// debug.28 report's 1.4 MB i.ytimg feed bursts close pairs that
+// carried no video at all). The pairs land in the report beside the
+// manual marks — which stay AUTHORITATIVE — and the stamps ride the
+// log ring as AUTO-MARK lines so the tester's paste carries them
+// with timestamps.
 type autoTimeline struct {
-        lastRoutedAt time.Time  // the last poll that saw routed flow starts
-        routedFlows  int64      // the routed flow counter at lastRoutedAt
-        lastDown     int64      // the down byte counter at the last poll
+        lastGvideoAt time.Time  // the last poll that saw googlevideo flow starts
+        gvideoFlows  int64      // the googlevideo flow counter at lastGvideoAt
+        gvideoFB     int64      // the googlevideo first-byte counter at the last poll
         playAt       *time.Time // an unpaired play-suspected stamp
+        playFB       int64      // the first-byte baseline when the play stamped
         pairs        []autoPair // the closed pairs (bounded)
 }
 
@@ -980,7 +986,8 @@ func (e *Engine) startAutoTimeline() {
         if e.autoTL == nil {
                 e.autoTL = &autoTimeline{}
         }
-        e.autoTL.routedFlows = e.stats.Diagnostic().RoutedFlows
+        e.autoTL.gvideoFlows = e.stats.Diagnostic().GvideoFlows
+        e.autoTL.gvideoFB = e.stats.Diagnostic().GvideoFirstBytes
         e.mu.Unlock()
         if old != nil {
                 old()
@@ -1011,12 +1018,14 @@ func (e *Engine) stopAutoTimeline() {
         }
 }
 
-// autoTLPoll is one heuristic tick (M8-aa, ADR-0030): a routed flow
-// burst after at least autoTLQuiet of routed quiet stamps an unpaired
-// play-suspected; a down-burst of at least autoTLBurstBytes closes the
-// pair. Both stamps ride the log ring (AUTO-MARK lines — the paste
-// carries their timestamps even when the report's last-pair line has
-// since been replaced by a newer measurement).
+// autoTLPoll is one heuristic tick (M8-aa, ADR-0030; M8-ak,
+// ADR-0050 re-scopes both stamps to googlevideo): a googlevideo flow
+// start after at least autoTLQuiet of googlevideo quiet stamps an
+// unpaired play-suspected; a googlevideo first byte beyond the
+// baseline the play stamped at closes the pair. Both stamps ride the
+// log ring (AUTO-MARK lines — the paste carries their timestamps even
+// when the report's last-pair line has since been replaced by a newer
+// measurement).
 func (e *Engine) autoTLPoll() {
         d := e.stats.Diagnostic()
         now := e.opts.Now()
@@ -1026,24 +1035,28 @@ func (e *Engine) autoTLPoll() {
         if a == nil {
                 return
         }
-        if d.RoutedFlows > a.routedFlows {
-                if now.Sub(a.lastRoutedAt) >= autoTLQuiet && a.playAt == nil {
+        if d.GvideoFlows > a.gvideoFlows {
+                if now.Sub(a.lastGvideoAt) >= autoTLQuiet && a.playAt == nil {
                         play := now
                         a.playAt = &play
-                        e.logger.Info("AUTO-MARK play-suspected (routed burst after quiet)")
+                        // The pre-tick first-byte baseline: a same-tick answer
+                        // (the flow that stamped the play speaking within one
+                        // poll interval) still closes the pair.
+                        a.playFB = a.gvideoFB
+                        e.logger.Info("AUTO-MARK play-suspected (googlevideo flow after quiet)")
                 }
-                a.routedFlows = d.RoutedFlows
-                a.lastRoutedAt = now
+                a.gvideoFlows = d.GvideoFlows
+                a.lastGvideoAt = now
         }
-        if a.playAt != nil && d.BytesDown-a.lastDown >= autoTLBurstBytes {
+        if a.playAt != nil && d.GvideoFirstBytes > a.playFB {
                 a.pairs = append(a.pairs, autoPair{play: *a.playAt, data: now})
                 if len(a.pairs) > autoTLMaxPairs {
                         a.pairs = a.pairs[len(a.pairs)-autoTLMaxPairs:]
                 }
                 a.playAt = nil
-                e.logger.Info("AUTO-MARK first-data (down burst)")
+                e.logger.Info("AUTO-MARK first-data (googlevideo first byte)")
         }
-        a.lastDown = d.BytesDown
+        a.gvideoFB = d.GvideoFirstBytes
 }
 
 // autoTLPairs returns the heuristic's closed pairs (the report reads

@@ -85,9 +85,10 @@ func TestStallLeanBudgetAndroid(t *testing.T) {
 	}
 }
 
-// TestAutoTimelinePairsPlayWithData (M8-aa shape 2): a routed burst
-// after quiet stamps play-suspected, the down-burst that follows pairs
-// it with first-data, both stamps ride the ring, the report renders the
+// TestAutoTimelinePairsPlayWithData (M8-aa shape 2, re-scoped by
+// M8-ak/ADR-0050): a googlevideo flow after quiet stamps
+// play-suspected, the googlevideo first byte that follows pairs it
+// with first-data, both stamps ride the ring, the report renders the
 // pair — and Stop resets the heuristic like every run-scoped surface.
 func TestAutoTimelinePairsPlayWithData(t *testing.T) {
 	eng, _, _, _ := newTestEngine(t)
@@ -96,11 +97,11 @@ func TestAutoTimelinePairsPlayWithData(t *testing.T) {
 	}
 	waitForPhase(t, eng, engine.PhaseOn)
 
-	// Let one poll tick establish the baseline, then the burst.
+	// Let one poll tick establish the baseline, then the play signal.
 	time.Sleep(600 * time.Millisecond)
-	eng.Stats().RoutedFlowStart()
+	eng.Stats().GvideoFlowStart()
 	time.Sleep(600 * time.Millisecond) // the tick that stamps play-suspected
-	eng.Stats().AddBytesDown(150 * 1024)
+	eng.Stats().GvideoFirstByte()
 	time.Sleep(600 * time.Millisecond) // the tick that pairs first-data
 
 	report := eng.GetDiagnosticReport()
@@ -112,6 +113,9 @@ func TestAutoTimelinePairsPlayWithData(t *testing.T) {
 	}
 	if !strings.Contains(report, "AUTO-MARK play-suspected") || !strings.Contains(report, "AUTO-MARK first-data") {
 		t.Fatalf("the AUTO-MARK stamps must ride the log ring")
+	}
+	if !strings.Contains(report, "gvideo-gated") {
+		t.Fatalf("the report must say the heuristic is gvideo-gated")
 	}
 
 	// R21 hygiene: the heuristic is run-scoped — Stop clears it.

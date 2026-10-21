@@ -20,39 +20,32 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 27: the M8-aj build (debug.28 -- the
-        // lane retires round, ADR-0049). The debug.27 field
-        // report: "this one did not even open a single video,
-        // only feed refreshed" -- and it was the cleanest
-        // experiment result yet: substitution attempts=40
-        // wins=37 big=0 small=37, the fed pool kept the verdict
-        // lane engaged on every dead-cluster attempt, every
-        // answer the ~5KB verdict shape, and the player NEVER
-        // left the dead URL set (one host: 20 flows, one every
-        // ~4s; no live cluster ever dialed; 1.2MB total vs
-        // debug.26's 23.1MB). Worse: dead=0 -- substituted flows
-        // never terminal, so the cluster was never marked dead;
-        // in debug.26 the same regime recovered in ~40s exactly
-        // because the (accidentally drained) lane let the flows
-        // terminal and the door's fast-fail RESETS let the
-        // player's ladder escalate to a fresh player-API fetch.
-        // The RST is the ladder's escalation signal; the HTTP
-        // verdict is its sedative. The fix: the four-round
-        // experiment concludes OFF (zero media ever carried
-        // cross-cluster) -- schema v7 retires
-        // experimentSubstitution by default and migrates every
-        // existing file off (a v7 file's explicit on is the
-        // owner's word); and the round found the switch's off
-        // has been a NO-OP at engine start since debug.24 (the
-        // engine knob resolved off to 0, which the proxy reads
-        // as "use the default") -- it now returns -1, the real
-        // disabled shape, so OFF means OFF. The door's
-        // dead-cluster shape returns to debug.26's probe ->
-        // fast-fail. Installs over debug.27 (the same pinned
-        // debug certificate -- D85). The D84 rule: every debug
-        // build bumps this. D103: the APK asset is named
-        // v1.6.6-debug28.apk.
-        versionCode = 27
+        // versionCode 28: the M8-ak build (debug.29 -- the
+        // method-documentation round, ADR-0050). The debug.28
+        // field report: "by far our best version yet -- 90% of
+        // the initial delay of each video is gone, and it's
+        // that much good that it can be the first official
+        // release." The numbers behind it: dead=1 fastFails=90
+        // (the cluster memory + instant resets owning the
+        // recovery), cooldowns=1 lifted in 730ms, substitution
+        // attempts=0 (the lane's tombstone), auto-timeline
+        // 1000ms pairs=5, a live cluster delivering 2.1MB. Per
+        // the tester's asks: (1) the method documented in
+        // docs/android-port/11-the-video-opening-war.md (the
+        // scoreboard, the loop method, the arc, the semantic
+        // discoveries, the residual decomposition, the
+        // lessons); (2) the auto-timeline re-scoped to
+        // googlevideo (ADR-0050) so the remaining 5-10%
+        // residual measures play -> video data: a play is a
+        // googlevideo flow after googlevideo quiet, first-data
+        // is a googlevideo first byte -- the old any-down-burst
+        // close let 1.4MB feed bursts close pairs that carried
+        // no video. Diagnostics-only: playback behavior is
+        // byte-identical to debug.28. Installs over debug.28
+        // (the same pinned debug certificate -- D85). The D84
+        // rule: every debug build bumps this. D103: the APK
+        // asset is named v1.6.6-debug29.apk.
+        versionCode = 28
         versionName = "1.6.6"
     }
 

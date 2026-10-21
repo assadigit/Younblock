@@ -28,36 +28,35 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug28.apk` from the repo's
+releasing yet"): download `v1.6.6-debug29.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.28` release (a regular release in this private
+`v1.6.6-android-debug.29` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug28**; it installs over any earlier
+**make sure the filename says debug29**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build is the LANE RETIRES round the debug.27 field report forced
-("did not even open a single video, only feed refreshed"): the report
-was the cleanest experiment result yet — the substitution lane
-answered all 40 dead-cluster attempts with fast small HTTP verdicts
-and the player NEVER left the blackholed cluster's URLs (the opposite
-of the bet: an HTTP answer keeps the player retrying the same dead
-URLs, while the instant connection reset is what makes its retry
-ladder escalate to fresh URLs on live clusters — and worse, the
-substituted flows never "fail", so the engine never learned the
-cluster was dead). The four-round experiment is concluded — the
-cross-origin substitute never once carried real video — and the lane
-is retired OFF by default (the diagnostics toggle stays, and a v7
-settings file that explicitly re-enables it is honored); along the
-way the round also found that the substitution off-switch had been a
-no-op at startup since debug.24, now fixed, so OFF actually means
-OFF. Expected behavior: back to the debug.26 shape — a video whose
-URLs land on the dead cluster opens slowly at first (the app walks
-its retry ladder until it fetches fresh URLs), everything else
-fast). The previous round's summary (the POOL KEEPS ITS FOOD round:
-the no-downgrade rule, the demote guard, the feed clears the box,
-and the verdict lane's counters — see ADR-0048 and the release
-notes); the release notes
-carry every earlier round's story in place.
+this build is the METHOD-DOCUMENTATION round the debug.28 victory
+report asked for: "by far our best version yet — 90% of the initial
+delay of each video is gone," so the round wrote
+[docs/android-port/11-the-video-opening-war.md](docs/android-port/11-the-video-opening-war.md)
+— the full record of how the 1–2 minute video opens became ~1 second
+(the scoreboard, the loop method, the round-by-round arc, the
+semantic discoveries, the remaining-residual decomposition, and the
+lessons) — and re-scoped the diagnostic auto-timeline to googlevideo
+so the remaining 5–10% mobile-only delay finally measures what the
+tester actually feels: play → video data, not feed bursts (the old
+heuristic's pairs were being closed by 1.4 MB image loads that
+carried no video). Playback behavior is identical to the debug.28
+the victory report measured — the next diagnostic report's timeline
+pairs, read against the fast-fail timestamps, will say which of the
+decomposed candidates owns the residual: the app's own retry ladder,
+the ~500–600 ms per-connection setup cost through the chain, the
+first-video cluster-discovery cost, or player buffering). The
+previous round's summary (the LANE RETIRES round: the four-round
+cross-origin substitution experiment concluded OFF, the off-switch
+no-op since debug.24 fixed, and the door back to the reset ladder
+the player escalates on — see ADR-0049 and the release notes); the
+release notes carry every earlier round's story in place.
 Sign in with your
 GitHub account, then sideload it:
 

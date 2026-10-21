@@ -38,11 +38,14 @@ type Counters struct {
 	racedSaves    atomic.Int64
 	salvagedSaves atomic.Int64
 	routedFlows   atomic.Int64
-	probePasses   atomic.Int64
-	probeIPs      atomic.Int64
-	probeAnswered atomic.Int64
-	probeSilent   atomic.Int64
-	probeReset    atomic.Int64
+	// M8-ak (ADR-0050): the auto-timeline's video-scoped signals.
+	gvideoFlows      atomic.Int64
+	gvideoFirstBytes atomic.Int64
+	probePasses      atomic.Int64
+	probeIPs         atomic.Int64
+	probeAnswered    atomic.Int64
+	probeSilent      atomic.Int64
+	probeReset       atomic.Int64
 
 	// M8-ab (ADR-0031/0032/0033): the cross-origin substitution's
 	// attempts and wins, and the googlevideo terminal count the
@@ -182,6 +185,23 @@ func (c *Counters) SalvagedSave() { c.salvagedSaves.Add(1) }
 // RoutedFlowStart counts one established budgeted (class=routed)
 // tunnel (M8-aa, ADR-0030: the auto-timeline heuristic's burst signal).
 func (c *Counters) RoutedFlowStart() { c.routedFlows.Add(1) }
+
+// GvideoFlowStart counts one established budgeted tunnel to a
+// *.googlevideo.com host (M8-ak, ADR-0050): the auto-timeline
+// heuristic's PLAY signal, video-scoped — the app only dials
+// googlevideo for videoplayback/redirector machinery, so a
+// googlevideo flow after googlevideo quiet is a play attempt where
+// any routed flow was (feed images and API calls included).
+func (c *Counters) GvideoFlowStart() { c.gvideoFlows.Add(1) }
+
+// GvideoFirstByte counts one first byte delivered on a
+// *.googlevideo.com host through any path (M8-ak, ADR-0050): the
+// auto-timeline heuristic's DATA signal — with the substitution lane
+// retired, a googlevideo first byte is a live video flow answering,
+// the direct play->video-data measurement the debug.28 report's
+// residual investigation needs (feed bursts of 1.4 MB on i.ytimg
+// used to close pairs that carried no video at all).
+func (c *Counters) GvideoFirstByte() { c.gvideoFirstBytes.Add(1) }
 
 // ProbePass counts one completed origin-probe pass (M8-aa, ADR-0028).
 func (c *Counters) ProbePass() { c.probePasses.Add(1) }
@@ -421,11 +441,14 @@ type All struct {
 	RacedSaves    int64 `json:"racedSaves"`
 	SalvagedSaves int64 `json:"salvagedSaves"`
 	RoutedFlows   int64 `json:"routedFlows"`
-	ProbePasses   int64 `json:"probePasses"`
-	ProbeIPs      int64 `json:"probeIPs"`
-	ProbeAnswered int64 `json:"probeAnswered"`
-	ProbeSilent   int64 `json:"probeSilent"`
-	ProbeReset    int64 `json:"probeReset"`
+	// M8-ak (ADR-0050): the auto-timeline's video-scoped signals.
+	GvideoFlows      int64 `json:"gvideoFlows"`
+	GvideoFirstBytes int64 `json:"gvideoFirstBytes"`
+	ProbePasses      int64 `json:"probePasses"`
+	ProbeIPs         int64 `json:"probeIPs"`
+	ProbeAnswered    int64 `json:"probeAnswered"`
+	ProbeSilent      int64 `json:"probeSilent"`
+	ProbeReset       int64 `json:"probeReset"`
 	// M8-ab (ADR-0031/0032/0033); M8-ai (ADR-0048) splits the wins by
 	// size class — media-carried vs the fast small verdict answer.
 	SubstAttempts   int64 `json:"substAttempts"`
@@ -491,6 +514,8 @@ func (c *Counters) Diagnostic() All {
 		RacedSaves:            c.racedSaves.Load(),
 		SalvagedSaves:         c.salvagedSaves.Load(),
 		RoutedFlows:           c.routedFlows.Load(),
+		GvideoFlows:           c.gvideoFlows.Load(),
+		GvideoFirstBytes:      c.gvideoFirstBytes.Load(),
 		ProbePasses:           c.probePasses.Load(),
 		ProbeIPs:              c.probeIPs.Load(),
 		ProbeAnswered:         c.probeAnswered.Load(),

@@ -12,6 +12,31 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-ak; shipping in `v1.6.6-android-debug.29`, versionCode 28)
+
+- **"By far our best version yet — 90% of the initial delay of each
+  video is gone… still worth investigating the remaining 10-5% delay
+  in mobile… document whatever you did to not miss this
+  accomplishment/method."** (1) **The method is documented**:
+  `docs/android-port/11-the-video-opening-war.md` — the scoreboard
+  (the 1–2 minute opens of debug.18 → the ~1 second opens of
+  debug.28), the loop method (the report as the instrument, diagnosis
+  from the report's own evidence, executed both-ways proofs,
+  pre-registered retreats, the paper trail), the round-by-round arc,
+  the six semantic discoveries, the residual decomposition, and the
+  lessons — indexed in the pack's reading order. (2) **The residual
+  gets its instrument (ADR-0050)**: the auto-timeline re-scopes to
+  googlevideo — a play is a googlevideo flow after googlevideo quiet
+  (feed refreshes never touch googlevideo), first-data is a
+  googlevideo first byte (with the substitution lane retired, that is
+  a live video flow answering). The old heuristic closed pairs on
+  1.4 MB i.ytimg feed bursts that carried no video at all; the next
+  report's pairs measure play → video data — the tester's actual
+  "initial delay" — and decompose the remaining 5–10% (the app's
+  dead-host ladder, the ~500–600 ms per-flow setup cost, the
+  first-video discovery cost, stall-kill churn, buffering) by
+  comparison with the fast-fail timestamps.
+
 ### Fixed / Added (2026-10-21 — M8-aj; shipping in `v1.6.6-android-debug.28`, versionCode 27)
 
 - **Build artifact:** commit `874b768` ("M8-aj: the lane retires

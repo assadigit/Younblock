@@ -560,10 +560,10 @@ func (e *Engine) GetDiagnosticReport() string {
 	// (the heuristic cannot tell a feed load from a play).
 	if pairs := e.autoTLPairs(); len(pairs) > 0 {
 		last := pairs[len(pairs)-1]
-		fmt.Fprintf(&b, "auto-timeline: play-suspected -> first-data elapsed=%dms pairs=%d (heuristic; the buttons stay authoritative)\n",
+		fmt.Fprintf(&b, "auto-timeline: play-suspected -> first-data elapsed=%dms pairs=%d (heuristic, gvideo-gated; the buttons stay authoritative)\n",
 			last.data.Sub(last.play).Milliseconds(), len(pairs))
 	} else {
-		fmt.Fprintf(&b, "auto-timeline: no pair yet (heuristic; the buttons stay authoritative)\n")
+		fmt.Fprintf(&b, "auto-timeline: no pair yet (heuristic, gvideo-gated; the buttons stay authoritative)\n")
 	}
 	// M8-af (ADR-0044, spec W7/W8): the network test — the last
 	// completed run's table (ip × method -> verdict, the alt-SNI

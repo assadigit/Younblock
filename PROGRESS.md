@@ -4623,3 +4623,67 @@ eb74c7a539d1c15135e2116, aapt badging versionCode 27 / versionName
 c76bb7c6…8551d, the version/settings/verdict-lane strings verified
 in libgojni.so, and the release asset re-downloaded byte-identical
 (cmp + SHA-256).
+
+## M8-ak — the method-documentation round (debug.29, versionCode 28)
+
+The tester's debug.28 report: "Congratulations! This is by
+faaaaaaaaaaaaar, our best version yet. It worked. 90% of the initial
+delay of each video is gone, and it's that much good that it can be
+the first official release. But since we came until here, still worth
+investigating the remaining 10-5% delay in mobile, which almost
+doesn't happen in pc and linux. Document whatever you did to not miss
+this accomplishment/method."
+
+The numbers behind the verdict: dead=1 fastFails=90 (the cluster
+memory + instant resets owning the recovery), cooldowns=1 lifts=1
+scouts=1 (the breaker armed once on redirector pending kills and
+lifted in 730ms — the M8-ag escapes working), substitution attempts=0
+(the tombstone), auto-timeline 1000ms pairs=5, and a live cluster
+(r3---sn-u14g55-5m) delivering 2.1MB mid-session.
+
+The round, per the tester's two asks:
+(1) THE METHOD DOCUMENTED — docs/android-port/11-the-video-opening
+war.md (indexed in the pack README): the scoreboard (debug.18's 1-2
+minute opens to debug.28's ~1 second), the loop method (the report as
+the instrument, diagnosis from the report's own evidence, executed
+both-ways proofs, pre-registered retreats, the paper trail), the
+round-by-round arc (M8-ae through M8-ak), the six semantic
+discoveries (the censor's observed classes, the player's ladder
+semantics, the cluster as the unit, evidence-class ranks, QUIC as a
+non-cost, the app as part of the system), the residual decomposition
+(five candidates, each with its measurement path), and the lessons.
+(2) THE RESIDUAL INSTRUMENT (ADR-0050) — the auto-timeline re-scopes
+to googlevideo: a play is a googlevideo flow after googlevideo quiet
+(feed refreshes never touch googlevideo), first-data is a googlevideo
+first byte (with the lane retired, that is a live video flow
+answering; the old any-down-burst close let the debug.28 report's
+1.4MB i.ytimg feed bursts close pairs that carried no video). Two new
+counters (GvideoFlows at logTunnelUp, GvideoFirstByte beside the
+breaker lift), the burst-bytes knob retired, the report line says
+"gvideo-gated" (R21 caught the domain-word leak on the first
+attempt — "googlevideo-gated" tripped the release-shape leak guards;
+the report's vocabulary is "gvideo").
+
+The residual decomposition (doc 11 §5, from the debug.28 report):
+the app's dead-host ladder residue (fastFails=90, the app's own
+schedule), the per-flow setup cost (~500-600ms: DoH+ dial + first
+byte through the chain), the first-video discovery cost (the cluster
+memory is per-session — a persistence candidate for a future round),
+stall-kill churn on API hosts (lean=3 rich=3, low), and
+first-data→first-frame buffering (the app's policy vs chain
+throughput). The next report's gvideo-gated pairs decide the owner.
+
+Tests: proxy m8ak_test.go TestGvideoTimelineSignalsAreVideoScoped
+(the video-scoped twins count at the flow's milestones; a routed
+feed-class flow moves neither); m8aa_test.go's auto-timeline shape
+re-driven on the new counters. Five both-ways proofs EXECUTED (the
+two tunnel hooks, the play-stamp gate, the first-data gate, plus the
+de-leak guard's natural catch); the play-gate proof needed its second
+attempt (the first stash broke the baseline, not the gate — redone
+against the condition). Full 19-package suite green; -race green on
+the house gate (proxy + probe + netx); gofmt -l identical to HEAD's
+list.
+
+Version: mobile facade "1.6.6-debug.29"; gradle versionCode 27→28
+with the round's comment block; ADR-0050, doc 11, the pack README
+index, release notes, CHANGELOG, README, PROGRESS updated.

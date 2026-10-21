@@ -149,7 +149,8 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // M8-ah (debug.26, versionCode 25): the dead-cluster memory round.
         // M8-ai (debug.27, versionCode 26): the pool keeps its food round.
         // M8-aj (debug.28, versionCode 27): the lane retires round.
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.28"}
+        // M8-ak (debug.29, versionCode 28): the method-documentation round.
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.29"}
         if mutate != nil {
                 mutate(&opts)
         }

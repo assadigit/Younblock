@@ -30,6 +30,7 @@ The provided project description says Younblock is a Windows/Linux Go applicatio
 8. [`08-architecture-decisions.md`](08-architecture-decisions.md) — record decisions and changes.
 9. [`09-agent-handoff.md`](09-agent-handoff.md) — session handoff and first actions.
 10. [`10-release-notes.md`](10-release-notes.md) — the v1 release-notes draft (M7; M8 finalizes against the artifact).
+11. [`11-the-video-opening-war.md`](11-the-video-opening-war.md) — the M8 method and record: how the 1–2 minute video opens became ~1 second (written at the debug.28 field verdict, at the tester's request).
 
 ## Non-negotiable project rules
 
