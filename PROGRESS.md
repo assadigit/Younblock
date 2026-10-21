@@ -4814,5 +4814,8 @@ minSdk 26 / targetSdk 36, apksigner pinned cert c76bb7c6…8551d
 verified in libgojni.so (1.6.6-debug.30,
 Java_mobile_Engine_autoOpenYouTube) and the new row verified in
 the served bundle ("Open YouTube when Younblock connects").
-Decisions D104/D105 in DECISIONS.md; ADR-0051 in doc 08; doc 11
-§5.2; CHANGELOG and README carry the round.
+The release loop: v1.6.6-android-debug.30 (release id 419523199)
+is the repo's Latest (D89), asset v1.6.6-debug30.apk (asset id
+662417655) re-downloaded byte-identical (cmp + SHA-256). Decisions
+D104/D105 in DECISIONS.md; ADR-0051 in doc 08; doc 11 §5.2;
+CHANGELOG and README carry the round.
