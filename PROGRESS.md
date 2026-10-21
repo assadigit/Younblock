@@ -4394,3 +4394,68 @@ Build artifact: commit 0405f1f; release v1.6.6-android-debug.25
 c76bb7c6…8551d, the M8-ag lift/scout/version strings verified in
 libgojni.so, and the release asset re-downloaded byte-identical
 (cmp + SHA-256).
+
+## M8-ah — the dead-cluster memory round (debug.26, versionCode 25)
+
+The tester's debug.25 report: "Feed refreshes, every video takes
+initially 1-2 minutes to open, after opening it's smooth and you can
+go like 5 min next without hesitation." The report decomposed the
+1-2 minutes: the whole sn-qxau5 cluster blackholed (21 flows, all
+worstFirstByte=0ms — TCP accepts, TLS never answers; the dead-origin
+probe confirmed IP-range blackholing: silent under every SNI), each
+attempt burning its 3s budget, interleaved with 7 breaker cooldowns
+(7 × ~15s ≈ the whole open latency; one arm blocked a live
+r5-aj4g55 dial for ~10s); the M8-ag escapes working as designed
+(scouts=6 — the scout flows carried the 1.8 MB and 559 KB videos;
+lifts=2) but starved: pool=13 (gvideo 0), attempts=0 — W6 left the
+operator-pressed network test as the pool's only food.
+
+The round (ADR-0047): (1) the dead-cluster memory — cluster = the
+sn-XXXX token (gvideoClusterKey); 3 distinct hosts silent-terminal
+(reason=timeout, the failFlow hook) inside 10min mark the cluster
+dead for 10min; the door fast-fails its hosts (instant 502, zero
+wire) unless the pool serves or the per-cluster probe is due (1 per
+2min, probedAt seeded at mark time so fresh marks are never
+immediately probed); an answered OWN dial (serial first byte, raced
+own-set winner, salvage — never a substitute) rehabilitates
+(noteGvideoClusterAlive at the three winner sites). (2) The
+payload-fed pool — logTunnelDone certifies the origin
+(ev.originIP(), the new tcpmon accessor) when the flow delivered
+PayloadVerifiedMinimum (64KB); MarkMediaVerifiedIP is now fed by the
+network test AND payload. (3) The multi-cluster arm gate — the ring's
+stamps carry clusters (gvideoTerminalStamp); the arm needs ≥2
+distinct clusters; dead-cluster terminals count but never feed
+(feedGvideoBreaker's exclusion). (4) The pool file's versioned
+format — "<ip> media" lines persist and seed the POOL
+(SeedMediaVerifiedIPs via the refactored seedGoodIPs); bare lines
+stay preferences; loadGoodIPPool returns (legacy, media);
+saveGoodPoolIfChanged writes the marker.
+
+Report: the "gvideo clusters: dead=… fastFails=… probes=…
+rehabilitated=… payloadVerified=…" line (five new counters in
+stats). Config: GvideoClusterDeadHosts/Window/TTL/ReprobeEvery +
+PayloadVerifiedMinimum knobs (defaults 3/10m/10m/2m/64KB).
+
+Tests: TestClusterMemoryFastFailsTheDeadCluster (the contract pin:
+mark → instant 502 <500ms with corpse counts still → pool override →
+own-dial rehab → 8KB echo payload-feed, pool gvideo ≥2);
+TestEmissionBreakerQuietsTheWire and TestStallPendingFeedsBreaker
+rewired to arm across two clusters (their single-cluster shapes
+failed the moment the gate landed — the natural both-ways); the M8-ab
+round-trip extended with a session-2 leg ("192.0.2.55 media" seeds
+pool=1 gvideo=1). Both-ways proofs EXECUTED: the door's cluster
+branch stashed → the fast-fail flow got a 200 dial; the payload feed
+stashed → the media-verified line missing; noteGvideoDeadHost
+stashed → the cluster never marked; the media seeding's flag
+stashed → session 2 rendered gvideo 0. The ring-feed exclusion has
+no isolated pin (the arm gate subsumes it observably) — recorded in
+the ADR as the round's honest gap. Full suite green; -race green on
+the house gate (proxy 81s + probe + netx); gofmt -l identical to
+HEAD's list (the edit-tool space-ification caught twice more —
+tcpmon.go joined the list — and was restored both times).
+TestNetworkTestGatingAndStatus flaked again at its documented ~10%
+HEAD rate; untouched.
+
+Version: mobile facade "1.6.6-debug.26"; gradle versionCode
+24→25 with the round's comment block; ADR-0047, release notes,
+CHANGELOG, README, PROGRESS updated.

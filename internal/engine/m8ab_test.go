@@ -162,10 +162,11 @@ func TestGoodPoolPersistenceRoundTrip(t *testing.T) {
 		t.Fatalf("the seeded pool must render preference-only counts, got: %q", firstLine(report, "substitution:"))
 	}
 
-	// A MEDIA verdict (the W7 network test's answered class — the only
-	// evidence that may feed the pool now) rides the running server
-	// and Stop flushes IT into the file: the pool's persistence is the
-	// media-verified list going forward.
+	// A MEDIA verdict (the W7 network test's answered class — and,
+	// since M8-ah, a payload-delivered flow — the two evidence classes
+	// that may feed the pool) rides the running server and Stop
+	// flushes IT into the file with the versioned per-line marker: the
+	// pool's persistence is the media-verified list going forward.
 	if srv := eng.RunningServer(); srv != nil {
 		srv.MarkMediaVerifiedIP("192.0.2.55")
 	}
@@ -176,7 +177,34 @@ func TestGoodPoolPersistenceRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the pool file must survive Stop: %v", err)
 	}
-	if !strings.Contains(string(data), "192.0.2.55") {
-		t.Fatalf("the media-verified mark must round-trip through Stop, got %q", string(data))
+	if !strings.Contains(string(data), "192.0.2.55 media") {
+		t.Fatalf("the media-verified mark must round-trip through Stop with its per-line marker, got %q", string(data))
+	}
+
+	// M8-ah (ADR-0047 — ADR-0045's flip condition implemented): the
+	// next session seeds the MEDIA line back into the substitution
+	// POOL (the first video of session N+1 rides it instead of
+	// re-paying the dead-cluster discovery), while the legacy bare
+	// lines stay preferences. Session 2 reads the file session 1
+	// flushed: "192.0.2.55 media" (plus nothing else — the legacy
+	// seeds were non-gvideo and never persist).
+	eng2, err := engine.New(engine.Options{
+		Platform: plat,
+		LogDir:   dir + "/logs",
+		Checker:  net,
+	})
+	if err != nil {
+		t.Fatalf("engine.New (session 2): %v", err)
+	}
+	if err := eng2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitForPhase(t, eng2, engine.PhaseOn)
+	report2 := eng2.GetDiagnosticReport()
+	if !strings.Contains(report2, "pool=1 (gvideo 1)") {
+		t.Fatalf("the media-seeded pool must render pool food, got: %q", firstLine(report2, "substitution:"))
+	}
+	if err := eng2.Stop(); err != nil {
+		t.Fatal(err)
 	}
 }

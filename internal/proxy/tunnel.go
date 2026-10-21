@@ -278,7 +278,7 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                         // debug.23 report demanded (cooldowns>0 now says the
                                         // breaker caught the flag state).
                                         if ev != nil {
-                                                s.feedGvideoBreaker()
+                                                s.feedGvideoBreaker(host)
                                         }
                                         return
                                 }
@@ -326,7 +326,7 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                         s.classifyTCPVerdict(ev)
                                         s.logTunnelStallKilled(host, class, time.Duration(idle)*time.Millisecond, downNow, true, pending, false, ev)
                                         if ev != nil {
-                                                s.feedGvideoBreaker() // W5: pending kills feed the breaker
+                                                s.feedGvideoBreaker(host) // W5: pending kills feed the breaker
                                         }
                                         return
                                 }
@@ -342,7 +342,7 @@ func (s *Server) watchStall(host, class string, tc *tunnelCloser, lastUp, lastDo
                                                 s.dropGoodIP(ip) // M8-ac (ADR-0034): dead-with-work-outstanding demotes, never boxes
                                         }
                                         if ev != nil {
-                                                s.feedGvideoBreaker() // W5: pending kills feed the breaker (classify is once, below)
+                                                s.feedGvideoBreaker(host) // W5: pending kills feed the breaker (classify is once, below)
                                         }
                                 }
                                 // M8-ad (ADR-0038): NO invalidateDNS here — the
@@ -663,6 +663,28 @@ func firstByteReason(err error) string {
 // with first-byte it separates "slow to start" from "slow to transfer"
 // on the very same line pair.
 func (s *Server) logTunnelDone(host, class string, d time.Duration, m *flowMeter, ev *gvideoEvidence) {
+        // M8-ah (ADR-0047): the payload-verified pool feed — a
+        // googlevideo flow that DELIVERED PayloadVerifiedMinimum
+        // downstream bytes just certified its ORIGIN (the conn the
+        // evidence holder recorded, substitute or primary alike) as
+        // media-capable: the debug.25 session starved an empty pool
+        // (gvideo 0, attempts 0) because only the operator-pressed
+        // network test could feed it, while its own scout flows
+        // carried 1.8 MB and 559 KB past the empty table. Before the
+        // Logger guard on purpose: the feed is behavior, not logging.
+        if ev != nil && s.cfg.PayloadVerifiedMinimum > 0 && m.down.Load() >= s.cfg.PayloadVerifiedMinimum {
+                if ip := ev.originIP(); ip != "" {
+                        s.MarkMediaVerifiedIP(ip)
+                        s.stats.GvideoPayloadFeed()
+                        if s.cfg.Logger != nil {
+                                msg := fmt.Sprintf("gvideo origin media-verified by payload (down=%s)", config.FormatBytes(m.down.Load()))
+                                if s.cfg.LogHostnames {
+                                        msg += " origin=" + ip
+                                }
+                                s.cfg.Logger.Info(msg)
+                        }
+                }
+        }
         if s.cfg.Logger == nil {
                 return
         }
@@ -690,9 +712,18 @@ func (s *Server) logTunnelDone(host, class string, d time.Duration, m *flowMeter
 // the hello, the client's request went out, nothing ever came back —
 // is the same flag-state signal a first-byte terminal is; now the
 // breaker sees it. Arms (and logs + counts) exactly like failFlow did.
-func (s *Server) feedGvideoBreaker() {
+//
+// M8-ah (ADR-0047): the terminal still COUNTS (the report's
+// gvideoTerminals reads every googlevideo death the sensor sees), but
+// a death on a dead-marked CLUSTER never feeds the ring — it is
+// explained (the measured blackhole), not flag evidence; and the ring
+// needs two distinct clusters to arm anyway.
+func (s *Server) feedGvideoBreaker(host string) {
         s.stats.GvideoTerminal()
-        if s.noteGvideoTerminal() {
+        if s.gvideoClusterDead(host) {
+                return // M8-ah (ADR-0047): an explained death is not flag evidence
+        }
+        if s.noteGvideoTerminal(host) {
                 if s.cfg.Logger != nil {
                         s.cfg.Logger.Warn("gvideo emission breaker armed (googlevideo goes wire-quiet)")
                 }
@@ -1643,7 +1674,14 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                 tc.closeBoth()
                 s.countConnError()
                 if isGvideoHost(host) {
-                        s.feedGvideoBreaker() // M8-ae's sensor, extracted (W5 extends it to pending kills)
+                        s.feedGvideoBreaker(host) // M8-ae's sensor, extracted (W5 extends it to pending kills; M8-ah tags clusters)
+                        if reason == "timeout" {
+                                // M8-ah (ADR-0047): the SILENT class — the origin
+                                // accepted the dial and never answered a TLS byte —
+                                // feeds the dead-cluster memory. Resets and errors
+                                // are different censor classes and never do.
+                                s.noteGvideoDeadHost(host)
+                        }
                 }
                 s.logTunnelFirstByteFailed(host, class, reason)
                 s.logTunnelDone(host, class, time.Since(tstart), flow, ev)
@@ -1765,6 +1803,13 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                 // may feed the substitution pool now).
                                 s.markGoodIP(ip, false)
                         }
+                        if !substWin {
+                                // M8-ah (ADR-0047): an own-dial answer — primary or
+                                // own-set rotation — rehabilitates the host's
+                                // cluster; a substitute's answer says nothing about
+                                // the dialed cluster and never does.
+                                s.noteGvideoClusterAlive(host)
+                        }
                 }
                 if winner == nil {
                         // M8-aa (ADR-0028): the raced round died on every candidate
@@ -1790,6 +1835,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                                         tc.setB(salv.conn)   // Stop's sweep must hit the live origin
                                         link.swap(salv.conn)      // the salvage winner owns the flow now
                                         ev.noteOrigin(salv.conn)
+                                        s.noteGvideoClusterAlive(host) // M8-ah (ADR-0047): an own-set answer rehabilitates
                                         ev.feedS2C(salv.first, time.Now())
                                         if err := writeFull(client, salv.first, s.cfg.IdleTimeout); err != nil {
                                                 // The origin spoke but the client is gone: a
@@ -1901,6 +1947,7 @@ func (s *Server) copyFirstByteBudgeted(client *bufferedConn, upstream net.Conn, 
                         if ip := remoteIP(origin); ip != "" {
                                 s.markGoodIP(ip, false)
                         }
+                        s.noteGvideoClusterAlive(host) // M8-ah (ADR-0047): the serial origin is the flow's own dial
                         ev.feedS2C((*buf)[:n], time.Now())
                         if err := writeFull(client, (*buf)[:n], s.cfg.IdleTimeout); err != nil {
                                 putBuf(buf)

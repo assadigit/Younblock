@@ -772,32 +772,47 @@ func (e *Engine) stopGvideoLoop() {
 // self-corrects through the demote-on-death guard. A missing or
 // unreadable file is simply an empty pool (first run, or a fresh
 // install) — never an error worth failing a start over.
-func (e *Engine) loadGoodIPPool() []string {
+func (e *Engine) loadGoodIPPool() (legacy, media []string) {
         e.goodMu.Lock()
         path := e.goodPoolPath
         e.goodMu.Unlock()
         if path == "" {
-                return nil
+                return nil, nil
         }
         data, err := os.ReadFile(path)
         if err != nil {
-                return nil
+                return nil, nil
         }
-        var out []string
+        // M8-ah (ADR-0047): the file's per-line format is versioned —
+        // "<ip> media" (this build's media-verified writes: the network
+        // test's answered verdicts and payload-delivered flows) seeds the
+        // substitution POOL; a bare "<ip>" (a pre-debug.24 file,
+        // first-byte-certified — exactly the false-positive class
+        // ADR-0045 removed) stays a preference. The split is per line, so
+        // a mixed file degrades exactly per entry.
         for _, line := range strings.Split(string(data), "\n") {
                 line = strings.TrimSpace(line)
                 if line == "" {
                         continue
                 }
-                if net.ParseIP(line) == nil {
+                ip := line
+                isMedia := false
+                if fields := strings.Fields(line); len(fields) == 2 && fields[1] == "media" {
+                        ip, isMedia = fields[0], true
+                }
+                if net.ParseIP(ip) == nil {
                         continue // a stale or corrupted line never poisons the pool
                 }
-                out = append(out, line)
-                if len(out) >= goodIPTableMaxPersist {
+                if isMedia {
+                        media = append(media, ip)
+                } else {
+                        legacy = append(legacy, ip)
+                }
+                if len(media)+len(legacy) >= goodIPTableMaxPersist {
                         break
                 }
         }
-        return out
+        return legacy, media
 }
 
 // goodIPTableMaxPersist bounds the persisted pool (M8-ab, ADR-0033):
@@ -823,17 +838,24 @@ func (e *Engine) saveGoodPoolIfChanged() {
                 return
         }
         list := srv.GoodGvideoIPList()
-        snapshot := strings.Join(list, "\n")
+        // M8-ah (ADR-0047): every pool entry this build persists is
+        // media-verified (MarkMediaVerifiedIP is the only gvideo-flag
+        // writer since W6), so every line carries the versioned
+        // "media" marker — the loader seeds exactly these back into
+        // the POOL next session.
+        var snap strings.Builder
+        for _, ip := range list {
+                snap.WriteString(ip)
+                snap.WriteString(" media\n")
+        }
+        snapshot := snap.String()
         if snapshot == e.goodPoolLast {
                 e.goodMu.Unlock()
                 return
         }
         e.goodPoolLast = snapshot
         e.goodMu.Unlock()
-        data := ""
-        if snapshot != "" {
-                data = snapshot + "\n"
-        }
+        data := snapshot
         if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
                 e.logger.Warn("good pool save failed reason=" + errKind(err))
         }
@@ -1180,8 +1202,15 @@ func (e *Engine) startListener() error {
         // shorter seed TTL, so the first video of this session rides them
         // instead of re-paying the whole discovery cost. A stale seed
         // self-corrects: a flow death drops its mark and boxes the IP.
-        if seeded := e.loadGoodIPPool(); len(seeded) > 0 {
-                srv.SeedGoodIPs(seeded)
+        // M8-ah (ADR-0047): the media-marked lines seed the POOL
+        // (SeedMediaVerifiedIPs — ADR-0045's flip condition); the legacy
+        // bare lines stay preferences (SeedGoodIPs).
+        legacy, media := e.loadGoodIPPool()
+        if len(media) > 0 {
+                srv.SeedMediaVerifiedIPs(media)
+        }
+        if len(legacy) > 0 {
+                srv.SeedGoodIPs(legacy)
         }
         e.mu.Lock()
         e.server = srv

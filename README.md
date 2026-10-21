@@ -28,35 +28,34 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug25.apk` from the repo's
+releasing yet"): download `v1.6.6-debug26.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.25` release (a regular release in this private
+`v1.6.6-android-debug.26` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug25**; it installs over any earlier
+**make sure the filename says debug26**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build is the BREAKER-STOPS-STARVING round the debug.24 field
-report forced (the prove-before-change build's own sensor fix worked:
-the emission breaker finally armed on the dead video-cache cluster
-that killed playback — and then its 45-second total-silence cooldown
-refused every video dial while the app's player spent its whole
-retry budget against the door: video never opened, the feed kept
-refreshing, and the same report proved the wire healthy twice — so
-the breaker now lets media-proven addresses serve through a cooldown,
-sends the cooldown's first video flow to the wire as a scout, lifts
-the cooldown the moment any video server answers, and caps the
-cooldown at 15 seconds so it can never outlive the player; the
-report's "gvideo discipline" line gains lifts= and scouts= to say
-which happened). The previous round's summary (the
-PROVE-BEFORE-CHANGE round: every video connection's report line says
-whether our request was even acknowledged by the server or the answer
-is being dropped on the way back — the kernel's own TCP counters, no
-packet capture; a "Run network test" button probes the current video
-servers under all four fragmentation methods in the same minute; the
-substitution pool accepts only media-proven addresses; and the
-emission breaker finally sees the death shape the debug.23 report
-actually measured — see ADR-0043/0044/0045 and the release notes);
-the release notes
+this build is the DEAD-CLUSTER MEMORY round the debug.25 field
+report forced ("every video takes initially 1-2 minutes to open,
+after opening it's smooth"): the whole qxau5 video-cache cluster is
+blackholed on the tester's network — every dial accepts and no
+video-server byte ever returns — so each attempt burned its full
+3-second budget while the app rotated through the same dead hosts,
+and the substitution pool sat empty because only the manually
+pressed network test could feed it. Now three silent deaths on one
+cluster mark the CLUSTER dead: its hosts fail instantly at the door
+(no burn, the app's rotation reaches live clusters in seconds), a
+flow that delivered real video bytes feeds the pool automatically,
+the emission breaker no longer arms on single-cluster deaths, and
+the pool persists across restarts — so the first video of every
+later session rides the previously verified origin; the report gains
+a "gvideo clusters:" line that says which of these fired). The
+previous round's summary (the BREAKER-STOPS-STARVING round: the
+emission breaker let media-proven addresses serve through a
+cooldown, sent the cooldown's first video flow to the wire as a
+scout, lifted the cooldown the moment any video server answered, and
+capped it at 15 seconds — see ADR-0046 and the release notes); the
+release notes
 carry every earlier round's story in place.
 Sign in with your
 GitHub account, then sideload it:

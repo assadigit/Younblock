@@ -14,7 +14,9 @@ package proxy
 //     invalidation), not once per dead candidate: the 4x resolver
 //     churn the debug.20/21 decay measured as dns=579-846 ms.
 //
-//  3. The emission breaker — consecutive googlevideo terminals arm a
+//  3. The emission breaker — consecutive googlevideo terminals from
+//     TWO DISTINCT sn-clusters (M8-ah, ADR-0047's arm gate: a
+//     single-cluster burst is the blackhole signature) arm a
 //     cooldown; its FIRST googlevideo flow is the scout (M8-ag,
 //     ADR-0046: the app's own request probes the wire once), the
 //     SECOND fails fast at the door with ZERO wire (the corpses'
@@ -24,6 +26,15 @@ package proxy
 //     next googlevideo flow dials again. A media-verified pool
 //     serving the flow would pass too (the pool escape — pinned from
 //     the substitution side by TestExperimentSwitches' primePool).
+//
+//  5. The dead-cluster memory (M8-ah, ADR-0047) — three distinct
+//     hosts of one sn-cluster silent-terminal inside the window mark
+//     the CLUSTER dead; the next host of that cluster gets an
+//     INSTANT 502 at the door with zero wire (no 3 s first-byte
+//     burn), the media-verified pool overrides the mark, and an
+//     answered own-dial rehabilitates the cluster while the big
+//     echo's payload media-verifies its origin (the pool's automatic
+//     food).
 //
 //  4. The probe clamp — ProbeOrigins never exceeds the trickle budget
 //     (config.OriginProbePerPass) no matter how large a budget the
@@ -220,8 +231,9 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 	corpse2, _ := silentListenerAt(t, "127.0.0.2", port)
 	echo := countingEchoListenerAt(t, "127.0.0.5:"+strconv.Itoa(port))
 	resolver := &hostResolver{hosts: map[string][]net.IP{
-		"rr2---sn-fff.googlevideo.com": {net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.2")},
-		"www.example.com":              {net.ParseIP("127.0.0.5")},
+		"rr2---sn-fff-1.googlevideo.com": {net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.2")},
+		"rr9---sn-ggg-1.googlevideo.com": {net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.2")},
+		"www.example.com":                {net.ParseIP("127.0.0.5")},
 	}}
 	log := &recLogger{}
 	srv, st := newTestServer(t, func(c *Config) {
@@ -234,9 +246,13 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 		c.GvideoBreakerWindow = 5 * time.Second
 		c.GvideoBreakerCooldown = 2 * time.Second // long enough that no pass below can be a lapse
 	})
-	// Two all-dead googlevideo flows: two terminals, one arm.
-	for i := 0; i < 2; i++ {
-		c := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
+	// Two all-dead googlevideo flows, one per cluster (M8-ah, ADR-0047:
+	// the arm gate needs terminals from TWO distinct sn-clusters — a
+	// single-cluster death burst is the blackhole signature cluster
+	// memory owns, not the per-source flag the breaker exists for):
+	// two terminals, two clusters, one arm.
+	for _, h := range []string{"rr2---sn-fff-1", "rr9---sn-ggg-1"} {
+		c := dialConnect(t, srv.Addr(), h+".googlevideo.com", port)
 		_, _ = c.Write(tlsLikeRecord(64))
 		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
 		_, _ = c.Read(make([]byte, 128))
@@ -256,7 +272,7 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 	// flow (the dial lands, the first byte never comes), feeding
 	// the ring a third terminal — never a re-arm: in-cooldown
 	// feeds extend nothing.
-	sc := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
+	sc := dialConnect(t, srv.Addr(), "rr2---sn-fff-1.googlevideo.com", port)
 	_, _ = sc.Write(tlsLikeRecord(64))
 	_ = sc.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _ = sc.Read(make([]byte, 128))
@@ -299,7 +315,7 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 	// verified wire outranks the arm (the debug.24 report's breaker
 	// starved a healthy pool behind its own door).
 	srv.MarkMediaVerifiedIP("127.0.0.9")
-	pc := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
+	pc := dialConnect(t, srv.Addr(), "rr2---sn-fff-1.googlevideo.com", port)
 	_, _ = pc.Write(tlsLikeRecord(64))
 	_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _ = pc.Read(make([]byte, 128))
@@ -332,7 +348,7 @@ func TestEmissionBreakerQuietsTheWire(t *testing.T) {
 	// again (the pool may carry it too — the lapse is what the count
 	// proves either way: the arm is over).
 	time.Sleep(2300 * time.Millisecond)
-	gc := dialConnect(t, srv.Addr(), "rr2---sn-fff.googlevideo.com", port)
+	gc := dialConnect(t, srv.Addr(), "rr2---sn-fff-1.googlevideo.com", port)
 	_, _ = gc.Write(tlsLikeRecord(64))
 	_ = gc.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _ = gc.Read(make([]byte, 128))
@@ -369,5 +385,148 @@ func TestProbePassIsClampedToTheTrickle(t *testing.T) {
 	}
 	if d := st.Diagnostic(); d.GvideoHellos > 10 {
 		t.Fatalf("gvideoHellos = %d from one pass, want at most 10 (the clamp bounds the meter too)", d.GvideoHellos)
+	}
+}
+
+// TestClusterMemoryFastFailsTheDeadCluster (M8-ah, ADR-0047): three
+// DISTINCT hosts of one sn-cluster silent-terminal inside the window →
+// the CLUSTER is marked dead; the next host of that cluster gets the
+// door's INSTANT 502 with zero wire (the debug.25 report's cold start
+// was ~21 three-second burns on the dead sn-qxau5 set interleaved with
+// 7 breaker cooldowns — the fast-fail replaces every burn with ~0 s);
+// the media-verified pool overrides the mark; and an answered own-dial
+// rehabilitates the cluster while the echo's delivered payload
+// media-verifies its origin (the pool's automatic food — the debug.25
+// session starved an empty pool beside scout-carried 1.8 MB flows).
+func TestClusterMemoryFastFailsTheDeadCluster(t *testing.T) {
+	corpse, port := silentListenerAt(t, "127.0.0.1", 0)
+	echo := countingEchoListenerAt(t, "127.0.0.5:"+strconv.Itoa(port))
+	resolver := &hostResolver{hosts: map[string][]net.IP{
+		"rr1---sn-zzz-1.googlevideo.com": {net.ParseIP("127.0.0.1")},
+		"rr2---sn-zzz-2.googlevideo.com": {net.ParseIP("127.0.0.1")},
+		"rr3---sn-zzz-3.googlevideo.com": {net.ParseIP("127.0.0.1")},
+		"rr4---sn-zzz-4.googlevideo.com": {net.ParseIP("127.0.0.1")},
+		"rr5---sn-zzz-5.googlevideo.com": {net.ParseIP("127.0.0.5")},
+	}}
+	log := &recLogger{}
+	srv, st := newTestServer(t, func(c *Config) {
+		c.Logger = log
+		c.Resolver = resolver
+		c.FirstByteTimeout = 150 * time.Millisecond
+		c.FirstByteRaceDials = -1    // serial: the silent terminal's simplest witness
+		c.FirstByteSalvageDials = -1 // attempt 0 only
+		// The breaker never arms here (cluster memory is the subject);
+		// the ring still collects, and the M8-ah dead-cluster feed
+		// exclusion keeps it from ever seeing these deaths.
+		c.GvideoBreakerTerminals = 100
+		c.GvideoClusterDeadHosts = 3
+		c.GvideoClusterDeadWindow = time.Minute
+		c.GvideoClusterDeadTTL = time.Minute
+		c.GvideoClusterReprobeEvery = time.Hour // the probe never fires inside the test
+		c.PayloadVerifiedMinimum = 4096         // the echo's 8 KB flight certifies
+	})
+	// Three distinct hosts of sn-zzz, each silent-terminal.
+	for _, h := range []string{"rr1---sn-zzz-1", "rr2---sn-zzz-2", "rr3---sn-zzz-3"} {
+		c := dialConnect(t, srv.Addr(), h+".googlevideo.com", port)
+		_, _ = c.Write(tlsLikeRecord(64))
+		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, _ = c.Read(make([]byte, 128))
+		_ = c.Close()
+	}
+	if marked := pollLines(log, "WARN gvideo cluster marked dead", 1, 3*time.Second); len(marked) == 0 {
+		t.Fatalf("the third distinct dead host must mark the CLUSTER dead")
+	}
+	if d := st.Diagnostic(); d.GvideoClusterDeads != 1 {
+		t.Fatalf("gvideoClusterDeads = %d, want 1", d.GvideoClusterDeads)
+	}
+	wire := corpse.count()
+	if wire != 3 {
+		t.Fatalf("the three discovery flows must have dialed: corpse connections = %d, want 3", wire)
+	}
+
+	// The fourth host of the SAME cluster: instant 502 at the door,
+	// zero wire — no dial, no 3 s burn.
+	start := time.Now()
+	fc, err := net.DialTimeout("tcp", srv.Addr(), 3*time.Second)
+	if err != nil {
+		t.Fatalf("dial door: %v", err)
+	}
+	_, _ = fc.Write([]byte(fmt.Sprintf("CONNECT rr4---sn-zzz-4.googlevideo.com:%d HTTP/1.1\r\nHost: rr4---sn-zzz-4.googlevideo.com:%d\r\n\r\n", port, port)))
+	_ = fc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 256)
+	n, rerr := fc.Read(buf)
+	_ = fc.Close()
+	if rerr != nil || !strings.Contains(string(buf[:n]), "502") {
+		t.Fatalf("door reply = %q err=%v, want the dead cluster's fast-fail 502", string(buf[:n]), rerr)
+	}
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Fatalf("the fast-fail must be instant, took %v", elapsed)
+	}
+	if still := corpse.count(); still != wire {
+		t.Fatalf("the fast-fail must not dial: %d -> %d corpse connections", wire, still)
+	}
+	if ff := pollLines(log, "WARN gvideo cluster fast-fail", 1, 2*time.Second); len(ff) == 0 {
+		t.Fatalf("the fast-fail line must log")
+	}
+	if d := st.Diagnostic(); d.GvideoClusterFastFail != 1 {
+		t.Fatalf("gvideoClusterFastFail = %d, want 1", d.GvideoClusterFastFail)
+	}
+
+	// The media-verified pool overrides the mark: the next flow of the
+	// dead cluster PASSES the door and rides the substitute lane's
+	// pass (its own corpse dial still burns its 150 ms — the door
+	// decision is what is pinned here).
+	srv.MarkMediaVerifiedIP("127.0.0.9")
+	pc := dialConnect(t, srv.Addr(), "rr4---sn-zzz-4.googlevideo.com", port)
+	_, _ = pc.Write(tlsLikeRecord(64))
+	_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _ = pc.Read(make([]byte, 128))
+	_ = pc.Close()
+	if moved := corpse.count(); moved != wire+1 {
+		t.Fatalf("the pool-served flow must pass the door and dial: %d -> %d corpse connections", wire, moved)
+	}
+
+	// An answered own-dial rehabilitates the cluster (the mark clears)
+	// while the echo's delivered payload media-verifies its origin —
+	// the pool's automatic food.
+	gc := dialConnect(t, srv.Addr(), "rr5---sn-zzz-5.googlevideo.com", port)
+	_, _ = gc.Write(tlsLikeRecord(64))
+	_ = gc.SetReadDeadline(time.Now().Add(3 * time.Second))
+	first := make([]byte, 256)
+	fn, _ := gc.Read(first) // the echo's first flight: the first byte that rehabilitates
+	big := make([]byte, 8192)
+	_, _ = gc.Write(big) // the payload: echoed back, delivered downstream
+	_ = gc.SetReadDeadline(time.Now().Add(3 * time.Second))
+	got := 0
+	for got < len(big) {
+		cn, gerr := gc.Read(big)
+		if cn > 0 {
+			got += cn
+		}
+		if gerr != nil {
+			break
+		}
+	}
+	_ = gc.Close()
+	if fn == 0 {
+		t.Fatalf("the echo flow never got its first byte")
+	}
+	if rehabbed := pollLines(log, "INFO gvideo cluster rehabilitated", 1, 2*time.Second); len(rehabbed) == 0 {
+		t.Fatalf("the own-dial answer must REHABILITATE the cluster")
+	}
+	if d := st.Diagnostic(); d.GvideoClusterRehabs != 1 {
+		t.Fatalf("gvideoClusterRehabs = %d, want 1", d.GvideoClusterRehabs)
+	}
+	if fed := pollLines(log, "INFO gvideo origin media-verified by payload", 1, 3*time.Second); len(fed) == 0 {
+		t.Fatalf("the 8 KB echo delivery must media-verify the origin by payload")
+	}
+	if d := st.Diagnostic(); d.GvideoPayloadFeeds != 1 {
+		t.Fatalf("gvideoPayloadFeeds = %d, want 1", d.GvideoPayloadFeeds)
+	}
+	if _, gvideo := srv.GoodIPStats(); gvideo < 2 {
+		t.Fatalf("the pool must hold both media-verified origins (the marked 127.0.0.9 and the payload-fed echo), gvideo = %d", gvideo)
+	}
+	if served := echo.count(); served < 1 {
+		t.Fatalf("the rehab flow never reached the echo origin (count=%d)", served)
 	}
 }

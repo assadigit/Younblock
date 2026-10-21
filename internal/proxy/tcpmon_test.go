@@ -207,6 +207,7 @@ func TestStallPendingFeedsBreaker(t *testing.T) {
 	port, echo := handShakeEchoListenerAt(t, "127.0.0.1", 0)
 	resolver := &hostResolver{hosts: map[string][]net.IP{
 		"rr2---sn-af2.googlevideo.com": {net.ParseIP("127.0.0.1")},
+		"rr3---sn-af3.googlevideo.com": {net.ParseIP("127.0.0.1")},
 	}}
 	log := &recLogger{}
 	srv, st := newTestServer(t, func(c *Config) {
@@ -219,11 +220,14 @@ func TestStallPendingFeedsBreaker(t *testing.T) {
 		c.GvideoBreakerWindow = 10 * time.Second
 		c.GvideoBreakerCooldown = 500 * time.Millisecond
 	})
-	for i := 0; i < 3; i++ {
-		pendingStallFlow(t, srv, "rr2---sn-af2.googlevideo.com", port)
-	}
+	// M8-ah (ADR-0047): the kills ride TWO clusters — the arm gate
+	// needs terminals from two distinct sn-clusters (a single-cluster
+	// burst is the blackhole signature cluster memory owns).
+	pendingStallFlow(t, srv, "rr2---sn-af2.googlevideo.com", port)
+	pendingStallFlow(t, srv, "rr2---sn-af2.googlevideo.com", port)
+	pendingStallFlow(t, srv, "rr3---sn-af3.googlevideo.com", port)
 	if armed := pollLines(log, "WARN gvideo emission breaker armed", 1, 4*time.Second); len(armed) == 0 {
-		t.Fatalf("the third pending kill must ARM the breaker (W5)")
+		t.Fatalf("the third pending kill (the second cluster's) must ARM the breaker (W5 + the M8-ah arm gate)")
 	}
 	d := st.Diagnostic()
 	if d.GvideoCooldowns != 1 {

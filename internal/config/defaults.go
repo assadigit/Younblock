@@ -403,13 +403,20 @@ const GoodIPSubstitution = 1
 const SubstitutionPoolDials = 3
 
 // GoogleVideoGoodIPsFile — the persisted verified-live googlevideo
-// pool (M8-ab, ADR-0033): one IP per line, gvideo-flagged, seeded back
-// at engine start with the shorter GoodPoolSeedTTL so the FIRST video
-// of session N+1 rides the origins session N verified. Stale seeds
-// self-correct — a flow death on a seeded origin drops its mark and
-// boxes it like any other. Same privacy footing as the codes file:
-// infrastructure addresses in the app's private data directory, never
-// a log line (R21).
+// pool (M8-ab, ADR-0033): one entry per line, seeded back at engine
+// start with the shorter GoodPoolSeedTTL so the FIRST video of
+// session N+1 rides the origins session N verified. M8-ah (ADR-0047)
+// implements ADR-0045's flip condition — the per-line format is now
+// versioned: a line is "<ip> media" (this build's media-verified
+// writes: the network test's answered verdicts AND payload-delivered
+// flows) or a bare "<ip>" (a file written by a pre-debug.24 round,
+// first-byte-certified — the false-positive class W6 removed). Only
+// the media lines seed the substitution POOL; bare lines stay
+// preferences exactly as before. Stale seeds self-correct — a flow
+// death on a seeded origin drops its mark and boxes it like any
+// other. Same privacy footing as the codes file: infrastructure
+// addresses in the app's private data directory, never a log line
+// (R21).
 const GoogleVideoGoodIPsFile = "googlevideo-good-ips.txt"
 
 // GoodPoolSeedTTL — how long a PERSISTED good mark lives when seeded
@@ -494,6 +501,49 @@ const GvideoBreakerWindow = 30 * time.Second
 // outlive the player; the pool escape and the scout (M8-ag) bound
 // the blindness further.
 const GvideoBreakerCooldown = 15 * time.Second
+
+// GvideoClusterDeadHosts — how many DISTINCT googlevideo hosts of one
+// cache cluster silent-terminaling inside GvideoClusterDeadWindow
+// mark the CLUSTER dead (M8-ah, ADR-0047). The cluster is the sn-XXXX
+// token of the hostname: the debug.25 report's whole sn-qxau5 set
+// (btqs/btqy/btqd/btql across rr3..rr7) accepted every TCP dial and
+// never answered a TLS byte — 21 flows, 3 s each, all session long —
+// while sn-aj4g55, sn-u14g55 and sn-4g5ednkd answered instantly and
+// carried 1.8 MB / 559 KB. A censor that blackholes cache nodes by IP
+// range kills the cluster, not the source: the dead-origin probe
+// confirmed it (the penalized qxau5 IPs stayed silent under every
+// SNI). Cluster memory turns that measurement into a door decision.
+const GvideoClusterDeadHosts = 3
+
+// GvideoClusterDeadWindow — the window the dead-marking hosts must
+// fall inside (M8-ah, ADR-0047).
+const GvideoClusterDeadWindow = 10 * time.Minute
+
+// GvideoClusterDeadTTL — how long a dead cluster stays dead without
+// rehabilitation (M8-ah, ADR-0047): an origin of the cluster
+// answering on its OWN dial clears the mark at once, and the door
+// lets one probe flow through every GvideoClusterReprobeEvery, so the
+// TTL is only the worst-case recovery bound.
+const GvideoClusterDeadTTL = 10 * time.Minute
+
+// GvideoClusterReprobeEvery — how often the door lets ONE flow
+// through to a dead-marked cluster (M8-ah, ADR-0047): a blackhole can
+// lift, and without a probe the fast-fail would never learn — the
+// probe bounds the stale mark's cost at one dial budget per cluster
+// per window.
+const GvideoClusterReprobeEvery = 2 * time.Minute
+
+// PayloadVerifiedMinimum — the downstream bytes a googlevideo flow
+// must have DELIVERED before its origin is certified media-verified
+// (M8-ah, ADR-0047): the pool's automatic food. The debug.23
+// false-positive pool was fed by handshake-only wins whose flows
+// carried ≤12.1 KB; real media flows measured 406 KB, 559 KB and
+// 1.8 MB (the debug.25 report's scout-carried videos). 64 KB sits 5x
+// above the false class and 6x below the smallest real flow — an
+// origin that moved that much answer payload carries media, no
+// synthetic probe needed. A wrong mark self-corrects through the
+// same demote-on-death guard every pool entry carries.
+const PayloadVerifiedMinimum = 64 * 1024
 
 // ResetIPPenalty — how long an origin IP that RESET a flow's
 // first-byte attempt is skipped in dial lists (M8-ac, ADR-0034): a

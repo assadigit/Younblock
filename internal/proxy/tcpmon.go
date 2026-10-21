@@ -110,6 +110,24 @@ func (e *tcpEvidence) noteOrigin(c net.Conn) {
 	e.mu.Unlock()
 }
 
+// originIP reports the installed origin's IP ("" when none or not a
+// TCP conn) — the payload-verified pool feed's subject (M8-ah,
+// ADR-0047: the flow's DOWN bytes certify the origin that delivered
+// them, substitute or primary alike). Safe after close: RemoteAddr
+// reads the recorded address, no syscall.
+func (e *tcpEvidence) originIP() string {
+	if e == nil {
+		return ""
+	}
+	e.mu.Lock()
+	c := e.origin
+	e.mu.Unlock()
+	if c == nil {
+		return ""
+	}
+	return remoteIP(c)
+}
+
 // snapB records snapshot B — called at every flow end (relay unwind,
 // stall kill, terminal) BEFORE the socket closes (Go guards a closed
 // conn with "use of closed network connection", but the counters are
@@ -329,6 +347,15 @@ func (e *gvideoEvidence) noteOrigin(c net.Conn) {
 		return
 	}
 	e.tcp.noteOrigin(c)
+}
+
+// originIP reports the flow's winning origin's IP (M8-ah, ADR-0047):
+// "" when no evidence holder or no origin installed.
+func (e *gvideoEvidence) originIP() string {
+	if e == nil {
+		return ""
+	}
+	return e.tcp.originIP()
 }
 
 func (e *gvideoEvidence) snapB() {

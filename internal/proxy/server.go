@@ -175,6 +175,30 @@ type Config struct {
 	GvideoBreakerWindow    time.Duration
 	GvideoBreakerCooldown  time.Duration
 
+	// GvideoClusterDeadHosts / GvideoClusterDeadWindow /
+	// GvideoClusterDeadTTL / GvideoClusterReprobeEvery (M8-ah,
+	// ADR-0047): the dead-cluster memory. That many DISTINCT hosts
+	// of one sn-cluster silent-terminaling inside the window mark
+	// the CLUSTER dead for the TTL — a measured cache-node
+	// blackhole (the debug.25 report's whole sn-qxau5 set: TCP
+	// accepts, zero TLS bytes, all session), not a flag guess.
+	// Dead-cluster hosts fail fast at the door (the media-verified
+	// pool and a once-per-window probe flow get through), and an
+	// answered own-dial rehabilitates the cluster at once. Zero
+	// values take the config defaults.
+	GvideoClusterDeadHosts    int
+	GvideoClusterDeadWindow   time.Duration
+	GvideoClusterDeadTTL      time.Duration
+	GvideoClusterReprobeEvery time.Duration
+
+	// PayloadVerifiedMinimum (M8-ah, ADR-0047): the downstream bytes
+	// a googlevideo flow must deliver before its origin counts as
+	// media-verified — the substitution pool's automatic food (the
+	// debug.25 session starved an empty pool: gvideo 0, attempts 0,
+	// because only the operator-pressed network test could feed
+	// it). Zero → the config default; negative → disabled.
+	PayloadVerifiedMinimum int64
+
 	// FragmentAllRouted (M8-z, ADR-0024 work item A): fragment the
 	// first TLS record of EVERY non-direct-TLD host (class=plain
 	// included), not just the routed domain list. The budgeted shape —
@@ -271,8 +295,19 @@ type Server struct {
 	// recent-terminal ring and the cooldown's end. fed by failFlow
 	// (every googlevideo terminal), read at BOTH doors and by the
 	// engine's probe lane. M8-af (ADR-0045, spec W5): the PENDING
-	// googlevideo stall kills feed the same ring.
+	// googlevideo stall kills feed the same ring. M8-ah
+	// (ADR-0047): the ring's stamps carry their sn-cluster — the
+	// arm needs terminals from TWO distinct clusters (a
+	// single-cluster death burst is the blackhole signature, not
+	// the per-source flag the breaker exists for).
 	gvideoBreak gvideoBreakState
+
+	// The googlevideo dead-cluster memory (M8-ah, ADR-0047):
+	// per-cluster death records (distinct silent-terminal hosts),
+	// the dead marks' ends, and the probe stamps — read at both
+	// doors, fed by the first-byte terminals, cleared by answered
+	// own-dials.
+	gvideoClusters gvideoClusterTable
 
 	// The debug.24 experiment switches (M8-af, ADR-0044, spec W4):
 	// runtime overrides for the substitution candidate and the
@@ -364,6 +399,21 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.GvideoBreakerCooldown <= 0 {
 		cfg.GvideoBreakerCooldown = config.GvideoBreakerCooldown
+	}
+	if cfg.GvideoClusterDeadHosts == 0 {
+		cfg.GvideoClusterDeadHosts = config.GvideoClusterDeadHosts
+	}
+	if cfg.GvideoClusterDeadWindow <= 0 {
+		cfg.GvideoClusterDeadWindow = config.GvideoClusterDeadWindow
+	}
+	if cfg.GvideoClusterDeadTTL <= 0 {
+		cfg.GvideoClusterDeadTTL = config.GvideoClusterDeadTTL
+	}
+	if cfg.GvideoClusterReprobeEvery <= 0 {
+		cfg.GvideoClusterReprobeEvery = config.GvideoClusterReprobeEvery
+	}
+	if cfg.PayloadVerifiedMinimum == 0 {
+		cfg.PayloadVerifiedMinimum = config.PayloadVerifiedMinimum
 	}
 	if cfg.PlainFirstByteTimeout == 0 {
 		cfg.PlainFirstByteTimeout = config.PlainFirstByteTimeout
@@ -1111,12 +1161,24 @@ func (s *Server) markGoodIP(ip string, gvideo bool) {
 
 // MarkMediaVerifiedIP records one origin IP as MEDIA-CAPABLE
 // (M8-af, ADR-0045, spec W6/W7): the network test watched this address
-// answer a real-SNI GET /videoplayback with an HTTP status line — the
-// only evidence class that may feed the googlevideo substitution pool
-// now. Same TTL as every good mark; the gvideo flag only this path
-// writes.
+// answer a real-SNI GET /videoplayback with an HTTP status line — and
+// since M8-ah (ADR-0047) a flow that DELIVERED PayloadVerifiedMinimum
+// downstream bytes certifies the same way (logTunnelDone's payload
+// feed): the only two evidence classes that may feed the googlevideo
+// substitution pool. Same TTL as every good mark; the gvideo flag
+// only these paths write.
 func (s *Server) MarkMediaVerifiedIP(ip string) {
 	s.markGoodIP(ip, true)
+}
+
+// gvideoTerminalStamp is one googlevideo death in the emission
+// breaker's ring (M8-ah, ADR-0047): the stamp and the death's
+// sn-cluster — the arm gate reads the cluster spread to tell a
+// blackhole (one cluster) from a per-source flag (bleeds across
+// clusters).
+type gvideoTerminalStamp struct {
+	at      time.Time
+	cluster string
 }
 
 // gvideoBreakState is the googlevideo emission breaker (M8-ae,
@@ -1132,9 +1194,9 @@ func (s *Server) MarkMediaVerifiedIP(ip string) {
 // out and the next flow resumes service on a decayed flag.
 type gvideoBreakState struct {
 	mu        sync.Mutex
-	terminals []time.Time // recent googlevideo terminal stamps
-	until     time.Time   // the cooldown's end (zero = never armed)
-	scouted   bool        // M8-ag (ADR-0046): this cooldown's scout flow is spent
+	terminals []gvideoTerminalStamp // recent googlevideo terminal stamps
+	until     time.Time             // the cooldown's end (zero = never armed)
+	scouted   bool                  // M8-ag (ADR-0046): this cooldown's scout flow is spent
 }
 
 // noteGvideoTerminal records one googlevideo flow terminal and arms
@@ -1143,7 +1205,18 @@ type gvideoBreakState struct {
 // the caller logs it and counts the cooldown. The arm's jitter is
 // proportional (a quarter of the cooldown, capped at 10 s) so
 // re-arming staggers; a nil RNG (the test harness) skips it.
-func (s *Server) noteGvideoTerminal() bool {
+//
+// M8-ah (ADR-0047): the ring's stamps carry their sn-cluster, and the
+// arm needs terminals from TWO distinct clusters inside the window —
+// the debug.25 report measured the difference: a censor that
+// blackholes cache nodes kills one cluster binary (the whole sn-qxau5
+// set silent from the first hello while aj4g55/u14g55/4g5ednkd
+// answered instantly under the same source's volume — 7 cooldowns
+// stretched one video's open to 100+ s), while the per-source flag
+// the breaker exists for bleeds across clusters. A single-cluster
+// death burst is the blackhole signature; cluster memory (not the
+// breaker) owns it.
+func (s *Server) noteGvideoTerminal(host string) bool {
 	// M8-af (ADR-0044, spec W4): the experiment switch can disable the
 	// breaker live — the exact debug.22 shape on demand.
 	if s.cfg.GvideoBreakerTerminals <= 0 || s.cfg.GvideoBreakerWindow <= 0 || s.cfg.GvideoBreakerCooldown <= 0 {
@@ -1155,17 +1228,24 @@ func (s *Server) noteGvideoTerminal() bool {
 	now := time.Now()
 	s.gvideoBreak.mu.Lock()
 	defer s.gvideoBreak.mu.Unlock()
-	s.gvideoBreak.terminals = append(s.gvideoBreak.terminals, now)
+	s.gvideoBreak.terminals = append(s.gvideoBreak.terminals, gvideoTerminalStamp{at: now, cluster: gvideoClusterKey(host)})
 	cut := now.Add(-s.cfg.GvideoBreakerWindow)
 	kept := s.gvideoBreak.terminals[:0]
 	for _, t := range s.gvideoBreak.terminals {
-		if t.After(cut) {
+		if t.at.After(cut) {
 			kept = append(kept, t)
 		}
 	}
 	s.gvideoBreak.terminals = kept
 	if len(s.gvideoBreak.terminals) < s.cfg.GvideoBreakerTerminals || now.Before(s.gvideoBreak.until) {
 		return false // under threshold, or already quiet
+	}
+	distinct := make(map[string]bool, len(kept))
+	for _, t := range kept {
+		distinct[t.cluster] = true
+	}
+	if len(distinct) < 2 {
+		return false // M8-ah (ADR-0047): one cluster's deaths are the blackhole signature, not a flag
 	}
 	cd := s.cfg.GvideoBreakerCooldown
 	if jitter := cd / 4; jitter > 0 && s.cfg.RNG != nil {
@@ -1232,36 +1312,63 @@ func (s *Server) liftGvideoBreaker(reason string) {
 	}
 }
 
-// gvideoDoorBlocked reports whether the emission breaker blocks THIS
-// host at the door (M8-ae, ADR-0041): googlevideo hosts only —
-// youtube.com, ytimg, ggpht and every other SNI class keeps full
-// service through the cooldown, which is why the FEED keeps
-// refreshing while the video path goes quiet.
+// gvideoDoorBlocked reports whether the doors refuse THIS googlevideo
+// host without a dial (M8-ae, ADR-0041; M8-ag, ADR-0046; M8-ah,
+// ADR-0047). Googlevideo hosts only — youtube.com, ytimg, ggpht and
+// every other SNI class keeps full service, which is why the FEED
+// keeps refreshing while the video path goes quiet.
 //
-// M8-ag (ADR-0046) — the debug.24 field report inverted the breaker's
-// own contract ("video never opens again while the feed keeps
-// working" is what it was built to PREVENT): armed on a dead cache
-// cluster's stall kills, it refused every googlevideo dial for
-// 45 s+jitter while the player spent its whole retry budget against
-// the door (58 door failures, substitution attempts=0 — the
-// door-block short-circuits before the raced round where the pool
-// engages). Two escapes, both on the report's own evidence:
+// Two gates, in order:
 //
-// (1) The media-verified pool: an address that ANSWERED under the
-// real SNI (ADR-0044's probe) is the strongest wire-alive evidence
-// the engine owns — a flow the pool can serve passes the door and
-// rides the substitute lane instead of being silenced. Respects the
-// substitution switch and knob (goodSubstitutes): breaker-on with
-// substitution off keeps the exact M8-ae shape.
+// (1) The dead-cluster memory (M8-ah, ADR-0047) — a MEASURED
+// blackhole, not a flag guess: GvideoClusterDeadHosts distinct hosts
+// of the host's sn-cluster silent-terminalled inside the window. Its
+// flows fail fast (the app's hostname rotation cycles in ~0 s instead
+// of one 3 s first-byte burn per attempt — the debug.25 report's cold
+// start was ~21 such burns interleaved with 7 cooldowns) unless the
+// media-verified pool can serve the flow or the cluster's periodic
+// probe is due. An answered own-dial rehabilitates the cluster at
+// once (noteGvideoClusterAlive).
 //
-// (2) The scout: the cooldown's FIRST flow dials (the app's own
-// request, zero extra emission) so an armed breaker still learns the
-// flag state; its first byte lifts the cooldown (liftGvideoBreaker),
-// its death feeds the terminal ring exactly like any terminal.
+// (2) The emission breaker's cooldown (M8-ae/M8-ag): the pool escape
+// and the scout as debug.25 shipped them.
 //
-// Everything else keeps the M8-ae silence.
+// Both gates share the pool pass: an address that ANSWERED under the
+// real SNI is the strongest wire-alive evidence the engine owns — a
+// flow the pool can serve rides the substitute lane instead of being
+// silenced. Respects the substitution switch and knob
+// (goodSubstitutes): substitution off keeps both gates at their pure
+// shapes.
 func (s *Server) gvideoDoorBlocked(host string) bool {
-	if !isGvideoHost(host) || !s.gvideoCoolingDown() {
+	if !isGvideoHost(host) {
+		return false
+	}
+	if s.gvideoClusterDead(host) {
+		if s.goodSubstitutes(nil, 1) != nil {
+			return false // the pool serves this flow — verified wire
+		}
+		if s.claimGvideoClusterProbe(host) {
+			s.stats.GvideoClusterProbe()
+			if s.cfg.Logger != nil {
+				msg := "gvideo cluster probe (one flow re-tests the dead cluster)"
+				if s.cfg.LogHostnames {
+					msg += " host=" + host
+				}
+				s.cfg.Logger.Info(msg)
+			}
+			return false
+		}
+		s.stats.GvideoClusterFastFail()
+		if s.cfg.Logger != nil {
+			msg := "gvideo cluster fast-fail (cluster marked dead, zero wire)"
+			if s.cfg.LogHostnames {
+				msg += " host=" + host
+			}
+			s.cfg.Logger.Warn(msg)
+		}
+		return true
+	}
+	if !s.gvideoCoolingDown() {
 		return false
 	}
 	if s.goodSubstitutes(nil, 1) != nil {
@@ -1275,6 +1382,169 @@ func (s *Server) gvideoDoorBlocked(host string) bool {
 		return false
 	}
 	return true
+}
+
+// gvideoClusterTable is the googlevideo dead-cluster memory (M8-ah,
+// ADR-0047): per-cluster death records, dead marks and probe stamps.
+// Bounded by the cluster population a session can see (tens) and the
+// window pruning below.
+type gvideoClusterTable struct {
+	mu       sync.Mutex
+	clusters map[string]*gvideoClusterState
+}
+
+// gvideoClusterState is one sn-cluster's death memory (M8-ah,
+// ADR-0047): which distinct hosts silent-terminalled inside the
+// window, the dead mark's end, and the last probe's stamp.
+type gvideoClusterState struct {
+	deaths   map[string]time.Time // host → last silent-terminal stamp
+	until    time.Time            // the dead mark's end (zero = not dead)
+	probedAt time.Time            // the door's last probe handout
+}
+
+// gvideoClusterKey extracts the cache-cluster token from a
+// googlevideo hostname (M8-ah, ADR-0047): the sn-XXXX cluster id —
+// "rr6---sn-qxau5-btqs.googlevideo.com" and "rr5---sn-qxau5-btqs…"
+// and "rr3---sn-qxau5-btqd…" all key to "sn-qxau5" (the debug.25
+// report's dead set), while "sn-4g5ednkd" keys to itself (the
+// trailing token is the node/shard id, not the cluster). "" for
+// hosts without an sn- token (redirector.googlevideo.com) — those
+// never enter cluster memory.
+func gvideoClusterKey(host string) string {
+	if !isGvideoHost(host) {
+		return ""
+	}
+	i := strings.Index(host, "sn-")
+	if i < 0 {
+		return ""
+	}
+	rest := host[i:]
+	if j := strings.IndexByte(rest, '.'); j >= 0 {
+		rest = rest[:j]
+	}
+	parts := strings.Split(rest, "-") // ["sn", "qxau5", "btqs"]
+	if len(parts) < 2 || parts[1] == "" {
+		return ""
+	}
+	return "sn-" + parts[1]
+}
+
+// noteGvideoDeadHost records one SILENT first-byte terminal (the
+// origin accepted the dial and never answered a TLS byte — the
+// blackhole class; resets and connection errors are different censor
+// classes and never feed this) into the cluster memory (M8-ah,
+// ADR-0047). GvideoClusterDeadHosts distinct hosts of the same
+// cluster inside GvideoClusterDeadWindow mark the CLUSTER dead for
+// GvideoClusterDeadTTL; in-window deaths on a dead-marked cluster
+// refresh nothing (the mark already owns it).
+func (s *Server) noteGvideoDeadHost(host string) {
+	if s.cfg.GvideoClusterDeadHosts <= 0 || s.cfg.GvideoClusterDeadWindow <= 0 {
+		return
+	}
+	key := gvideoClusterKey(host)
+	if key == "" {
+		return
+	}
+	now := time.Now()
+	s.gvideoClusters.mu.Lock()
+	defer s.gvideoClusters.mu.Unlock()
+	if s.gvideoClusters.clusters == nil {
+		s.gvideoClusters.clusters = make(map[string]*gvideoClusterState)
+	}
+	st := s.gvideoClusters.clusters[key]
+	if st == nil {
+		st = &gvideoClusterState{deaths: make(map[string]time.Time)}
+		s.gvideoClusters.clusters[key] = st
+	}
+	st.deaths[host] = now
+	cut := now.Add(-s.cfg.GvideoClusterDeadWindow)
+	for h, t := range st.deaths {
+		if t.Before(cut) {
+			delete(st.deaths, h)
+		}
+	}
+	if now.Before(st.until) || len(st.deaths) < s.cfg.GvideoClusterDeadHosts {
+		return
+	}
+	st.until = now.Add(s.cfg.GvideoClusterDeadTTL)
+	st.probedAt = now // the probe serves STALE marks; a fresh one waits out its first window
+	s.stats.GvideoClusterDead()
+	if s.cfg.Logger != nil {
+		msg := fmt.Sprintf("gvideo cluster marked dead (silent terminals on %d distinct hosts)", len(st.deaths))
+		if s.cfg.LogHostnames {
+			msg += " cluster=" + key
+		}
+		s.cfg.Logger.Warn(msg)
+	}
+}
+
+// gvideoClusterDead reports whether the host's sn-cluster carries a
+// live dead mark right now (M8-ah, ADR-0047).
+func (s *Server) gvideoClusterDead(host string) bool {
+	key := gvideoClusterKey(host)
+	if key == "" {
+		return false
+	}
+	s.gvideoClusters.mu.Lock()
+	defer s.gvideoClusters.mu.Unlock()
+	st := s.gvideoClusters.clusters[key]
+	return st != nil && time.Now().Before(st.until)
+}
+
+// claimGvideoClusterProbe hands out a dead cluster's periodic re-test
+// (M8-ah, ADR-0047): at most ONE door pass per cluster per
+// GvideoClusterReprobeEvery, so a lifted blackhole is learned within
+// one probe budget instead of waiting out the whole TTL.
+func (s *Server) claimGvideoClusterProbe(host string) bool {
+	if s.cfg.GvideoClusterReprobeEvery <= 0 {
+		return false
+	}
+	key := gvideoClusterKey(host)
+	if key == "" {
+		return false
+	}
+	now := time.Now()
+	s.gvideoClusters.mu.Lock()
+	defer s.gvideoClusters.mu.Unlock()
+	st := s.gvideoClusters.clusters[key]
+	if st == nil || !now.Before(st.until) {
+		return false
+	}
+	if !st.probedAt.IsZero() && now.Sub(st.probedAt) < s.cfg.GvideoClusterReprobeEvery {
+		return false
+	}
+	st.probedAt = now
+	return true
+}
+
+// noteGvideoClusterAlive clears a cluster's dead mark (M8-ah,
+// ADR-0047): an origin of the cluster answered ON ITS OWN DIAL (the
+// serial first byte, a raced own-set winner, a salvage winner — never
+// a substitute, whose answer says nothing about the dialed cluster).
+// The death records stay (window-pruned); only the mark clears.
+func (s *Server) noteGvideoClusterAlive(host string) {
+	key := gvideoClusterKey(host)
+	if key == "" {
+		return
+	}
+	s.gvideoClusters.mu.Lock()
+	st := s.gvideoClusters.clusters[key]
+	rehabbed := false
+	if st != nil && !st.until.IsZero() {
+		st.until = time.Time{}
+		rehabbed = true
+	}
+	s.gvideoClusters.mu.Unlock()
+	if rehabbed {
+		s.stats.GvideoClusterRehab()
+		if s.cfg.Logger != nil {
+			msg := "gvideo cluster rehabilitated (an origin answered on its own dial)"
+			if s.cfg.LogHostnames {
+				msg += " cluster=" + key
+			}
+			s.cfg.Logger.Info(msg)
+		}
+	}
 }
 
 // goodMarkActive reports whether one origin IP's verified-live mark
@@ -1416,21 +1686,35 @@ func (s *Server) GoodGvideoIPList() []string {
 }
 
 // SeedGoodIPs seeds persisted verified-live origin IPs back into the
-// good table (M8-ab, ADR-0033): every IP seeded with the shorter
-// GoodPoolSeedTTL — yesterday's verdict is stale evidence, and a seed
-// that went bad overnight self-corrects through the same
-// demote-on-death guard every live mark carries.
+// good table as PREFERENCE marks (M8-ab, ADR-0033): every IP seeded
+// with the shorter GoodPoolSeedTTL — yesterday's verdict is stale
+// evidence, and a seed that went bad overnight self-corrects through
+// the same demote-on-death guard every live mark carries.
 //
-// M8-af (ADR-0045, spec W6): the seed writes NON-gvideo marks. Every
-// file written by an earlier round was certified by first-byte wins —
-// exactly the false-positive class W6 removes from the pool — and the
-// loader cannot distinguish an old file's entries from this build's
-// media-verified writes, so the seed stays a preference (front of the
-// dial lists) and the substitution pool starts every session empty
-// until the network test re-verifies. The ADR records the flip
-// condition: a versioned file format that can say "media-verified"
-// per line.
+// M8-af (ADR-0045, spec W6): this path seeds NON-gvideo marks — a
+// bare "<ip>" line in GoogleVideoGoodIPsFile was written by a
+// pre-debug.24 round and was certified by first-byte wins, exactly
+// the false-positive class W6 removes from the pool. M8-ah
+// (ADR-0047) implements the recorded flip condition beside it:
+// SeedMediaVerifiedIPs, fed by the file's "<ip> media" lines.
 func (s *Server) SeedGoodIPs(ips []string) {
+	s.seedGoodIPs(ips, false)
+}
+
+// SeedMediaVerifiedIPs seeds the persisted MEDIA-VERIFIED pool
+// entries back as POOL food (M8-ah, ADR-0047 — ADR-0045's flip
+// condition implemented: the file's per-line "media" marker is the
+// versioned format that says who certified what; only this build's
+// media-verified writes — the network test's answered verdicts and
+// payload-delivered flows — carry it). Same shorter seed TTL and the
+// same demote-on-death self-correction; the first video of session
+// N+1 rides the origins session N verified INSTEAD of re-paying the
+// whole dead-cluster discovery.
+func (s *Server) SeedMediaVerifiedIPs(ips []string) {
+	s.seedGoodIPs(ips, true)
+}
+
+func (s *Server) seedGoodIPs(ips []string, mediaVerified bool) {
 	if len(ips) == 0 {
 		return
 	}
@@ -1451,7 +1735,7 @@ func (s *Server) SeedGoodIPs(ips []string) {
 			}
 			s.goodOrder = append(s.goodOrder, ip)
 		}
-		s.good[ip] = goodMark{until: until, gvideo: false} // W6 (M8-af): a seed prefers, never substitutes
+		s.good[ip] = goodMark{until: until, gvideo: mediaVerified}
 	}
 	s.goodMu.Unlock()
 }

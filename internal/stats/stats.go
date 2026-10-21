@@ -82,6 +82,16 @@ type Counters struct {
 	gvideoScouts atomic.Int64
 	gvideoLifts  atomic.Int64
 
+	// M8-ah (ADR-0047): the dead-cluster memory and the payload-fed
+	// pool — clusters marked dead, flows fast-failed at the door for
+	// a dead cluster, the periodic re-probes, rehabilitations, and
+	// origins media-verified by delivered payload.
+	gvideoClusterDeads    atomic.Int64
+	gvideoClusterFastFail atomic.Int64
+	gvideoClusterProbes   atomic.Int64
+	gvideoClusterRehabs   atomic.Int64
+	gvideoPayloadFeeds    atomic.Int64
+
 	// M8-af (ADR-0043, spec W1): the googlevideo flows' kernel-TCP
 	// verdict split — every stalled googlevideo flow classified from
 	// its A/B TCP_INFO snapshots (upstream-lost: the request never
@@ -225,6 +235,32 @@ func (c *Counters) GvideoScout() { c.gvideoScouts.Add(1) }
 // falsifying the arm's premise for right now — the breaker's
 // self-correction in the wire-alive direction.
 func (c *Counters) GvideoLift() { c.gvideoLifts.Add(1) }
+
+// GvideoClusterDead counts one cache cluster marked dead (M8-ah,
+// ADR-0047): GvideoClusterDeadHosts distinct hosts of the same
+// sn-cluster silent-terminalled inside the window — the measured
+// blackhole signature.
+func (c *Counters) GvideoClusterDead() { c.gvideoClusterDeads.Add(1) }
+
+// GvideoClusterFastFail counts one flow the door refused for a
+// dead-marked cluster with nothing better to offer it (M8-ah,
+// ADR-0047): the instant 502 that keeps the app's hostname rotation
+// cycling instead of burning a 3 s first-byte budget per attempt.
+func (c *Counters) GvideoClusterFastFail() { c.gvideoClusterFastFail.Add(1) }
+
+// GvideoClusterProbe counts one flow the door let through to a
+// dead-marked cluster as its periodic re-test (M8-ah, ADR-0047).
+func (c *Counters) GvideoClusterProbe() { c.gvideoClusterProbes.Add(1) }
+
+// GvideoClusterRehab counts one dead mark an answered origin cleared
+// (M8-ah, ADR-0047).
+func (c *Counters) GvideoClusterRehab() { c.gvideoClusterRehabs.Add(1) }
+
+// GvideoPayloadFeed counts one origin media-verified by delivered
+// payload (M8-ah, ADR-0047): a googlevideo flow that carried
+// PayloadVerifiedMinimum downstream bytes — the pool's automatic
+// food, no synthetic probe.
+func (c *Counters) GvideoPayloadFeed() { c.gvideoPayloadFeeds.Add(1) }
 
 // TCPUpstreamLost counts one stalled googlevideo flow whose kernel TCP
 // evidence says the request never reached the server (acked did not
@@ -386,6 +422,13 @@ type All struct {
 	// wire earned.
 	GvideoScouts int64 `json:"gvideoScouts"`
 	GvideoLifts  int64 `json:"gvideoLifts"`
+	// M8-ah (ADR-0047): the dead-cluster memory and the payload-fed
+	// pool — the report's "gvideo clusters:" line reads these.
+	GvideoClusterDeads    int64 `json:"gvideoClusterDeads"`
+	GvideoClusterFastFail int64 `json:"gvideoClusterFastFail"`
+	GvideoClusterProbes   int64 `json:"gvideoClusterProbes"`
+	GvideoClusterRehabs   int64 `json:"gvideoClusterRehabs"`
+	GvideoPayloadFeeds    int64 `json:"gvideoPayloadFeeds"`
 	// M8-af (ADR-0043, spec W1): the stalled googlevideo flows' kernel
 	// TCP verdict split.
 	TCPUpstreamLost   int64     `json:"tcpUpstreamLost"`
@@ -398,47 +441,52 @@ type All struct {
 // Diagnostic returns every counter, for the diagnostic report only.
 func (c *Counters) Diagnostic() All {
 	return All{
-		BytesDown:          c.bytesDown.Load(),
-		BytesUp:            c.bytesUp.Load(),
-		ConnsTotal:         c.connsTotal.Load(),
-		ConnsLive:          c.connsLive.Load(),
-		ConnErrors:         c.connErrors.Load(),
-		DnsOK:              c.dnsOK.Load(),
-		DnsFail:            c.dnsFail.Load(),
-		Panics:             c.panics.Load(),
-		PlainFirstByteTo:   c.plainFirstByteTimeouts.Load(),
-		DialNear:           c.dialNear.Load(),
-		DialFar:            c.dialFar.Load(),
-		FirstByteSlow:      c.firstByteSlow.Load(),
-		StallKillLean:      c.stallKillLean.Load(),
-		StallKillRich:      c.stallKillRich.Load(),
-		RacedSaves:         c.racedSaves.Load(),
-		SalvagedSaves:      c.salvagedSaves.Load(),
-		RoutedFlows:        c.routedFlows.Load(),
-		ProbePasses:        c.probePasses.Load(),
-		ProbeIPs:           c.probeIPs.Load(),
-		ProbeAnswered:      c.probeAnswered.Load(),
-		ProbeSilent:        c.probeSilent.Load(),
-		ProbeReset:         c.probeReset.Load(),
-		SubstAttempts:      c.substAttempts.Load(),
-		SubstWins:          c.substWins.Load(),
-		GvideoTerminals:    c.gvideoTerminals.Load(),
-		StallLeanPending:   c.stallLeanPending.Load(),
-		StallLeanIdle:      c.stallLeanIdle.Load(),
-		GoodDrops:          c.goodDrops.Load(),
-		ProbeRehabilitated: c.probeRehabilitated.Load(),
-		DoHBrownouts:       c.dohBrownouts.Load(),
-		StallRichPending:   c.stallRichPending.Load(),
-		StallTrickle:       c.stallTrickle.Load(),
-		GvideoHellos:       c.gvideoHellos.Load(),
-		GvideoCooldowns:    c.gvideoCooldowns.Load(),
-		GvideoScouts:       c.gvideoScouts.Load(),
-		GvideoLifts:        c.gvideoLifts.Load(),
-		TCPUpstreamLost:    c.tcpUpstreamLost.Load(),
-		TCPDownstreamLost:  c.tcpDownstreamLost.Load(),
-		TCPBothOK:          c.tcpBothOK.Load(),
-		TCPUnknown:         c.tcpUnknown.Load(),
-		StartedAt:          c.startedAt,
+		BytesDown:             c.bytesDown.Load(),
+		BytesUp:               c.bytesUp.Load(),
+		ConnsTotal:            c.connsTotal.Load(),
+		ConnsLive:             c.connsLive.Load(),
+		ConnErrors:            c.connErrors.Load(),
+		DnsOK:                 c.dnsOK.Load(),
+		DnsFail:               c.dnsFail.Load(),
+		Panics:                c.panics.Load(),
+		PlainFirstByteTo:      c.plainFirstByteTimeouts.Load(),
+		DialNear:              c.dialNear.Load(),
+		DialFar:               c.dialFar.Load(),
+		FirstByteSlow:         c.firstByteSlow.Load(),
+		StallKillLean:         c.stallKillLean.Load(),
+		StallKillRich:         c.stallKillRich.Load(),
+		RacedSaves:            c.racedSaves.Load(),
+		SalvagedSaves:         c.salvagedSaves.Load(),
+		RoutedFlows:           c.routedFlows.Load(),
+		ProbePasses:           c.probePasses.Load(),
+		ProbeIPs:              c.probeIPs.Load(),
+		ProbeAnswered:         c.probeAnswered.Load(),
+		ProbeSilent:           c.probeSilent.Load(),
+		ProbeReset:            c.probeReset.Load(),
+		SubstAttempts:         c.substAttempts.Load(),
+		SubstWins:             c.substWins.Load(),
+		GvideoTerminals:       c.gvideoTerminals.Load(),
+		StallLeanPending:      c.stallLeanPending.Load(),
+		StallLeanIdle:         c.stallLeanIdle.Load(),
+		GoodDrops:             c.goodDrops.Load(),
+		ProbeRehabilitated:    c.probeRehabilitated.Load(),
+		DoHBrownouts:          c.dohBrownouts.Load(),
+		StallRichPending:      c.stallRichPending.Load(),
+		StallTrickle:          c.stallTrickle.Load(),
+		GvideoHellos:          c.gvideoHellos.Load(),
+		GvideoCooldowns:       c.gvideoCooldowns.Load(),
+		GvideoScouts:          c.gvideoScouts.Load(),
+		GvideoLifts:           c.gvideoLifts.Load(),
+		GvideoClusterDeads:    c.gvideoClusterDeads.Load(),
+		GvideoClusterFastFail: c.gvideoClusterFastFail.Load(),
+		GvideoClusterProbes:   c.gvideoClusterProbes.Load(),
+		GvideoClusterRehabs:   c.gvideoClusterRehabs.Load(),
+		GvideoPayloadFeeds:    c.gvideoPayloadFeeds.Load(),
+		TCPUpstreamLost:       c.tcpUpstreamLost.Load(),
+		TCPDownstreamLost:     c.tcpDownstreamLost.Load(),
+		TCPBothOK:             c.tcpBothOK.Load(),
+		TCPUnknown:            c.tcpUnknown.Load(),
+		StartedAt:             c.startedAt,
 	}
 }
 

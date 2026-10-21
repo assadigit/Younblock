@@ -466,6 +466,18 @@ func (e *Engine) GetDiagnosticReport() string {
 	}
 	fmt.Fprintf(&b, "substitution: attempts=%d wins=%d pool=%d (gvideo %d)\n",
 		d.SubstAttempts, d.SubstWins, poolTotal, poolGvideo)
+	// M8-ah (ADR-0047): the dead-cluster memory and the payload-fed
+	// pool — dead= how many sn-clusters carry a live dead mark,
+	// fastFails= the instant door refusals that kept the app's
+	// hostname rotation cycling (each one a saved 3 s first-byte
+	// burn), probes= the periodic re-tests, rehabilitated= dead
+	// marks an answered own-dial cleared, payloadVerified= origins
+	// media-verified by delivered bytes (the pool's automatic food).
+	// The debug.25 report read dead clusters nowhere and an empty
+	// pool (gvideo 0, attempts 0) beside scout-carried 1.8 MB flows;
+	// this line says which of those worlds the next report is in.
+	fmt.Fprintf(&b, "gvideo clusters: dead=%d fastFails=%d probes=%d rehabilitated=%d payloadVerified=%d\n",
+		d.GvideoClusterDeads, d.GvideoClusterFastFail, d.GvideoClusterProbes, d.GvideoClusterRehabs, d.GvideoPayloadFeeds)
 	// M8-ae (ADR-0042): the wire-discipline evidence — the googlevideo
 	// hellos the engine actually put on the wire this session (flow
 	// candidates + substitutes + probe jobs) and the emission breaker's

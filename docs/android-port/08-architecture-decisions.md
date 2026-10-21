@@ -2785,6 +2785,125 @@ DOWN, not up (M8-ad)
   hellos= read against routedFlows answers it the same way it always
   has.
 
+
+## ADR-0047 — The dead-cluster memory: cluster-keyed blackhole detection, the payload-fed pool, and the multi-cluster arm gate (M8-ah)
+
+- **Status:** Accepted 2026-10-21 (M8-ah, debug.26 — decided entirely on
+  the debug.25 field report, the first report carrying M8-ag's
+  lifts=/scouts= telemetry).
+- **Context:** "every video takes initially 1-2 minutes to open, after
+  opening it's smooth." The report decomposed the 1-2 minutes exactly:
+  the whole sn-qxau5 cluster is BLACKHOLED — rr3..rr7 across
+  btqd/btqy/btql/btqs, 21 flows, every one worstFirstByte=0 ms (the
+  TCP dial accepts, no TLS byte ever returns), each costing its full
+  ~3 s first-byte budget — while sn-aj4g55, sn-u14g55 and sn-4g5ednkd
+  answered instantly (first bytes 453-570 ms) and carried 1.8 MB /
+  559 KB / 406 KB. The one-shot dead-origin probe confirmed the
+  class: the penalized qxau5 IPs stayed silent under EVERY SNI — an
+  IP-range blackhole, not an SNI flag. And the session's own machinery
+  stretched the recovery: cooldowns=7 (× ~15 s ≈ the whole open
+  latency — the breaker re-armed cycle after cycle on the SAME dead
+  cluster), one arm even blocked a live-cluster dial (r5-aj4g55 at
+  00:10:33, connected at 00:10:43). The M8-ag escapes worked as
+  designed (scouts=6 — the scout flows literally carried two videos,
+  lifts=2) but the pool escape never engaged: pool=13 (gvideo 0) —
+  W6 left the network test's operator-pressed button as the pool's
+  only food, and it was never pressed, so substitution ran at
+  attempts=0 while the app's own scout flows moved megabytes past the
+  empty table.
+- **Decision:** four changes, all keyed on the measured blackhole
+  signature. (1) THE DEAD-CLUSTER MEMORY: the cluster is the sn-XXXX
+  token of the hostname (rr6---sn-qxau5-btqs and rr5---sn-qxau5-btqs
+  and rr3---sn-qxau5-btqd all key to sn-qxau5); three DISTINCT hosts
+  of one cluster silent-terminaling (the failFlow reason=timeout
+  class only — resets and errors are different censor classes) inside
+  a 10-minute window mark the CLUSTER dead for 10 minutes
+  (noteGvideoDeadHost / gvideoClusterTable). At the door, a
+  dead-cluster host fails FAST (the instant 502, zero wire, no 3 s
+  burn — the app's hostname rotation cycles in ~0 s) unless the
+  media-verified pool serves the flow or the cluster's periodic probe
+  is due (one door pass per cluster per 2 minutes, probedAt
+  initialized at mark time so a fresh mark is never immediately
+  probed). An answered OWN dial (serial first byte, raced own-set
+  winner, salvage winner — never a substitute, whose answer says
+  nothing about the dialed cluster) rehabilitates the cluster at
+  once. (2) THE PAYLOAD-FED POOL: a googlevideo flow that DELIVERED
+  PayloadVerifiedMinimum (64 KB — 5x above the debug.23
+  handshake-only false-positive class at ≤12.1 KB, 6x below the
+  smallest measured real flow at 406 KB) certifies its origin
+  media-verified (logTunnelDone → MarkMediaVerifiedIP, the origin
+  read from the evidence holder — substitute or primary alike): the
+  pool feeds itself from the app's own traffic, no button, no
+  synthetic probes; a wrong mark self-corrects through the same
+  demote-on-death guard every pool entry carries. (3) THE
+  MULTI-CLUSTER ARM GATE: the breaker's ring stamps carry their
+  cluster and the arm needs terminals from TWO distinct clusters —
+  a single-cluster death burst is the blackhole signature cluster
+  memory owns, while the per-source flag the breaker exists for
+  bleeds across clusters; a dead-marked cluster's terminals still
+  COUNT (gvideoTerminals stays honest) but never feed the ring. (4)
+  THE POOL FILE'S VERSIONED FORMAT (ADR-0045's recorded flip
+  condition, implemented): GoogleVideoGoodIPsFile lines are "<ip>
+  media" (this build's media-verified writes) or bare "<ip>"
+  (pre-debug.24 files, first-byte-certified); the loader seeds media
+  lines into the POOL (SeedMediaVerifiedIPs) and bare lines as
+  preferences (SeedGoodIPs, unchanged) — so after one session in
+  which any video played, every later session's FIRST video rides the
+  verified origin instead of re-paying the dead-cluster discovery.
+- **Evidence:** internal/proxy/discipline_test.go
+  TestClusterMemoryFastFailsTheDeadCluster (the round's contract pin:
+  three distinct corpse hosts of sn-zzz mark the cluster dead; the
+  fourth host gets an INSTANT 502 (<500 ms measured) with the corpse
+  counts standing still; MarkMediaVerifiedIP passes the next flow
+  through the SAME dead mark; the fifth host's answered own-dial
+  REHABILITATES while its 8 KB echo delivery media-verifies the
+  origin by payload, pool gvideo ≥ 2); TestEmissionBreakerQuietsTheWire
+  and tcpmon_test.go TestStallPendingFeedsBreaker rewired to arm
+  across TWO clusters (their single-cluster shapes FAILED on the
+  unchanged suite the moment the gate landed — the arm gate's
+  natural both-ways); the M8-ab persistence round-trip extended a
+  session-2 leg (the flushed "192.0.2.55 media" line seeds
+  pool=1 (gvideo 1), the legacy bare lines still pool=2 (gvideo 0)
+  in session 1). Both-ways proofs EXECUTED (stash → FAIL → restore):
+  the door's cluster branch stashed → the fast-fail flow got a 200
+  dial; the payload feed stashed → the media-verified-by-payload line
+  missing; noteGvideoDeadHost stashed → the cluster never marked;
+  SeedMediaVerifiedIPs' gvideo flag stashed → session 2 rendered
+  gvideo 0. Full suite green; -race green on the house gate (proxy +
+  probe + netx); gofmt -l identical to HEAD's list (the edit-tool
+  space-ification caught again by the list diff and restored). The
+  dead-cluster ring-feed exclusion (an explained death is not flag
+  evidence) has no isolated pin — the arm gate subsumes it in every
+  observable path; recorded here as the round's honest gap.
+- **Consequences:** the 1-2-minute cold start decomposes. The
+  discovery wave (3 × 3 s) is followed by INSTANT door refusals
+  instead of 15-second cooldown cycles (the arm gate keeps the
+  breaker out of single-cluster blackholes entirely); the app's own
+  rotation reaches live clusters in seconds; the first live flow
+  fills the pool by payload, and every later dead-cluster dial rides
+  the substitute; after a restart the seeded pool serves the first
+  video of the session too. The censor-facing cost: fast-fail 502s
+  raise the app's short-term retry rate toward the dead cluster
+  (bounded by the app's own retry budget; the wire cost per attempt
+  drops from one fragmented hello + 3 s to zero), and the probe adds
+  one dial budget per dead cluster per 2 minutes. The report gains
+  `gvideo clusters: dead=… fastFails=… probes=… rehabilitated=…
+  payloadVerified=…` — dead≥1 with fastFails>0 says the memory
+  engaged; payloadVerified>0 beside pool (gvideo N>0) says the pool
+  fed itself; attempts/wins>0 says the substitute lane finally
+  carried flows; cooldowns≈0 in a single-cluster regime says the arm
+  gate holds. The breaker survives intact for the regime it exists
+  for (multi-cluster bleed), and the A/B switches keep their
+  meanings.
+- **What this ADR does NOT decide:** whether 64 KB is the right
+  payload threshold in the field (a wrong mark self-corrects, but the
+  next report's payloadVerified= read against attempts/wins says
+  whether the class split cleanly); whether the app's faster retry
+  cadence against a fast-failed cluster has any censor-facing cost
+  the report can see (hellos= against routedFlows answers as always);
+  and whether the qxau5 blackhole is stable across days (the probe's
+  rehabilitated= count and the next session's discovery cost say so).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

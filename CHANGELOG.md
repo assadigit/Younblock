@@ -12,6 +12,63 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-ah; shipping in `v1.6.6-android-debug.26`, versionCode 25)
+
+- **"Every video takes initially 1-2 minutes to open, after opening
+  it's smooth" — the debug.25 report decomposed the delay exactly, and
+  none of it was the breaker's fault this time (ADR-0047).** The whole
+  `sn-qxau5` cluster is BLACKHOLED: 21 flows across rr3..rr7, every
+  one `worstFirstByte=0ms` (the TCP dial accepts, no TLS byte ever
+  returns), each burning its full 3-second first-byte budget — while
+  `sn-aj4g55`, `sn-u14g55` and `sn-4g5ednkd` answered instantly and
+  carried 1.8 MB / 559 KB. The 1-2 minutes were: ~21 three-second
+  burns interleaved with 7 breaker cooldowns (7 × ~15s ≈ the whole
+  delay — one arm even blocked a live-cluster dial), and the M8-ag
+  escapes couldn't help: `pool=13 (gvideo 0)` — the network-test
+  button was the pool's only food and it was never pressed
+  (`attempts=0`), even as the scout flows themselves carried
+  megabytes past the empty table.
+- **The four fixes (ADR-0047):** (1) **dead-cluster memory** — three
+  distinct hosts of one sn-cluster silent-terminal inside 10 minutes
+  mark the CLUSTER dead: its hosts then fail INSTANTLY at the door
+  (zero wire, no 3-second burn) so the app's hostname rotation
+  reaches live clusters in seconds; one probe flow per dead cluster
+  per 2 minutes watches for recovery, and an answered own-dial
+  rehabilitates at once. (2) **the payload-fed pool** — a
+  googlevideo flow that delivered ≥64 KB certifies its origin
+  media-verified automatically (5× above the old false-positive
+  class, 6× below the smallest real flow): the pool feeds itself
+  from the app's own traffic, no button. (3) **the multi-cluster arm
+  gate** — the breaker now needs terminals from TWO distinct
+  clusters before arming: a single-cluster death burst is the
+  blackhole signature (cluster memory's job), the per-source flag
+  bleeds across clusters (the breaker's job). The debug.25 session
+  would have armed ZERO times. (4) **the pool file's versioned
+  format** (ADR-0045's flip condition) — persisted entries carry a
+  per-line `media` marker; the next session seeds them back into the
+  POOL, so after one good session every future session's FIRST video
+  rides the verified origin.
+- **Reading the next report:** a new `gvideo clusters:` line —
+  `dead=… fastFails=… probes=… rehabilitated=… payloadVerified=…`.
+  dead≥1 with fastFails>0 = the memory engaged; payloadVerified>0
+  beside `pool=… (gvideo N>0)` = the pool fed itself; attempts/wins>0
+  = the substitute lane finally carried flows; cooldowns≈0 in a
+  single-cluster regime = the arm gate holds.
+- Tests: the round's contract pin
+  (TestClusterMemoryFastFailsTheDeadCluster: mark → instant 502 with
+  zero wire (<500 ms measured) → pool override → own-dial rehab →
+  payload feed, pool gvideo ≥ 2); the two arm tests rewired across
+  two clusters (their old single-cluster shapes failed the moment the
+  gate landed — its natural both-ways); the M8-ab persistence
+  round-trip extended with a session-2 leg (the `media` line seeds
+  `pool=1 (gvideo 1)`). Both-ways proofs EXECUTED for the door's
+  cluster branch, the payload feed, the dead-host feed, and the media
+  seeding (each stashed → its pin FAILS). Full suite green; -race
+  green on the house gate; gofmt list identical to HEAD's. The
+  engine's TestNetworkTestGatingAndStatus real-network flake appeared
+  again at its documented ~10% HEAD rate — untouched, recorded in
+  ADR-0046.
+
 ### Fixed / Added (2026-10-21 — M8-ag; shipping in `v1.6.6-android-debug.25`, versionCode 24)
 
 - **Build artifact:** commit `0405f1f` ("M8-ag: the breaker stops

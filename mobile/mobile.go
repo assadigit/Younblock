@@ -146,7 +146,8 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // M8-ad (debug.22, versionCode 21): the long-lived-connection round.
         // M8-af (debug.24, versionCode 23): the prove-before-change round.
         // M8-ag (debug.25, versionCode 24): the breaker-stops-starving round.
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.25"}
+        // M8-ah (debug.26, versionCode 25): the dead-cluster memory round.
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.26"}
         if mutate != nil {
                 mutate(&opts)
         }
