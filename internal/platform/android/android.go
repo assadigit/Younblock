@@ -89,10 +89,14 @@ func (p *Platform) Name() string { return "android" }
 // Capabilities reports what this platform supports. Per-app routing is
 // the VpnService's (doc 04 §2.4); there is no tray, no start-with-OS
 // (AND-028: nothing auto-starts after reboot), no system proxy and no
-// dedicated browser session on Android.
+// dedicated browser session on Android. AutoOpenTarget is the
+// connect-time hand-off (M8-am, ADR-0051, D105): the shell refreshes
+// and opens the YouTube app once the TUN is actually routing — the
+// one platform where a "target app" exists at all.
 func (p *Platform) Capabilities() engine.Capabilities {
 	return engine.Capabilities{
-		PerAppRouting: true,
+		PerAppRouting:  true,
+		AutoOpenTarget: true,
 	}
 }
 

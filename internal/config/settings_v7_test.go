@@ -59,8 +59,8 @@ func TestExperimentSwitchesRetiredOff(t *testing.T) {
 	if migrated.Advanced.ExperimentSubstitution || !migrated.Advanced.ExperimentBreaker {
 		t.Fatalf("pre-v6 file switches = %v/%v, want off/on (the v7 retirement)", migrated.Advanced.ExperimentSubstitution, migrated.Advanced.ExperimentBreaker)
 	}
-	if migrated.Version != 7 {
-		t.Fatalf("migrated version = %d, want 7", migrated.Version)
+	if migrated.Version != settingsVersion {
+		t.Fatalf("migrated version = %d, want %d", migrated.Version, settingsVersion)
 	}
 }
 

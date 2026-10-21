@@ -5,6 +5,13 @@
        FOREGROUND_SERVICE                  the M5 foreground service keeping the tunnel alive
        FOREGROUND_SERVICE_CONNECTED_DEVICE the FGS type for the VPN service (API 34+ policy)
        POST_NOTIFICATIONS                  runtime permission on 13+; the state notification
+       KILL_BACKGROUND_PROCESSES           the M8-am connect-time hand-off's refresh half
+                                           (ADR-0051, D105): a normal install-time permission
+                                           that lets the shell drop the YouTube app's cached
+                                           background process right before launching it, so
+                                           the first open is a cold start through the live
+                                           tunnel instead of a resume of pre-connect
+                                           dead-host state
        (no location, no storage beyond app-private, no SYSTEM_ALERT_WINDOW,
         no request-install-packages; ACCESS_NETWORK_STATE deliberately NOT
         requested — the Go netmon reads interfaces in-process, verified this
@@ -19,6 +26,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <queries>
         <!-- D83: the allow-list has no defaults — the user adds any
@@ -35,9 +43,15 @@
         </intent>
     </queries>
 
+    <!-- The launcher icon (M8-am, ADR-0051, D104): the owner's
+         icon.ico mark — the adaptive mipmap set
+         scripts/gen_android_icons.py traces from the 32px source
+         (five flat colors, the source's z-order), with legacy raster
+         tiles for pre-adaptive contexts. The simple pill glyph stays
+         the notification's small icon (drawable/ic_notification). -->
     <application
         android:label="@string/app_name"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
         android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
         android:theme="@style/AppTheme">

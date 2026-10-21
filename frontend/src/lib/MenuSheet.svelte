@@ -27,6 +27,11 @@
   export let platform = "";
   /** True only when the host reports the per-app routing capability. */
   export let perAppRouting = false;
+  /** True only when the host reports the connect-time hand-off
+   *  capability (M8-am, D105: Android refreshes and opens the YouTube
+   *  app when the engine turns on). Gates the sheet's auto-open row —
+   *  a host with no target app never shows it. */
+  export let autoOpenTarget = false;
   /** True only when the host reports the tray capability (the Windows
    *  desktop) — D93 gates the close setting's row on it: a platform with
    *  no tray has nothing to keep running, so the row never shows there. */
@@ -118,6 +123,12 @@
   const KEEP_IN_TRAY_TITLE = "Keep running in the tray when closed";
   const KEEP_IN_TRAY_HINT =
     "Off by default: closing the window stops Younblock completely. On: closing it keeps the app running in the tray near the clock — right-click the tray icon and choose Quit to stop it.";
+  // The M8-am connect-time hand-off (D105: on is the shipped default on
+  // Android). The copy says exactly what happens at connect time, so
+  // flipping it is an informed choice, not a surprise launch.
+  const AUTO_OPEN_TITLE = "Open YouTube when Younblock connects";
+  const AUTO_OPEN_HINT =
+    "On by default: the moment the connection is ready, Younblock refreshes the YouTube app and opens it, so the first video starts through the fresh tunnel. Off: nothing is opened for you.";
 
   // =====================================================================
 
@@ -175,11 +186,12 @@
   $: quickAdds = Object.keys(APP_LABELS).filter((p) => !apps.includes(p));
 
   // Load the settings once the sheet is first opened on a host that
-  // actually has them (per-app routing or the tray capability — the two
-  // surfaces that read settings.json). Re-reading on every open keeps
-  // the state fresh if the classic screen saved meanwhile.
+  // actually has them (per-app routing, the connect-time hand-off, or
+  // the tray capability — the surfaces that read settings.json).
+  // Re-reading on every open keeps the state fresh if the classic
+  // screen saved meanwhile.
   let loadedForOpen = false;
-  $: if (open && (perAppRouting || tray) && backend && !loadedForOpen) {
+  $: if (open && (perAppRouting || autoOpenTarget || tray) && backend && !loadedForOpen) {
     loadedForOpen = true;
     void refreshSettings();
   }
@@ -258,6 +270,27 @@
       trayError = e instanceof Error ? `Could not save: ${e.message}` : "Could not save. Try again.";
     } finally {
       trayBusy = false;
+    }
+  }
+
+  // ---- the connect-time hand-off (M8-am, autoOpenTarget platforms) ------
+
+  let autoOpenBusy = false;
+  let autoOpenError = "";
+
+  /** Full-document save, the keep-in-tray row's path verbatim: the
+   *  whole settings document round-trips, every other field untouched,
+   *  and on failure the checkbox snaps back to the last saved state. */
+  async function saveAutoOpen(next: boolean): Promise<void> {
+    if (!backend || !settings || autoOpenBusy) return;
+    autoOpenBusy = true;
+    autoOpenError = "";
+    try {
+      settings = await backend.saveSettings({ ...settings, autoOpenYouTube: next });
+    } catch (e) {
+      autoOpenError = e instanceof Error ? `Could not save: ${e.message}` : "Could not save. Try again.";
+    } finally {
+      autoOpenBusy = false;
     }
   }
 
@@ -524,33 +557,58 @@
       {/if}
     </section>
 
-    <!-- D93: the close setting, on hosts that have a tray (the Windows
-         desktop). Every other platform has nothing to keep running, so
-         the section never renders there — one sheet, honest per host. -->
-    {#if tray}
+    <!-- The settings section renders for whichever host rows it holds:
+         D93's close setting on tray hosts (the Windows desktop — every
+         other platform has nothing to keep running), and M8-am's
+         connect-time hand-off on autoOpenTarget hosts (Android). One
+         sheet, honest per host — a platform with neither never shows
+         the section. -->
+    {#if tray || autoOpenTarget}
       <section aria-labelledby="settings-heading">
         <h2 id="settings-heading">Settings</h2>
         {#if settings === null}
           <p class="dim">Loading…</p>
         {:else}
-          <div class="setting-row">
-            <div class="setting-text">
-              <span class="setting-title">{KEEP_IN_TRAY_TITLE}</span>
-              <span class="setting-hint">{KEEP_IN_TRAY_HINT}</span>
+          {#if tray}
+            <div class="setting-row">
+              <div class="setting-text">
+                <span class="setting-title">{KEEP_IN_TRAY_TITLE}</span>
+                <span class="setting-hint">{KEEP_IN_TRAY_HINT}</span>
+              </div>
+              <label class="toggle">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label={KEEP_IN_TRAY_TITLE}
+                  checked={settings.keepInTrayOnClose ?? false}
+                  disabled={trayBusy}
+                  on:change={(e) => saveKeepInTray(e.currentTarget.checked)}
+                />
+                <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+              </label>
             </div>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label={KEEP_IN_TRAY_TITLE}
-                checked={settings.keepInTrayOnClose ?? false}
-                disabled={trayBusy}
-                on:change={(e) => saveKeepInTray(e.currentTarget.checked)}
-              />
-              <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
-            </label>
-          </div>
-          {#if trayError}<p class="inline-error" role="alert">{trayError}</p>{/if}
+            {#if trayError}<p class="inline-error" role="alert">{trayError}</p>{/if}
+          {/if}
+          {#if autoOpenTarget}
+            <div class="setting-row">
+              <div class="setting-text">
+                <span class="setting-title">{AUTO_OPEN_TITLE}</span>
+                <span class="setting-hint">{AUTO_OPEN_HINT}</span>
+              </div>
+              <label class="toggle">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label={AUTO_OPEN_TITLE}
+                  checked={settings.autoOpenYouTube ?? true}
+                  disabled={autoOpenBusy}
+                  on:change={(e) => saveAutoOpen(e.currentTarget.checked)}
+                />
+                <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+              </label>
+            </div>
+            {#if autoOpenError}<p class="inline-error" role="alert">{autoOpenError}</p>{/if}
+          {/if}
         {/if}
       </section>
     {/if}

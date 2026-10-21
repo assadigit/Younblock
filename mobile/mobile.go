@@ -150,7 +150,11 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // M8-ai (debug.27, versionCode 26): the pool keeps its food round.
         // M8-aj (debug.28, versionCode 27): the lane retires round.
         // M8-ak (debug.29, versionCode 28): the method-documentation round.
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.29"}
+        // M8-am (debug.30, versionCode 29): the release-candidate polish
+        // round — the owner's two pre-release asks: the real launcher
+        // icon (his icon.ico mark) and the connect-time YouTube
+        // hand-off (ADR-0051, D104/D105).
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.30"}
         if mutate != nil {
                 mutate(&opts)
         }
@@ -360,6 +364,29 @@ func (m *Engine) RoutedApps() string {
                 // empty list — the NO_TARGET_APPS refusal owns what happens next,
                 // never route-everything.
                 out = []byte(`{"apps":[]}`)
+        }
+        return string(out)
+}
+
+// AutoOpenYouTube is the M8-am settings surface for the Kotlin service
+// (ADR-0051, D105): the connect-time hand-off switch, as
+// {"enabled":<bool>} — the same normalized truth GetSettings reports
+// (the `autoOpenYouTube` field, schema v8) and the WebView's Settings
+// row edits. The shell reads it fresh at the moment the engine turns
+// on (a change saved while connected applies on the NEXT connect, the
+// same as the allow-list), so the three doors can never disagree about
+// whether the hand-off fires.
+//
+// The default is true on Android (the owner's checked-by-default
+// ruling; LoadFor applies it to fresh installs and pre-v8 files) — the
+// facade reports whatever the engine's normalized settings hold.
+func (m *Engine) AutoOpenYouTube() string {
+        out, err := json.Marshal(map[string]bool{"enabled": m.eng.Settings().AutoOpenYouTube})
+        if err != nil {
+                // Unreachable for a bool; if it ever fires, fail toward
+                // DISABLED — an unasked-for app launch is worse than a
+                // missed one, never the reverse.
+                return `{"enabled":false}`
         }
         return string(out)
 }

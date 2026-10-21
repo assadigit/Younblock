@@ -48,6 +48,13 @@ func TestNameAndCapabilities(t *testing.T) {
 	if !caps.PerAppRouting {
 		t.Error("Capabilities().PerAppRouting = false, want true (the VpnService owns per-app routing; doc 04 §2.4)")
 	}
+	// M8-am (ADR-0051, D105): the connect-time hand-off ships on Android
+	// — the capability gates the UI's auto-open row and the setting's
+	// readers. Both-ways proof: with the field stashed, this FAILS
+	// (false) and the MenuSheet row never renders.
+	if !caps.AutoOpenTarget {
+		t.Error("Capabilities().AutoOpenTarget = false, want true (the connect-time YouTube hand-off; M8-am)")
+	}
 	if caps.SystemProxy || caps.Tray || caps.StartWithOS || caps.BrowserSession {
 		t.Errorf("Capabilities() = %+v: desktop-only capabilities must all be false on Android", caps)
 	}

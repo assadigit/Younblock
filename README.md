@@ -27,45 +27,39 @@ VPN slot as a local traffic-routing interface, hides no IP address and adds no
 encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
-For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug29.apk` from the repo's
+For now this is a **debug-signed test build, not a release** ("we're
+not releasing yet" — this round is the release candidate wearing its
+final shell): download `v1.6.6-debug30.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.29` release (a regular release in this private
+`v1.6.6-android-debug.30` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug29**; it installs over any earlier
+**make sure the filename says debug30**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build is the METHOD-DOCUMENTATION round the debug.28 victory
-report asked for: "by far our best version yet — 90% of the initial
-delay of each video is gone," so the round wrote
-[docs/android-port/11-the-video-opening-war.md](docs/android-port/11-the-video-opening-war.md)
-— the full record of how the 1–2 minute video opens became ~1 second
-(the scoreboard, the loop method, the round-by-round arc, the
-semantic discoveries, the remaining-residual decomposition, and the
-lessons) — and re-scoped the diagnostic auto-timeline to googlevideo
-so the remaining 5–10% mobile-only delay finally measures what the
-tester actually feels: play → video data, not feed bursts (the old
-heuristic's pairs were being closed by 1.4 MB image loads that
-carried no video). Playback behavior is identical to the debug.28
-the victory report measured — and the field report has now come
-back with the answer: **every video opened in 5–6 seconds, and the
-engine's measured share of that is half a second** (play → first
-video data = 500 ms over 6 gvideo-gated pairs; every live-host
-first byte sat in the 443–650 ms band). The remaining ~5 s is the
-YouTube app's own dead-host retry ladder — the report's log shows
-it cycling the blackholed cluster's URLs before every open at the
-app's own ~1.3 s rhythm, each attempt answered instantly at the
-door — plus first-frame buffering (the verdict:
-[doc 11 §5.1](docs/android-port/11-the-video-opening-war.md)).
-That is the release state: the 1–2 minute opens of the first
-builds became 5–6 seconds, of which the chain's share is 0.5 s. The
-previous round's summary (the LANE RETIRES round: the four-round
-cross-origin substitution experiment concluded OFF, the off-switch
-no-op since debug.24 fixed, and the door back to the reset ladder
-the player escalates on — see ADR-0049 and the release notes); the
-release notes carry every earlier round's story in place.
-Sign in with your
-GitHub account, then sideload it:
+this build adds the owner's two pre-release asks on top of the
+measured release state. **First, the real app icon:** the owner's own
+mark — the padlock with the play button, the gold lightning bolt —
+traced to crisp vector geometry as the adaptive launcher icon (the
+temporary pill placeholder is gone; the notification keeps the
+simple mark, which is what reads in a monochrome-tinted status
+bar). **Second, the connect-time hand-off:** the moment Younblock
+connects and the tunnel is actually routing, it refreshes and opens
+the YouTube app for you — the first video cold-starts through the
+live tunnel instead of resuming the app's pre-connect retry ladder.
+It is a new Settings row in the menu sheet, **on by default**, and
+it fires once per connect. The engine's playback behavior is
+untouched: the debug.29 field verdict stands — **every video opened
+in 5–6 seconds with the engine's measured share at half a second**
+(play → first video data = 500 ms over 6 gvideo-gated pairs); the
+rest is the YouTube app's own dead-host retry ladder plus
+first-frame buffering, and the hand-off sidesteps exactly that
+(the verdict and the sidestep:
+[doc 11 §5.1–5.2](docs/android-port/11-the-video-opening-war.md)).
+The previous rounds' stories — the substitution experiment's
+retirement (ADR-0049), the method documentation and the
+gvideo-gated instrument (ADR-0050) — live on in the release notes
+and [doc 11](docs/android-port/11-the-video-opening-war.md), in
+place.
 
 1. Allow installs from your browser app (Settings → Apps → special access →
    install unknown apps).

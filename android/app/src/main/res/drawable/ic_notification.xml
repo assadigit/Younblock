@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Minimal launcher mark for the M3 shell: the pill track with its LED
-     dot, in the brand red. M7 replaces this with real iconography. -->
+<!-- The notification glyph (M8-am, ADR-0051, D104): the pill track
+     with its LED dot, in the brand red — the simple mark that reads as
+     a silhouette in the status bar, where Android tints small icons
+     monochrome anyway. The launcher icon is the owner's icon.ico mark
+     (the mipmap set scripts/gen_android_icons.py traces); this glyph
+     stays the shell's status voice. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

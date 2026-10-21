@@ -1,5 +1,6 @@
 package io.github.assadigit.younblock
 
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -91,6 +92,17 @@ class YounblockVpnService : VpnService() {
 
     /** True once startTun succeeded (the fd is Go's from then on). */
     private var tunBound = false
+
+    /**
+     * The M8-am connect-time hand-off's once-per-run latch (ADR-0051,
+     * D105): true once the YouTube open fired for THIS connect run.
+     * Reset when the run ends (phase off/error); a degraded→on
+     * recovery flap must not re-launch the app over the user, and a
+     * service restart cycle (no fresh "on" event — the engine kept
+     * serving through establishTun's already-serving path) is the
+     * SAME run, so it never re-fires either.
+     */
+    private var autoOpenFired = false
 
     private val main = Handler(Looper.getMainLooper())
 
@@ -269,6 +281,10 @@ class YounblockVpnService : VpnService() {
                 // The notification follows the honest combined state at
                 // every transition (degraded on; recovered back).
                 startForegroundHonest()
+                // The M8-am hand-off (ADR-0051, D105): only when the TUN
+                // is actually bound — an "on" the shell could not route
+                // must not launch YouTube into a dead tunnel.
+                if (tunBound) maybeAutoOpenYouTube()
             }
             "off", "error" -> {
                 // doc 04 §8: every path to off/error ends with the TUN
@@ -277,11 +293,69 @@ class YounblockVpnService : VpnService() {
                 if (tunBound || tunPfd != null) {
                     unbindTun()
                 }
+                autoOpenFired = false // the run ended; the next connect may hand off again
                 stopSelfHonest()
             }
             // "connecting"/"stopping": nothing to do — the TUN binds
             // when serving arrives and unwinds on the terminal phase.
         }
+    }
+
+    /**
+     * The connect-time hand-off (M8-am, ADR-0051, D105): once per
+     * connect run, when the engine reports serving AND the TUN is
+     * bound, refresh and open the YouTube app — so the first video
+     * starts through the fresh tunnel instead of the app resuming its
+     * pre-connect dead-host ladder (doc 11 §5.1 measured the app's own
+     * ladder owning most of the felt 5-6 s first-open load).
+     *
+     * Gated by the `autoOpenYouTube` setting (schema v8, default ON —
+     * the owner's checked-by-default ruling), read fresh at this moment
+     * through the facade so the settings file, the UI row and this
+     * door can never disagree. A change saved mid-connect applies on
+     * the NEXT connect, exactly like the allow-list.
+     *
+     * The refresh: killBackgroundProcesses for the YouTube package
+     * (KILL_BACKGROUND_PROCESSES, a normal install-time permission) —
+     * at connect time the user just acted in Younblock, so YouTube is
+     * the cached background process this drops; the launch that
+     * follows is then a cold start. The open: the package's launch
+     * intent with NEW_TASK. Every refusal path is logged honestly and
+     * costs nothing — a missed open is recoverable (the user taps
+     * YouTube), an unwanted one is not.
+     */
+    private fun maybeAutoOpenYouTube() {
+        if (autoOpenFired) return
+        autoOpenFired = true // once per run: success, refusal, or off — no re-fire on flaps
+        val engine = EngineHolder.engine ?: return
+        val enabled = runCatching {
+            JSONObject(engine.autoOpenYouTube()).optBoolean("enabled", false)
+        }.getOrDefault(false)
+        if (!enabled) {
+            Log.i(TAG, "auto-open: off (the setting); nothing opened")
+            return
+        }
+        // The refresh half: drop YouTube's cached background process so
+        // the launch is a cold start. Best-effort — OEMs age this call
+        // differently, and a surviving warm process only means a warm
+        // open, never a failure.
+        runCatching {
+            getSystemService(ActivityManager::class.java)
+                .killBackgroundProcesses(YOUTUBE_PACKAGE)
+            Log.i(TAG, "auto-open: refreshed $YOUTUBE_PACKAGE (background process dropped)")
+        }.onFailure { Log.w(TAG, "auto-open: refresh refused: ${it.message}") }
+        // The open half. The app is in the foreground at connect time
+        // (the user just tapped Connect here), so the background-start
+        // restriction does not apply; a refusal is still caught and
+        // logged, never fatal.
+        val launch = packageManager.getLaunchIntentForPackage(YOUTUBE_PACKAGE)
+        if (launch == null) {
+            Log.i(TAG, "auto-open: $YOUTUBE_PACKAGE not installed; nothing to open")
+            return
+        }
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { startActivity(launch) }
+            .onFailure { Log.w(TAG, "auto-open: launch refused: ${it.message}") }
     }
 
     /** Stops the stack if bound; closes the held PFD if never bound. */
@@ -372,7 +446,10 @@ class YounblockVpnService : VpnService() {
         )
         // minSdk 26: the channel constructor always exists.
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            // M8-am: the pill glyph (the launcher icon is now the
+            // owner's mark in the mipmap set; the status bar tints
+            // small icons monochrome, where the simple mark reads).
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(tap)
@@ -412,6 +489,11 @@ class YounblockVpnService : VpnService() {
     companion object {
         private const val TAG = "Younblock"
         private const val CHANNEL_ID = "vpn"
+
+        /** The hand-off's target (M8-am, ADR-0051, D105): the official
+         *  YouTube app — the D86 default allow-list's first entry and
+         *  the app this product exists to unblock. */
+        private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
         private const val NOTIFICATION_ID = 1
         private const val MTU = 1500
         private const val TUN_ADDRESS = "10.111.0.1"

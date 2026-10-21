@@ -53,7 +53,21 @@ import (
 // substituted wins, big=0, the player pinned to the blackholed
 // cluster's URL set all session, and the cluster never marked dead
 // because substituted wins never terminal). The breaker stays on.
-const settingsVersion = 7
+//
+// v8 (M8-am, ADR-0051, D105) adds `autoOpenYouTube` — the connect-time
+// hand-off: when the engine turns on, the Android shell refreshes and
+// opens the YouTube app so the first video starts through the fresh
+// tunnel instead of the app's pre-connect dead-host ladder. The
+// owner's ruling is checked-by-default, so the default is
+// platform-dependent like v5's fragmentAllRouted: true on Android
+// (LoadFor applies it, fresh install and pre-v8 migration alike — the
+// field was absent from every pre-v8 file, so its false there is the
+// shipped default, never a decision), false on every desktop (the
+// field persists and round-trips there but nothing reads it: no
+// YouTube app to open; openBrowserOnConnect is the desktop
+// counterpart). A v8 file records the owner's explicit choice either
+// way.
+const settingsVersion = 8
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -128,8 +142,21 @@ type Settings struct {
 	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
 	// profile, proxy flags) when the engine turns on. Default off.
 	OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
-	FirstRunDone         bool `json:"firstRunDone"`
-	CloseNoticeShown     bool `json:"closeNoticeShown"`
+	// AutoOpenYouTube (M8-am, ADR-0051, schema v8, D105): when the engine
+	// turns on, the Android shell refreshes (kills the cached background
+	// process) and opens the YouTube app — the connect-time hand-off so
+	// the first video starts through the fresh tunnel instead of the
+	// app's pre-connect dead-host ladder (doc 11 §5.1: the engine's share
+	// of the felt 5-6 s load is ~500 ms; the app's own ladder owns the
+	// rest, and a cold start through the live tunnel sidesteps it).
+	// Default TRUE on Android (the owner's checked-by-default ruling;
+	// LoadFor applies it to fresh installs and pre-v8 files alike), false
+	// on every desktop — the field persists and round-trips there but
+	// nothing reads it (no YouTube app to open; OpenBrowserOnConnect
+	// above is the desktop counterpart of the same idea).
+	AutoOpenYouTube  bool `json:"autoOpenYouTube"`
+	FirstRunDone     bool `json:"firstRunDone"`
+	CloseNoticeShown bool `json:"closeNoticeShown"`
 	// Apps is the Android per-app allow-list (ADR-0003, schema v2,
 	// default D87): the package names whose TCP+DNS the VpnService
 	// routes through the engine. The list starts with the YouTube
@@ -455,6 +482,18 @@ func LoadFor(dir string, platform string) (s Settings, notice string, err error)
 		if loaded.Version < 7 {
 			loaded.Advanced.ExperimentSubstitution = false
 		}
+		// The v8 migration (M8-am, ADR-0051, D105): only on Android,
+		// only the state no owner ever chose. autoOpenYouTube was
+		// absent from every pre-v8 file, so its false there is the
+		// shipped default, never a decision — and the owner's ruling
+		// for the new behavior is checked-by-default, so Android's
+		// pre-v8 files migrate to true (the v5 fragmentAllRouted
+		// pattern, verbatim). A v8 file records the owner's explicit
+		// choice either way; the desktops keep the field off (nothing
+		// there reads it).
+		if android && loaded.Version < 8 {
+			loaded.AutoOpenYouTube = true
+		}
 	}
 	return Normalize(loaded), "", nil
 }
@@ -470,6 +509,7 @@ func applyPlatformDefaults(s *Settings, android bool) {
 		return
 	}
 	s.FragmentAllRouted = true
+	s.AutoOpenYouTube = true // M8-am (ADR-0051, D105): the hand-off ships on
 	if IsDebugTesterBuild() {
 		s.Advanced.LogDomains = true
 	}

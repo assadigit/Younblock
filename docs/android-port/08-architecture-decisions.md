@@ -3203,3 +3203,77 @@ reconsidered, affected files/requirements/tests, user-visible impact;
 update this file and the pack README before implementing dependent
 work. Gated selections (ADR-0008) switch on their listed criteria with
 a measurement note, without a full re-litigation.
+
+## ADR-0051 — The release-candidate polish: the owner's icon and the connect-time hand-off (M8-am)
+
+- **Status:** Accepted 2026-10-21 (M8-am, debug.30, versionCode 29 —
+  decided on the owner's two pre-release asks, D104/D105; the round
+  after M8-al's verdict closed the residual question and left
+  release-readiness standing).
+- **Context:** "Before we release, add this: 1. use this for app icon
+  [icon.ico]. 2. add this option in setting, checked by default: when
+  app connects automatically open android's youtube app and refresh
+  it." Two shell-surface asks, no playback change requested — and a
+  32×32 source icon too small to upscale, plus a behavior that must
+  fire at exactly the moment the tunnel is genuinely routing (never
+  before, never twice).
+- **Decision:**
+  1. **The icon (D104):** `scripts/gen_android_icons.py` traces the
+     owner's mark to vector geometry — the 32 px source upscaled 16×,
+     snapped to its five flat colors (blend pixels resolve to the
+     nearer endpoint of the pair that explains them; the bolt's light
+     outline is its own layer; the impact dashes survive at speckle
+     20), each color layer binary-traced (vtracer, its translate
+     transform BAKED into the coordinates — a naive d-only
+     reassembly drops it and lands every shape near the origin), the
+     layers assembled in the source's z-order, and every layer gated
+     at IoU ≥ 0.90 against the quantized source before anything is
+     written. Output: the adaptive mipmap set (dark `#1E1F21`
+     background, the mark at the 52/108 safe zone, monochrome layer
+     included) plus the legacy raster tiles; the pill glyph becomes
+     `drawable/ic_notification.xml` (the status bar tints small
+     icons monochrome, where the simple mark reads).
+  2. **The hand-off (D105):** settings schema v8 adds
+     `autoOpenYouTube` — true on Android (fresh installs and the
+     pre-v8 migration; the v5 platform-default pattern), inert on
+     desktops. A new `autoOpenTarget` capability (Android only) gates
+     the menu sheet's Settings row. The Kotlin service fires the
+     hand-off ONCE per connect run, only when a phase event reports
+     serving AND `startTun` actually bound (an "on" the shell cannot
+     route must not launch YouTube into a dead tunnel):
+     `killBackgroundProcesses` for the YouTube package (the refresh —
+     a normal install-time permission), then the launch intent with
+     NEW_TASK (the open). A degraded→on recovery flap cannot re-fire
+     (the latch resets only when the run ends); a restart cycle
+     without a fresh serving event is the same run and never re-fires
+     (the establishTun already-serving path deliberately does not
+     call the hand-off).
+- **Evidence:** internal/config/settings_v8_test.go (the four shapes:
+  the Android default, the migration, the desktop-inert false, the
+  v8 owner's word, the round-trip — with both-ways stash notes);
+  mobile/autoopen_test.go (the facade reports the ruling's default,
+  then tracks the saved switch both ways);
+  internal/platform/android/android_test.go pins the capability
+  (both-ways note in-test). The icon: per-layer IoU 0.966–0.994
+  printed by the generator, and the committed geometry VLM-verified
+  FAITHFUL against the original mark on the adaptive circle, the
+  adaptive square and the legacy tile. Full Go suite green (the
+  engine's known real-network flake on its documented rerun); -race
+  green on the house gate (proxy+probe+netx); `gofmt -l` identical
+  to HEAD's list (the space-indented legacy files edited through
+  byte-exact scripted replacements, not the editor); the frontend
+  `svelte-check` delta zero (5 pre-existing errors in an untouched
+  file, verified by stash) and `vite build` clean.
+- **Consequences:** the tester's next report should show the hand-off
+  working (YouTube opens by itself the moment the state reaches On;
+  the logcat carries "auto-open:" lines for the off-setting,
+  not-installed and refusal paths). Playback behavior is untouched —
+  no proxy, dialer, pool, tier or instrumentation change rides in
+  this build, so the blessed debug.28/29 behavior carries into the
+  release candidate unchanged. The kill is best-effort: OEMs age
+  `killBackgroundProcesses` differently, and a surviving warm
+  process means a warm open, never a failure (the CLEAR_TASK
+  escalation is recorded in D105 for the round that needs it). The
+  icon's trace pipeline is pinned (vtracer's translate bake is the
+  load-bearing detail; the version note in the script documents the
+  mid-session 0.6.12→0.6.15 drift that motivated the guard).

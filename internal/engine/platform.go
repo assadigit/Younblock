@@ -22,6 +22,13 @@ type Capabilities struct {
 	// session exists here (the Windows shell launches Chrome with proxy
 	// flags; the web edition has no shell to launch anything — D50).
 	BrowserSession bool `json:"browserSession"`
+	// AutoOpenTarget reports whether the platform has a target app the
+	// shell can hand off to when the engine turns on (M8-am, ADR-0051,
+	// D105): Android refreshes and opens the YouTube app through the
+	// live tunnel. The capability gates the UI row; the autoOpenYouTube
+	// setting (schema v8) is the user's switch for it. False everywhere
+	// else — the desktops' counterpart is OpenBrowserOnConnect.
+	AutoOpenTarget bool `json:"autoOpenTarget"`
 }
 
 // NoticeKind separates failure notifications from recovery ones.

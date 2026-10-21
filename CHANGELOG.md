@@ -12,6 +12,35 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (2026-10-21 — M8-am, debug.30, versionCode 29; the release-candidate polish — the owner's two pre-release asks, D104/D105)
+
+- **The real launcher icon (D104).** The owner's own `icon.ico` —
+  the padlock with the white play triangle in its red body, the gold
+  lightning bolt with its light outline, the impact dashes — is now
+  the app icon: traced from the 32 px source to crisp vector
+  geometry (per-layer IoU-verified against the source, VLM-checked
+  faithful), shipped as the adaptive icon (the brand dark behind
+  the mark, every launcher mask respected) with legacy raster tiles
+  for older contexts. The notification keeps the simple pill mark —
+  the status bar tints small icons monochrome, where the pill reads
+  and the detailed mark would not.
+- **The connect-time hand-off (D105).** When Younblock connects —
+  the moment the tunnel is genuinely routing — the app now
+  refreshes (drops the cached background process) and opens the
+  YouTube app, so the first video cold-starts through the live
+  tunnel instead of resuming the app's pre-connect dead-host retry
+  ladder (doc 11 §5.1 measured that ladder owning most of the felt
+  5–6 s first-open load; the hand-off is the owner's sidestep,
+  §5.2). A new Settings row in the menu sheet carries the switch —
+  **on by default** per the ruling, saved like every setting, read
+  fresh at the moment of connect; a change applies on the next
+  connect. Once per connect: a degraded-recovery flap never
+  re-launches over the user, and nothing opens unless the TUN is
+  actually bound. Playback behavior is untouched — the engine's
+  proxy/dialer/pool/tier code is byte-identical to the blessed
+  debug.28/29 state; this build is the release candidate wearing
+  its final shell.
+
 ### Fixed / Added (2026-10-21 — M8-al, no build; the debug.29 field verdict, recorded)
 
 - **"I think it became better — every video opened in 5–6 seconds

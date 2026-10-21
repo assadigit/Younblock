@@ -58,6 +58,9 @@
   // the desktop sections.
   let platform = ''
   let perAppRouting = false
+  // M8-am (D105): the connect-time hand-off capability gates the
+  // sheet's auto-open row (Android reports it; the desktops never do).
+  let autoOpenTarget = false
   // D93: the tray capability gates the sheet's close setting (Windows
   // desktop). False everywhere else — and in a preview, where the host
   // is absent, the section simply never renders.
@@ -82,6 +85,7 @@
         appVersion = info?.version ?? ''
         platform = info?.platform ?? ''
         perAppRouting = info?.capabilities?.perAppRouting ?? false
+        autoOpenTarget = info?.capabilities?.autoOpenTarget ?? false
         tray = info?.capabilities?.tray ?? false
       })
       .catch(() => {})
@@ -224,6 +228,7 @@
       version={appVersion}
       {platform}
       {perAppRouting}
+      {autoOpenTarget}
       {tray}
       {backend}
       on:close={() => (menuOpen = false)}

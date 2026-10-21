@@ -2319,6 +2319,79 @@ accidents does not happen."
    the naming rule, and Android refuses same-signature versionCode
    downgrades, so the silent wrong-build install cannot happen
    through them.
-4. Next decision ID: D104. (D102 remains reserved for Ali's
+4. Next decision ID: D106. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates this one.)
+
+**D104 — the launcher icon is the owner's mark (Ali's ruling,
+2026-10-21, the M8-am round — "use this for app icon").** The owner
+uploaded `icon.ico` to the repo root (byte-identical to
+`assets/icon.ico` — a 32×32 RGBA mark: a padlock whose red body
+carries the white play triangle, a gold lightning bolt with a light
+outline breaking through the top-right, the dark shackle, two impact
+dashes).
+
+1. **RECORDED as ruled — the Android launcher icon is that mark.**
+   The 32 px source is too small to upscale, so
+   `scripts/gen_android_icons.py` traces it to vector geometry and
+   emits the set: `mipmap-anydpi-v26/ic_launcher.xml` (adaptive: the
+   brand dark `#1E1F21` background, the mark as the foreground at the
+   52/108 safe zone, the same foreground as the Android 13+
+   monochrome layer) and the legacy raster tiles (48–192 px, the mark
+   on the same dark rounded square the Windows app icon uses). The
+   old placeholder (`drawable/ic_launcher.xml`, the pill mark) moves
+   to `drawable/ic_notification.xml` — it stays the notification's
+   small icon, where Android tints monochrome and the simple mark
+   reads as a silhouette.
+2. **Fidelity rules, pinned in the script:** five flat colors
+   measured from the source's opaque interiors; anti-aliased blend
+   pixels resolve to the nearer ENDPOINT of the pair that explains
+   them (a red↔white blend must never land on the gold); the bolt's
+   light outline is a designed element and survives as its own layer;
+   the impact dashes trace at the speckle filter that keeps them
+   (100 ate them; 20 keeps every designed element); every layer
+   renders against the quantized source at IoU ≥ 0.90 or the script
+   refuses to write — and the committed geometry was additionally
+   VLM-verified FAITHFUL against the original mark (adaptive circle,
+   adaptive square, and legacy tile renders).
+3. **Scope:** the launcher and notification surfaces only — the
+   in-app wordmark, the tray icons and the packaging icons are
+   untouched. The script asserts the two icon.ico copies stay
+   byte-identical (a divergence is loud, not silent).
+
+**D105 — the connect-time hand-off: open YouTube, refreshed, when
+Younblock connects (Ali's ruling, 2026-10-21, the M8-am round).**
+"add this option in setting, checked by default: when app connects
+automatically open android's youtube app and refresh it."
+
+1. **RECORDED as ruled — a new setting, checked by default.**
+   `autoOpenYouTube` (settings schema v8): TRUE on Android — the
+   fresh install and every pre-v8 file migrate to true (the field
+   was absent, so its false was the shipped default, never a choice
+   — the v5 fragmentAllRouted pattern); false on every desktop,
+   where the field round-trips but nothing reads it
+   (`openBrowserOnConnect` is the desktop counterpart of the same
+   idea). The UI row (the menu sheet's Settings section, gated on
+   the new `autoOpenTarget` capability) saves through the ordinary
+   settings door.
+2. **The behavior:** once per connect run — when the engine reports
+   serving AND the TUN is actually bound — the shell drops the
+   YouTube app's cached background process
+   (KILL_BACKGROUND_PROCESSES, a normal install-time permission:
+   the refresh half) and launches it (the open half), so the first
+   open is a cold start through the live tunnel instead of a resume
+   of the app's pre-connect dead-host ladder. Doc 11 §5.1 measured
+   that ladder owning most of the felt 5–6 s first-open load; the
+   hand-off is the owner's own sidestep — it does nothing the app's
+   player would not do eventually, it just skips the waiting
+   (§5.2). The latch fires once per run (a degraded→on flap never
+   re-launches over the user); a restart cycle without a fresh
+   serving event is the SAME run and never re-fires.
+3. **The doors stay one truth:** the capability gates the row
+   (Android reports `autoOpenTarget: true`; every other platform
+   never shows it), the facade's `AutoOpenYouTube()` is the shell's
+   fresh-at-the-moment read, and a change saved mid-connect applies
+   on the NEXT connect — the allow-list's rule, verbatim. If the
+   refresh proves weak on some OEM (the kill is best-effort), the
+   escalation is the launch intent's CLEAR_TASK flag — recorded
+   here for the next round, not shipped speculatively.

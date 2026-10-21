@@ -284,6 +284,24 @@ probe/rehabilitate path. The arc ends where §1 said it did: a 1–2
 minute open became 5–6 seconds, of which the engine's share is half
 a second.
 
+### 5.2 The owner's hand-off (M8-am, D105: the connect-time sidestep)
+
+The verdict above attributes the remaining ~5 s to the YouTube
+app's own machinery — and the owner answered with a sidestep rather
+than an engine change: when Younblock connects, the shell now
+refreshes (drops the app's cached background process) and opens
+the YouTube app itself (ADR-0051, D105: a Settings row, on by
+default). A cold start through the already-routing tunnel never
+cycles the pre-connect ladder at all — the app wakes to a tunnel
+where the blackholed cluster is already marked dead and the pool
+is already fed, which is exactly the state the debug.28/29 engine
+had built by mid-session, now present from the first second. The
+engine's own code is untouched by this (no proxy, dialer, pool or
+tier change): the hand-off moves the APP's starting line, not the
+chain's cost. What the next report can measure: whether the first
+video after connect opens measurably faster than the 5–6 s
+mid-session baseline — the one number this war has not yet taken.
+
 ---
 
 ## 6. Lessons for the next engineer

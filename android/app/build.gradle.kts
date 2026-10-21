@@ -20,32 +20,35 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 28: the M8-ak build (debug.29 -- the
-        // method-documentation round, ADR-0050). The debug.28
-        // field report: "by far our best version yet -- 90% of
-        // the initial delay of each video is gone, and it's
-        // that much good that it can be the first official
-        // release." The numbers behind it: dead=1 fastFails=90
-        // (the cluster memory + instant resets owning the
-        // recovery), cooldowns=1 lifted in 730ms, substitution
-        // attempts=0 (the lane's tombstone), auto-timeline
-        // 1000ms pairs=5, a live cluster delivering 2.1MB. Per
-        // the tester's asks: (1) the method documented in
-        // docs/android-port/11-the-video-opening-war.md (the
-        // scoreboard, the loop method, the arc, the semantic
-        // discoveries, the residual decomposition, the
-        // lessons); (2) the auto-timeline re-scoped to
-        // googlevideo (ADR-0050) so the remaining 5-10%
-        // residual measures play -> video data: a play is a
-        // googlevideo flow after googlevideo quiet, first-data
-        // is a googlevideo first byte -- the old any-down-burst
-        // close let 1.4MB feed bursts close pairs that carried
-        // no video. Diagnostics-only: playback behavior is
-        // byte-identical to debug.28. Installs over debug.28
-        // (the same pinned debug certificate -- D85). The D84
-        // rule: every debug build bumps this. D103: the APK
-        // asset is named v1.6.6-debug29.apk.
-        versionCode = 28
+        // versionCode 29: the M8-am build (debug.30 -- the
+        // release-candidate polish round, ADR-0051). The
+        // debug.29 verdict round closed the residual question
+        // (doc 11 §5.1: the engine's share of the felt 5-6s
+        // load is ~500ms; the app's own dead-host ladder plus
+        // buffering own the rest -- the release state), and the
+        // owner added two asks before the official release
+        // (D104/D105): (1) the real launcher icon -- his
+        // icon.ico mark (the padlock with the play button, the
+        // gold bolt, the impact dashes), traced to vector
+        // geometry by scripts/gen_android_icons.py (per-layer
+        // IoU-verified against the source, VLM-checked
+        // faithful) as the adaptive mipmap set with legacy
+        // tiles; the pill glyph stays the notification mark;
+        // (2) the connect-time hand-off -- when the engine
+        // turns on with the TUN bound, the shell refreshes
+        // (killBackgroundProcesses) and opens the YouTube app
+        // so the first video cold-starts through the live
+        // tunnel instead of resuming the pre-connect ladder;
+        // a new settings row (autoOpenYouTube, schema v8)
+        // carries it, checked by default per the owner's
+        // ruling, read fresh at the moment "on" arrives. The
+        // engine's playback behavior is untouched: no proxy,
+        // dialer, pool or tier change rides in this build.
+        // Installs over debug.29 (the same pinned debug
+        // certificate -- D85). The D84 rule: every debug build
+        // bumps this. D103: the APK asset is named
+        // v1.6.6-debug30.apk.
+        versionCode = 29
         versionName = "1.6.6"
     }
 

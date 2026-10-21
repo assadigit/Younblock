@@ -38,6 +38,9 @@ export interface AppInfo {
   platform?: string;
   capabilities?: {
     perAppRouting?: boolean;
+    /** M8-am: the host can hand off to a target app on connect
+     *  (Android: the YouTube app). Gates the sheet's auto-open row. */
+    autoOpenTarget?: boolean;
     [key: string]: boolean | undefined;
   };
 }
@@ -59,6 +62,11 @@ export interface Settings {
   /** D93: hiding in the tray on close is opt-in (default false = a real
    *  shutdown). Read by the sheet's close-setting row on tray hosts. */
   keepInTrayOnClose?: boolean;
+  /** M8-am (schema v8, D105): the connect-time hand-off — when the
+   *  engine turns on, the Android shell refreshes and opens the
+   *  YouTube app. Default true on Android; the sheet's Settings row
+   *  reads and saves it on autoOpenTarget hosts. */
+  autoOpenYouTube?: boolean;
   /** The Android per-app allow-list (schema v2, M6). */
   apps?: string[];
   advanced?: {

@@ -4746,3 +4746,73 @@ next per D84), the owner-side release-keystore signing (D88/D90 —
 the key never leaves the owner's machine; a one-time uninstall
 from the debug certificate), the GitHub Latest + byte-verified
 asset loop.
+
+
+## M8-am — the release-candidate polish round (debug.30, versionCode 29)
+
+The owner's pre-release asks, verbatim: "Before we release, add
+this: 1. use this for app icon [the repo-root icon.ico he
+uploaded]. 2. add this option in setting, checked by default: when
+app connects automatically open android's youtube app and refresh
+it." Both shipped as shell surfaces — the engine's playback path
+is untouched (no proxy, dialer, pool or tier change; the blessed
+debug.28/29 behavior carries into the release candidate).
+
+**The icon (D104):** the owner's 32×32 mark (byte-identical at
+assets/icon.ico and the repo root — the script asserts it stays
+so) is traced to vector geometry by scripts/gen_android_icons.py:
+16× LANCZOS upscale, snap to the five flat colors with pair-mix
+endpoint resolution (a red↔white blend never lands on the gold;
+the bolt's light outline is its own cream layer; the white
+shackle-crossing sliver folds into that outline — one continuous
+stroke, what the mark reads as), per-color binary traces with
+vtracer's translate transform BAKED into the coordinates (the
+load-bearing detail: a naive d-only reassembly drops it and lands
+every shape near the origin — found the hard way this round), and
+an IoU ≥ 0.90 gate per layer before anything is written. The
+committed geometry: dark 0.978 / red 0.994 / cream 0.966 / gold
+0.984 / white 0.984 — VLM-verified FAITHFUL against the original
+mark on the adaptive circle, adaptive square and legacy tile
+renders (the first trace attempt failed the check exactly as
+designed: filter_speckle=100 ate the two impact dashes; 20 keeps
+every designed element). Shipped: mipmap-anydpi-v26/ic_launcher
+(adaptive: #1E1F21 background, the mark at the 52/108 safe zone,
+monochrome layer), the 48–192 legacy tiles (the mark on the
+Windows app icon's dark rounded square), and the pill mark moved
+to drawable/ic_notification — the status-bar voice, where Android
+tints monochrome.
+
+**The hand-off (D105):** settings schema v8 adds autoOpenYouTube —
+true on Android (fresh installs and every pre-v8 file migrate:
+the field was absent, so its false was the shipped default, never
+a choice — the v5 pattern), inert on desktops. A new
+autoOpenTarget capability (Android only) gates the menu sheet's
+new Settings row. The facade's AutoOpenYouTube() is the shell's
+fresh-at-the-moment read (the mobile tests pin it both ways). The
+Kotlin service fires once per connect run — only when a phase
+event reports serving AND the TUN is bound — as
+killBackgroundProcesses (the refresh, KILL_BACKGROUND_PROCESSES
+added to the manifest's honest inventory) + the launch intent
+(the open). The latch survives degraded→on flaps and restart
+cycles; every refusal path logs honestly ("auto-open:" lines).
+Doc 11 §5.2 records why the owner's idea is exactly the right
+sidestep: a cold start through the routing tunnel never cycles
+the pre-connect dead-host ladder the debug.29 verdict attributed
+the felt load to.
+
+**The round's verification:** gofmt -l identical to HEAD's list
+(mobile.go edited through byte-exact scripted replacements, spaces
+preserved); full Go suite green (the engine's known real-network
+flake on its documented rerun); -race green on the house gate
+(proxy+probe+netx); the frontend's svelte-check delta zero (5
+pre-existing errors in an untouched file, stash-verified) and
+vite build clean. Artifact: v1.6.6-debug30.apk, 57,307,507 bytes,
+SHA-256 3d06a01d53ccbb8fe06c3330740a008deb3f7a3aff30112f001006e
+3e1d87734, aapt badging versionCode 29 / versionName 1.6.6 /
+minSdk 26 / targetSdk 36, apksigner pinned cert c76bb7c6…8551d
+(D85 — installs over debug.29 in place), the round's strings
+verified in libgojni.so (1.6.6-debug.30,
+Java_mobile_Engine_autoOpenYouTube) and the new row verified in
+the served bundle ("Open YouTube when Younblock connects").
+Decisions D104/D105 in DECISIONS.md; ADR-0051 in doc 08; doc 11
+§5.2; CHANGELOG and README carry the round.
