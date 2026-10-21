@@ -5004,3 +5004,21 @@ network-test lane is untouched by this round and no engine change
 rides in debug.32 — the M8-am precedent's "known real-network
 flake" family, today not rerun-clean because the sandbox's DoH
 path degraded mid-session.
+
+**The artifact and the release loop:** built via build-android.sh
+from commit 9811883: v1.6.6-debug32.apk, 57,891,345 bytes, SHA-256
+6c7488e939a8504e96fd90b6e8a1b4f59d85e556de2c04632b58cddf110e517d;
+aapt badging versionCode 31 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36; apksigner the pinned D85 cert c76bb7c6…8551d
+(installs over debug.31 in place); all 21 icon resources present
+with the generator's exact byte sizes, the extracted xxxhdpi
+foreground and legacy tiles pixel-identical to the committed
+renders, the compiled adaptive XML carrying the background/
+foreground/monochrome wiring, libgojni.so carrying 1.6.6-debug.32,
+and the dex carrying the warm-gate hand-off code (onEngineState)
+unchanged from debug.31. Shipped: GitHub release
+v1.6.6-android-debug.32 (id 419676858, the repo's Latest per D89),
+asset v1.6.6-debug32.apk (asset id 662818028, the D103 name)
+re-downloaded byte-identical (cmp + SHA-256). Decisions D108 in
+DECISIONS.md; ADR-0054 in doc 08; doc 11's scoreboard row and arc
+entry; CHANGELOG and README carry the round.
