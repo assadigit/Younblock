@@ -4894,3 +4894,22 @@ check and reverted before anything shipped); the frontend's
 svelte-check delta zero (5 pre-existing errors in the untouched
 DiagnosticsView) and vite build clean. Mobile version string
 1.6.6-debug.31; gradle versionCode 30.
+
+**The artifact and the release loop:** built via build-android.sh
+from commit 3414133 (rebased onto the owner's same-day upload
+35dfcc1 — his `younblock-logo-v1.png`, a 449×449 RGBA source now
+parked at the repo root for his word; nothing in this round reads
+it): v1.6.6-debug31.apk, 57,546,363 bytes, SHA-256
+c252f06c75c13c8e0213bded836a0f2fce609f63f31019b27fe09837fff83e0e;
+aapt badging versionCode 30 / versionName 1.6.6 / minSdk 26 /
+targetSdk 36; apksigner pinned cert c76bb7c6…8551d (D85 — installs
+over debug.30 in place); libgojni.so carries 1.6.6-debug.31,
+googlevideo-dead-clusters.txt, the warm-gate strings and the
+served bundle's "Getting the first video ready…" copy; the Kotlin
+dex carries onEngineState and its warm key. Shipped: GitHub
+release v1.6.6-android-debug.31 (id 419611534, Latest per D89),
+asset v1.6.6-debug31.apk (asset id 662647100, the D103 name)
+re-downloaded byte-identical (cmp + SHA-256). Decisions D106/D107
+in DECISIONS.md; ADR-0052/0053 in doc 08; doc 11 §5.2's field
+result + §5.3 the shipped record; CHANGELOG and README carry the
+round.
