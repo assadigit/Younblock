@@ -42,12 +42,18 @@ import (
 // and an owner's saved logDomains survives verbatim in every build.
 // v6 (M8-af, ADR-0044, spec W4) adds the debug.24 experiment switches
 // to Advanced — experimentSubstitution and experimentBreaker, both
-// defaulting ON (the round's shipped semantics: substitution is
+// defaulting ON at v6 (the round's shipped semantics: substitution is
 // W6-scoped media-evidence-only, the breaker is the M8-ae shape with
 // the W5 sensor fix). A pre-v6 file never recorded them, so the
 // migration flips both on — the shipped default, never a choice the
-// file's owner made.
-const settingsVersion = 6
+// file's owner made. M8-aj (ADR-0049, schema v7) RETIRES the
+// substitution experiment: every file below v7 — including every v6
+// file, which carried the shipped-on default verbatim, never a
+// choice — flips substitution OFF (the debug.27 field verdict: 37
+// substituted wins, big=0, the player pinned to the blackholed
+// cluster's URL set all session, and the cluster never marked dead
+// because substituted wins never terminal). The breaker stays on.
+const settingsVersion = 7
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -70,9 +76,18 @@ type Advanced struct {
 	// candidate. On = the W6-scoped semantics (non-gvideo fronts
 	// substitute as before; googlevideo substitution engages only when
 	// the pool holds MEDIA-verified addresses). Off = the candidate
-	// never engages (the consultation's §2.3 open matrix item 2:
-	// substitution was never field-tested as an isolated variable).
-	// Default on; applied live while the engine runs.
+	// never engages. M8-aj (ADR-0049, schema v7): the default flips
+	// OFF and the v7 migration retires the experiment on every
+	// existing file — four field rounds (debug.19/23/26/27) never
+	// measured a cross-cluster media carry, and the debug.27 report
+	// measured the lane actively harmful: fast small HTTP answers
+	// on a blackholed cluster keep the player ON the dead URL set
+	// (37 wins, big=0, no video opened at all) while starving the
+	// dead-cluster memory of the silent terminals that mark the
+	// cluster dead. The machinery stays (the proxy knob, the pool,
+	// the media marks that still front dial lists); a v7 file that
+	// records an explicit true is the owner's word and rides.
+	// Applied live while the engine runs (the diagnostics toggle).
 	ExperimentSubstitution bool `json:"experimentSubstitution"`
 	// ExperimentBreaker (M8-af, ADR-0044, spec W4, schema v6): the
 	// debug.24 switch for the googlevideo emission breaker. Off = the
@@ -140,7 +155,7 @@ func DefaultSettings() Settings {
 		Advanced: Advanced{
 			DoHServers:             Defaults(),
 			Domains:                DefaultDomains(),
-			ExperimentSubstitution: true, // W4 (M8-af): the debug.24 switches ship on
+			ExperimentSubstitution: false, // M8-aj (ADR-0049): the experiment concluded — retired off
 			ExperimentBreaker:      true,
 		},
 	}
@@ -426,6 +441,19 @@ func LoadFor(dir string, platform string) (s Settings, notice string, err error)
 		if loaded.Version < 6 {
 			loaded.Advanced.ExperimentSubstitution = true
 			loaded.Advanced.ExperimentBreaker = true
+		}
+		// The v7 migration (M8-aj, ADR-0049): every file below v7 flips
+		// substitution OFF. The v6 default shipped the switch ON and every
+		// v6 writer recorded the whole struct verbatim, so a v6 file's
+		// experimentSubstitution=true is the shipped default, never a
+		// choice its owner made — and the debug.27 field report measured
+		// what that default costs: the cross-origin substitute's fast
+		// small answers kept the player pinned to the blackholed
+		// cluster's URL set for a whole session (37 wins, big=0, no video
+		// opened, the cluster never marked dead because substituted wins
+		// never terminal). A v7 file's explicit true is the owner's word.
+		if loaded.Version < 7 {
+			loaded.Advanced.ExperimentSubstitution = false
 		}
 	}
 	return Normalize(loaded), "", nil

@@ -4550,3 +4550,68 @@ ddd6e0804627c97a0aaa9a, aapt badging versionCode 26 / versionName
 c76bb7c6…8551d, the M8-ai verdict-lane/door-reason/version strings
 verified in libgojni.so, and the release asset re-downloaded
 byte-identical (cmp + SHA-256).
+
+## M8-aj — the lane retires round (debug.28, versionCode 27)
+
+The tester's debug.27 report: "This one did not even open a single
+video, only feed refreshed." The cleanest experiment result the
+project has had: substitution attempts=40 wins=37 big=0 small=37 —
+the fed pool kept the verdict lane engaged on every dead-cluster
+attempt, every answer was the ~5KB verdict shape, and the player
+NEVER left the dead URL set (rr8-btql alone: 20 flows, one every ~4s;
+no live cluster ever dialed; 1.2MB total session data vs debug.26's
+23.1MB; payloadVerified=0). And dead=0: the cluster was never marked
+dead, because substituted flows never terminal — the lane starved
+the very memory that ends the storm. In debug.26 the same regime
+recovered in ~40s precisely because the (accidentally drained) lane
+let the flows terminal, the cluster got marked, and the door's
+fast-fail resets let the player's ladder escalate to a fresh
+player-API fetch. The RST is the ladder's escalation signal; the
+HTTP verdict is its sedative. Two smaller readings: some substituted
+flows hung after TLS (9s, first-app-byte=none — the GFE holds
+cross-cluster requests it will not route), and the lane fed the
+breaker noise from both sides (armed on the hung flows' pending
+kills, lifted by substituted first bytes).
+
+The round (ADR-0049): the four-round experiment concludes — the
+cross-origin googlevideo substitute NEVER carried media (debug.19/
+23/26/27) — and retires at the SETTINGS layer. (1) Schema v7:
+experimentSubstitution defaults OFF; the v7 migration flips it off on
+every existing file (a v6 file's true is the shipped default recorded
+verbatim, never a choice; a v7 file's explicit true is the owner's
+word); the report's experiment line reads substitution=off.
+(2) The off position is REAL now — the M8-af engine knob resolved the
+switch's off to 0, which the proxy's Config defaulting reads as "use
+the default": the switch's off has been a NO-OP at engine start since
+debug.24 (the live toggle worked; a settings-off start never did —
+the breaker knob got -1 right, substitution's got 0 wrong).
+goodSubstKnob now returns -1, the proxy knob's actual disabled shape.
+(3) Everything from ADR-0048 stays (the pool fixes, the counters, the
+honest door reasons); the door's dead-cluster shape returns to
+debug.26's probe → fast-fail.
+
+The knob bug was found by the round's own re-pinned report test:
+m8af_test's experiment line expected substitution=off from a default
+engine and the report rendered ON — the natural both-ways, observed
+twice before the fix was written. Both-ways proofs EXECUTED besides:
+the v7 migration stashed → the v6-file leg FAILS; the default flip
+stashed → the default shape FAILS; the knob's -1 stashed back to 0 →
+the report test FAILS. Full 19-package suite green; -race green on
+the house gate (proxy + probe + netx); gofmt -l identical to HEAD's
+list (engine.go's HEAD space indentation preserved through a
+python-inserted hunk). The environment was rebuilt from scratch this
+round (the sandbox was wiped between rounds: Go 1.27.0, JDK 21,
+Android SDK build-tools;36.1.0 + platforms 26/36 + NDK 29.0.14206865,
+gomobile at the go.mod pseudo-version — the build reproduced from the
+repo alone).
+
+What the next report reads: experiment "substitution=off" (the
+retirement landed); substitution attempts=0 beside gvideo clusters
+"fastFails=" re-owning the recovery; dead=1 with fastFails>0 again
+(the memory fed); and the tester's experience back at debug.26's
+shape (first video slow-ish on a dead-set, later videos fast) with
+the lane's absence the only difference.
+
+Version: mobile facade "1.6.6-debug.28"; gradle versionCode 26→27
+with the round's comment block; ADR-0049, release notes, CHANGELOG,
+README, PROGRESS updated.

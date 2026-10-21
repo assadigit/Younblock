@@ -28,34 +28,35 @@ encryption. Every website ending in **.ir is always left completely alone** —
 direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're not
-releasing yet"): download `v1.6.6-debug27.apk` from the repo's
+releasing yet"): download `v1.6.6-debug28.apk` from the repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.27` release (a regular release in this private
+`v1.6.6-android-debug.28` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug27**; it installs over any earlier
+**make sure the filename says debug28**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-this build is the POOL KEEPS ITS FOOD round the debug.26 field
-report forced (first video still buffered, later videos mostly
-opening fast — the report showed every piece of the dead-cluster
-machinery working, but the player still ground ~40 seconds of
-connection resets against the blackholed cluster whenever a video's
-URLs landed there, because the substitution pool kept DRAINING
-itself mid-storm: a lost substitute race demoted its origin, a
-pending-kill demoted another, and — the big one this round's own
-test caught before the field did — every successful flow silently
-UN-FLAGGED the very origin it rode. Now a media certification (an
-origin that delivered real video bytes) survives wins, deaths and
-re-certifications, only its 15-minute TTL retires it; the pool stays
-fed, so every dead-cluster attempt answers on live wire through a
-substitute instead of taking a reset; and the report gains the
-numbers that prove which happened — `verdicts=` on the clusters line
-and `big=`/`small=` on the substitution line). The
-previous round's summary (the DEAD-CLUSTER MEMORY round: the
-cluster-keyed blackhole detection with instant door fast-fails, the
-payload-fed pool, the multi-cluster breaker gate, and the persisted
-pool file — see ADR-0047 and the release notes); the
-release notes
+this build is the LANE RETIRES round the debug.27 field report forced
+("did not even open a single video, only feed refreshed"): the report
+was the cleanest experiment result yet — the substitution lane
+answered all 40 dead-cluster attempts with fast small HTTP verdicts
+and the player NEVER left the blackholed cluster's URLs (the opposite
+of the bet: an HTTP answer keeps the player retrying the same dead
+URLs, while the instant connection reset is what makes its retry
+ladder escalate to fresh URLs on live clusters — and worse, the
+substituted flows never "fail", so the engine never learned the
+cluster was dead). The four-round experiment is concluded — the
+cross-origin substitute never once carried real video — and the lane
+is retired OFF by default (the diagnostics toggle stays, and a v7
+settings file that explicitly re-enables it is honored); along the
+way the round also found that the substitution off-switch had been a
+no-op at startup since debug.24, now fixed, so OFF actually means
+OFF. Expected behavior: back to the debug.26 shape — a video whose
+URLs land on the dead cluster opens slowly at first (the app walks
+its retry ladder until it fetches fresh URLs), everything else
+fast). The previous round's summary (the POOL KEEPS ITS FOOD round:
+the no-downgrade rule, the demote guard, the feed clears the box,
+and the verdict lane's counters — see ADR-0048 and the release
+notes); the release notes
 carry every earlier round's story in place.
 Sign in with your
 GitHub account, then sideload it:

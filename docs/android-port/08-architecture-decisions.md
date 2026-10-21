@@ -3032,6 +3032,112 @@ DOWN, not up (M8-ad)
   cluster churn keeps it; the pool file's media lines re-seed the
   next session regardless).
 
+## ADR-0049 — The lane retires: the cross-origin substitution experiment concludes OFF, and the off-switch it never had (M8-aj)
+
+- **Status:** Accepted 2026-10-21 (M8-aj, debug.28 — decided entirely
+  on the debug.27 field report, the round ADR-0048 shipped).
+- **Context:** "This one did not even open a single video, only feed
+  refreshed." The debug.27 report is the cleanest experiment result
+  the project has ever had — ADR-0048's open field question ("does an
+  HTTP verdict shorten the player's URL-set ladder?") answered with
+  numbers: `substitution: attempts=40 wins=37 big=0 small=37` — the
+  fed pool kept the verdict lane engaged on EVERY dead-cluster
+  attempt, every answer was the ~5 KB verdict shape, and the player
+  NEVER left the dead URL set: `rr8---sn-qxau5-btql` alone took 20
+  flows, retried every ~4 s for the whole session, and NO live
+  cluster was ever dialed (no aj4g55/4g5ednkd/u14g55 rows anywhere).
+  The session moved 1.2 MB total (debug.26: 23.1 MB) and
+  `payloadVerified=0`. Worse, the lane starved the recovery machinery
+  itself: `dead=0` — the cluster was never marked dead, because a
+  substituted flow never TERMINALS (the round's winner is the
+  substitute; the qxau5 primary's silent death is canceled as a
+  teardown artifact) and noteGvideoDeadHost only ever ate silent
+  first-byte terminals. In debug.26 the same regime recovered in ~40
+  s precisely because the (accidentally drained) lane let the flows
+  terminal, the cluster got marked, and the door's fast-fail resets
+  let the player's ladder escalate to a fresh player-API fetch. The
+  RST is the ladder's escalation signal; the 403/redirect verdict is
+  its sedative. Two smaller readings: some substituted flows hung
+  after TLS (9 s, first-app-byte=none — a third answer shape: the
+  GFE holds cross-cluster requests it will not route), and the
+  breaker armed once on those hung flows' pending kills and was
+  lifted 1.5 s later by a substituted flow's first byte — the lane
+  fed noise into the breaker from both sides.
+- **Decision:** the four-round experiment concludes — the cross-origin
+  googlevideo substitute NEVER carried media (debug.19: the app
+  escaped on its own; debug.23: 18 wins ≤12.1 KB on false positives;
+  debug.26: 12 wins ~5 KB on true positives; debug.27: 37 wins ~5 KB
+  and a total regression) and is retired at the SETTINGS layer:
+  (1) schema v7 — `experimentSubstitution` defaults OFF
+  (DefaultSettings) and the v7 migration flips it off on every
+  existing file (a v6 file's true is the shipped default recorded
+  verbatim, never a choice; a v7 file's explicit true is the owner's
+  word and rides); the report's experiment line reads
+  `substitution=off`. (2) The off position is REAL now: the M8-af
+  engine knob resolved the switch's off to 0 — which the proxy's
+  Config defaulting reads as "use the default" (server.go's
+  `if cfg.GoodIPSubstitution == 0`), so the switch's off position
+  has been a NO-OP at engine start since debug.24 (the live toggle
+  worked; a settings-off start never did — the breaker's knob got
+  -1 right, substitution's got 0 wrong). goodSubstKnob now returns
+  -1, the proxy knob's actual disabled shape. (3) Everything else
+  from ADR-0048 stays exactly as shipped: the no-downgrade rule, the
+  demote guard, the feed-clears-the-box, the verdict counters, the
+  honest door reasons — with the lane retired they keep the pool's
+  marks healthy for what the pool still does (liveIPs' dial-list
+  preference, the report's pool line) and the counters become the
+  tombstone (attempts=0, verdicts=0). The door's dead-cluster shape
+  returns to debug.26's: probe → fast-fail, the reset the player's
+  ladder escalates on; discovery terminals again feed the cluster
+  memory; the breaker keeps its M8-ag escapes.
+- **Evidence:** internal/config/settings_v7_test.go (renamed from the
+  v6 file, the shapes rewritten): TestExperimentSwitchesRetiredOff
+  (default/fresh/pre-v6 all land off/on, version 7) and
+  TestExperimentSwitchesV7MigrationAndOwnersWord (a v6 file's
+  shipped-on true retires; a v7 file's explicit true rides).
+  internal/engine/m8af_test.go's experiment-line pin re-pointed at
+  `substitution=off` — the pin that EXPOSED the knob bug: it failed
+  against the unchanged engine because the report rendered on from a
+  settings-off start. Both-ways proofs EXECUTED (stash → FAIL →
+  restore): the v7 migration stashed → the v6-file leg FAILS (loads
+  true); the default flip stashed → the default shape FAILS (on/on);
+  the knob's -1 stashed back to 0 → TestReportRendersM8afSections
+  FAILS (the report renders substitution=on). Full 19-package suite
+  green; -race green on the house gate (proxy + probe + netx);
+  gofmt -l identical to HEAD's list (engine.go's HEAD space
+  indentation preserved through a python-inserted hunk). The
+  sandbox was rebuilt from scratch this round (the environment was
+  wiped between rounds): Go 1.27.0, JDK 21, Android SDK
+  build-tools;36.1.0 + platforms 26/36 + NDK 29.0.14206865, gomobile
+  at the go.mod pseudo-version — the build reproduced byte-honestly
+  from the repo alone.
+- **Consequences:** the app returns to the debug.26 recovery shape
+  with everything that round measured working: qxau5 discovery
+  terminals mark the cluster dead within ~3 flows, the door
+  fast-fails its hosts with zero wire, the player's ladder escalates
+  to a fresh player-API fetch on resets, and live clusters carry the
+  video (the first video of a dead-set open still pays the
+  discovery + ladder cost — the tester's debug.26 experience: first
+  video slow-ish, later videos fast — that is the shape this round
+  restores, minus the lane that broke it). The A/B lever stays: a
+  v7 settings file that records an explicit true re-enables the lane
+  at the next engine start (the live toggle's on position needs the
+  restart too — the knob resolves at start; recorded here honestly).
+  The report reads `substitution: attempts=0 … big=0 small=0` and
+  `gvideo clusters: … verdicts=0 fastFails=…` — the tombstone beside
+  the fast-fail counts that own the recovery again.
+- **What this ADR does NOT decide:** whether the player-API refresh
+  path itself can be accelerated (the debug.27 report's youtubei
+  flows delivered 361 KB/144 KB responses and still the app stayed
+  on the old URL set — whether that was the verdict sedative or the
+  app's own URL caching is a question for a round with the lane
+  retired and clean resets to compare); whether the dead-cluster
+  discovery cost (3 flows × ~2.5 s before the mark) can be shortened
+  without reintroducing HTTP answers (a sub-budget terminal would
+  starve genuine slow origins); and whether the qxau5 blackhole's
+  stability across days changes the calculus (the pool file's media
+  lines still seed dial-list preference either way).
+
 ## Decision-change procedure
 
 When changing an accepted decision: new evidence, alternatives

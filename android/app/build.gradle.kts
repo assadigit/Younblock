@@ -20,49 +20,39 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 26: the M8-ai build (debug.27 -- the
-        // pool keeps its food round, ADR-0048). The debug.26
-        // field report: "first video still buffers (less than
-        // before), later videos mostly open nearly quickly" --
-        // and the report showed every M8-ah piece working
-        // (dead=1, payloadVerified=6, cooldowns=1, attempts=14
-        // wins=12) beside fastFails=150: the player ground its
-        // hostname rotation against instant resets for ~40s per
-        // unlucky open because the verdict lane (the door's
-        // pool pass) STARVED mid-storm -- the pool was an
-        // OUTFLOW machine. Three drains: a lost substitute race
-        // demoted its pool origin; a pending stall kill demoted
-        // the origin a substituted flow rode; and -- the
-        // biggest, caught by this round's own test before the
-        // field did -- every first-byte WIN replaced the
-        // winner's good-table entry with a handshake mark,
-        // un-flagging media-certified origins one flow at a
-        // time (six certifications fed, two held at session
-        // end). Four fixes, one property -- a media
-        // certification (>=64KB delivered payload or an
-        // answered real-SNI probe) is revocable ONLY by its
-        // 15-minute TTL: (1) the no-downgrade rule (a handshake
-        // mark keeps the flag); (2) the demote guard (deaths
-        // box but never un-certify; the strike-escalated box
-        // stays the rotation guard); (3) the feed clears the
-        // box (a fresh delivery outranks the stale death);
-        // (4) the verdict lane made visible -- the door's
-        // dead-cluster pool pass counts and logs (verdicts= on
-        // the clusters line), substituted flows classify by
-        // size (big=/small= on the substitution line), and the
-        // doors log their refusal REASON (cluster-dead vs
-        // breaker-cooldown). Two readings retired hypotheses:
-        // the substituted wins all delivered ~5KB answers (the
-        // cross-cluster substitute is the fast-verdict lane,
-        // never a media carrier -- every payload verification
-        // rode an own-dial win), and the udp443 "fallback
-        // elapsed" samples are heuristic pairings, not QUIC
-        // timeouts (gVisor's ICMP port-unreachable is already
-        // on the wire). Installs over debug.26 (the same
-        // pinned debug certificate -- D85). The D84 rule:
-        // every debug build bumps this. D103: the APK asset is
-        // named v1.6.6-debug27.apk.
-        versionCode = 26
+        // versionCode 27: the M8-aj build (debug.28 -- the
+        // lane retires round, ADR-0049). The debug.27 field
+        // report: "this one did not even open a single video,
+        // only feed refreshed" -- and it was the cleanest
+        // experiment result yet: substitution attempts=40
+        // wins=37 big=0 small=37, the fed pool kept the verdict
+        // lane engaged on every dead-cluster attempt, every
+        // answer the ~5KB verdict shape, and the player NEVER
+        // left the dead URL set (one host: 20 flows, one every
+        // ~4s; no live cluster ever dialed; 1.2MB total vs
+        // debug.26's 23.1MB). Worse: dead=0 -- substituted flows
+        // never terminal, so the cluster was never marked dead;
+        // in debug.26 the same regime recovered in ~40s exactly
+        // because the (accidentally drained) lane let the flows
+        // terminal and the door's fast-fail RESETS let the
+        // player's ladder escalate to a fresh player-API fetch.
+        // The RST is the ladder's escalation signal; the HTTP
+        // verdict is its sedative. The fix: the four-round
+        // experiment concludes OFF (zero media ever carried
+        // cross-cluster) -- schema v7 retires
+        // experimentSubstitution by default and migrates every
+        // existing file off (a v7 file's explicit on is the
+        // owner's word); and the round found the switch's off
+        // has been a NO-OP at engine start since debug.24 (the
+        // engine knob resolved off to 0, which the proxy reads
+        // as "use the default") -- it now returns -1, the real
+        // disabled shape, so OFF means OFF. The door's
+        // dead-cluster shape returns to debug.26's probe ->
+        // fast-fail. Installs over debug.27 (the same pinned
+        // debug certificate -- D85). The D84 rule: every debug
+        // build bumps this. D103: the APK asset is named
+        // v1.6.6-debug28.apk.
+        versionCode = 27
         versionName = "1.6.6"
     }
 

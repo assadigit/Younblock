@@ -37,8 +37,10 @@ func TestReportRendersM8afSections(t *testing.T) {
 	report := eng.GetDiagnosticReport()
 	wants := []string{
 		// W4: the experiment line — the three switches the sitting
-		// rode on, printed where the report starts.
-		"experiment: method=auto substitution=on breaker=on",
+		// rode on, printed where the report starts (M8-aj,
+		// ADR-0049: the substitution experiment retired off — the
+		// debug.27 field verdict).
+		"experiment: method=auto substitution=off breaker=on",
 		// W1: the kernel-TCP verdict split.
 		"tcp verdicts: upstream-lost=0 downstream-lost=0 both-ok=0 unknown=0",
 		// W9: the fragmenter's packet total on the discipline line

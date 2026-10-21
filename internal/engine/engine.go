@@ -1104,11 +1104,14 @@ func (e *Engine) Start() error {
 // startListener binds the proxy and records the port.
 // goodSubstKnob resolves the substitution candidate's effective knob
 // (M8-af, ADR-0044, spec W4): the config default capped by the
-// settings' experiment switch — off = 0 (disabled), on = the config
-// knob (the W6-scoped semantics).
+// settings' experiment switch — off = -1 (the proxy knob's DISABLED
+// shape, ADR-0049's fix: the M8-af round returned 0, which the proxy
+// reads as "use the default" — the switch's off position has been a
+// no-op at engine start since debug.24, the live toggle alone worked),
+// on = the config knob (the W6-scoped semantics).
 func goodSubstKnob(s config.Settings) int {
         if !s.Advanced.ExperimentSubstitution {
-                return 0
+                return -1
         }
         return config.GoodIPSubstitution
 }

@@ -12,6 +12,39 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed / Added (2026-10-21 — M8-aj; shipping in `v1.6.6-android-debug.28`, versionCode 27)
+
+- **"This one did not even open a single video, only feed refreshed" —
+  the debug.27 report was the cleanest experiment result the project
+  has had, and it killed the bet (ADR-0049).** `attempts=40 wins=37
+  big=0 small=37`: the fed pool kept the verdict lane engaged on every
+  dead-cluster attempt, every answer was the ~5 KB verdict shape — and
+  the player NEVER left the dead URL set (one host took 20 flows, one
+  every ~4 s; no live cluster was ever dialed; the session moved
+  1.2 MB vs debug.26's 23.1 MB). Worse: `dead=0` — the cluster was
+  never marked dead, because a substituted flow never terminals, and
+  the cluster memory eats only silent terminals. In debug.26 the same
+  regime recovered in ~40 s exactly because the lane (accidentally
+  drained) let the flows terminal and the door's fast-fail RESETS let
+  the player's ladder escalate to a fresh player-API fetch. **The RST
+  is the ladder's escalation signal; the HTTP verdict is its
+  sedative.**
+- **The fix (ADR-0049): the cross-origin substitution experiment
+  concludes OFF — four field rounds, zero media ever carried
+  cross-cluster.** (1) Schema v7 retires it: `experimentSubstitution`
+  defaults off and the migration flips it off on every existing file
+  (a v6 file's on was the shipped default, never a choice; a v7
+  file's explicit on is the owner's word and rides). (2) The off
+  position becomes REAL: the debug.24 engine knob resolved the
+  switch's off to `0`, which the proxy's Config defaulting reads as
+  "use the default" — **the off switch has been a no-op at engine
+  start since debug.24** (found by this round's own re-pinned report
+  test before the field saw anything); it now returns `-1`, the
+  knob's actual disabled shape. (3) Everything else from debug.27
+  stays (the pool fixes, the counters, the honest door reasons); the
+  door returns to debug.26's probe → fast-fail for dead clusters, the
+  reset the player escalates on.
+
 ### Fixed / Added (2026-10-21 — M8-ai; shipping in `v1.6.6-android-debug.27`, versionCode 26)
 
 - **Build artifact:** commit `bfc18ed` ("M8-ai: the pool keeps its
