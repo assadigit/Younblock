@@ -20,7 +20,30 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 29: the M8-am build (debug.30 -- the
+        // versionCode 30: the M8-an build (debug.31 -- the
+        // wait-until-ready round, ADR-0052/0053, D106/D107).
+        // The debug.30 field report: "the app reverted to our
+        // old problem... 1-2 minutes... I think the app
+        // connection time is too short, so when it
+        // automatically switches to youtube app it's not ready
+        // yet. the better job is to make the user wait and see
+        // connecting, only you're sure that even initial video
+        // is smooth and fast." The hand-off had fired at second
+        // zero of the tunnel's life into an empty per-session
+        // cluster memory -- the app's ladder re-paid the
+        // discovery burn and the breaker's arm gate summed it.
+        // The answers: (1) the warm gate -- the hand-off now
+        // waits for the engine's readiness signal (the serving
+        // run held 3s + one light re-check, a 15s never-trap
+        // cap), and the connect screen holds "Getting the
+        // first video ready..." until it lifts; (2) the
+        // dead-cluster marks persist across sessions
+        // (googlevideo-dead-clusters.txt, a 5min seed TTL, the
+        // re-probe/rehab safety nets) so the tunnel the app
+        // wakes into is marked and fed from second zero.
+        // Installs over debug.30 (the same pinned debug
+        // certificate -- D85).
+        // versionCode 29 was: the M8-am build (debug.30 -- the
         // release-candidate polish round, ADR-0051). The
         // debug.29 verdict round closed the residual question
         // (doc 11 §5.1: the engine's share of the felt 5-6s
@@ -48,7 +71,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 29
+        versionCode = 30
         versionName = "1.6.6"
     }
 

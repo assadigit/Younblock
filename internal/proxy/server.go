@@ -190,6 +190,11 @@ type Config struct {
 	GvideoClusterDeadWindow   time.Duration
 	GvideoClusterDeadTTL      time.Duration
 	GvideoClusterReprobeEvery time.Duration
+	// GvideoClusterSeedTTL (M8-an, ADR-0053): how long a PERSISTED
+	// dead-cluster mark lives when seeded back at start — half the
+	// in-session GvideoClusterDeadTTL, the GoodPoolSeedTTL precedent.
+	// Zero takes the config default.
+	GvideoClusterSeedTTL time.Duration
 
 	// PayloadVerifiedMinimum (M8-ah, ADR-0047): the downstream bytes
 	// a googlevideo flow must deliver before its origin counts as
@@ -411,6 +416,9 @@ func Start(cfg Config) (*Server, error) {
 	}
 	if cfg.GvideoClusterReprobeEvery <= 0 {
 		cfg.GvideoClusterReprobeEvery = config.GvideoClusterReprobeEvery
+	}
+	if cfg.GvideoClusterSeedTTL <= 0 {
+		cfg.GvideoClusterSeedTTL = config.GvideoClusterSeedTTL
 	}
 	if cfg.PayloadVerifiedMinimum == 0 {
 		cfg.PayloadVerifiedMinimum = config.PayloadVerifiedMinimum
@@ -1613,6 +1621,83 @@ func (s *Server) noteGvideoClusterAlive(host string) {
 			s.cfg.Logger.Info(msg)
 		}
 	}
+}
+
+// GvideoDeadClusterList returns the sn-cluster keys whose dead marks
+// are live right now, sorted (M8-an, ADR-0053): the persistence
+// layer's snapshot — the engine writes it to
+// GoogleVideoDeadClustersFile and seeds the next session's cluster
+// memory from it, so the first video of session N+1 meets an
+// already-marked tunnel instead of re-paying the discovery. Counts
+// only in shape; the keys themselves are cache-cluster tokens, the
+// same class the pool file already persists (R21).
+func (s *Server) GvideoDeadClusterList() []string {
+	now := time.Now()
+	s.gvideoClusters.mu.Lock()
+	defer s.gvideoClusters.mu.Unlock()
+	var out []string
+	for key, st := range s.gvideoClusters.clusters {
+		if st != nil && now.Before(st.until) {
+			out = append(out, key)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// SeedGvideoDeadClusters seeds persisted dead-cluster keys back as
+// dead marks (M8-an, ADR-0053, doc 11 §5.3's pre-registered fix): each
+// key carries the shorter GvideoClusterSeedTTL, its first re-probe
+// comes after GvideoClusterReprobeEvery like any fresh mark, and an
+// answered own-dial clears it at once (noteGvideoClusterAlive — the
+// safety net the pre-registration named). A live in-session mark is
+// NEVER shortened by a seed — the fresh measurement outranks the
+// stale one (the evidence-rank rule, M8-ai). Keys that are not
+// sn-cluster tokens are skipped: the loader validates too, but the
+// door's refusal must never key on a corrupt line.
+func (s *Server) SeedGvideoDeadClusters(keys []string) {
+	if s.cfg.GvideoClusterSeedTTL <= 0 || len(keys) == 0 {
+		return
+	}
+	now := time.Now()
+	seeded := 0
+	s.gvideoClusters.mu.Lock()
+	if s.gvideoClusters.clusters == nil {
+		s.gvideoClusters.clusters = make(map[string]*gvideoClusterState)
+	}
+	until := now.Add(s.cfg.GvideoClusterSeedTTL)
+	for _, key := range keys {
+		if !validGvideoClusterKey(key) {
+			continue
+		}
+		st := s.gvideoClusters.clusters[key]
+		if st == nil {
+			st = &gvideoClusterState{deaths: make(map[string]time.Time)}
+			s.gvideoClusters.clusters[key] = st
+		}
+		if until.After(st.until) {
+			st.until = until
+			st.probedAt = now // the probe serves STALE marks; a fresh seed waits out its first window
+			seeded++
+		}
+	}
+	s.gvideoClusters.mu.Unlock()
+	for i := 0; i < seeded; i++ {
+		s.stats.GvideoClusterSeed()
+	}
+	if seeded > 0 && s.cfg.Logger != nil {
+		s.cfg.Logger.Info(fmt.Sprintf("gvideo dead clusters seeded from the persisted file (%d marks, ttl %s)", seeded, s.cfg.GvideoClusterSeedTTL))
+	}
+}
+
+// validGvideoClusterKey reports whether key is a well-formed sn-cluster
+// token (M8-an, ADR-0053): "sn-" + a non-empty cluster id — the shape
+// gvideoClusterKey extracts, checked without a host.
+func validGvideoClusterKey(key string) bool {
+	if !strings.HasPrefix(key, "sn-") || len(key) < 4 {
+		return false
+	}
+	return !strings.ContainsAny(key, ". /\\")
 }
 
 // goodMarkActive reports whether one origin IP's verified-live mark

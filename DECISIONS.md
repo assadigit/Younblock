@@ -2395,3 +2395,56 @@ automatically open android's youtube app and refresh it."
    refresh proves weak on some OEM (the kill is best-effort), the
    escalation is the launch intent's CLEAR_TASK flag — recorded
    here for the next round, not shipped speculatively.
+
+**D106 — the hand-off waits for a proven video lane (the tester's
+ruling, 2026-10-21, the M8-an round — "the better job is to make the
+user wait and see connecting, only you're sure that even initial
+video is smooth and fast").**
+
+1. **RECORDED as ruled — the connect-time hand-off is GATED on a
+   readiness signal, not the first serving event.** The debug.30
+   field report ("the app reverted to our old problem… 1-2 minutes…
+   I think the app connection time is too short, so when it
+   automatically switches to youtube app it's not ready yet")
+   convicted ADR-0051's fire moment: second zero of the tunnel's
+   life, the earliest instant the stack exists, with the chain cold
+   and the cluster memory empty. The engine now owns `warm` (state
+   JSON, the UI and the shell both read it): false while the serving
+   run settles, true once the run held through a 3 s window and one
+   light re-check (a QuickCheck — the watchdog's own blessed
+   emission classes, never googlevideo) passed; failing re-checks
+   retry every 2 s; a 15 s cap opens the gate regardless (never
+   trap). The shell fires kill+launch only on serving AND warm AND
+   TUN-bound, still once per run. The connect screen holds its
+   connecting look ("Getting the first video ready…") until the flag
+   lifts, on Android only. ADR-0052 carries the full record.
+2. **The setting itself is unchanged:** `autoOpenYouTube` stays,
+   checked by default — the ruling changes WHEN the hand-off fires,
+   not whether it does.
+
+**D107 — the dead-cluster marks persist across sessions (doc 11
+§5.3's pre-registered fix, shipped on the debug.30 indictment,
+2026-10-21, the M8-an round).**
+
+1. **RECORDED — the per-session amnesia ends.** The cluster memory
+   (ADR-0047) that fast-fails blackholed clusters at zero wire was
+   rebuilt from scratch every connect; the hand-off's second-zero
+   cold start made the app's ladder pay the discovery burn (~3 flows
+   × ~2.5 s) into a cold chain — the multi-cluster terminal shape
+   the breaker's arm gate sums, the 1-2 minute mechanism of the
+   debug.18-.25 era. `googlevideo-dead-clusters.txt` (beside the
+   pool file) persists the LIVE dead marks; the next session seeds
+   them with a 5 min TTL (half the in-session 10 min — the
+   GoodPoolSeedTTL precedent); the own-dial rehab clears a stale
+   seed at once, the per-cluster re-probe learns a lifted blackhole
+   inside one 2-minute window, and a seed never shortens a fresher
+   measured mark. The report's cluster line gains its seeded half
+   (`dead=N (seeded=M)`), so the tester's fresh-connect paste says
+   which world it is in. ADR-0053 carries the full record.
+2. **Together with D106** this is what "even initial video is smooth
+   and fast" means at the moment YouTube opens: the chain re-proved
+   AND the blackholed cluster already marked AND the pool seeded —
+   doc 11 §5.2's claimed state, now true at second zero.
+3. Next decision ID: D108. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

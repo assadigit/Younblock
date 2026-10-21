@@ -35,6 +35,10 @@
    *  ping gets a word. The thresholds live here, in the one config block. */
   const PING_GOOD_MS = 120
   const PING_OK_MS = 400
+  /** M8-an (ADR-0052): the detail line while the warm gate holds the
+   *  connect-time hand-off — the user waits in the connecting look
+   *  until even the first video will be smooth. */
+  const WARMING_DETAIL = 'Getting the first video ready…'
   // =====================================================================
 
   const backend = createBackend()
@@ -119,15 +123,20 @@
   $: if (snap.phase === 'connecting' || snap.phase === 'connected') localError = ''
   let phase: Phase = 'disconnected'
   $: phase = localError !== '' && snap.phase === 'disconnected' ? 'error' : snap.phase
+  // M8-an (ADR-0052): serving but warming — the engine's video lane is
+  // still settling (the state's warm flag, only sent while serving).
+  // The hold is presented only where a hand-off waits on it
+  // (autoOpenTarget hosts — Android); the desktops connect the old way.
+  $: warming = phase === 'connected' && snap.warming === true && autoOpenTarget
   let tone: 'on' | 'off' = 'off'
-  $: tone = phase === 'connected' || phase === 'disconnecting' ? 'on' : 'off'
-  $: busy = phase === 'connecting' || phase === 'disconnecting'
-  $: showTimer = phase === 'connected' || phase === 'disconnecting'
+  $: tone = (phase === 'connected' && !warming) || phase === 'disconnecting' ? 'on' : 'off'
+  $: busy = phase === 'connecting' || phase === 'disconnecting' || warming
+  $: showTimer = (phase === 'connected' && !warming) || phase === 'disconnecting'
   $: elapsed = snap.connectedAtMs ? Math.max(0, now - snap.connectedAtMs) : 0
   // Round-3: usage lines show only while a session is live (or settling)
   // and only when the engine honestly counted — a -1 hides them.
   $: showUsage =
-    (phase === 'connected' || phase === 'disconnecting') &&
+    ((phase === 'connected' && !warming) || phase === 'disconnecting') &&
     snap.downBytes >= 0 &&
     snap.upBytes >= 0
   // Round-2 fix #7: speeds the engine did not measure are hidden, never
@@ -139,12 +148,13 @@
       : snap.pingMs !== null && snap.pingMs <= PING_OK_MS
         ? 'OK'
         : 'Slow'
-  $: pingText = phase === 'connected' && snap.pingMs !== null ? `Ping ${snap.pingMs} ms · ${pingWord}` : ''
+  $: pingText = phase === 'connected' && !warming && snap.pingMs !== null ? `Ping ${snap.pingMs} ms · ${pingWord}` : ''
   $: lastSessionText =
     phase === 'disconnected' && snap.lastSession
       ? `Last session: ${formatBytes(snap.lastSession.downBytes + snap.lastSession.upBytes)} · ${formatDurationWords(snap.lastSession.endMs - snap.lastSession.startMs)}`
       : ''
-  $: detail = localError !== '' ? localError : snap.message ?? (pingText || lastSessionText)
+  $: statusWord = warming ? STATUS_TEXT.connecting : STATUS_TEXT[phase]
+  $: detail = localError !== '' ? localError : warming ? WARMING_DETAIL : snap.message ?? (pingText || lastSessionText)
   $: hint = busy ? '' : tone === 'on' ? HINT_ON : HINT_OFF
 </script>
 
@@ -211,8 +221,8 @@
       <!-- keyed by phase: the word crossfades on every change instead of
            snapping (the CSS animation dies under prefers-reduced-motion) -->
       <div class="state">
-        {#key phase}
-          <span class="word">{STATUS_TEXT[phase]}</span>
+        {#key statusWord}
+          <span class="word">{statusWord}</span>
         {/key}
       </div>
       <div class="detail" class:visible={detail !== ''} class:error={phase === 'error'}>{detail}</div>

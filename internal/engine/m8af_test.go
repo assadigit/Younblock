@@ -48,7 +48,9 @@ func TestReportRendersM8afSections(t *testing.T) {
 		"gvideo discipline: hellos=0 cooldowns=0 lifts=0 scouts=0 fragPackets=",
 		// M8-ah (ADR-0047): the dead-cluster memory + the payload-fed
 		// pool line (M8-ai adds the verdict lane's verdicts=).
-		"gvideo clusters: dead=0 fastFails=0 verdicts=0 probes=0 rehabilitated=0 payloadVerified=0",
+		// M8-an (ADR-0053): the line gained the seeded= half — the
+		// persisted marks live from second zero.
+		"gvideo clusters: dead=0 (seeded=0) fastFails=0 verdicts=0 probes=0 rehabilitated=0 payloadVerified=0",
 		// W7: the network test's honest not-run line.
 		"network test: not run this session (press Run network test in Diagnostics)",
 	}

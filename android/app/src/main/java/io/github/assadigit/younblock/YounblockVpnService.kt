@@ -95,7 +95,8 @@ class YounblockVpnService : VpnService() {
 
     /**
      * The M8-am connect-time hand-off's once-per-run latch (ADR-0051,
-     * D105): true once the YouTube open fired for THIS connect run.
+     * D105; the fire condition itself is M8-an's ADR-0052): true once
+     * the YouTube open fired for THIS connect run.
      * Reset when the run ends (phase off/error); a degraded→on
      * recovery flap must not re-launch the app over the user, and a
      * service restart cycle (no fresh "on" event — the engine kept
@@ -109,8 +110,12 @@ class YounblockVpnService : VpnService() {
     /** The engine's state events drive the TUN lifecycle (doc 04 §6). */
     private val stateListener = { name: String, json: String ->
         if (name == "state") {
-            val phase = JSONObject(json).optString("phase", "")
-            main.post { onEnginePhase(phase) }
+            val state = JSONObject(json)
+            val phase = state.optString("phase", "")
+            // M8-an (ADR-0052): the warm flag rides the same state event
+            // — the hand-off's readiness half.
+            val warm = state.optBoolean("warm", false)
+            main.post { onEngineState(phase, warm) }
         }
     }
 
@@ -273,18 +278,27 @@ class YounblockVpnService : VpnService() {
         }
     }
 
-    /** Engine phase transitions (marshaled to the main thread). */
-    private fun onEnginePhase(phase: String) {
+    /** Engine state events (marshaled to the main thread). */
+    private fun onEngineState(phase: String, warm: Boolean) {
         when (phase) {
             "on", "degraded" -> {
                 bindTun()
                 // The notification follows the honest combined state at
                 // every transition (degraded on; recovered back).
                 startForegroundHonest()
-                // The M8-am hand-off (ADR-0051, D105): only when the TUN
-                // is actually bound — an "on" the shell could not route
-                // must not launch YouTube into a dead tunnel.
-                if (tunBound) maybeAutoOpenYouTube()
+                // The M8-an hand-off gate (ADR-0052, D105): only when the
+                // TUN is actually bound AND the engine reports its video
+                // lane warm — the debug.30 field report showed the
+                // second-zero open cold-starting YouTube into a chain
+                // still paying its own per-flow establishment (the felt
+                // result: the old 1–2 minute first-video open), and the
+                // engine now holds "warm" closed until the serving phase
+                // held through a settle window and one light re-check
+                // proved the chain (a bounded cap never traps the user).
+                // The conjunction is checked on every state event, so
+                // whichever half arrives first — the bind or the warm
+                // flag — the hand-off fires when both hold, once per run.
+                if (tunBound && warm) maybeAutoOpenYouTube()
             }
             "off", "error" -> {
                 // doc 04 §8: every path to off/error ends with the TUN
@@ -302,12 +316,17 @@ class YounblockVpnService : VpnService() {
     }
 
     /**
-     * The connect-time hand-off (M8-am, ADR-0051, D105): once per
-     * connect run, when the engine reports serving AND the TUN is
-     * bound, refresh and open the YouTube app — so the first video
-     * starts through the fresh tunnel instead of the app resuming its
-     * pre-connect dead-host ladder (doc 11 §5.1 measured the app's own
-     * ladder owning most of the felt 5-6 s first-open load).
+     * The connect-time hand-off (M8-am, ADR-0051, D105; the fire
+     * moment is M8-an's ADR-0052): once per connect run, when the
+     * engine reports serving AND warm AND the TUN is bound, refresh
+     * and open the YouTube app — so the first video starts through a
+     * tunnel that has already held and re-proved its chain (and, via
+     * ADR-0053's persisted dead-cluster marks, already knows the
+     * blackholed clusters) instead of the app resuming its
+     * pre-connect dead-host ladder into a second-zero tunnel (doc 11
+     * §5.1 measured the ladder owning most of the felt 5-6 s
+     * first-open load; §5.3 measured the second-zero variant at the
+     * old 1–2 minutes).
      *
      * Gated by the `autoOpenYouTube` setting (schema v8, default ON —
      * the owner's checked-by-default ruling), read fresh at this moment

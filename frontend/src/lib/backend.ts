@@ -338,6 +338,10 @@ interface EngineState {
    *  (internal/engine StateError). The screen maps the one code this
    *  product can honestly explain; everything else stays generic. */
   error?: { code?: string } | null;
+  /** M8-an (ADR-0052): the serving run's readiness — false while the
+   *  video lane is still warming (the connect-time hand-off's gate),
+   *  true once the chain held and re-proved. Absent on older hosts. */
+  warm?: boolean;
 }
 
 /** The fields of "stats" events that the screen needs (bytes per second). */
@@ -560,6 +564,10 @@ class HttpBackend implements Backend {
             : state.phase === "error"
               ? "error"
               : "disconnected";
+    // M8-an (ADR-0052): the warm gate's hold — serving but not yet
+    // re-proved. Only a present false holds (an absent field is an
+    // older host; nothing waits there).
+    const warming = phase === "connected" && state.warm === false;
     // Speeds only mean something while connected (or turning off); every
     // other state starts clean, exactly like a fresh Snapshot in the bridge.
     const keepStats = phase === "connected" || phase === "disconnecting";
@@ -594,6 +602,7 @@ class HttpBackend implements Backend {
       downBytes,
       upBytes,
       lastSession,
+      warming,
       message:
         phase === "error"
           ? state.error?.code === "NO_TARGET_APPS"

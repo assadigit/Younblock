@@ -8,7 +8,10 @@ accomplishment/method."* It is the synthesis; the round-by-round
 primary sources are `08-architecture-decisions.md` (ADR-0027 through
 ADR-0050), `PROGRESS.md` (the M8 sections), and the CHANGELOG.
 **§5.1, same day: the verdict** — the debug.29 field report answered
-the question §5 decomposed.
+the question §5 decomposed. **§5.2–5.3, same day: the hand-off's
+field result** — debug.30's report convicted the second-zero fire
+moment and re-indicted candidate 3; M8-an shipped the pre-registered
+persistence fix and the warm gate.
 
 ---
 
@@ -23,6 +26,8 @@ the question §5 decomposed.
 | debug.27 | M8-ai | "did not even open a single video, only feed refreshed" | attempts=40 wins=37 **big=0** — the verdict lane pinned the player to the dead URL set; dead=0 (substituted flows never terminal) |
 | **debug.28** | M8-aj | **"by far our best version yet — 90% of the initial delay gone"** | dead=1, fastFails=90, cooldowns=1 lifted in 730 ms, auto-timeline **1000 ms** average over 5 pairs, 2.1 MB delivered on a live cluster |
 | debug.29 | M8-ak | "I think it became better — every video opened in 5–6 seconds" | auto-timeline **500 ms × 6 pairs** (gvideo-gated) — the engine's share measured at ~10% of the felt load; the rest is the app's own ladder (fastFails=84) and buffering (§5.1) |
+| debug.30 | M8-am | "the app reverted to our old problem… 1–2 minutes… other videos opened fine" | the hand-off fired at second zero (code-read: the first serving event + TUN bound) into an empty per-session cluster memory — the discovery burn re-entered, §5.2 |
+| **debug.31** | M8-an | the answer to the prescription: "make the user wait and see connecting, only you're sure" | the warm gate (ADR-0052: 3 s settle + one re-check, a 15 s never-trap cap) + the persisted dead-cluster marks (ADR-0053: §5.3's pre-registered fix, seeded from second zero) — what the next report reads: `dead=0 (seeded=1)` right after connect, then the first video |
 
 The arc in one sentence: a 1–2 minute video open became ~1 second by
 learning, from the tester's own diagnostic reports, **which wire
@@ -154,6 +159,25 @@ answered §5's question: the engine's share of the open measured at
 the difference is the app's own dead-host ladder plus buffering, not
 the chain (§5.1). The engine's levers on the ladder are
 field-tested exhausted; the war ends at the release state.
+
+**M8-am (debug.30, ADR-0051) — the owner's sidestep.** The icon and
+the connect-time hand-off, both shell surfaces — the theory being
+that a cold-started app through the routing tunnel never cycles its
+pre-connect ladder (§5.2). The theory's hidden assumption — that
+the tunnel at hand-off time already carries the mid-session state
+(the dead cluster marked, the pool fed) — was FALSE at the fire
+moment the shell chose.
+
+**M8-an (debug.31, ADR-0052/0053) — the wait-until-ready round.**
+The debug.30 report ("1–2 minutes… the app connection time is too
+short… make the user wait and see connecting, only you're sure that
+even initial video is smooth and fast") convicted exactly that
+assumption, and the round answers it with the tester's own
+prescription plus the §5.3 fix the report re-indicted: the warm gate
+holds the hand-off until the serving run settled and re-proved its
+chain (bounded, never trapped), and the dead-cluster marks persist
+so the tunnel the app wakes into is finally the one §5.2 claimed
+(§5.3).
 
 ---
 
@@ -301,6 +325,58 @@ tier change): the hand-off moves the APP's starting line, not the
 chain's cost. What the next report can measure: whether the first
 video after connect opens measurably faster than the 5–6 s
 mid-session baseline — the one number this war has not yet taken.
+
+**The field result (the debug.30 report): the assumption was false
+at the fire moment.** "The app reverted to our old problem, waiting
+a lot for initial video to load, which took like 1–2 minutes…
+other videos opened fine. I think the app connection time is too
+short, so when it automatically switches to youtube app it's not
+ready yet." The shell fired the hand-off at the FIRST serving event
+with the TUN bound — second zero of the tunnel's life — and the
+refresh half killed the app into a cold start that burst into a
+chain still paying per-flow establishment (candidate 2) with the
+cluster memory EMPTY (candidate 3: the marks are per-session): the
+app's ladder burned the ~2.5 s terminal budgets on the blackholed
+cluster before any mark existed, the burn is what the breaker's arm
+gate sums across clusters, and the felt result was the
+debug.18–.25 era's 1–2 minutes — re-entered through the side door
+the hand-off opened. The tester's prescription — "make the user
+wait and see connecting, only you're sure that even initial video
+is smooth and fast" — became D106, and the report re-indicted the
+candidate-3 fix §5 had pre-registered, which became D107.
+
+### 5.3 The pre-registered fix, shipped (M8-an, D106/D107)
+
+Two changes, one state: the tunnel the app wakes into is now
+actually the one §5.2 claimed.
+
+- **The warm gate (ADR-0052, D106 — the tester's prescription):**
+  the engine owns a readiness signal (`warm`, in the state JSON the
+  UI and the Kotlin shell both read): the serving run must HOLD for
+  a 3 s settle window and pass one light re-check — a plain
+  QuickCheck through the door, the watchdog's own blessed emission
+  classes, never a googlevideo handshake (ADR-0041's discipline
+  untouched) — before the flag lifts; failing re-checks retry every
+  2 s, and a 15 s cap opens the gate regardless (never trap). The
+  connect screen holds "Connecting… Getting the first video
+  ready…" until it lifts; the hand-off fires only on serving AND
+  warm AND TUN-bound, still once per run.
+- **The persisted dead-cluster marks (ADR-0053, D107 — §5's
+  pre-registered candidate fix):** the clusters whose dead marks
+  are live when a session ends persist to
+  `googlevideo-dead-clusters.txt` (beside the pool file) and seed
+  the next session (5 min TTL — half the in-session 10; the re-probe
+  and the own-dial rehab clear a stale seed; a seed never shortens
+  a fresher measured mark). From second zero the door fast-fails
+  the blackholed cluster at zero wire — the reset the app's ladder
+  escalates on — instead of burning the discovery.
+
+What the debug.31 report reads: right after connect, before any
+video, the cluster line should carry `dead=0 (seeded=1)` (or more)
+— the persistence working; the connect screen should hold the
+warming look for ~4–6 s; then the first video — the one number
+this war has not yet taken, now through a tunnel that is marked,
+fed and re-proved when the app opens into it.
 
 ---
 

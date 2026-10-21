@@ -12,6 +12,48 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-21 — M8-an, debug.31, versionCode 30; the wait-until-ready round — the debug.30 field report answered, D106/D107)
+
+- **The first-video regression the hand-off introduced, fixed at its
+  two roots.** The debug.30 field report: "The app reverted to our
+  old problem, waiting a lot for initial video to load, which took
+  like 1-2 minutes to load. other videos, (after initial video)
+  opened fine. I think the app connection time is too short, so
+  when it automatically switches to youtube app it's not ready
+  yet." The code agreed with the tester: the hand-off fired at
+  second zero of the tunnel's life — the earliest instant the stack
+  exists — opening a killed-cold YouTube app into a chain still
+  paying its own per-flow establishment, with the dead-cluster
+  memory empty (per-session) so the app's ladder burned ~2.5 s
+  terminal budgets on the blackholed cluster before any mark
+  existed — the multi-cluster terminal burn the emission breaker's
+  arm gate sums, the debug.18–.25 era's 1–2 minute mechanism. Two
+  decisions answer it:
+- **The hand-off now waits for a proven video lane (D106,
+  ADR-0052).** The engine owns a readiness signal: the connect
+  screen holds its connecting look ("Getting the first video
+  ready…") for a few seconds while the serving run settles (3 s
+  window) and one light re-check — the same health check the
+  watchdog runs, never a googlevideo handshake — re-proves the
+  chain; only then does the state's `warm` flag lift, the screen
+  shows Connected, and the shell fires the YouTube hand-off. A
+  failing re-check retries every 2 s; a 15 s cap opens the gate
+  regardless — the user is never trapped waiting. Still once per
+  connect, still on by default, still nothing unless the TUN is
+  genuinely bound.
+- **The dead-cluster marks persist across sessions (D107,
+  ADR-0053 — doc 11 §5.3's pre-registered fix, shipped on this
+  report's indictment).** The cluster memory that fast-fails
+  blackholed clusters at zero wire — the engine's strongest lever
+  of the whole arc — was rebuilt from scratch every connect; it now
+  persists beside the pool file and seeds the next session (5 min
+  seed TTL; the re-probe and the own-dial rehabilitation clear a
+  stale seed). From second zero the tunnel the app wakes into is
+  the one doc 11 §5.2 claimed: the blackholed cluster already
+  marked, the pool already fed. The report's cluster line gains
+  its seeded half (`dead=N (seeded=M)`), so the next paste says
+  which world the session started in.
+
 ### Added (2026-10-21 — M8-am, debug.30, versionCode 29; the release-candidate polish — the owner's two pre-release asks, D104/D105)
 
 - **The real launcher icon (D104).** The owner's own `icon.ico` —

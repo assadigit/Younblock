@@ -154,7 +154,11 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // round — the owner's two pre-release asks: the real launcher
         // icon (his icon.ico mark) and the connect-time YouTube
         // hand-off (ADR-0051, D104/D105).
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.30"}
+        // M8-an (debug.31, versionCode 30): the wait-until-ready round
+        // — the hand-off now waits for the engine's warm gate
+        // (ADR-0052) and the dead-cluster marks persist across
+        // sessions (ADR-0053).
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.31"}
         if mutate != nil {
                 mutate(&opts)
         }

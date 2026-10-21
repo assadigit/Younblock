@@ -486,8 +486,13 @@ func (e *Engine) GetDiagnosticReport() string {
 	// debug.26 report read 150 fast-fails beside a lane that had
 	// starved on demoted pool marks; verdicts= read against
 	// fastFails= says whether the lane held this time.
-	fmt.Fprintf(&b, "gvideo clusters: dead=%d fastFails=%d verdicts=%d probes=%d rehabilitated=%d payloadVerified=%d\n",
-		d.GvideoClusterDeads, d.GvideoClusterFastFail, d.GvideoClusterVerdicts, d.GvideoClusterProbes, d.GvideoClusterRehabs, d.GvideoPayloadFeeds)
+	// M8-an (ADR-0053): seeded= — dead marks the file carried in
+	// (session N's blackholes, live from second zero). dead= read
+	// beside seeded= says whether this session's marks are its own
+	// measurements or the persistence's; the debug.31 report reads
+	// it right after connect, before any video.
+	fmt.Fprintf(&b, "gvideo clusters: dead=%d (seeded=%d) fastFails=%d verdicts=%d probes=%d rehabilitated=%d payloadVerified=%d\n",
+		d.GvideoClusterDeads, d.GvideoClusterSeeds, d.GvideoClusterFastFail, d.GvideoClusterVerdicts, d.GvideoClusterProbes, d.GvideoClusterRehabs, d.GvideoPayloadFeeds)
 	// M8-ae (ADR-0042): the wire-discipline evidence — the googlevideo
 	// hellos the engine actually put on the wire this session (flow
 	// candidates + substitutes + probe jobs) and the emission breaker's

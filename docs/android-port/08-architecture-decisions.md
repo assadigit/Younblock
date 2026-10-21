@@ -3277,3 +3277,151 @@ a measurement note, without a full re-litigation.
   icon's trace pipeline is pinned (vtracer's translate bake is the
   load-bearing detail; the version note in the script documents the
   mid-session 0.6.12→0.6.15 drift that motivated the guard).
+
+## ADR-0052 — The warm gate: the hand-off waits for a proven video lane (M8-an)
+
+- **Status:** Accepted 2026-10-21 (M8-an, debug.31, versionCode 30 —
+  decided on the tester's own diagnosis and prescription, D106).
+- **Context:** the debug.30 field report: "The app reverted to our old
+  problem, waiting a lot for initial video to load, which took like
+  1-2 minutes to load. other videos, (after initial video) opened
+  fine. I think the app connection time is too short, so when it
+  automatically switches to youtube app it's not ready yet. the better
+  job is to make the user wait and see connecting, only you're sure
+  that even initial video is smooth and fast." The code agrees with
+  the tester: ADR-0051's hand-off fired at the first serving event
+  with the TUN bound — second zero of the tunnel's life, the earliest
+  instant the stack exists — and the refresh half killed the YouTube
+  app into a cold start that then burst into a chain still paying its
+  own per-flow establishment (~500-600 ms per flow, doc 11 §5
+  candidate 2) with the dead-cluster memory empty (candidate 3: the
+  marks are per-session) and the blackholed cluster's terminal burns
+  unmarked — exactly the multi-cluster terminal shape the emission
+  breaker's arm gate sums, the 1-2 minute mechanism of the
+  debug.18-.25 era. The manual flow the hand-off replaced had carried
+  seconds of human navigation the tunnel warmed through; second zero
+  removed it.
+- **Decision:**
+  1. **The engine owns a readiness signal.** State gains `warm`
+     (JSON, always present; meaningful while on/degraded): false
+     while the serving run is settling, true once the run HELD
+     through a settle window (`WarmGateSettle`, 3 s) and one light
+     re-check — a plain `QuickCheck` through the door, the same call
+     the watchdog makes every 120 s, the same blessed emission
+     classes the connect sequence already paid (listener, DoH, one
+     youtube flow; ADR-0041's googlevideo silence is untouched) —
+     passed. A failing re-check retries on `WarmGateRetry` (2 s); the
+     never-trap `WarmGateCap` (15 s) opens the gate regardless — a
+     late hand-off is recoverable (the user taps YouTube), a trapped
+     one is not. The flip is EMITTED as a state event.
+  2. **The shell's hand-off waits for it.** The Kotlin service fires
+     kill+launch only when a state event reports serving AND warm AND
+     the TUN bound — the conjunction checked on every state event, so
+     whichever half arrives first (the bind or the flag), the hand-off
+     fires when both hold, still once per run (ADR-0051's latch
+     unchanged).
+  3. **The user sees the wait.** The connect screen holds its
+     connecting presentation while on-but-warming (the word stays
+     "Connecting…", the detail reads "Getting the first video
+     ready…", the timer and the on-tone wait) on `autoOpenTarget`
+     hosts only — the desktops, which have no hand-off to wait for,
+     connect exactly as before. The Snapshot gains an optional
+     `warming` the HTTP/SSE backend derives from the state's `warm`;
+     absent fields never hold (older hosts, previews).
+- **Evidence:** internal/engine/m8an_test.go — the hold (warm false
+  through the settle window, sampled at half the window with wide
+  margins), the re-check (the gate opened only after a QuickCheck
+  beyond the connect's own), the emission (a state event carried
+  warm=true), the cap (a network whose every check fails still opens
+  the gate), the re-arm (off resets warm; the second connect holds
+  again). Both-ways proofs, executed and recorded: stashing the
+  `startWarmGate` hooks fails all three gate tests (warm never
+  flips); stashing the `setPhaseLocked` reset fails the re-arm test
+  ("warm=true after off"). mobile/warm_test.go pins the JSON field
+  (stash the struct field and the key vanishes). Full suite green;
+  -race green on the house gate (proxy+probe+netx); gofmt set
+  identical to the baseline 22 (engine.go and the other space-indent
+  legacy files edited through byte-exact scripted replacements).
+- **Consequences:** the debug.31 report reads the wait (the connect
+  screen holds ~4-6 s: the settle window plus one re-check) and then
+  the hand-off. The gate adds ONE youtube-step emission per connect —
+  the class every QuickCheck already pays. The knob set (settle,
+  retry, cap) is config constants with opts overrides, the
+  watchdog's pattern. What this ADR does NOT decide: the warm gate
+  says nothing about the CLUSTER memory's state — that is ADR-0053's,
+  and the two together are what "even initial video is smooth"
+  actually means: the chain re-proved AND the blackholed clusters
+  already marked.
+
+## ADR-0053 — The dead-cluster marks persist: the pre-registered §5.3 fix, shipped on the debug.30 indictment (M8-an)
+
+- **Status:** Accepted 2026-10-21 (M8-an, debug.31, versionCode 30 —
+  doc 11 §5.3's pre-registered candidate fix, convicted into shipping
+  by the debug.30 field report, D107).
+- **Context:** doc 11 §5 pre-registered this exact fix ("persist
+  cluster marks beside the pool file, with a short seeded TTL and the
+  existing probe/rehab as the safety net") as the answer to candidate
+  3, the first-video discovery cost — and M8-al's verdict shelved it
+  as not indicted (the debug.29 session's six 500 ms pairs left no
+  room for a multi-second outlier, and the dead mark held from early
+  in that session). The debug.30 report re-indicted it: the session's
+  first video is precisely the flow the hand-off moved to second
+  zero, and at second zero the per-session cluster memory is EMPTY —
+  the app's ladder pays ~3 flows × ~2.5 s of dial-accept-TLS-silent
+  terminal burn before three distinct hosts mark the cluster, the
+  burn is what the breaker's arm gate sums across clusters, and the
+  felt result was the old 1-2 minutes. The pool file precedent
+  (ADR-0033/0047) already carries the persistence shape.
+- **Decision:**
+  1. **The marks persist.** `GoogleVideoDeadClustersFile`
+     ("googlevideo-dead-clusters.txt", the config directory beside
+     the pool file): one sn-cluster key per line, written on the
+     gvideo loop's pool tick and Stop-time flush (the same cadence
+     and the same goodMu serialization as the pool's saves), capped
+     at 16, carrying only marks LIVE at save time.
+  2. **The next session seeds from it.** `SeedGvideoDeadClusters`
+     plants each key as a dead mark with the shorter
+     `GvideoClusterSeedTTL` (5 min, half the in-session
+     GvideoClusterDeadTTL — the GoodPoolSeedTTL precedent). From
+     second zero the door fast-fails the blackholed cluster's hosts
+     at zero wire — the reset the app's own ladder escalates on (doc
+     11 §4.2: the fast-fail is the protocol) — instead of burning
+     terminal budgets.
+  3. **The safety nets the pre-registration named.** A seeded mark
+     never SHORTENS a live in-session mark (the fresh measurement
+     outranks the stale seed — the evidence-rank rule); the own-dial
+     rehabilitation (`noteGvideoClusterAlive`) clears a wrong seed
+     the moment one of its origins answers; the per-cluster re-probe
+     (`GvideoClusterReprobeEvery`) serves seeded marks on its cadence
+     (probedAt stamps at seed time, so a lifted blackhole is learned
+     inside one window); invalid keys never enter the table.
+  4. **The report says so.** The cluster line gains its seeded half:
+     `dead=N (seeded=M)` — dead counts marks THIS session measured,
+     seeded counts the file's marks live from second zero. The
+     tester's fresh-connect report reads exactly which world it is
+     in; the seeding logs one line.
+- **Evidence:** internal/proxy/deadseed_test.go — the door mark
+  (without a seed `gvideoClusterDead` is false for the blackholed
+  cluster's hosts — the debug.30 state; with it, true immediately),
+  the rank rule (a seed over a live measured mark plants nothing:
+  the until is unchanged, the counter unmoved), the invalid-key skip,
+  the rehab clearing a seed, the probe handout waiting out its first
+  window, the list carrying only live marks and sorted.
+  internal/engine/m8an_test.go — the file seeds the next session
+  (the report reads `dead=0 (seeded=1)` and the seeding log line).
+  Both-ways proofs, executed and recorded: stashing the seeding hook
+  fails the engine pin; stashing the seed body fails the door-mark
+  pin. The m8af report pin re-pinned to the new line (the M8-aj
+  precedent). Full suite green; -race green on the house gate;
+  gofmt set identical to the baseline 22.
+- **Consequences:** the debug.31 report, read right after connect
+  and before any video, should show `dead=0 (seeded=1)` (or more) —
+  the persistence working; then the first video's ladder meets
+  instant resets. The stale-seed risk is bounded three ways (the
+  half-TTL, the re-probe, the rehab) and costs at most one dial
+  budget per cluster per 2-minute window. What this ADR does NOT
+  decide: DNS-layer failure for dead-cluster hostnames (§5.1's
+  post-release experiment candidate, unchanged) and the good pool's
+  own seeding (ADR-0033/0047, already shipped) — the marks and the
+  pool together are the "already marked dead and already fed" state
+  doc 11 §5.2 claimed, now actually true at second zero.

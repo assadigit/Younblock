@@ -361,6 +361,7 @@ func (e *Engine) goOn() {
 	e.emitState()
 	e.startStatsLoop()
 	e.startWatchdog()
+	e.startWarmGate() // M8-an (ADR-0052): the hand-off's readiness gate
 	e.startNetMon()
 	e.prewarm()
 	e.startGvideoLoop()   // M8-z (ADR-0025 §6.2/§6.4): warm DoH conn + googlevideo prewarm
@@ -386,6 +387,7 @@ func (e *Engine) goDegraded(notifyText string) {
 	// press (D44).
 	e.startStatsLoop()
 	e.startWatchdog()
+	e.startWarmGate() // M8-an (ADR-0052): degraded serves — the gate runs there too
 	e.startNetMon()
 	e.startGvideoLoop()   // degraded still serves traffic (an honest "on"): keep the DoH conn warm
 	e.startAutoTimeline() // M8-aa: the heuristic runs in degraded too — traffic still flows
@@ -538,6 +540,107 @@ func (e *Engine) watchdogTick() {
 			e.healSweep(ctx, false)
 		}()
 	}
+}
+
+// warmGateSettle returns the settle window (M8-an, ADR-0052; the
+// opts override pattern beside every other timing knob).
+func (e *Engine) warmGateSettle() time.Duration {
+	if e.opts.WarmGateSettle > 0 {
+		return e.opts.WarmGateSettle
+	}
+	return config.WarmGateSettle
+}
+
+// warmGateRetry returns the re-check cadence while the light check
+// keeps failing (M8-an, ADR-0052).
+func (e *Engine) warmGateRetry() time.Duration {
+	if e.opts.WarmGateRetry > 0 {
+		return e.opts.WarmGateRetry
+	}
+	return config.WarmGateRetry
+}
+
+// warmGateCap returns the never-trap bound (M8-an, ADR-0052).
+func (e *Engine) warmGateCap() time.Duration {
+	if e.opts.WarmGateCap > 0 {
+		return e.opts.WarmGateCap
+	}
+	return config.WarmGateCap
+}
+
+// startWarmGate arms the serving run's readiness gate (M8-an,
+// ADR-0052 — the tester's own prescription: "make the user wait and
+// see connecting, only you're sure that even initial video is smooth
+// and fast"). The debug.30 field report showed the connect-time
+// hand-off firing at second zero — the earliest instant the stack
+// exists — so a cold-started YouTube app burst into a chain still
+// paying its own per-flow establishment, with the dead-cluster memory
+// empty (per-session), and the felt result was the old 1–2 minute
+// first-video open back. The gate holds the hand-off closed until the
+// serving phase HELD for the settle window and one light check
+// (listener, dns, youtube — the watchdog's own blessed emission
+// classes, never googlevideo) re-proved the chain through the door;
+// a failing check retries on its cadence, and the cap opens the gate
+// regardless — a late hand-off is recoverable (the user taps
+// YouTube), a trapped one is not (the M8-am refusal-path rule). Once
+// per run: warm stays true through on↔degraded flaps (a heal sweep
+// is the same run), and the phase machine re-arms the gate when the
+// run ends (setPhaseLocked).
+func (e *Engine) startWarmGate() {
+	e.mu.Lock()
+	if e.warm || e.warmCancel != nil {
+		e.mu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	e.warmCancel = cancel
+	e.mu.Unlock()
+	go func() {
+		settle := time.NewTimer(e.warmGateSettle())
+		defer settle.Stop()
+		capT := time.NewTimer(e.warmGateCap())
+		defer capT.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return // the run ended; setPhaseLocked reset warm and cleared the cancel
+			case <-capT.C:
+				e.logger.Warn("warm gate: the cap reached — opening without a proven re-check (the hand-off is recoverable)")
+				e.fireWarm()
+				return
+			case <-settle.C:
+				// The re-check: one QuickCheck through the door — the same
+				// call the watchdog makes on every tick, the same emission
+				// classes the connect sequence already paid (ADR-0041's
+				// discipline is untouched: no googlevideo handshake).
+				if e.checker.QuickCheck(ctx, e.currentMethod()) {
+					e.fireWarm()
+					return
+				}
+				// Failed — the chain flapped (a radio blink, a heal sweep
+				// mid-flight). Retry on the cadence; the phase may be
+				// anything between while the run lives.
+				settle.Reset(e.warmGateRetry())
+			}
+		}
+	}()
+}
+
+// fireWarm opens the gate exactly once per run (M8-an, ADR-0052): the
+// state event this emits is the hand-off's trigger (the Kotlin shell
+// fires kill+launch when it reads serving AND warm AND tunBound) and
+// the connect screen's cue to swap "getting the first video ready"
+// for "Connected".
+func (e *Engine) fireWarm() {
+	e.mu.Lock()
+	if e.warm {
+		e.mu.Unlock()
+		return
+	}
+	e.warm = true
+	e.mu.Unlock()
+	e.logger.Info("warm gate: the video lane is ready (the chain held and re-proved)")
+	e.emitState()
 }
 
 // ensureProxyAttached re-asserts the system proxy when another program

@@ -64,6 +64,13 @@ type State struct {
         Port   int           `json:"port"`
         Mode   config.Mode   `json:"mode"`
         Method config.Method `json:"method"`
+        // Warm (M8-an, ADR-0052): the serving run's readiness — false
+        // while the tunnel is still settling (the connect-time hand-off
+        // and the connect screen's warming copy key on it), true once the
+        // chain held and re-proved (or the never-trap cap opened the
+        // gate). Meaningful only while phase is on/degraded; false
+        // everywhere else.
+        Warm bool `json:"warm"`
         // LatencyMs is the last measured YouTube round-trip through the whole
         // chain (secure lookup + connect + request), refreshed by every health
         // check while on (user-requested "ping"; DECISIONS.md D41). Nil when no
@@ -113,6 +120,14 @@ type Options struct {
         HealCooldown time.Duration
         // StartTimeout overrides the total start budget (the 35 s cap).
         StartTimeout time.Duration
+        // WarmGateSettle/WarmGateRetry/WarmGateCap override the M8-an
+        // warm gate's timing (ADR-0052; 0 = the config defaults) — the
+        // settle window after the run reaches serving, the re-check
+        // cadence while the light check keeps failing, and the
+        // never-trap bound that opens the gate regardless.
+        WarmGateSettle time.Duration
+        WarmGateRetry  time.Duration
+        WarmGateCap    time.Duration
         // NetworkPollInterval overrides the interface polling period.
         NetworkPollInterval time.Duration
         // InterfaceLister overrides the interface address source (R19 tests).
@@ -167,6 +182,14 @@ type Engine struct {
         runGen         uint64 // M7 (D82): identifies the live connect run; every cancel bumps it
         watchdogCancel context.CancelFunc
         wdFails        int
+        // M8-an (ADR-0052): the warm gate — the serving run's readiness
+        // signal (true once the chain held through the settle window and
+        // one light re-check passed, or the cap opened the gate), and the
+        // gate goroutine's cancel. warm is reset and the gate cancelled
+        // when the run leaves on/degraded (setPhaseLocked); goOn and
+        // goDegraded re-arm it for the next run.
+        warm       bool
+        warmCancel context.CancelFunc
         netMonCancel   context.CancelFunc
         lastAutoSweep  time.Time
         lastNotifyAt   time.Time
@@ -209,6 +232,12 @@ type Engine struct {
         goodPoolPath string
         goodMu       sync.Mutex
         goodPoolLast string
+        // M8-an (ADR-0053): the persisted dead-cluster lane's file path
+        // and last written snapshot (the change check) — guarded by the
+        // same goodMu so the pool's and the marks' periodic/Stop flushes
+        // never interleave a write.
+        deadClusterPath string
+        deadClusterLast string
 
         // M8-aa (ADR-0029): the effective lean stall budget this run's
         // proxy carries — Android's platform default (8 s), the
@@ -345,6 +374,9 @@ func New(opts Options) (*Engine, error) {
                 // M8-ab (ADR-0033): the persisted verified-live pool's file,
                 // beside the codes store in the app's private directory.
                 goodPoolPath: filepath.Join(opts.Platform.ConfigDir(), config.GoogleVideoGoodIPsFile),
+                // M8-an (ADR-0053): the persisted dead-cluster marks'
+                // file, beside the pool file (the §5.3 precedent).
+                deadClusterPath: filepath.Join(opts.Platform.ConfigDir(), config.GoogleVideoDeadClustersFile),
                 // M8-af (ADR-0044): the network test lane's state.
                 netTest: &networkTestState{},
         }
@@ -641,6 +673,7 @@ func (e *Engine) startGvideoLoop() {
                         select {
                         case <-ctx.Done():
                                 e.saveGoodPoolIfChanged() // the Stop-time flush (ADR-0033)
+                                e.saveDeadClustersIfChanged() // M8-an (ADR-0053): the dead marks flush with it
                                 return
                         case <-slow.C:
                                 if brownout.active() {
@@ -679,6 +712,7 @@ func (e *Engine) startGvideoLoop() {
                                 // its answer is silence, never a burst.
                         case <-pool.C:
                                 e.saveGoodPoolIfChanged()
+                                e.saveDeadClustersIfChanged()
                         }
                 }
         }()
@@ -769,6 +803,7 @@ func (e *Engine) stopGvideoLoop() {
                 cancel()
         }
         e.saveGoodPoolIfChanged()
+        e.saveDeadClustersIfChanged()
 }
 
 // loadGoodIPPool reads the persisted verified-live googlevideo pool
@@ -1228,6 +1263,16 @@ func (e *Engine) startListener() error {
         if len(legacy) > 0 {
                 srv.SeedGoodIPs(legacy)
         }
+        // M8-an (ADR-0053, doc 11 §5.3's pre-registered fix): seed the
+        // persisted dead-cluster marks — the last session's blackholes,
+        // live from second zero, so the first video's ladder meets
+        // instant resets instead of burning the ~2.5 s terminal budgets
+        // the breaker's arm gate sums across clusters. A stale seed
+        // self-corrects three ways: the shorter seed TTL, the per-cluster
+        // re-probe, and the own-dial rehabilitation.
+        if dead := e.loadDeadClusters(); len(dead) > 0 {
+                srv.SeedGvideoDeadClusters(dead)
+        }
         e.mu.Lock()
         e.server = srv
         e.port = srv.Port()
@@ -1419,6 +1464,15 @@ func (e *Engine) setPhaseLocked(p Phase, detail string) {
         // failed CONNECT never opened one).
         if wasOn && p != PhaseOn && p != PhaseDegraded {
                 e.endUsageSessionLocked()
+                // M8-an (ADR-0052): the serving run ended — the warm gate
+                // re-arms closed for the next one (goOn/goDegraded restart
+                // it), and a state read mid-shutdown never claims a ready
+                // tunnel that is about to be gone.
+                e.warm = false
+                if e.warmCancel != nil {
+                        e.warmCancel()
+                        e.warmCancel = nil
+                }
         }
 }
 
@@ -1493,6 +1547,7 @@ func (e *Engine) GetState() State {
                 Port:   port,
                 Mode:   mode,
                 Method: method,
+                Warm:   e.warm,
         }
         if (e.phase == PhaseOn || e.phase == PhaseDegraded) && e.latencyMs > 0 {
                 ms := e.latencyMs

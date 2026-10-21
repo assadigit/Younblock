@@ -100,6 +100,7 @@ type Counters struct {
 	gvideoClusterVerdicts atomic.Int64
 	gvideoClusterProbes   atomic.Int64
 	gvideoClusterRehabs   atomic.Int64
+	gvideoClusterSeeds    atomic.Int64
 	gvideoPayloadFeeds    atomic.Int64
 
 	// M8-af (ADR-0043, spec W1): the googlevideo flows' kernel-TCP
@@ -304,6 +305,14 @@ func (c *Counters) GvideoClusterProbe() { c.gvideoClusterProbes.Add(1) }
 // (M8-ah, ADR-0047).
 func (c *Counters) GvideoClusterRehab() { c.gvideoClusterRehabs.Add(1) }
 
+// GvideoClusterSeed counts one dead-cluster mark seeded from the
+// persisted file (M8-an, ADR-0053): the last session's blackhole
+// measurement carried into this one — the seeded= half of the
+// report's dead=, read beside it, says the first video of the
+// session met an already-marked tunnel instead of re-paying the
+// discovery.
+func (c *Counters) GvideoClusterSeed() { c.gvideoClusterSeeds.Add(1) }
+
 // GvideoPayloadFeed counts one origin media-verified by delivered
 // payload (M8-ah, ADR-0047): a googlevideo flow that carried
 // PayloadVerifiedMinimum downstream bytes — the pool's automatic
@@ -484,6 +493,7 @@ type All struct {
 	GvideoClusterVerdicts int64 `json:"gvideoClusterVerdicts"`
 	GvideoClusterProbes   int64 `json:"gvideoClusterProbes"`
 	GvideoClusterRehabs   int64 `json:"gvideoClusterRehabs"`
+	GvideoClusterSeeds    int64 `json:"gvideoClusterSeeds"`
 	GvideoPayloadFeeds    int64 `json:"gvideoPayloadFeeds"`
 	// M8-af (ADR-0043, spec W1): the stalled googlevideo flows' kernel
 	// TCP verdict split.
@@ -542,6 +552,7 @@ func (c *Counters) Diagnostic() All {
 		GvideoClusterVerdicts: c.gvideoClusterVerdicts.Load(),
 		GvideoClusterProbes:   c.gvideoClusterProbes.Load(),
 		GvideoClusterRehabs:   c.gvideoClusterRehabs.Load(),
+		GvideoClusterSeeds:    c.gvideoClusterSeeds.Load(),
 		GvideoPayloadFeeds:    c.gvideoPayloadFeeds.Load(),
 		TCPUpstreamLost:       c.tcpUpstreamLost.Load(),
 		TCPDownstreamLost:     c.tcpDownstreamLost.Load(),

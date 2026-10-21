@@ -419,6 +419,27 @@ const SubstitutionPoolDials = 3
 // (R21).
 const GoogleVideoGoodIPsFile = "googlevideo-good-ips.txt"
 
+// GoogleVideoDeadClustersFile — the persisted dead-cluster marks
+// (M8-an, ADR-0053, doc 11 §5.3's pre-registered fix): one sn-cluster
+// key per line, the clusters whose dead marks were LIVE when the last
+// session wrote the file, seeded back at engine start with the shorter
+// GvideoClusterSeedTTL. The debug.30 field report convicted the
+// per-session amnesia: the connect-time hand-off opened a cold-started
+// YouTube app into a second-zero tunnel whose cluster memory was
+// EMPTY — the app's ladder burned first-byte terminals on the
+// blackholed cluster (the ~2.5 s dial-accept-TLS-silent budget) before
+// three distinct hosts marked it dead, exactly the terminal burn the
+// breaker's arm gate sums across clusters. A seeded mark makes the
+// door fail those hosts INSTANTLY from second zero (the reset the
+// app's own ladder escalates on, §4.2), and the seed's cost is bounded
+// three ways: the shorter TTL, the per-cluster re-probe
+// (GvideoClusterReprobeEvery — a lifted blackhole is learned inside
+// one window), and the own-dial rehabilitation (noteGvideoClusterAlive
+// clears a wrong seed the moment one of its origins answers). Same
+// privacy footing as the pool file: cache-cluster tokens in the app's
+// private data directory, never a log line (R21).
+const GoogleVideoDeadClustersFile = "googlevideo-dead-clusters.txt"
+
 // GoodPoolSeedTTL — how long a PERSISTED good mark lives when seeded
 // back at start (M8-ab, ADR-0033): shorter than OriginProbeGoodTTL —
 // yesterday's verdict is stale evidence, and the demote-on-death
@@ -532,6 +553,37 @@ const GvideoClusterDeadTTL = 10 * time.Minute
 // probe bounds the stale mark's cost at one dial budget per cluster
 // per window.
 const GvideoClusterReprobeEvery = 2 * time.Minute
+
+// GvideoClusterSeedTTL — how long a PERSISTED dead-cluster mark lives
+// when seeded back at start (M8-an, ADR-0053): half
+// GvideoClusterDeadTTL — the last session's blackhole measurement is
+// stale evidence, and the re-probe (GvideoClusterReprobeEvery) plus
+// the own-dial rehab bound a seed that went stale long before this
+// TTL runs out.
+const GvideoClusterSeedTTL = 5 * time.Minute
+
+// WarmGateSettle — how long the engine must HOLD a serving phase
+// before its readiness re-check runs (M8-an, ADR-0052): the
+// connect-time hand-off's gate. The debug.30 field report showed the
+// hand-off firing at second zero — the earliest instant the stack
+// exists — so a cold-started YouTube app burst into a chain still
+// paying its own per-flow establishment; the manual flow it replaced
+// carried seconds of human navigation the tunnel warmed through. The
+// settle window restores that delay under the engine's control; the
+// re-check that follows it is the "sure" half.
+const WarmGateSettle = 3 * time.Second
+
+// WarmGateRetry — the re-check cadence while the readiness check
+// keeps failing (M8-an, ADR-0052): one light check (listener, dns,
+// youtube — the watchdog's own blessed emission classes, never
+// googlevideo) every window until it passes or the cap fires.
+const WarmGateRetry = 2 * time.Second
+
+// WarmGateCap — the never-trap bound on the readiness gate (M8-an,
+// ADR-0052): whatever the checks say, the gate opens by this age —
+// a late hand-off is recoverable (the user taps YouTube), a trapped
+// one is not (the M8-am refusal-path rule).
+const WarmGateCap = 15 * time.Second
 
 // PayloadVerifiedMinimum — the downstream bytes a googlevideo flow
 // must have DELIVERED before its origin is certified media-verified

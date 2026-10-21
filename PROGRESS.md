@@ -4819,3 +4819,78 @@ is the repo's Latest (D89), asset v1.6.6-debug30.apk (asset id
 662417655) re-downloaded byte-identical (cmp + SHA-256). Decisions
 D104/D105 in DECISIONS.md; ADR-0051 in doc 08; doc 11 §5.2;
 CHANGELOG and README carry the round.
+
+
+## M8-an — the wait-until-ready round (debug.31, versionCode 30)
+
+The tester's debug.30 field report, verbatim: "The app reverted to
+our old problem, waiting a lot for initial video to load, which
+took like 1-2 minutes to load. other videos, (after initial video)
+opened fine. I think the app connection time is too short, so when
+it automatically switches to youtube app it's not ready yet. the
+better job is to make the user wait and see connecting, only you're
+sure that even initial video is smooth and fast." The report is
+thin (a message, no diagnostic paste this time) but the prescription
+is exact, and the code corroborates the diagnosis: M8-am's hand-off
+fired at the first serving event with the TUN bound — second zero
+of the tunnel's life — and the refresh half killed the YouTube app
+into a cold start that burst into a chain still paying per-flow
+establishment (~500–600 ms per flow, doc 11 §5 candidate 2) with
+the dead-cluster memory empty (candidate 3: the marks are
+per-session) and the blackholed cluster's terminal burns unmarked —
+the multi-cluster terminal shape the breaker's arm gate sums, the
+debug.18–.25 era's 1–2 minute mechanism re-entered through the side
+door the hand-off opened. The manual flow the hand-off replaced had
+carried seconds of human navigation the tunnel warmed through.
+
+**D106/ADR-0052 — the warm gate (the tester's prescription,
+implemented):** the engine's state gains `warm` (JSON, always
+present, meaningful while on/degraded): false while the serving run
+settles, true once it HELD through a 3 s window and one light
+re-check — a plain QuickCheck through the door, the watchdog's own
+blessed emission classes (ADR-0041's googlevideo silence untouched)
+— passed; failing re-checks retry every 2 s; a 15 s cap opens the
+gate regardless (never trap — a late hand-off is recoverable, a
+trapped one is not). The flip is emitted as a state event. The
+Kotlin service fires kill+launch only on serving AND warm AND
+TUN-bound (the conjunction checked on every state event, still once
+per run — ADR-0051's latch unchanged). The connect screen holds its
+connecting presentation while on-but-warming — the word stays
+"Connecting…", the detail reads "Getting the first video ready…",
+the timer and the on-tone wait — on autoOpenTarget hosts only; the
+desktops connect exactly as before. The Snapshot gains an optional
+`warming` derived from the state's `warm` (absent fields never
+hold).
+
+**D107/ADR-0053 — the persisted dead-cluster marks (doc 11 §5.3's
+pre-registered fix, shipped on the indictment):** the fix §5
+pre-registered and M8-al shelved as not-indicted is exactly what
+the second-zero cold start indicts. `googlevideo-dead-clusters.txt`
+(beside the pool file, the ADR-0033/0047 precedent) persists the
+LIVE dead marks on the gvideo loop's pool tick and Stop-time flush
+(goodMu-serialized with the pool's saves, capped at 16, sorted);
+the next session seeds them with a 5 min TTL (half the in-session
+10 min — the GoodPoolSeedTTL precedent). The safety nets the
+pre-registration named: a seed never shortens a fresher measured
+mark (the evidence-rank rule), the own-dial rehab clears a wrong
+seed the moment one of its origins answers, the per-cluster
+re-probe serves seeded marks on its cadence (probedAt stamps at
+seed time), invalid keys never enter the table. The report's
+cluster line gains `seeded=` (`dead=N (seeded=M)` — dead counts
+marks this session measured, seeded the file's marks live from
+second zero); the m8af report pin re-pinned to the new line (the
+M8-aj precedent).
+
+**The round's verification:** both-ways proofs executed and
+recorded (stashing the startWarmGate hooks fails all three gate
+tests; stashing the setPhaseLocked reset fails the re-arm test
+"warm=true after off"; stashing the seeding hook fails the engine
+pin; stashing the seed body fails the door-mark pin); full Go
+suite green; -race green on the house gate (proxy+probe+netx);
+gofmt set identical to the baseline 22 (engine.go, mobile.go and
+the m8af test edited through byte-exact scripted replacements —
+the Edit tool's whole-file re-indent was caught by the git-diff
+check and reverted before anything shipped); the frontend's
+svelte-check delta zero (5 pre-existing errors in the untouched
+DiagnosticsView) and vite build clean. Mobile version string
+1.6.6-debug.31; gradle versionCode 30.

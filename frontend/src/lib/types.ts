@@ -50,4 +50,9 @@ export interface Snapshot {
   upBytes: number;
   /** The last finished session; null when there has never been one. */
   lastSession?: SessionRecord | null;
+  /** M8-an (ADR-0052): true while the engine is serving but its video
+   * lane is still warming — the connect-time hand-off's hold. Set only
+   * by the HTTP/SSE host (the engine's own state carries `warm`);
+   * absent on the Wails and preview hosts, where nothing waits on it. */
+  warming?: boolean;
 }
