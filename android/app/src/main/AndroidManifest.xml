@@ -19,6 +19,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- UI v3 (docs/ui-v3/UI-SPEC.md §4, listed in docs/ui-v3/REPORT.md):
+         the lever button's haptics run through the WebView's
+         navigator.vibrate, which needs this one permission. Normal
+         permission (never runtime-asked); nothing else was added. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <queries>
         <!-- D83: the allow-list has no defaults — the user adds any

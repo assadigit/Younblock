@@ -55,4 +55,9 @@ export interface Snapshot {
    * by the HTTP/SSE host (the engine's own state carries `warm`);
    * absent on the Wails and preview hosts, where nothing waits on it. */
   warming?: boolean;
+  /** UI v3 (docs/ui-v3/UI-SPEC.md §8): true while the engine reports its
+   * serving run degraded (its health signal — a real engine event, never a
+   * UI guess). The v3 screen shows it as slow mode (data-health="slow").
+   * False while serving healthy; absent/false everywhere else. */
+  degraded?: boolean;
 }

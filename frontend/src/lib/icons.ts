@@ -22,4 +22,9 @@ export {
   Share2,
   RefreshCw,
   Check,
+  // UI v3 (docs/ui-v3): the Open YouTube card's launch glyph (right side,
+  // external-link only — no chevron) and the amber lines' warning icons
+  // (never amber alone; the icon always sits beside the words).
+  ExternalLink,
+  AlertTriangle,
 } from "lucide-svelte";

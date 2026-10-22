@@ -1,13 +1,11 @@
-/* app.css — the base layer under the Younblock screen. The screen itself
-   lives in App.svelte and lib/; this only prepares html/body/#app so the
-   360×628 stage scales with the window and nothing fights it. */
+/* app.css — the v3 base layer under the Younblock screen (docs/ui-v3).
+   The screen itself lives in App.svelte and lib/; this only prepares
+   html/body/#app. Every value the screen renders comes from
+   docs/ui-v3/younblock-tokens.css (imported by pro.ts) and the legacy
+   tokens.css (the menu sheet's surfaces, kept unchanged). */
 
 :root {
   color-scheme: dark;
-  /* Keep the whole 22.5×39.25rem stage visible in any window: the root
-     font scales down with the tighter axis and never grows past 16px. In
-     the Wails window (360×628 client area) this is exactly 16px. */
-  font-size: min(calc(100vw / 22.5), calc(100vh / 39.25), 1rem);
 }
 
 *,
@@ -26,8 +24,8 @@ body {
 }
 
 body {
-  background: var(--off-bottom); /* no white flash before the gradient paints */
-  color: var(--text-primary);
+  background: var(--yb-base); /* no flash before the gradient paints */
+  color: var(--yb-text);
   font-family: var(--font);
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
@@ -40,13 +38,13 @@ body {
 }
 
 ::selection {
-  background: var(--red-500);
+  background: var(--yb-red);
   color: #fff;
 }
 
 :focus-visible {
-  outline: 0.125rem solid #fff;
-  outline-offset: 0.2rem;
+  outline: 3px solid var(--yb-text);
+  outline-offset: 2px;
 }
 
 button {
@@ -57,8 +55,8 @@ button {
   cursor: pointer;
 }
 
-/* design.md: thumb slide, background fade and pulse all stop under
-   prefers-reduced-motion — position and words still carry the state. */
+/* spec §7: under prefers-reduced-motion every animation shows its static
+   version (the tokens also zero the v3 transition durations). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

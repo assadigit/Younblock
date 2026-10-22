@@ -293,11 +293,53 @@ class MainActivity : Activity() {
                 false
             }
         }
+
+        /**
+         * UI v3 (docs/ui-v3/UI-SPEC.md §6): the connected state's Open
+         * YouTube card. Launches the YouTube app (the package's launch
+         * intent with NEW_TASK — the same open the connect-time hand-off
+         * uses); when the app is not installed, the mobile site opens in
+         * the browser instead. Where no shell exists (the Linux web
+         * edition, plain browsers) the page itself falls back to
+         * window.open, so this bridge is an accelerator, not a dependency.
+         *
+         * Read-only like the rest of this surface: the method launches
+         * and returns, never reading anything back out. Arrives on the
+         * binder thread; the launch marshals to the main thread.
+         */
+        @JavascriptInterface
+        fun openYouTube(): Boolean {
+            return try {
+                activity.runOnUiThread {
+                    try {
+                        val launch = activity.packageManager.getLaunchIntentForPackage(YOUTUBE_PACKAGE)
+                        if (launch != null) {
+                            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            activity.startActivity(launch)
+                        } else {
+                            Log.i(TAG, "openYouTube: $YOUTUBE_PACKAGE not installed; opening the browser")
+                            val web = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://m.youtube.com"))
+                            web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            activity.startActivity(web)
+                        }
+                    } catch (e: RuntimeException) {
+                        Log.w(TAG, "openYouTube failed: ${e.message}")
+                    }
+                }
+                true // the launch was dispatched; its own failure is logged above
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "openYouTube dispatch failed: ${e.message}")
+                false
+            }
+        }
     }
 
     companion object {
         private const val TAG = "Younblock"
         private const val REQUEST_PREPARE = 100
+        /** The Open YouTube card's target (UI v3 spec §6) — the same
+         *  package the connect-time hand-off opens. */
+        private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
         private const val PREFS = "m5_lifecycle"
         private const val KEY_EXPLAINED = "consent_explained"
 

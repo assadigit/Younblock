@@ -87,6 +87,11 @@ export interface NetworkTestStatus {
   lines?: string[];
 }
 
+/** The one generic connect-failure line the Go bridge and the HTTP host
+ *  both send (ui_bridge.go / applyState); shared so the v3 screen can tell
+ *  it apart from the more specific engine errors (v3.ts: failedSubLine). */
+export const GENERIC_CONNECT_ERROR = "Could not connect. Try again.";
+
 /** The backend surface the screen talks to. */
 export interface Backend {
   getSnapshot(): Promise<Snapshot>;
@@ -607,8 +612,12 @@ class HttpBackend implements Backend {
         phase === "error"
           ? state.error?.code === "NO_TARGET_APPS"
             ? "None of the apps on your list is installed — or the list is empty (the default list — YouTube, Chrome, Firefox, Opera, Brave — may have been removed). Add an app in the menu, then try again."
-            : "Could not connect. Try again."
+            : GENERIC_CONNECT_ERROR
           : null,
+      // The engine's health signal (internal/engine health.go: the self-test
+      // flaps the run between on and degraded). Folded here into the v3
+      // screen's slow mode — a REAL engine event, never a UI guess (spec §8).
+      degraded: phase === "connected" ? state.phase === "degraded" : false,
     };
     this.schedulePoll();
     this.emit();
@@ -719,6 +728,11 @@ function autoBackend(): Backend {
 
 function previewBackend(): Backend {
   const fail = new URLSearchParams(window.location.search).has("fail");
+  // ?demo=<state> pins the screen in one of the five v3 states so plain-
+  // browser runs (screenshots, gesture checks) can see every look without
+  // an engine: disconnected | connecting | failed | connected | slow.
+  // The pinned state is live — connect/disconnect still work from it.
+  const demo = (new URLSearchParams(window.location.search).get("demo") ?? "").toLowerCase();
   let snap: Snapshot = {
     phase: "disconnected",
     connectedAtMs: null,
@@ -746,6 +760,39 @@ function previewBackend(): Backend {
   snap.lastSession = usageSessions[0] ?? null;
   let liveDown = 0;
   let liveUp = 0;
+
+  // Apply the pinned demo state (development only — never shipped; the
+  // states are the engine's real vocabulary, so what the screen renders
+  // under ?demo= is exactly what the real host would render).
+  if (demo === "failed") {
+    snap = { ...snap, phase: "error", message: GENERIC_CONNECT_ERROR };
+  } else if (demo === "connecting") {
+    snap = { ...snap, phase: "connecting" };
+  } else if (demo === "connected" || demo === "slow") {
+    liveDown = 12.9e6;
+    liveUp = 0.7e6;
+    snap = {
+      ...snap,
+      phase: "connected",
+      connectedAtMs: Date.now() - (21 * 60 + 13) * 1000,
+      downBytes: Math.round(liveDown),
+      upBytes: Math.round(liveUp),
+      degraded: demo === "slow",
+    };
+    runStats();
+  } else if (demo === "disconnected") {
+    // The spec's example session (21 min, 13.6 MB) so the disconnected
+    // look shows its last-session line in the documented shape.
+    snap = {
+      ...snap,
+      lastSession: {
+        startMs: Date.now() - 22 * 60 * 1000,
+        endMs: Date.now() - 60 * 1000,
+        downBytes: 12.9e6,
+        upBytes: 0.7e6,
+      },
+    };
+  }
 
   function emit(): void {
     for (const cb of listeners) cb(snap);

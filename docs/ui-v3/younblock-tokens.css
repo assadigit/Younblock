@@ -1,0 +1,114 @@
+/* =====================================================================
+   Younblock UI v3 - design tokens
+   ---------------------------------------------------------------------
+   CONFIGURATION: change values in this top block only.
+   Sizes are CSS px (= Android dp inside the WebView).
+   Reference screen: 360 x 800.
+   ===================================================================== */
+:root {
+  /* ---- Colors: neutrals ---- */
+  --yb-base:       #26262E;   /* main background (bottom)            */
+  --yb-base-lift:  #3A3947;   /* background gradient top             */
+  --yb-text:       #F4F0EE;   /* primary text            13.3:1 on base */
+  --yb-text-dim:   #BDB7B5;   /* secondary text          5.7:1 on lift  */
+
+  /* ---- Colors: brand red (cap, logo, glow) ---- */
+  --yb-red:        #D8201E;   /* cap. White text on it: 5.07:1       */
+  --yb-cap-hi:     #E75655;   /* cap highlight edge                  */
+  --yb-cap-lo:     #8F1514;   /* cap shadow + track rim              */
+  --yb-red-text:   #FF4A4F;   /* red text / thin icons ONLY (4.5:1)  */
+
+  /* ---- Colors: caution (failed + slow ONLY, always with icon+words) ---- */
+  --yb-amber:      #FFB020;   /* 8.2:1 on base                       */
+
+  /* ---- Colors: LED + rings ---- */
+  --yb-led:        #FFF6F3;
+  --yb-ring-idle:  #966070;   /* decorative, not text                */
+  --yb-ring-live:  #FFF6F3;
+
+  /* ---- Button sizes ---- */
+  --yb-track-w:        112px;
+  --yb-track-h:        clamp(220px, 32vh, 260px);
+  --yb-cap-w:          96px;
+  --yb-cap-h:          124px;
+  --yb-track-padding:  8px;      /* gap between cap and track edge    */
+  --yb-ring-size:      min(290px, calc(100vw - 24px));
+  --yb-touch-padding:  16px;     /* invisible extra hit area          */
+  --yb-swipe-threshold: 0.6;     /* fraction of travel to complete    */
+  --yb-button-center-y: 67%;     /* vertical center of button zone    */
+
+  /* ---- Type sizes (keep the existing font family) ---- */
+  --yb-fs-headline: 32px;
+  --yb-fs-sub:      16px;
+  --yb-fs-timer:    28px;
+  --yb-fs-stats:    14px;
+  --yb-fs-hint:     14px;
+  --yb-fs-cap:      22px;
+
+  /* ---- Layout ---- */
+  --yb-page-margin: 16px;
+  --yb-card-h:      64px;        /* Open YouTube card                 */
+  --yb-menu-btn:    48px;        /* "..." button, minimum touch size  */
+
+  /* ---- Motion ---- */
+  --yb-t-color:   400ms;         /* color/glow transitions            */
+  --yb-t-cap:     280ms;         /* cap travel                        */
+  --yb-t-shake:   300ms;
+  --yb-breathe:   4s;            /* live ring breathing               */
+  --yb-led-pulse: 1.2s;          /* connecting LED pulse              */
+}
+
+/* =====================================================================
+   State tokens. Set data-state on the screen's root element:
+   data-state="disconnected | connecting | failed | connected"
+   Optional: data-health="slow" (only valid with connected)
+   ===================================================================== */
+[data-state="disconnected"] {
+  --state-led-opacity:  0.35;
+  --state-ring:         var(--yb-ring-idle);
+  --state-ring-opacity: 0.8;
+  --state-glow:         rgba(216, 32, 30, 0);
+  --state-sub:          var(--yb-text-dim);
+}
+[data-state="connecting"] {
+  --state-led-opacity:  1;               /* animate 0.3 to 1 */
+  --state-ring:         var(--yb-ring-live);
+  --state-ring-opacity: 0.5;             /* rotating sweep   */
+  --state-glow:         rgba(216, 32, 30, 0.12);
+  --state-sub:          var(--yb-text-dim);
+}
+[data-state="failed"] {
+  --state-led-opacity:  0.35;            /* two quick blinks, then dim */
+  --state-ring:         var(--yb-amber);
+  --state-ring-opacity: 0.5;
+  --state-glow:         rgba(216, 32, 30, 0);
+  --state-sub:          var(--yb-amber); /* always with a warning icon */
+}
+[data-state="connected"] {
+  --state-led-opacity:  1;
+  --state-ring:         var(--yb-ring-live);
+  --state-ring-opacity: 0.35;            /* breathing 0.10 to 0.35     */
+  --state-glow:         rgba(216, 32, 30, 0.28);
+  --state-sub:          var(--yb-text-dim);
+}
+[data-state="connected"][data-health="slow"] {
+  --state-sub:          var(--yb-amber); /* always with a caution icon */
+}
+
+/* =====================================================================
+   Shared background (same in every state)
+   ===================================================================== */
+.yb-screen {
+  background: linear-gradient(to bottom, var(--yb-base-lift) 0%, var(--yb-base) 35%, var(--yb-base) 100%);
+  color: var(--yb-text);
+  transition: background-color var(--yb-t-color) ease;
+}
+
+/* Reduced motion: no shake, no breathing, no sweep, no pulse */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --yb-t-color: 0ms;
+    --yb-t-cap: 0ms;
+    --yb-t-shake: 0ms;
+  }
+}

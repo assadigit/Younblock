@@ -76,8 +76,11 @@
   async function loadExperiments(): Promise<void> {
     if (!backend) return;
     const status = await backend.getNetworkTestStatus();
-    experimentsAvailable = status !== null;
-    if (!experimentsAvailable) return;
+    if (status === null) {
+      experimentsAvailable = false;
+      return;
+    }
+    experimentsAvailable = true;
     settings = await backend.getSettings();
     if (status.running) {
       testRunning = true;
@@ -328,8 +331,11 @@
               </button>
             {/each}
           </div>
-          {#if settings && !METHODS.some((m) => m.id === settings.method)}
-            <span class="exp-hint">current: {settings.method}</span>
+          {#if settings}
+            {@const currentMethod = settings.method}
+            {#if !METHODS.some((m) => m.id === currentMethod)}
+              <span class="exp-hint">current: {currentMethod}</span>
+            {/if}
           {/if}
         </div>
 

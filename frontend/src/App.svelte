@@ -1,43 +1,36 @@
-<!-- App.svelte — the Younblock connect screen. Place in src/ (replaces the template's App.svelte). -->
+<!-- App.svelte — the Younblock UI v3 main screen (docs/ui-v3/UI-SPEC.md).
+     The pro variant the Android app's WebView loads (and every edition that
+     does not bake ?ui=classic): one flex column — header, status block
+     centered in the free space above the button, the fixed button zone at
+     --yb-button-center-y, hint, the reserved card slot, the safe insets.
+     State is carried by data-state/data-health on this root; every value
+     comes from docs/ui-v3/younblock-tokens.css (imported by pro.ts). -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
-  import DotRings from './lib/DotRings.svelte'
   import DiagnosticsView from './lib/DiagnosticsView.svelte'
   import MenuSheet from './lib/MenuSheet.svelte'
-  import PowerPill from './lib/PowerPill.svelte'
+  import RingV3 from './lib/RingV3.svelte'
+  import LeverButton from './lib/LeverButton.svelte'
+  import OpenYouTubeCard from './lib/OpenYouTubeCard.svelte'
   import Timer from './lib/Timer.svelte'
   import { createBackend } from './lib/backend'
-  import { formatBitrate, formatBytes, formatDuration, formatDurationWords } from './lib/format'
-  import { ArrowDown, ArrowUp, Ellipsis } from './lib/icons'
-  import type { Phase, Snapshot } from './lib/types'
+  import { formatBytes, formatDuration, formatDurationWords } from './lib/format'
+  import { AlertTriangle, ArrowDown, ArrowUp, Ellipsis } from './lib/icons'
+  import * as haptics from './lib/haptics'
+  import { failedSubLine, V3_COPY, v3State, type V3State } from './lib/v3'
+  import type { Snapshot } from './lib/types'
 
   // =====================================================================
   // CONFIGURATION — edit only this block
   // =====================================================================
   const APP_NAME = 'Younblock'
-  /** Small line above the big status word. */
+  /** Small line above the headline. */
   const STATUS_LABEL = 'YouTube'
-  /** Path or URL of your logo image (for example '/logo.png' placed in public/). Empty = built-in red play mark. */
+  /** Path or URL of your logo image (for example '/logo.png' in public/).
+   *  Empty = the built-in red play mark (the existing logo, recolored). */
   const LOGO_URL = ''
-  const STATUS_TEXT: Record<Phase, string> = {
-    disconnected: 'Not Connected',
-    connecting: 'Connecting…',
-    connected: 'Connected',
-    disconnecting: 'Disconnecting…',
-    error: "Can't Connect",
-  }
-  const HINT_OFF = 'Click or swipe down to connect'
-  const HINT_ON = 'Click or swipe up to disconnect'
-  /** Round-3: the live Mb/s row is off by default — the session total is
-   *  what matters (flip this to bring the two speeds back under the timer). */
-  const SHOW_SPEEDS = false
-  /** Round-2 fix #8: a bare ping number means nothing to people, so every
-   *  ping gets a word. The thresholds live here, in the one config block. */
-  const PING_GOOD_MS = 120
-  const PING_OK_MS = 400
   /** M8-an (ADR-0052): the detail line while the warm gate holds the
-   *  connect-time hand-off — the user waits in the connecting look
-   *  until even the first video will be smooth. */
+   *  connect-time hand-off — kept from the screen this one replaces. */
   const WARMING_DETAIL = 'Getting the first video ready…'
   // =====================================================================
 
@@ -46,39 +39,33 @@
   let snap: Snapshot = { phase: 'disconnected', connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null, downBytes: -1, upBytes: -1, lastSession: null }
   let now = Date.now()
   let menuOpen = false
-  // M8-q (the ADR-0015 port): the diagnostics dialog over the stage,
-  // opened from the menu sheet's lead row. Closing it hands focus back
-  // to the menu button — the place the journey started.
+  // the diagnostics dialog over the stage (unchanged from the v2 wiring;
+  // the menu sheet's contents are out of scope per spec §1)
   let diagOpen = false
   let menuButton: HTMLElement | undefined
-  // The host's version (backend.getAppInfo) for the About sheet — the one
-  // copy of the number lives in internal/config on the Go side, so it can
-  // never disagree with --version. Empty in a plain-browser preview, where
-  // the sheet simply hides the line.
   let appVersion = ''
-  // M6: the host's platform + capabilities gate the sheet's Android-only
-  // surfaces (the apps row, the VPN-slot copy, the privacy disclosure, the
-  // diagnostics view). Unset in a preview — the sheet then renders exactly
-  // the desktop sections.
   let platform = ''
   let perAppRouting = false
-  // M8-am (D105): the connect-time hand-off capability gates the
-  // sheet's auto-open row (Android reports it; the desktops never do).
   let autoOpenTarget = false
-  // D93: the tray capability gates the sheet's close setting (Windows
-  // desktop). False everywhere else — and in a preview, where the host
-  // is absent, the section simply never renders.
   let tray = false
+  let hidden = false
   let stopListening: () => void = () => {}
   let clock: number | undefined
-  // An error raised by this window itself (for example Go refused the call). It survives the
-  // next status update from Go, so the person has time to read it, and clears after 6 seconds.
+  // An error raised by this window itself (for example Go refused the
+  // call). It survives the next status update from Go so the person has
+  // time to read it, and clears after 6 seconds — the one pre-existing
+  // local error signal (spec §8: implement failed from whatever error
+  // signal already exists).
   let localError = ''
   let errorTimer: number | undefined
   function showError(message: string) {
     localError = message
     window.clearTimeout(errorTimer)
     errorTimer = window.setTimeout(() => (localError = ''), 6000)
+  }
+
+  function onVisibility() {
+    hidden = document.hidden
   }
 
   onMount(() => {
@@ -95,14 +82,66 @@
       .catch(() => {})
     stopListening = backend.subscribe((s) => (snap = s))
     clock = window.setInterval(() => (now = Date.now()), 250)
+    document.addEventListener('visibilitychange', onVisibility)
   })
   onDestroy(() => {
     stopListening()
     window.clearInterval(clock)
     window.clearTimeout(errorTimer)
+    document.removeEventListener('visibilitychange', onVisibility)
   })
 
-  async function connect() {
+  // ---- the v3 state (spec §5/§8): engine events only, never UI timers
+  $: warming = snap.phase === 'connected' && snap.warming === true && autoOpenTarget
+  $: state = v3State(snap, localError, warming)
+  $: slow = state === 'connected' && snap.degraded === true
+
+  // a new live status from Go replaces any older local error (unchanged)
+  $: if (snap.phase === 'connecting' || snap.phase === 'connected') localError = ''
+
+  // ---- per-state copy (spec §5, exact)
+  $: headline = V3_COPY[state].headline
+  $: hint = V3_COPY[state].hint
+  $: lastSessionLine =
+    state === 'disconnected' && snap.lastSession
+      ? `Last session: ${formatDurationWords(snap.lastSession.endMs - snap.lastSession.startMs)}, ${formatBytes(snap.lastSession.downBytes + snap.lastSession.upBytes)}`
+      : ''
+  // only a session that really ran (>1 minute) gets the line (spec §5)
+  $: lastSessionShown =
+    !!snap.lastSession && snap.lastSession.endMs - snap.lastSession.startMs > 60_000
+  $: stateSub =
+    state === 'connecting'
+      ? warming
+        ? WARMING_DETAIL
+        : 'Opening a route to YouTube...'
+      : state === 'failed'
+        ? failedSubLine(snap.message)
+        : state === 'connected'
+          ? slow
+            ? 'Slow connection, tuning...'
+            : 'YouTube unblocked.'
+          : ''
+  $: subLine = localError !== '' ? localError : lastSessionShown ? lastSessionLine : stateSub
+  // amber is never alone: the icon always sits beside the words (spec §5)
+  $: subAmber = localError === '' && stateSub !== '' && (state === 'failed' || (state === 'connected' && slow))
+
+  // ---- the connected state's live figures
+  $: showTimer = state === 'connected'
+  $: showStats = state === 'connected' && snap.downBytes >= 0 && snap.upBytes >= 0
+  $: elapsed = snap.connectedAtMs ? Math.max(0, now - snap.connectedAtMs) : 0
+
+  // ---- haptics on the engine-confirmed transitions (spec §4): confirm
+  // when a connect or disconnect completes, error entering failed.
+  let prevState: V3State = 'disconnected'
+  $: if (prevState !== state) {
+    if (state === 'failed') haptics.error()
+    else if (state === 'connected' && prevState === 'connecting') haptics.confirm()
+    else if (state === 'disconnected' && prevState !== 'disconnected') haptics.confirm()
+    prevState = state
+  }
+
+  // ---- the lever's triggers
+  async function doConnect() {
     localError = ''
     try {
       await backend.connect()
@@ -110,7 +149,7 @@
       showError('Could not start. Try again.')
     }
   }
-  async function disconnect() {
+  async function doDisconnect() {
     localError = ''
     try {
       await backend.disconnect()
@@ -118,441 +157,383 @@
       showError('Could not stop. Try again.')
     }
   }
-
-  // a new live status from Go (connecting or connected) replaces any older local error
-  $: if (snap.phase === 'connecting' || snap.phase === 'connected') localError = ''
-  let phase: Phase = 'disconnected'
-  $: phase = localError !== '' && snap.phase === 'disconnected' ? 'error' : snap.phase
-  // M8-an (ADR-0052): serving but warming — the engine's video lane is
-  // still settling (the state's warm flag, only sent while serving).
-  // The hold is presented only where a hand-off waits on it
-  // (autoOpenTarget hosts — Android); the desktops connect the old way.
-  $: warming = phase === 'connected' && snap.warming === true && autoOpenTarget
-  let tone: 'on' | 'off' = 'off'
-  $: tone = (phase === 'connected' && !warming) || phase === 'disconnecting' ? 'on' : 'off'
-  $: busy = phase === 'connecting' || phase === 'disconnecting' || warming
-  $: showTimer = (phase === 'connected' && !warming) || phase === 'disconnecting'
-  $: elapsed = snap.connectedAtMs ? Math.max(0, now - snap.connectedAtMs) : 0
-  // Round-3: usage lines show only while a session is live (or settling)
-  // and only when the engine honestly counted — a -1 hides them.
-  $: showUsage =
-    ((phase === 'connected' && !warming) || phase === 'disconnecting') &&
-    snap.downBytes >= 0 &&
-    snap.upBytes >= 0
-  // Round-2 fix #7: speeds the engine did not measure are hidden, never
-  // faked as 0 Kb/s.
-  $: showSpeeds = SHOW_SPEEDS && snap.downBps >= 0 && snap.upBps >= 0
-  $: pingWord =
-    snap.pingMs !== null && snap.pingMs <= PING_GOOD_MS
-      ? 'Good'
-      : snap.pingMs !== null && snap.pingMs <= PING_OK_MS
-        ? 'OK'
-        : 'Slow'
-  $: pingText = phase === 'connected' && !warming && snap.pingMs !== null ? `Ping ${snap.pingMs} ms · ${pingWord}` : ''
-  $: lastSessionText =
-    phase === 'disconnected' && snap.lastSession
-      ? `Last session: ${formatBytes(snap.lastSession.downBytes + snap.lastSession.upBytes)} · ${formatDurationWords(snap.lastSession.endMs - snap.lastSession.startMs)}`
-      : ''
-  $: statusWord = warming ? STATUS_TEXT.connecting : STATUS_TEXT[phase]
-  $: detail = localError !== '' ? localError : warming ? WARMING_DETAIL : snap.message ?? (pingText || lastSessionText)
-  $: hint = busy ? '' : tone === 'on' ? HINT_ON : HINT_OFF
+  function onTrigger(e: CustomEvent<{ action: 'connect' | 'cancel' | 'retry' | 'disconnect' }>) {
+    switch (e.detail.action) {
+      case 'connect':
+      case 'retry':
+        void doConnect()
+        break
+      case 'cancel':
+      case 'disconnect':
+        void doDisconnect()
+        break
+    }
+  }
 </script>
 
-<main class="app" data-tone={tone} data-phase={phase}>
-  <div class="bg off" aria-hidden="true"></div>
-  <div class="bg on" aria-hidden="true"></div>
+<main
+  class="yb-screen"
+  data-state={state}
+  data-health={slow ? 'slow' : null}
+  data-hidden={hidden ? 'true' : null}
+>
+  <header class="yb-header">
+    <div class="brand">
+      {#if LOGO_URL}
+        <img src={LOGO_URL} alt="" />
+      {:else}
+        <!-- the existing logo, recolored (spec §1: keep it, recolor it) -->
+        <svg class="logo" viewBox="0 0 28 20" aria-hidden="true" focusable="false">
+          <rect width="28" height="20" rx="6" />
+          <path d="M11 5.5l8 4.5-8 4.5z" />
+        </svg>
+      {/if}
+      <span>{APP_NAME}</span>
+    </div>
+    <button
+      type="button"
+      class="menu"
+      bind:this={menuButton}
+      aria-label="Open menu"
+      on:click={() => (menuOpen = true)}
+    >
+      <Ellipsis class="menu-icon" />
+    </button>
+  </header>
 
-  <div class="stage">
-    <div class="halftone" aria-hidden="true"></div>
-
-    <!-- faint play mark behind the status text, fills the space the world map used to fill -->
-    <svg class="mark" viewBox="0 0 120 84" aria-hidden="true" focusable="false">
-      <path
-        fill-rule="evenodd"
-        d="M26 2h68a24 24 0 0 1 24 24v32a24 24 0 0 1-24 24H26A24 24 0 0 1 2 58V26A24 24 0 0 1 26 2zM48 24v36l32-18z"
-      />
-    </svg>
-
-    <header>
-      <!-- Round-2 fix #7 (Jakob's law): the brand sits top-left, the menu
-           button top-right, and the glyph is Lucide's Ellipsis (…) — a
-           44px target (Fitts) instead of the old four-dot mark. -->
-      <div class="brand">
-        {#if LOGO_URL}
-          <img src={LOGO_URL} alt="" />
-        {:else}
-          <svg class="logo" viewBox="0 0 28 20" aria-hidden="true" focusable="false">
-            <rect width="28" height="20" rx="6" />
-            <path d="M11 5.5l8 4.5-8 4.5z" />
-          </svg>
+  <!-- the status block, centered in the free space above the button -->
+  <section class="status-area">
+    <div class="status">
+      {#if state !== 'connected'}
+        <!-- the ghost play mark (existing style, very low opacity) -->
+        <svg class="ghost" viewBox="0 0 120 84" aria-hidden="true" focusable="false">
+          <path
+            fill-rule="evenodd"
+            d="M26 2h68a24 24 0 0 1 24 24v32a24 24 0 0 1-24 24H26A24 24 0 0 1 2 58V26A24 24 0 0 1 26 2zM48 24v36l32-18z"
+          />
+        </svg>
+      {/if}
+      <div class="label">{STATUS_LABEL}</div>
+      <div class="live" aria-live="polite">
+        <h1 class="headline">{headline}</h1>
+        {#if subLine !== ''}
+          <p class="sub" class:amber={subAmber}>
+            {#if subAmber}<AlertTriangle class="sub-icon" aria-hidden="true" />{/if}
+            {subLine}
+          </p>
         {/if}
-        <span>{APP_NAME}</span>
       </div>
-      <span class="spacer"></span>
-      <button type="button" class="menu" bind:this={menuButton} aria-label="Open menu" on:click={() => (menuOpen = true)}>
-        <Ellipsis class="menu-icon" />
-      </button>
-    </header>
-
-    <div class="timer-block" class:visible={showTimer}>
-      <Timer value={formatDuration(elapsed)} />
-      {#if SHOW_SPEEDS}
-        {#if showSpeeds}
-          <div class="speeds">
-            <span><ArrowDown class="arr" />{formatBitrate(snap.downBps)}</span>
-            <span><ArrowUp class="arr" />{formatBitrate(snap.upBps)}</span>
-          </div>
-        {/if}
-      {:else if showUsage}
-        <!-- Round-3: the session's data — the total counts up live, the split
-             shows both directions (Lucide arrows, never hand-drawn). -->
-        <div class="usage">
-          <div class="used">{formatBytes(snap.downBytes + snap.upBytes)} used</div>
-          <div class="split">
-            <span><ArrowDown class="arr" />{formatBytes(snap.downBytes)}</span>
-            <span><ArrowUp class="arr" />{formatBytes(snap.upBytes)}</span>
-          </div>
+      {#if showTimer}
+        <div class="yb-timer" aria-label={formatDuration(elapsed)}>
+          <Timer value={formatDuration(elapsed)} />
+        </div>
+      {/if}
+      {#if showStats}
+        <div class="stats">
+          <span><ArrowDown class="arr" aria-hidden="true" />{formatBytes(snap.downBytes)}</span>
+          <span><ArrowUp class="arr" aria-hidden="true" />{formatBytes(snap.upBytes)}</span>
         </div>
       {/if}
     </div>
+  </section>
 
-    <div class="status" aria-live="polite">
-      <div class="label">{STATUS_LABEL}</div>
-      <!-- keyed by phase: the word crossfades on every change instead of
-           snapping (the CSS animation dies under prefers-reduced-motion) -->
-      <div class="state">
-        {#key statusWord}
-          <span class="word">{statusWord}</span>
-        {/key}
-      </div>
-      <div class="detail" class:visible={detail !== ''} class:error={phase === 'error'}>{detail}</div>
-    </div>
+  <!-- the spacer that pushes the hint + card slot to the bottom -->
+  <div class="below-spacer" aria-hidden="true"></div>
 
-    <DotRings {tone} {busy} cy={tone === 'on' ? 30.5625 : 28.3} />
-    <PowerPill {phase} on:connect={connect} on:disconnect={disconnect} />
+  <p class="hint">{hint}</p>
 
-    <div class="hint" class:visible={hint !== ''}>{hint}</div>
-
-    <MenuSheet
-      open={menuOpen}
-      version={appVersion}
-      {platform}
-      {perAppRouting}
-      {autoOpenTarget}
-      {tray}
-      {backend}
-      on:close={() => (menuOpen = false)}
-      on:diagnostics={() => {
-        menuOpen = false
-        diagOpen = true
-      }}
-    />
-
-    {#if diagOpen}
-      <DiagnosticsView
-        {backend}
-        on:close={() => {
-          diagOpen = false
-          menuButton?.focus({ preventScroll: true })
-        }}
-      />
+  <!-- the reserved card slot (spec §3.6): blank when not connected so
+       nothing jumps between states -->
+  <div class="card-slot">
+    {#if state === 'connected'}
+      <OpenYouTubeCard />
     {/if}
   </div>
+
+  <!-- the fixed button zone: ring + track + cap, identical in every state -->
+  <div class="yb-button-zone" aria-hidden="false">
+    <RingV3 {state} />
+    <LeverButton {state} on:trigger={onTrigger} />
+  </div>
+
+  <MenuSheet
+    open={menuOpen}
+    version={appVersion}
+    {platform}
+    {perAppRouting}
+    {autoOpenTarget}
+    {tray}
+    {backend}
+    on:close={() => (menuOpen = false)}
+    on:diagnostics={() => {
+      menuOpen = false
+      diagOpen = true
+    }}
+  />
+
+  {#if diagOpen}
+    <DiagnosticsView
+      {backend}
+      on:close={() => {
+        diagOpen = false
+        menuButton?.focus({ preventScroll: true })
+      }}
+    />
+  {/if}
 </main>
 
 <style>
-  .app {
+  /* the screen: the tokens' .yb-screen paints the constant background;
+     this adds the v3 column (spec §3). The safe insets are items 1 and 7. */
+  .yb-screen {
     position: fixed;
     inset: 0;
     overflow: hidden;
-    /* tone variables, switched by data-tone (DotRings carries its own
-       per-set fills so the outgoing color survives the cross-fade) */
-    --track-a: #1b1b24;
-    --track-b: #2f3037;
-  }
-  .app[data-tone='on'] {
-    --track-a: #243832;
-    --track-b: #3a574e;
+    display: flex;
+    flex-direction: column;
+    padding-top: max(env(safe-area-inset-top), 0px);
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    --yb-safe-top: max(env(safe-area-inset-top), 0px);
+    --yb-header-h: calc(var(--yb-safe-top) + 12px + var(--yb-menu-btn));
   }
 
-  /* two full-bleed gradient layers that cross-fade (a gradient itself cannot be animated) */
-  .bg {
-    position: absolute;
-    inset: 0;
-    transition: opacity var(--dur-tone) ease;
-  }
-  .bg.off {
-    background: linear-gradient(180deg, var(--off-top) 0%, var(--off-mid) 55%, var(--off-bottom) 100%);
-  }
-  .bg.on {
-    background: linear-gradient(180deg, var(--on-top) 0%, var(--on-mid) 52%, var(--on-bottom) 100%);
-    opacity: 0;
-  }
-  .app[data-tone='on'] .bg.on {
-    opacity: 1;
-  }
-
-  .stage {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    /* M8-j (Ali's spacing report): the stage was fixed at --stage-w
-       (22.5rem, designed for a 360px viewport at 1x). On narrow
-       devices or with Android's font scale the rem width outgrew the
-       screen and pushed the timer/speeds numbers against the edges.
-       The stage now never exceeds the viewport; the centered layout
-       keeps its rhythm at any width or scale. */
-    width: min(var(--stage-w), 100vw);
-    height: var(--stage-h);
-    transform: translate(-50%, -50%);
-  }
-
-  /* fine dot texture that gets denser toward the bottom, like the reference */
-  .halftone {
-    position: absolute;
-    left: -40rem;
-    right: -40rem;
-    bottom: -20rem;
-    height: 39rem;
-    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0.07rem, transparent 0.13rem);
-    background-size: 0.4rem 0.4rem;
-    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 78%);
-    mask-image: linear-gradient(to top, #000 0%, transparent 78%);
-    opacity: 0.55;
-    pointer-events: none;
-  }
-
-  .mark {
-    position: absolute;
-    left: 50%;
-    top: 5.625rem;
-    width: 10.2rem;
-    margin-left: -5.1rem;
-    fill: #fff;
-    opacity: 0.04;
-    pointer-events: none;
-    transition: opacity var(--dur-tone) ease;
-  }
-  .app[data-tone='on'] .mark {
-    opacity: 0; /* the timer lives here while connected */
-  }
-
-  header {
-    position: absolute;
-    top: 2.375rem;
-    left: 1.25rem;
-    right: 1.25rem;
-    height: var(--menu-btn);
+  /* ---- 2. the header row, anchored to the top, 12px below the safe area */
+  .yb-header {
+    flex: none;
+    margin: 12px var(--yb-page-margin) 0;
+    height: var(--yb-menu-btn);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    --wails-draggable: drag; /* lets you move a frameless Wails window by this bar */
-  }
-  .menu,
-  .spacer {
-    width: var(--menu-btn);
-    height: var(--menu-btn);
-  }
-  .menu {
-    --wails-draggable: no-drag;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid var(--chip-border);
-    background: var(--chip-bg);
-    box-shadow:
-      0 0.375rem 0.75rem rgba(0, 0, 0, 0.22),
-      inset 0 0.0625rem 0 rgba(255, 255, 255, 0.12);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition:
-      background 150ms ease,
-      transform 150ms ease;
-  }
-  .menu:hover {
-    background: rgba(255, 255, 255, 0.16);
-  }
-  .menu:active {
-    transform: scale(0.94);
-  }
-  .menu:focus-visible {
-    outline: 0.125rem solid #fff;
-    outline-offset: 0.2rem;
-  }
-  .menu :global(svg) {
-    width: 1.25rem;
-    height: 1.25rem;
-    color: #fff;
-    stroke-width: 2.4;
+    --wails-draggable: drag; /* frameless Wails windows drag by this bar */
   }
   .brand {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9375rem;
-    font-weight: var(--fw-semibold);
+    gap: 8px;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 600;
     letter-spacing: 0.01em;
+    color: var(--yb-text);
   }
   .brand .logo {
-    width: 1.5rem;
-    height: 1.0714rem;
-    fill: var(--red-500);
-    filter: drop-shadow(0 0 0.5rem var(--red-glow));
+    width: 28px;
+    height: 20px;
+    fill: var(--yb-red);
   }
   .brand .logo path {
     fill: #fff;
   }
   .brand img {
-    height: 1.5rem;
+    height: 24px;
     width: auto;
   }
-
-  .timer-block {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 7rem;
-    opacity: 0;
-    transform: translateY(-0.4rem);
-    transition:
-      opacity 400ms ease,
-      transform 400ms var(--ease-out);
+  /* the "..." button: 48x48 minimum with a visible outline (spec §3.2).
+     1.5px --yb-text at 45%: 3.38:1 non-text contrast on the background
+     (checked in docs/ui-v3/REPORT.md; raise the mix if it ever drops). */
+  .menu {
+    --wails-draggable: no-drag;
+    flex: none;
+    width: var(--yb-menu-btn);
+    height: var(--yb-menu-btn);
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1.5px solid color-mix(in srgb, var(--yb-text) 45%, transparent);
+    background: transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--yb-t-color) ease;
   }
-  .timer-block.visible {
-    opacity: 1;
-    transform: none;
+  .menu:hover {
+    background: color-mix(in srgb, var(--yb-text) 8%, transparent);
   }
-  .speeds {
-    display: flex;
-    justify-content: center;
-    /* M8-j: 1.1rem left the two numbers nearer to each other than to
-       the screen edges (measured 24px between vs 29px margins at
-       320px/1.4x); widen the rhythm and keep each value unwrappable so
-       scaling never jams or breaks the pair. */
-    gap: 1.75rem;
-    margin-top: 0.85rem;
-    font-size: var(--fs-stats);
-    font-weight: var(--fw-medium);
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
+  .menu:active {
+    transform: scale(0.94);
   }
-  .speeds span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    white-space: nowrap;
+  .menu :global(.menu-icon) {
+    width: 22px;
+    height: 22px;
+    color: var(--yb-text);
+    stroke-width: 2.4;
   }
 
-  /* ---- round-3: the session's data under the timer ---- */
-  .usage {
+  /* ---- 3. the status block, centered in the free space above the button:
+     the area ends exactly where the button zone begins. */
+  .status-area {
+    flex: none;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 0.5rem;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .used {
-    font-size: 1rem;
-    font-weight: var(--fw-semibold);
-    color: var(--text-primary);
-    letter-spacing: 0.01em;
-  }
-  .split {
-    display: flex;
     justify-content: center;
-    gap: 1.75rem;
-    margin-top: 0.2rem;
-    font-size: var(--fs-stats);
-    font-weight: var(--fw-medium);
-    color: var(--text-secondary);
+    height: calc(
+      var(--yb-button-center-y) - var(--yb-ring-size) / 2 - var(--yb-header-h) - 12px
+    );
   }
-  .split span {
-    display: inline-flex;
+  .status {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
+    text-align: center;
+    padding: 0 var(--yb-page-margin);
+  }
+  .ghost {
+    width: 120px;
+    height: auto;
+    margin-bottom: 10px;
+    fill: var(--yb-text);
+    opacity: 0.05;
+    transition: opacity var(--yb-t-color) ease;
+  }
+  .label {
+    font-family: var(--font);
+    font-size: var(--yb-fs-stats);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--yb-text-dim);
+  }
+  .live {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .headline {
+    margin-top: 6px;
+    font-family: var(--font);
+    font-size: var(--yb-fs-headline);
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--yb-text);
+  }
+  .sub {
+    margin-top: 8px;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+    font-family: var(--font);
+    font-size: var(--yb-fs-sub);
+    font-weight: 500;
+    color: var(--state-sub); /* per-state: dim, or amber with the icon */
+    transition: color var(--yb-t-color) ease;
+  }
+  .sub.amber {
+    color: var(--yb-amber);
+  }
+  .sub :global(.sub-icon) {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  /* the Lucide arrows inside the speeds/usage rows (child components —
-     reach them with :global) */
-  .speeds :global(svg),
-  .usage :global(svg) {
-    width: 0.75rem;
-    height: 0.75rem;
+  /* the connected state's timer + stats (spec §5) */
+  .yb-timer {
+    margin-top: 10px;
+  }
+  .yb-timer :global(.timer) {
+    font-size: var(--yb-fs-timer); /* smaller than the headline (28 < 32) */
+    font-weight: 700;
+    color: var(--yb-text);
+  }
+  .stats {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    font-family: var(--font);
+    font-size: var(--yb-fs-stats);
+    font-weight: 500;
+    color: var(--yb-text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .stats :global(svg) {
+    width: 14px;
+    height: 14px;
     stroke-width: 2;
   }
 
-  .status {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 13.775rem;
+  /* ---- 5/6. the hint and the reserved card slot, pushed to the bottom */
+  .below-spacer {
+    flex: 1 1 0;
+    min-height: 12px;
+  }
+  .hint {
+    flex: none;
+    margin: 0 var(--yb-page-margin);
     text-align: center;
+    font-family: var(--font);
+    font-size: var(--yb-fs-hint);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--yb-text-dim);
   }
-  .label {
-    font-size: var(--fs-label);
-    font-weight: var(--fw-medium);
-    color: var(--text-secondary);
-    letter-spacing: 0.02em;
-  }
-  .state {
-    margin-top: 0.35rem;
-    font-size: var(--fs-status);
-    font-weight: var(--fw-bold);
-    line-height: 1.9rem;
-    text-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.25);
-  }
-  .word {
-    display: inline-block;
-    animation: word-in var(--dur-word) var(--ease-out);
-  }
-  @keyframes word-in {
-    from {
-      opacity: 0;
-      transform: translateY(0.3rem);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  .detail {
-    margin-top: 0.55rem;
-    min-height: 1rem;
-    font-size: var(--fs-stats);
-    font-weight: var(--fw-medium);
-    color: var(--text-secondary);
-    opacity: 0;
-    transition: opacity 300ms ease;
-  }
-  .detail.visible {
-    opacity: 1;
-  }
-  /* the error line is the one place red is allowed as text: --red-400,
-     the only red that passes contrast on these surfaces (tokens.css) */
-  .detail.error {
-    color: var(--red-400);
+  .card-slot {
+    flex: none;
+    position: relative; /* above the ring where they meet on short screens */
+    z-index: 1;
+    display: flex;
+    margin: 12px var(--yb-page-margin) var(--yb-page-margin);
+    height: var(--yb-card-h); /* always reserved; blank when not connected */
   }
 
-  .hint {
+  /* ---- 4. the fixed button zone: identical in every state (spec §3.4) */
+  .yb-button-zone {
     position: absolute;
-    left: 0;
-    right: 0;
-    /* Round-2 fix #3: the hint moved below the ring family's capped reach
-       (outer arc bottom ≈ 36.7rem + dot) with a visible gap, and grew from
-       11px/62% to 12px/82% so it reads clearly on the busiest background. */
-    top: 37.25rem;
-    text-align: center;
-    font-size: var(--fs-hint);
-    font-weight: var(--fw-medium);
-    letter-spacing: 0.02em;
-    word-spacing: 0.14em;
-    color: var(--text-hint);
-    opacity: 0;
-    transition: opacity 300ms ease;
+    left: 50%;
+    top: var(--yb-button-center-y);
+    width: var(--yb-ring-size);
+    height: var(--yb-ring-size);
+    transform: translate(-50%, -50%);
+    z-index: 0;
   }
-  .hint.visible {
-    opacity: 1;
+
+  /* short phones (spec §3): the track already shrank via clamp(); shrink
+     the status spacing first, never the button */
+  @media (max-height: 700px) {
+    .ghost {
+      width: 96px;
+      margin-bottom: 6px;
+    }
+    .headline {
+      margin-top: 4px;
+    }
+    .sub {
+      margin-top: 6px;
+      min-height: 20px;
+    }
+    .yb-timer {
+      margin-top: 6px;
+    }
+    .stats {
+      margin-top: 6px;
+    }
+    .below-spacer {
+      min-height: 8px;
+    }
+    .card-slot {
+      margin-top: 10px;
+    }
+  }
+
+  /* performance (spec §9): page hidden or screen off — every animation
+     pauses (position and words still carry the state) */
+  .yb-screen[data-hidden='true'] :global(*),
+  .yb-screen[data-hidden='true'] {
+    animation-play-state: paused !important;
   }
 </style>
