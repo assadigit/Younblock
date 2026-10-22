@@ -28,9 +28,10 @@
   /** True only when the host reports the per-app routing capability. */
   export let perAppRouting = false;
   /** True only when the host reports the connect-time hand-off
-   *  capability (M8-am, D105: Android refreshes and opens the YouTube
-   *  app when the engine turns on). Gates the sheet's auto-open row —
-   *  a host with no target app never shows it. */
+   *  capability (M8-am, D105, the launch-only shape M8-ap: Android
+   *  opens the YouTube app when the engine turns on). Gates the
+   *  sheet's auto-open row — a host with no target app never shows
+   *  it. */
   export let autoOpenTarget = false;
   /** True only when the host reports the tray capability (the Windows
    *  desktop) — D93 gates the close setting's row on it: a platform with
@@ -128,7 +129,7 @@
   // flipping it is an informed choice, not a surprise launch.
   const AUTO_OPEN_TITLE = "Open YouTube when Younblock connects";
   const AUTO_OPEN_HINT =
-    "On by default: the moment the connection is ready, Younblock refreshes the YouTube app and opens it, so the first video starts through the fresh tunnel. Off: nothing is opened for you.";
+    "On by default: the moment the connection is ready, Younblock opens the YouTube app for you, so the first video starts through the ready tunnel. Off: nothing is opened for you.";
 
   // =====================================================================
 

@@ -3517,3 +3517,80 @@ a measurement note, without a full re-litigation.
   GLOW_BAND, CONTENT_RED) belong to THIS source; a future logo
   upload re-measures them or the gates refuse rather than ship a
   silent corruption.
+
+## ADR-0055 — The hand-off stops killing YouTube: the refresh half removed (M8-ap)
+
+- **Status:** Accepted 2026-10-21 (M8-ap, debug.33, versionCode 32 —
+  decided on the debug.32 field report's evidence, D109; supersedes
+  the refresh half of ADR-0051/D105, whose launch half, setting and
+  warm gate carry unchanged).
+- **Context:** the debug.32 field report: "This build, still is not
+  good, it took a while (much more than v29), then next videos were
+  okay. so far v29 was our best." The debug.31 and debug.32 engines
+  are identical (M8-ao was the icon round), so the report measures
+  the warm-gated hand-off itself — and its own instrument convicted
+  the refresh half: `udp443 fallback elapsed=6920ms` on the first
+  video's critical terminal (`rr4---sn-qxau5-btqr.googlevideo.com`),
+  with no TCP flow to that host anywhere before it, is the app's
+  QUIC job timing out into the TUN's UDP drops — 6.9 s of the first
+  video's critical path spent re-learning what a warm process
+  already knows in memory ("QUIC is dead on this network" — Cronet's
+  in-session blacklist). The ICMP port-unreachable the stack has
+  correctly sent since M8-j is IGNORED by the app's QUIC stack —
+  field-proven now: the refusal was on the wire the whole 6.9 s.
+  The kill (`killBackgroundProcesses`) is the only reason the
+  process is cold: M8-am's literal reading of the owner's "refresh
+  it" guaranteed a cold start at every connect — cold Cronet (the
+  QUIC burn), a cold feed (the same report's 45 s thumbnail trickle
+  and 19 s page stall), a cold terminal ladder — stacked onto
+  exactly the first video the hand-off exists to help. The debug.29
+  baseline the tester keeps ranking best never killed anything: the
+  warm app opened with QUIC blacklisted and its feed live, and its
+  videos opened in the 5–6 s the tester measured.
+- **Decision:**
+  1. **The kill and its permission go.** `maybeAutoOpenYouTube` no
+     longer calls `killBackgroundProcesses`; the
+     `KILL_BACKGROUND_PROCESSES` permission leaves the manifest (the
+     honest-inventory rule: no capability the shell no longer uses).
+     The launch half is untouched: once per connect run, on serving
+     AND warm AND TUN-bound (ADR-0052's gate), gated by the
+     `autoOpenYouTube` setting (schema v8, default ON — the owner's
+     checked-by-default ruling), the launch intent with NEW_TASK,
+     every refusal path logged.
+  2. **The warm relaunch is the refresh.** A brought-to-front
+     YouTube reloads its feed on resume itself; the definition of
+     "refreshed" the field evidence supports is "current and working
+     through the live tunnel," which the warm relaunch delivers
+     without the cold start's costs. The Settings row's copy now
+     says open, not refresh-and-open.
+  3. **The QUIC finding is recorded, not re-fought.** The ICMP
+     refusal stays (M8-j's contract, test-pinned) — correct, and it
+     costs nothing — but this round records that the app's QUIC
+     stack ignores it on this device, so a cold app pays its QUIC
+     job timeout (~7 s measured) on the first googlevideo connection
+     whenever a cold start happens (phone reboot, first install, the
+     user's own swipe-away). No tunnel-side lever shortens that; the
+     fix is to stop manufacturing cold starts.
+- **Evidence:** the report's own lines — the 6920 ms fallback
+  elapsed on the first video's terminal with the cluster fast-failed
+  dead 2 ms later and 56 instant door-blocks after it (the
+  in-session machinery all working); the auto-timeline 500 ms × 4
+  pairs and ~500–800 ms first-bytes on the live clusters (the
+  engine's share healthy throughout — the felt regression is the
+  cold app's); `seeded=0` on the cluster line (the persistence chain
+  working, nothing to carry this time — the prior session saved no
+  dead marks); and the v29 comparison the tester supplied. Both-ways
+  artifacts: the M8-am build's badging carried KILL_BACKGROUND_
+  PROCESSES and its dex the kill call (that round's record); this
+  round's build carries neither while the latch and launch strings
+  remain (aapt badging + dex strings, below).
+- **Consequences:** the hand-off now reproduces the debug.29
+  warm-app flow, automated: connect → the warm gate holds → YouTube
+  launches warm (feed live, QUIC blacklisted in memory) → the first
+  video rides the 5–6 s baseline. What the next report reads: the
+  first video back at the v29 number; the critical-path
+  `udp443 fallback` lines gone (a warm app has QUIC blacklisted);
+  `seeded=1` on the cluster line right after connect (the debug.32
+  session's own learning finally saved and carried). If the owner
+  rules the kill back in, the revert is one call plus the
+  permission — with this ADR as the cost record.

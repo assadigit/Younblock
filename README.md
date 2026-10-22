@@ -29,15 +29,15 @@ direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're
 not releasing yet" — the release candidate, now wearing the owner's
-own logo): download `v1.6.6-debug32.apk` from the
+own logo): download `v1.6.6-debug33.apk` from the
 repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.32` release (a regular release in this private
+`v1.6.6-android-debug.33` release (a regular release in this private
 repo, D89, and the repo's Latest; the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug32**; it installs over any earlier
+**make sure the filename says debug33**; it installs over any earlier
 debug build in place; its notes explain the current test circle —
-**the launcher icon is now the owner's own logo** (his
+**the launcher icon is the owner's own logo** (his
 `younblock-logo-v1.png`: the 3D padlock with the play button, the
 silver shackle, the red sparks, the younblock wordmark on his dark
 gradient, recomposed for Android's masks so nothing is cropped on
@@ -46,17 +46,25 @@ carries on: **the hand-off waits** — the connect screen holds
 "Connecting… Getting the first video ready…" for a few seconds
 while the freshly-routing tunnel settles and re-proves its chain,
 and only then opens YouTube (never longer than a 15 s cap; the
-tester's own prescription, D106) — and **the tunnel's blackhole
+tester's own prescription, D106) — **the tunnel's blackhole
 memory persists across sessions** (the clusters it learned dead
 yesterday are marked dead from second zero today, so the app's
 first video never re-pays the discovery — D107, doc 11 §5.3's
-pre-registered fix). The hand-off setting stays on by default; the
+pre-registered fix), and **the open is warm now** — the hand-off
+no longer kills the YouTube app first (D109, ADR-0055: the
+debug.30–.32 field reports measured the guaranteed cold start
+costing the first video its QUIC re-learning — 6.9 s on the
+debug.32 report — plus a cold feed and a cold ladder, exactly the
+"took a while (much more than v29)" the tester reported; a warm
+relaunch is the refresh: the app's feed reloads on resume with
+its QUIC knowledge intact — the debug.29 flow the tester ranked
+best, automated). The hand-off setting stays on by default; the
 engine's measured playback behavior — **every video 5–6 seconds
 with the engine's share at half a second** (debug.29's field
-verdict), and the warm-gated hand-off now promising the first
-video the same — carries the release candidate
+verdict), and the warm-gated, warm-open hand-off now promising
+the first video the same — carries the release candidate
 (the verdict and the hand-off's full story:
-[doc 11 §5.1–5.3](docs/android-port/11-the-video-opening-war.md)).
+[doc 11 §5.1–5.4](docs/android-port/11-the-video-opening-war.md)).
 The previous rounds' stories — the substitution experiment's
 retirement (ADR-0049), the method documentation and the
 gvideo-gated instrument (ADR-0050), the release-candidate polish

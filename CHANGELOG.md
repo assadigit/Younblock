@@ -12,6 +12,28 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-21 — M8-ap, debug.33, versionCode 32; the refresh-half removal round — the debug.32 field report answered, D109)
+
+- **The first video after connect no longer pays the cold start the
+  hand-off's refresh half manufactured.** The debug.32 field report
+  ("This build, still is not good, it took a while (much more than
+  v29), then next videos were okay. so far v29 was our best") and
+  its own instrument convicted the refresh half: the first video's
+  critical googlevideo connection burned **6920 ms in the app's QUIC
+  job timeout inside the TUN's UDP drops** — a fresh process has no
+  in-memory "QUIC is dead here" knowledge, and the ICMP refusal the
+  stack has correctly sent since M8-j is ignored by the app's QUIC
+  stack — plus a cold feed (a 45 s thumbnail trickle, a 19 s page
+  stall) and a cold terminal ladder, all because
+  `killBackgroundProcesses` cold-started YouTube at every connect
+  (ADR-0055, D109). The kill and the KILL_BACKGROUND_PROCESSES
+  permission are gone; the launch half is untouched (once per run,
+  when the engine is warm and the TUN bound; the setting default
+  unchanged), so the hand-off now reproduces the debug.29 warm-app
+  flow — the state the tester ranked best — automated: a warm
+  YouTube already has QUIC blacklisted in memory and its feed live,
+  and it refreshes its own feed on resume.
+
 ### Added (2026-10-21 — M8-ao, debug.32, versionCode 31; the logo-icon round — the owner's ruling, D108)
 
 - **The launcher icon is now the owner's own logo (D108,

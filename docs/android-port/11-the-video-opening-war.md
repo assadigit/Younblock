@@ -1,4 +1,4 @@
-# 11 — The Video-Opening War: Method and Record (M8-aa through M8-ak)
+# 11 — The Video-Opening War: Method and Record (M8-aa through M8-ap)
 
 **Status:** Complete record, written 2026-10-21 at the debug.28 field
 verdict ("by far our best version yet — 90% of the initial delay of
@@ -11,7 +11,10 @@ ADR-0050), `PROGRESS.md` (the M8 sections), and the CHANGELOG.
 the question §5 decomposed. **§5.2–5.3, same day: the hand-off's
 field result** — debug.30's report convicted the second-zero fire
 moment and re-indicted candidate 3; M8-an shipped the pre-registered
-persistence fix and the warm gate.
+persistence fix and the warm gate. **§5.4, same day: the refresh
+half removed** — the debug.31/.32 reports showed the warm gate alone
+could not cure the first video (the cold start's QUIC burn lives
+inside the app); M8-ap dropped the kill.
 
 ---
 
@@ -29,6 +32,7 @@ persistence fix and the warm gate.
 | debug.30 | M8-am | "the app reverted to our old problem… 1–2 minutes… other videos opened fine" | the hand-off fired at second zero (code-read: the first serving event + TUN bound) into an empty per-session cluster memory — the discovery burn re-entered, §5.2 |
 | **debug.31** | M8-an | the answer to the prescription: "make the user wait and see connecting, only you're sure" | the warm gate (ADR-0052: 3 s settle + one re-check, a 15 s never-trap cap) + the persisted dead-cluster marks (ADR-0053: §5.3's pre-registered fix, seeded from second zero) — what the next report reads: `dead=0 (seeded=1)` right after connect, then the first video |
 | debug.32 | M8-ao | the owner's own logo on the home screen ("use this picture for app's icon") | no engine number moves — the icon recomposition (ADR-0054: his gradient full-bleed, his art matted inside the 66dp safe circle, IoU 0.97–0.98); the war's state carries from debug.31 |
+| **debug.33** | M8-ap | the answer to "still not good… much more than v29": the first video back on the warm-app path | `udp443 fallback elapsed=6920ms` on the first video's terminal — the cold app's QUIC job timing out into the TUN's drops (the M8-j ICMP ignored); the kill is gone (ADR-0055), the launch half reproduces the debug.29 warm flow |
 
 The arc in one sentence: a 1–2 minute video open became ~1 second by
 learning, from the tester's own diagnostic reports, **which wire
@@ -187,6 +191,14 @@ existing so that nothing of his design is eaten by a launcher mask:
 the wordmark whole on every shape, his gradient behind it, the
 war's debug.31 state carrying unchanged beneath.
 
+**M8-ap (debug.33, ADR-0055) — the refresh-half removal round.**
+The debug.31/.32 reports ("still is not good… so far v29 was our
+best") showed the warm gate answered the prescription but not the
+disease: the kill's guaranteed cold start put the QUIC re-learning
+(6920 ms — the app's stack ignoring the M8-j ICMP refusal), a cold
+feed and a cold ladder onto exactly the first video. The launch
+half now opens YouTube warm — the debug.29 flow, automated.
+
 ---
 
 ## 4. The semantic discoveries (the reusable knowledge)
@@ -214,11 +226,21 @@ war's debug.31 state carrying unchanged beneath.
    outranks a probe answer, which outranks a handshake, which never
    outranks a fresh death. The pool's integrity rules (M8-ai) are
    exactly these ranks made non-downgradable.
-5. **QUIC on this stack is a non-cost**: gVisor's ICMP
-   port-unreachable for udp443 has been on the wire since the M8-j
-   work; the "fallback elapsed" log lines are heuristic pairings (a
-   drop beside the *next* TCP flow to the same host, whenever the
-   app's ladder gets there), not QUIC timeouts.
+5. **QUIC on this stack is a warm-app non-cost, a cold-app cost
+   (the M8-ap amendment):** gVisor's ICMP port-unreachable for
+   udp443 has been on the wire since the M8-j work — and the app's
+   QUIC stack ignores it (field-proven by the debug.32 report: the
+   first video's critical terminal carried
+   `udp443 fallback elapsed=6920ms`, a full QUIC job timeout, with
+   the refusal on the wire the whole time). The "fallback elapsed"
+   lines remain heuristic pairings (a drop beside the *next* TCP
+   flow to the same host, whenever the app's ladder gets there —
+   the 4 ms and 48 s samples of earlier reports were pairing
+   artifacts), but a cold app's first critical connection pays the
+   real timeout. The cure is the warm app: Cronet's in-memory QUIC
+   blacklist makes it a non-cost — which is why M8-am's kill, which
+   manufactured a cold app at every connect, was the regression,
+   and ADR-0055 removed it.
 6. **The app is part of the system**: three of the five victories
    (scout, lift, fast-fail) are the engine *cooperating with the
    app's own retry ladder* rather than replacing it.
@@ -386,6 +408,44 @@ warming look for ~4–6 s; then the first video — the one number
 this war has not yet taken, now through a tunnel that is marked,
 fed and re-proved when the app opens into it.
 
+**The field result (the debug.31/.32 reports): the gate held, the
+cold start still owned the first video.** The connect screen held
+its warming look, the tunnel arrived settled — and the first video
+still took "a while (much more than v29), then next videos were
+okay… so far v29 was our best." The debug.32 report's instrument
+found why: `seeded=0` (the prior session had no dead marks to
+save — the persistence chain was working, it simply carried
+nothing this time), the engine's share healthy (500 ms × 4 pairs,
+~500–800 ms first-bytes on the live clusters, the dead cluster
+fast-failed and door-blocked 56 times — the in-session machinery
+all working) — and `udp443 fallback elapsed=6920ms` on the first
+video's critical terminal: the cold app's QUIC job timing out
+into the TUN's drops. The warm gate could not cure this because
+the cost lives inside the app's cold start, which no tunnel-side
+signal removes.
+
+### 5.4 The refresh half removed (M8-ap, D109)
+
+The debug.30–.32 first-video regression had one cause the engine
+could remove: the kill. `killBackgroundProcesses` at hand-off —
+M8-am's literal reading of the owner's "refresh it" — guaranteed a
+cold YouTube at every connect, and a cold app pays, on the first
+video's critical path: the QUIC re-learning (6.9 s measured — the
+app's stack ignores the M8-j ICMP refusal), a cold feed (the 45 s
+thumbnail trickle, the 19 s page stall on the debug.32 report) and
+a cold terminal ladder. The debug.29 baseline the tester keeps
+ranking best never killed anything. ADR-0055 drops the kill and
+the KILL_BACKGROUND_PROCESSES permission; the launch half (once
+per run, warm + TUN-bound, the setting default unchanged) now
+reproduces the debug.29 warm-app flow, automated: a warm relaunch
+keeps the app's in-memory QUIC blacklist and its live feed, and
+YouTube reloads its feed on resume itself — the warm relaunch IS
+the refresh. What the next report reads: the first video back at
+the v29 number; `seeded=1` on the cluster line right after connect
+(the debug.32 session's own learning finally saved and carried);
+the critical-path `udp443 fallback` lines gone (a warm app has
+QUIC blacklisted).
+
 ---
 
 ## 6. Lessons for the next engineer
@@ -408,8 +468,8 @@ fed and re-proved when the app opens into it.
 
 ---
 
-*Primary sources: ADR-0027…ADR-0050 in
+*Primary sources: ADR-0027…ADR-0055 in
 [`08-architecture-decisions.md`](08-architecture-decisions.md); the
 M8 sections of the repository `PROGRESS.md`; the CHANGELOG's debug
 build entries; the release notes of
-`v1.6.6-android-debug.18` … `v1.6.6-android-debug.29`.*
+`v1.6.6-android-debug.18` … `v1.6.6-android-debug.33`.*

@@ -1,6 +1,5 @@
 package io.github.assadigit.younblock
 
-import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -317,9 +316,10 @@ class YounblockVpnService : VpnService() {
 
     /**
      * The connect-time hand-off (M8-am, ADR-0051, D105; the fire
-     * moment is M8-an's ADR-0052): once per connect run, when the
-     * engine reports serving AND warm AND the TUN is bound, refresh
-     * and open the YouTube app — so the first video starts through a
+     * moment is M8-an's ADR-0052; the refresh half is M8-ap's
+     * ADR-0055 removal): once per connect run, when the engine
+     * reports serving AND warm AND the TUN is bound, open the
+     * YouTube app — so the first video starts through a
      * tunnel that has already held and re-proved its chain (and, via
      * ADR-0053's persisted dead-cluster marks, already knows the
      * blackholed clusters) instead of the app resuming its
@@ -334,14 +334,22 @@ class YounblockVpnService : VpnService() {
      * door can never disagree. A change saved mid-connect applies on
      * the NEXT connect, exactly like the allow-list.
      *
-     * The refresh: killBackgroundProcesses for the YouTube package
-     * (KILL_BACKGROUND_PROCESSES, a normal install-time permission) —
-     * at connect time the user just acted in Younblock, so YouTube is
-     * the cached background process this drops; the launch that
-     * follows is then a cold start. The open: the package's launch
-     * intent with NEW_TASK. Every refusal path is logged honestly and
-     * costs nothing — a missed open is recoverable (the user taps
-     * YouTube), an unwanted one is not.
+     * The refresh half is GONE (M8-ap, ADR-0055): M8-am read
+     * "refresh it" as killBackgroundProcesses before the launch, so
+     * every connect cold-started YouTube — and the debug.30-.32
+     * field reports measured what that cold start costs the first
+     * video: a fresh process has no in-memory "QUIC is dead on this
+     * network" knowledge, so the first media connection burned its
+     * QUIC job timeout into the TUN's UDP drops (6920 ms on the
+     * debug.32 report — the ICMP refusal the stack has sent since
+     * M8-j is correct and the app's QUIC stack ignores it), on top
+     * of a cold feed and a cold terminal ladder. The debug.29 state
+     * the tester called the best never killed anything: a warm app
+     * already has QUIC blacklisted in memory and its feed live, and
+     * YouTube refreshes its own feed on resume. The open: the
+     * package's launch intent with NEW_TASK. Every refusal path is
+     * logged honestly and costs nothing — a missed open is
+     * recoverable (the user taps YouTube), an unwanted one is not.
      */
     private fun maybeAutoOpenYouTube() {
         if (autoOpenFired) return
@@ -354,15 +362,12 @@ class YounblockVpnService : VpnService() {
             Log.i(TAG, "auto-open: off (the setting); nothing opened")
             return
         }
-        // The refresh half: drop YouTube's cached background process so
-        // the launch is a cold start. Best-effort — OEMs age this call
-        // differently, and a surviving warm process only means a warm
-        // open, never a failure.
-        runCatching {
-            getSystemService(ActivityManager::class.java)
-                .killBackgroundProcesses(YOUTUBE_PACKAGE)
-            Log.i(TAG, "auto-open: refreshed $YOUTUBE_PACKAGE (background process dropped)")
-        }.onFailure { Log.w(TAG, "auto-open: refresh refused: ${it.message}") }
+        // M8-ap (ADR-0055): no kill. The warm relaunch IS the
+        // refresh — the app's own on-resume feed reload plus its
+        // in-memory QUIC blacklist are exactly the warm state the
+        // debug.29 opens rode (the debug.32 report measured the cold
+        // variant's QUIC burn at 6920 ms on the first video's
+        // critical connection).
         // The open half. The app is in the foreground at connect time
         // (the user just tapped Connect here), so the background-start
         // restriction does not apply; a refusal is still caught and

@@ -20,7 +20,31 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 31: the M8-ao build (debug.32 -- the
+        // versionCode 32: the M8-ap build (debug.33 -- the
+        // refresh-half removal round, ADR-0055, D109). The
+        // debug.32 field report: "This build, still is not
+        // good, it took a while (much more than v29), then
+        // next videos were okay. so far v29 was our best."
+        // The report's own instrument found the first video's
+        // critical googlevideo connection burning 6920 ms in
+        // the app's QUIC job timeout inside the TUN's UDP
+        // drops (the M8-j ICMP refusal is correct; the app's
+        // QUIC stack ignores it) -- and the debug.30-.32
+        // builds are the only ones that GUARANTEE that burn on
+        // every first video, because the M8-am "refresh" half
+        // (killBackgroundProcesses) cold-started YouTube at
+        // every connect: a fresh process has no in-memory
+        // "QUIC is dead here" knowledge, no warm feed, and a
+        // cold terminal ladder. debug.29 -- the tester's best
+        // -- never killed anything. ADR-0055 drops the kill
+        // and the KILL_BACKGROUND_PROCESSES permission; the
+        // launch half (once per run, warm + TUN-bound, the
+        // setting default unchanged) now reproduces the
+        // debug.29 warm-app flow, automated. The warm gate
+        // (ADR-0052) and the persisted dead-cluster marks
+        // (ADR-0053) ride unchanged. Installs over debug.32
+        // (the same pinned debug certificate -- D85).
+        // versionCode 31 was: the M8-ao build (debug.32 -- the
         // logo-icon round, ADR-0054, D108). The owner uploaded
         // younblock-logo-v1.png (a 449px finished icon design: the
         // 3D padlock with the play button, the silver shackle, the
@@ -93,7 +117,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 31
+        versionCode = 32
         versionName = "1.6.6"
     }
 

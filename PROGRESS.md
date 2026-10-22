@@ -5022,3 +5022,57 @@ asset v1.6.6-debug32.apk (asset id 662818028, the D103 name)
 re-downloaded byte-identical (cmp + SHA-256). Decisions D108 in
 DECISIONS.md; ADR-0054 in doc 08; doc 11's scoreboard row and arc
 entry; CHANGELOG and README carry the round.
+
+## M8-ap — the refresh-half removal round (debug.33, versionCode 32)
+
+The debug.32 field report: "This build, still is not good, it took
+a while (much more than v29), then next videos were okay. so far
+v29 was our best." The debug.31 and debug.32 engines are identical
+(M8-ao was the icon round), so the report measures the warm-gated
+hand-off itself.
+
+**The diagnosis, from the report's own instrument:** the engine's
+share is healthy throughout — the auto-timeline 500 ms × 4 pairs,
+~500–800 ms first-bytes on the live clusters, the dead cluster
+(sn-qxau5, the same family the debug.29 log carried) fast-failed at
+zero wire and door-blocked 56 times after (the in-session machinery
+all working), `seeded=0` on the cluster line (the persistence chain
+working; the prior session simply had no dead marks to save). The
+convicting line is `udp443 fallback elapsed=6920ms` on the first
+video's critical terminal — the app's QUIC job timing out into the
+TUN's UDP drops, with no TCP flow to that host anywhere before it.
+The M8-j ICMP port-unreachable was on the wire the whole 6.9 s and
+the app's QUIC stack ignored it. The reason the process was cold
+enough to try: M8-am's refresh half (`killBackgroundProcesses`)
+guaranteed a cold YouTube at every connect — cold Cronet (the QUIC
+burn), a cold feed (the report's 45 s thumbnail trickle, its 19 s
+page stall), a cold terminal ladder — stacked onto exactly the
+first video. The debug.29 baseline the tester keeps ranking best
+never killed anything: the warm app opened with QUIC blacklisted
+in memory and its feed live.
+
+**The fix (ADR-0055, D109):** the kill goes, and the
+KILL_BACKGROUND_PROCESSES permission with it (the honest-inventory
+rule). The launch half is untouched — once per connect run, on
+serving AND warm AND TUN-bound (ADR-0052's gate), gated by the
+`autoOpenYouTube` setting (schema v8, default ON), the launch
+intent with NEW_TASK, every refusal path logged. The warm relaunch
+IS the refresh: YouTube reloads its feed on resume with its QUIC
+knowledge intact — the debug.29 warm-app flow, automated. The
+Settings row's copy now says open, not refresh-and-open.
+
+**The round's verification:** the only Go change is the mobile
+version string (1.6.6-debug.33, byte-exact python patch); gofmt -l
+identical to the baseline 115; the full Go suite green 19/19 on
+this sandbox (the mobile package's two first-run failures were the
+recycled sandbox's missing fixtures — the webui bundle placeholder
+and one DoH-path flake — both green after `frontend npm ci + build`
+restored the dist; not this round's code); -race green on the
+house gate proxy+probe+netx (81.6 s); svelte-check delta ZERO vs
+HEAD (the 5 pre-existing DiagnosticsView errors, stash-proven);
+the Kotlin edit is byte-exact python (import, two KDoc paragraphs,
+the kill block; the diff carries nothing else). The both-ways
+artifacts: the M8-am build's badging carried KILL_BACKGROUND_
+PROCESSES and its dex the kill call (that round's record); this
+build carries neither while the latch and launch log strings
+remain — aapt badging + dex strings on the built APK.

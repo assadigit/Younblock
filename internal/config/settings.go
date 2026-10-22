@@ -55,9 +55,12 @@ import (
 // because substituted wins never terminal). The breaker stays on.
 //
 // v8 (M8-am, ADR-0051, D105) adds `autoOpenYouTube` — the connect-time
-// hand-off: when the engine turns on, the Android shell refreshes and
-// opens the YouTube app so the first video starts through the fresh
-// tunnel instead of the app's pre-connect dead-host ladder. The
+// hand-off: when the engine turns on, the Android shell opens the
+// YouTube app so the first video starts through the fresh tunnel
+// instead of the app's pre-connect dead-host ladder (M8-ap, ADR-0055:
+// the launch only — the M8-am killBackgroundProcesses half is gone;
+// the warm relaunch keeps the app's in-memory QUIC blacklist and its
+// live feed, the state the debug.29 field report called the best). The
 // owner's ruling is checked-by-default, so the default is
 // platform-dependent like v5's fragmentAllRouted: true on Android
 // (LoadFor applies it, fresh install and pre-v8 migration alike — the
@@ -142,13 +145,17 @@ type Settings struct {
 	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
 	// profile, proxy flags) when the engine turns on. Default off.
 	OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
-	// AutoOpenYouTube (M8-am, ADR-0051, schema v8, D105): when the engine
-	// turns on, the Android shell refreshes (kills the cached background
-	// process) and opens the YouTube app — the connect-time hand-off so
-	// the first video starts through the fresh tunnel instead of the
-	// app's pre-connect dead-host ladder (doc 11 §5.1: the engine's share
-	// of the felt 5-6 s load is ~500 ms; the app's own ladder owns the
-	// rest, and a cold start through the live tunnel sidesteps it).
+	// AutoOpenYouTube (M8-am, ADR-0051, schema v8, D105; the launch-only
+	// shape is M8-ap's ADR-0055): when the engine turns on, the Android
+	// shell opens the YouTube app — the connect-time hand-off so the
+	// first video starts through the fresh tunnel instead of the app's
+	// pre-connect dead-host ladder (doc 11 §5.1: the engine's share of
+	// the felt 5-6 s load is ~500 ms; the app's own ladder owns the
+	// rest). The M8-am killBackgroundProcesses half is gone: it
+	// guaranteed a cold app — cold QUIC re-learning (6920 ms measured
+	// on the debug.32 report), a cold feed, a cold ladder — on every
+	// first video, the exact regression the debug.30-.32 reports
+	// measured against the warm-app debug.29 baseline.
 	// Default TRUE on Android (the owner's checked-by-default ruling;
 	// LoadFor applies it to fresh installs and pre-v8 files alike), false
 	// on every desktop — the field persists and round-trips there but

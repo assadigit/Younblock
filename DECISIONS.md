@@ -2474,6 +2474,30 @@ app's icon").**
 2. **Engine and playback behavior are untouched by this ruling** —
    the warm gate (D106) and the persisted dead-cluster marks
    (D107) ride into debug.32 unchanged.
-3. Next decision ID: D109. (D102 remains reserved for Ali's
+3. Next decision ID: D110. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)
+
+**D109 — the hand-off stops killing YouTube (the refresh half of
+the connect-time hand-off is removed, 2026-10-21, the M8-ap round —
+the debug.32 field report's evidence).**
+
+1. **RECORDED as field-convicted — `killBackgroundProcesses` at
+   hand-off (D105's refresh half) guaranteed a cold YouTube at
+   every connect, and the cold start's costs land on exactly the
+   first video the hand-off exists to help:** a fresh process has
+   no in-memory "QUIC is dead on this network" knowledge, so the
+   first media connection burned its QUIC job timeout into the
+   TUN's UDP drops (6920 ms measured on the debug.32 report — the
+   M8-j ICMP refusal is correct and the app's QUIC stack ignores
+   it), on top of a cold feed (a 45 s thumbnail trickle, a 19 s
+   page stall) and a cold terminal ladder. The debug.29 state the
+   tester ranked best ("so far v29 was our best") never killed
+   anything. ADR-0055 holds the record; the launch half, the warm
+   gate (D106) and the persisted dead-cluster marks (D107) ride
+   unchanged, and the setting's default (on, D105) is untouched.
+2. **The KILL_BACKGROUND_PROCESSES permission leaves the manifest
+   with the call** (the honest-inventory rule).
+3. Next decision ID: D110. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
