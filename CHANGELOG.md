@@ -12,6 +12,25 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (2026-10-22 — the UI v3 round, debug.34, versionCode 33; the main-screen rework, docs/ui-v3)
+
+- **The main screen is new** (docs/ui-v3/UI-SPEC.md; the design tokens
+  are imported from docs/ui-v3/younblock-tokens.css — never copied).
+  Charcoal + red + warm off-white, one amber used only for caution; no
+  green anywhere. The state is carried by the cap's end, the LED, the
+  recolored ring, the glow and the words — never color alone. The power
+  icon is gone (the cap says START/CANCEL/RETRY/STOP); the lever keeps
+  tap and swipe (down connects, up disconnects) with haptics behind the
+  one new permission (VIBRATE — listed in docs/ui-v3/REPORT.md). The
+  Open YouTube card appears only while connected through the new
+  PageBridge.openYouTube() bridge (app first, the browser as fallback);
+  slow mode is the engine's real degraded signal. The Go engine is
+  untouched; the VPN-badge teardown was audited (finding in the report).
+  The classic desktop variant is a separate tree and stays as it was.
+  Acceptance: svelte-check 0/0, the full Go suite green, 16 screenshots
+  at three viewports, contrast/gesture/reduced-motion/hidden-page checks
+  all pass — docs/ui-v3/REPORT.md.
+
 ### Fixed (2026-10-21 — M8-ap, debug.33, versionCode 32; the refresh-half removal round — the debug.32 field report answered, D109)
 
 - **The first video after connect no longer pays the cold start the

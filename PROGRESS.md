@@ -5115,3 +5115,85 @@ sessions, the critical-path `udp443 fallback` lines gone — are
 answered by the experience itself. The video-opening war's record
 closes at M8-ap (doc 11 §5.4's verdict paragraph); the next
 session turns, at the owner's direction, to UI/UX rework.
+
+
+---
+
+## The UI v3 round (2026-10-22, debug.34, versionCode 33)
+
+**The brief.** The next session the owner directed at the M8-ap close-out:
+UI/UX rework, delivered as docs/ui-v3 — a written spec
+(UI-SPEC.md), a token file (younblock-tokens.css), and the standing
+rules: import the tokens (never copy), keep the Go engine untouched,
+keep the font/logo/menu sheet, run the spec's own acceptance checklist,
+audit the disconnect path for the VPN badge, and ship it all as one
+commit with a written report.
+
+**The work.** The spec landed with the round (the owner's upload, moved
+to docs/ui-v3/). The pro variant — the screen the Android WebView loads
+— was rewritten as the v3 main screen: the flex column (safe insets,
+header, the status block centered in the free space above the button,
+the hint, the reserved card slot), the fixed button zone at
+--yb-button-center-y, data-state/data-health on the root. The lever
+(LeverButton.svelte) carries the full gesture model — tap under 10px
+and 400ms, the drag commits at 60% of travel at the crossing, the
+spring-back with overshoot, the 600ms debounce, direction gating,
+Enter/Space — and the failed shake. The ring (RingV3.svelte) is the old
+DotRings drawing code recolored; the Open YouTube card
+(OpenYouTubeCard.svelte) rides a new PageBridge.openYouTube() bridge
+(app first, https://m.youtube.com as fallback); haptics ride
+navigator.vibrate behind the one new permission (VIBRATE, listed in the
+report). Slow mode is the engine's real degraded phase (health.go),
+folded by the HTTP host into Snapshot.degraded — the Wails bridge has
+no degraded to read, so the desktops never fake it. The 5 pre-existing
+DiagnosticsView type errors were fixed (they fail on HEAD too,
+stash-proven in the worklog's earlier round). The classic variant is a
+separate tree and was left alone, per the spec's own scope rule.
+
+**The honesty checks.** The VPN badge audit walked the full teardown
+from code: Engine.Stop always emits stopping then off; the service, on
+off/error, unbinds the TUN (stopTun -> Stack.Stop -> wire.Close — the
+fd closes, the interface goes, that is what clears the key), then
+stopSelfHonest removes the foreground notification and stops itself;
+onRevoke/onDestroy repeat the unwind idempotently. No static path to a
+stale badge exists in the current code; the one remaining window — the
+rapid disconnect->reconnect orphan race inside the service's
+stop->destroy gap — is documented in docs/ui-v3/REPORT.md as the
+device-only item the next field round can target.
+
+**The round's verification.** The frontend: vite build + svelte-check
+0/0. The Go side (this environment assembled the toolchain the earlier
+rounds lacked): go build ./..., the full go test ./... green — 21
+packages ok including internal/webui and mobile against the new bundle
+(46s) and internal/proxy (80s) — and gofmt -l at exactly the 115-file
+baseline (no .go file was touched). The acceptance suite (Playwright,
+the preview backend's ?demo= states): 15 screenshots at 360x640,
+360x800, 412x915 plus a reduced-motion shot, the button byte-identical
+across states at every viewport, header anchored, no horizontal
+scroll, no content overlap; gestures (tap toggles, the 60% commit
+while held, the spring-back, direction gating, horizontal ignored,
+double-tap debounce, Enter/Space); reduced motion static per state;
+hidden-page pause. Contrast computed on the token pairs: headline
+13.26:1/9.99:1, sub/hint/stats 5.71:1/7.58:1, amber 8.21:1/6.19:1,
+cap label 5.07:1, the menu outline 3.37:1 non-text — nothing under its
+threshold. Everything the spec asked to run, ran; the Android APK
+built in this round's release step (below) — the acceptance pass
+itself needed no device.
+
+**The artifact and the release loop.** Shipped as one commit, "UI v3:
+new main screen" (9efe48a), plus the release round's version bumps
+(418b823: versionCode 33, mobile string 1.6.6-debug.34). Built via
+build-android.sh from 418b823 on this sandbox's assembled toolchain
+(Go 1.27.3, SDK 36, NDK 28.2, Temurin 21): v1.6.6-debug34.apk,
+37,528,601 bytes, SHA-256 1cc7e1bd63a07ad9ae2c54f31500f3338d5b88d8c29
+2b01336fddb6d0935a239. aapt2 badging: versionCode 33 / versionName
+1.6.6 / minSdk 26 / targetSdk 36, with VIBRATE in the permission list
+and KILL_BACKGROUND_PROCESSES absent; apksigner the pinned D85 cert
+c76bb7c6…8551d (installs over debug.33 in place); libgojni.so carrying
+1.6.6-debug.34; the dex carrying openYouTube/YounblockShell with zero
+killBackgroundProcesses references. Shipped: GitHub release
+v1.6.6-android-debug.34 (id 421299272, the repo's Latest per D89,
+verified through /releases/latest), asset v1.6.6-debug34.apk (asset id
+667386224, the D103 name) re-downloaded byte-identical (cmp +
+SHA-256). The record for the field: install over debug.33, and the
+one device-only item is the badge race above.
