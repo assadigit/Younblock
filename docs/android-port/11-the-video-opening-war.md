@@ -14,7 +14,10 @@ moment and re-indicted candidate 3; M8-an shipped the pre-registered
 persistence fix and the warm gate. **§5.4, same day: the refresh
 half removed** — the debug.31/.32 reports showed the warm gate alone
 could not cure the first video (the cold start's QUIC burn lives
-inside the app); M8-ap dropped the kill.
+inside the app); M8-ap dropped the kill. **The verdict, 2026-10-22:
+the close** — the debug.33 report, "This version is very good, we
+can finalize this version for now": the first video back in the
+class the tester ranked best; the record ends at M8-ap.
 
 ---
 
@@ -32,7 +35,7 @@ inside the app); M8-ap dropped the kill.
 | debug.30 | M8-am | "the app reverted to our old problem… 1–2 minutes… other videos opened fine" | the hand-off fired at second zero (code-read: the first serving event + TUN bound) into an empty per-session cluster memory — the discovery burn re-entered, §5.2 |
 | **debug.31** | M8-an | the answer to the prescription: "make the user wait and see connecting, only you're sure" | the warm gate (ADR-0052: 3 s settle + one re-check, a 15 s never-trap cap) + the persisted dead-cluster marks (ADR-0053: §5.3's pre-registered fix, seeded from second zero) — what the next report reads: `dead=0 (seeded=1)` right after connect, then the first video |
 | debug.32 | M8-ao | the owner's own logo on the home screen ("use this picture for app's icon") | no engine number moves — the icon recomposition (ADR-0054: his gradient full-bleed, his art matted inside the 66dp safe circle, IoU 0.97–0.98); the war's state carries from debug.31 |
-| **debug.33** | M8-ap | the answer to "still not good… much more than v29": the first video back on the warm-app path | `udp443 fallback elapsed=6920ms` on the first video's terminal — the cold app's QUIC job timing out into the TUN's drops (the M8-j ICMP ignored); the kill is gone (ADR-0055), the launch half reproduces the debug.29 warm flow |
+| **debug.33** | M8-ap | the answer to "still not good… much more than v29" — and the verdict: **"This version is very good"** (2026-10-22, the build finalized for now) | `udp443 fallback elapsed=6920ms` on the first video's terminal — the cold app's QUIC job timing out into the TUN's drops (the M8-j ICMP ignored); the kill is gone (ADR-0055), the launch half reproduces the debug.29 warm flow |
 
 The arc in one sentence: a 1–2 minute video open became ~1 second by
 learning, from the tester's own diagnostic reports, **which wire
@@ -445,6 +448,17 @@ the v29 number; `seeded=1` on the cluster line right after connect
 (the debug.32 session's own learning finally saved and carried);
 the critical-path `udp443 fallback` lines gone (a warm app has
 QUIC blacklisted).
+
+**The verdict (2026-10-22):** the debug.33 report — "This version
+is very good, we can finalize this version for now." The
+experience-level call, and it lands on the round's prediction:
+the first video opened with the app warm. The war's arc closes
+here — the 1–2 minute opens of the early rounds and the
+debug.30–.32 first-video regression ended on the same principle:
+respect what the app already knows (§6's last lesson, twice
+over). The next session turns to UI/UX rework at the owner's
+direction; the tunnel, the hand-off and this record stand as
+shipped.
 
 ---
 

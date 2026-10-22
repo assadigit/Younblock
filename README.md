@@ -58,11 +58,16 @@ debug.32 report — plus a cold feed and a cold ladder, exactly the
 "took a while (much more than v29)" the tester reported; a warm
 relaunch is the refresh: the app's feed reloads on resume with
 its QUIC knowledge intact — the debug.29 flow the tester ranked
-best, automated). The hand-off setting stays on by default; the
+best, automated) — **and field-confirmed**: the debug.33 report,
+"This version is very good, we can finalize this version for now"
+(2026-10-22), leaves this build the finalized version, the next
+session turning to UI/UX rework. The hand-off setting stays on
+by default; the
 engine's measured playback behavior — **every video 5–6 seconds
 with the engine's share at half a second** (debug.29's field
-verdict), and the warm-gated, warm-open hand-off now promising
-the first video the same — carries the release candidate
+verdict), and the warm-gated, warm-open hand-off delivering the
+first video the same (confirmed by the debug.33 report) —
+carries the release candidate
 (the verdict and the hand-off's full story:
 [doc 11 §5.1–5.4](docs/android-port/11-the-video-opening-war.md)).
 The previous rounds' stories — the substitution experiment's

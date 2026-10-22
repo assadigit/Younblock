@@ -5103,3 +5103,15 @@ v1.6.6-android-debug.33 (id 420806971, the repo's Latest per
 D89, verified through /releases/latest), asset
 v1.6.6-debug33.apk (asset id 666068607, the D103 name)
 re-downloaded byte-identical (cmp + SHA-256).
+
+**The field verdict (2026-10-22):** the debug.33 report — "This
+version is very good, we can finalize this version for now, and
+do the next session for some UI/UX rework." The verdict the round
+was built for: the first video back on the warm-app path, the
+build finalized as it stands. It is the experience-level call (no
+fresh counter dump arrived with it); the pre-registered reads —
+the first video at the v29 number, `seeded=1` carried across
+sessions, the critical-path `udp443 fallback` lines gone — are
+answered by the experience itself. The video-opening war's record
+closes at M8-ap (doc 11 §5.4's verdict paragraph); the next
+session turns, at the owner's direction, to UI/UX rework.
