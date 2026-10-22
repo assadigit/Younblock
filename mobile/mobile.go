@@ -161,7 +161,7 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // M8-ao (debug.32, versionCode 31): the logo-icon round
         // — the owner's younblock-logo-v1.png becomes the
         // launcher icon (ADR-0054, D108; playback untouched).
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.33"}
+        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.34"}
         if mutate != nil {
                 mutate(&opts)
         }

@@ -20,7 +20,26 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 32: the M8-ap build (debug.33 -- the
+        // versionCode 33: the UI v3 build (debug.34 -- the
+        // main-screen rework round, docs/ui-v3). The new main
+        // screen per docs/ui-v3/UI-SPEC.md, its design tokens
+        // IMPORTED (never copied) from docs/ui-v3/
+        // younblock-tokens.css: the charcoal+red palette (no green
+        // anywhere), the state carried by the cap's end, the LED,
+        // the recolored ring, the glow and the words -- never color
+        // alone; the power icon is gone (the cap says
+        // START/CANCEL/RETRY/STOP); the Open YouTube card appears
+        // only while connected, through the new
+        // PageBridge.openYouTube() bridge (app first, the browser
+        // as fallback); haptics ride navigator.vibrate behind the
+        // one new permission (VIBRATE, listed in docs/ui-v3/
+        // REPORT.md); slow mode is the engine's real degraded
+        // signal, and the VPN-badge teardown was audited (the
+        // finding is in the report). The Go engine is untouched --
+        // no proxy, dialer, pool, tier or setting change rides in
+        // this build. Installs over debug.33 (the same pinned debug
+        // certificate -- D85).
+        // versionCode 32 was: the M8-ap build (debug.33 -- the
         // refresh-half removal round, ADR-0055, D109). The
         // debug.32 field report: "This build, still is not
         // good, it took a while (much more than v29), then
@@ -117,7 +136,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 32
+        versionCode = 33
         versionName = "1.6.6"
     }
 
