@@ -5076,3 +5076,30 @@ artifacts: the M8-am build's badging carried KILL_BACKGROUND_
 PROCESSES and its dex the kill call (that round's record); this
 build carries neither while the latch and launch log strings
 remain — aapt badging + dex strings on the built APK.
+
+**The artifact and the release loop (the docs follow-up):** built
+via build-android.sh from commit 0b1ad5f: v1.6.6-debug33.apk,
+37,431,041 bytes, SHA-256 0d9188257864ec090ee51967214ee2edfea631e
+71b175e6ca946b202e95f557c; aapt badging versionCode 32 /
+versionName 1.6.6 / minSdk 26 / targetSdk 36 with
+KILL_BACKGROUND_PROCESSES ABSENT from the permission list;
+apksigner the pinned D85 cert c76bb7c6…8551d (installs over
+debug.32 in place); libgojni.so carrying 1.6.6-debug.33 and the
+bundle's new "opens the YouTube app for you" copy beside the
+warm-gate copy; the dex carrying the auto-open latch/launch
+strings with ZERO killBackgroundProcesses references — the
+both-ways artifact proof against the debug.32 asset (its dex
+still carries the reference; its badging still lists the
+permission). The APK is ~20 MB smaller than debug.32's: the old
+build machine's webui dist had accumulated stale hashed bundles
+across the rounds (the additive cp; go:embed carried them all as
+dead weight) — this build ships exactly one fresh bundle
+(debug.32's .so embedded three index-*.js versions; this one
+embeds one). The build environment was rebuilt twice this round
+(the sandbox recycled mid-round; the round's commit was already
+pushed, so the rebuild reproduced the artifact from 0b1ad5f —
+same size, fresh embedded timestamps). Shipped: GitHub release
+v1.6.6-android-debug.33 (id 420806971, the repo's Latest per
+D89, verified through /releases/latest), asset
+v1.6.6-debug33.apk (asset id 666068607, the D103 name)
+re-downloaded byte-identical (cmp + SHA-256).
