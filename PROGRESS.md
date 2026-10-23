@@ -5464,3 +5464,89 @@ are three constants in main.go, two comments, and two XML resource
 files; the lanes build the same committed tree as always). The tray
 menu, the Wails bindings, and the WebView shell are untouched — the
 tray's labels ride the engine's phases, not the screen's visuals.
+
+## The refinement round's release — v0.8.3, all versions in the one release again (2026-10-24, 1.6.7-debug.4, versionCode 37)
+
+**The brief.** The owner looked at v0.8.2 and named the regression:
+"You've just release APK in the github … I want all versions
+consolidated in a same release version." The record agrees with him —
+v0.8.1 and v0.8.2 had each shipped APK-only (one asset under a title
+that said "all versions"), so the desktop downloads stood at v0.8.0
+while the phone had moved twice. D111's rule (one release carries
+every version) was intact in the lane but not in the last two runs of
+it.
+
+**The tree.** main carried the refinement round's screen (a6ed5b3 —
+the key-cap lever, the state backgrounds, the circles removed) and the
+platform alignment (87a12ed — the 360×780 reference window, the idle
+pre-paint colors on every shell). This round added only the version
+line: 1.6.7-debug.4, versionCode 37 (comment history in
+mobile.go and build.gradle.kts, CHANGELOG entry) — the Go engine
+untouched, no proxy, dialer, pool, tier or setting change rides in
+this build.
+
+**The toolchain, rebuilt from scratch.** This sandbox session started
+empty (the previous sessions' installs did not survive), so the lane's
+prerequisites were reassembled user-space, no root: Go 1.27.2
+(~/sdk/go), Wails v2.16.0 and gomobile (go install), the Android SDK
+(cmdline-tools → platform-tools, platforms;android-26, android-36,
+build-tools;36.1.0, NDK 28.2.13676358), and — the one piece the first
+run tripped on — Temurin JDK 21.0.13 (~/sdk/jdk): the system's
+java-21-openjdk is a JRE (no javac), and gomobile shells out to javac
+on PATH, not to JAVA_HOME. First run died at "gomobile bind" with
+`javac: executable file not found`; the fix was the Temurin install
+and PATH, and the re-run rode the Go build cache (the Windows exes
+rebuilt in ~6s each). The lesson is recorded here for the next session:
+JAVA_HOME alone is not enough for gomobile; put the JDK's bin on PATH.
+
+**The lane.** `GITHUB_TOKEN=… ./release-unified.sh v0.8.3
+release-notes-v0.8.3.md` from a clean tree (4bebcb8): the tag pinned
+HEAD, build.sh produced the desktop half (frontend bundle
+index-UF7mQmJm.js — the refinement round's screen, the same hash every
+edition embeds; younblock.exe / younblock-x86.exe cross-built by Wails
+from Linux; the headless engines; the Linux web editions; the native
+Linux window edition against the jammy webkit stack; the two .debs; the
+two AppImages; flatpak honestly skipped — no flatpak tools here, same
+as v0.8.0), build-android.sh produced the APK (gomobile bind → AAR →
+gradle assembleDebug, BUILD SUCCESSFUL in 1m 54s), and the offline
+pack builder assembled the everything-inside zip (189 MB: the tagged
+source, the vendored Go deps, the win32 node_modules with the rolldown
+binding verified present, the cross-compiled wails.exe, and the cached
+Go/Node Windows toolchain zips).
+
+**The release and its verification.** GitHub release
+[v0.8.3](https://github.com/assadigit/Younblock/releases/tag/v0.8.3)
+(id 422388616, the repo's Latest, verified through /releases/latest),
+14 assets, every one re-downloaded and byte-identical (the lane's own
+verify):
+
+  v1.6.7-debug4.apk             37,225,209 B  (asset id 670685164, SHA-256 dda861c2…86396)
+  younblock.exe                 13,694,976 B  (asset id 670685585, SHA-256 bd3048a3…4c5e)
+  younblock-x86.exe             13,071,360 B  (asset id 670685528, SHA-256 84f4246d…91fb)
+  younblock-core.exe            11,617,280 B  (asset id 670685275, SHA-256 8af33524…f8dc)
+  younblock-core-x86.exe        11,155,456 B  (asset id 670685238, SHA-256 2a253427…0f6d)
+  younblock-linux-amd64          8,962,208 B  (asset id 670685369, SHA-256 ff2fb84a…c93e)
+  younblock-linux-386            8,650,912 B  (asset id 670685339, SHA-256 1706acf0…51e3)
+  younblock-linux-gui-amd64     12,392,480 B  (asset id 670685435, SHA-256 9255d387…eabc)
+  younblock_1.6.7_amd64.deb      4,223,472 B  (asset id 670685664, SHA-256 9bf9b7e4…2e71)
+  younblock_1.6.7_i386.deb       3,137,832 B  (asset id 670685693, SHA-256 039b1e80…974b)
+  Younblock-1.6.7-x86_64.AppImage 74,540,224 B (asset id 670684597, SHA-256 c3a3fc96…a0ab)
+  Younblock-1.6.7-i686.AppImage   4,173,872 B (asset id 670684558, SHA-256 5b7f0e07…2cb6)
+  Younblock-offline_1.6.7.zip   197,349,850 B (asset id 670684768, SHA-256 7e3dfa7d…9105)
+  younblock-setup_1.6.7.zip          7,864 B (asset id 670685492, SHA-256 f97fa764…2361)
+
+Independent of the lane's own checks, the artifacts were inspected
+before trusting them: aapt2 badging on the APK reads versionCode 37 /
+versionName 1.6.7 / minSdk 26 / targetSdk 36; apksigner prints the
+pinned D85 debug certificate (SHA-256 c76bb7c6…8551d — installs over
+debug.36 in place); both younblock.exe and the APK's libgojni.so carry
+the refinement round's bundle (the index-UF7mQmJm.js name and the
+yb-screen tokens are in the binaries; RingV3 is absent — the circles
+are gone from the shipped code, not just the source). The full SHA-256
+table rides in the release body itself.
+
+**The record for the field:** install the APK over debug.36 in place;
+the desktop downloads jump from the v0.7.6-era screen straight to the
+refinement round's key-cap screen; the engine rides exactly as v0.8.2
+shipped it. The one-release rule is observably back: one tag, one
+release, fourteen assets, every version of Younblock on it.
