@@ -5398,3 +5398,69 @@ The record for the field: install over debug.35 in place (same debug
 certificate); BACK with the sheet open closes the sheet (the desktops'
 Escape flow unchanged); the sheet and diagnostics scroll with slim
 dark bars on the phone.
+
+## The refinement round + the platform alignment (2026-10-23/24, no build — the owner's UI-SPEC (2).md v7)
+
+The owner's directed round: `UI-SPEC (2).md` (v7) with the reference
+`younblock-ui-reference (1).html` (the .app mock, 360×780) and the
+states preview PNG. The reference is the authority — the screen was
+ported from it value-for-value, not re-designed.
+
+**The screen (commit a6ed5b3, the shared Svelte tree every edition
+embeds).** The lever is a physical key cap: track 128×272 r34 as a
+recessed slot (inset shadows, no outline), cap 112×124 r26 — satin red
+gradient top over a 9px `#8f130e` side wall, resting 18px above the
+track floor so the wall shows; pressing sinks it 6px with the wall at
+3px (margin-top, not `translate` — the Chrome~58 WebView floor). The
+cap rests at the BOTTOM and is pulled UP to connect, DOWN to
+disconnect: the drag follows the finger, release past 45% commits,
+otherwise it springs back; a tap works; gestures are inert while
+connecting; pointercancel springs back. The four states carry their own
+whole-screen gradient backgrounds (slate / slate with the red-white
+pulse / sage-teal / warm amber) as three stacked layers cross-fading in
+700ms, with the halftone dot texture and 5% grain back; the status glow
+is a soft aura hugging the track's pill shape (aura/aurabeat), the LED
+breathes green connected, and the swipe-up chevron cue plays on idle.
+The rings and circles of the v3 dial are deleted outright —
+RingV3.svelte is gone, zero `<circle>` elements in the DOM. The copy is
+the reference T table (Start/Wait/Stop/Retry + the four hints), the
+last-session line only fills idle, haptics are 8/12ms, the Open-YouTube
+card and the Timer carry the reference values. Ten files, +876/−778;
+`vite build` and `svelte-check` clean; all four states verified against
+the preview PNG side by side (backgrounds pixel-equal at sampled
+points, cap positions, glows, LEDs, texts, no circles), gestures
+verified live through the `?demo=` harness (tap-connect,
+finger-following drag, 45% commit, spring-back, drag-down disconnect,
+inert connecting, retry), press state, cross-fade 0.7s, cap spring
+0.55s cubic-bezier(.2,.9,.3,1.15), keyboard Enter, aria — no console
+or page errors.
+
+**The platform alignment (this round's commit).** The screen reaches
+every version through the one embed the one-UI round built (D110), so
+"across all versions" meant the three shells' own integration points,
+not three ports: (1) the desktop window's default client size is the
+reference design's 360×780 now (was 360×640, the pre-refinement
+height) — `main.go`'s windowSize, its parse fallbacks, and the D48
+Windows client-size fix that reads designW/designH all follow — so the
+hint and the card slot clear the track outright at the default size;
+the resize floors stay 320×560 (the ≤700px short-screen CSS keeps
+smaller windows honest, the card slot overlapping the track's bottom
+edge by design). (2) Every shell pre-paints the refinement round's idle
+colors: the Wails BackgroundColour is `#3b3a4a` (the idle gradient's
+top) on Windows and Linux, and the Android theme's window mid-tone is
+`#2d2d37` (the 35% stop) with statusBarColor `#3b3a4a` and
+navigationBarColor `#26262e` — the gradient's own top and base, so the
+idle screen reads edge-to-edge as one surface. build.sh's stale
+"(360 x 640)" comment follows. The frontend bundle was rebuilt
+(`index-UF7mQmJm.js`) and re-copied into `internal/webui/dist` (the
+git-ignored build-time copy), and the 780 layout re-verified through
+the harness: idle and connected VLM-checked point-by-point (cap at
+bottom/top, timer + stats, the Open-YouTube card fully visible below
+the track, no clipping, no white edges), connecting clean.
+
+**What could not be verified here:** the Go and Gradle builds — this
+sandbox session has no Go toolchain and no Android SDK (the changes
+are three constants in main.go, two comments, and two XML resource
+files; the lanes build the same committed tree as always). The tray
+menu, the Wails bindings, and the WebView shell are untouched — the
+tray's labels ride the engine's phases, not the screen's visuals.

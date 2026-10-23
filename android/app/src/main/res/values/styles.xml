@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Window chrome for the shell: no action bar (the Svelte screen is the
-     whole UI), and a dark window background matched to the app's off
-     gradient mid-tone (#272730, frontend tokens.css) so there is no white
-     flash before the WebView paints. -->
+     whole UI), and a dark window background matched to the v3 idle
+     gradient's mid-tone (#2d2d37, values/colors.xml — the refinement
+     round's tokens) so there is no white flash before the WebView
+     paints. The system bars take the gradient's own top and base colors
+     so the idle screen reads edge-to-edge as one surface. -->
 <resources>
     <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_bg</item>
-        <item name="android:statusBarColor">@color/window_bg</item>
-        <item name="android:navigationBarColor">@color/window_bg</item>
+        <item name="android:statusBarColor">@color/status_bar_bg</item>
+        <item name="android:navigationBarColor">@color/nav_bar_bg</item>
     </style>
 </resources>

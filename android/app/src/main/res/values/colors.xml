@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The shell's pre-paint colors (the refinement round): matched to the
+     v3 idle background gradient (frontend/src/App.svelte .bg.idle, values
+     from docs/ui-v3/younblock-tokens.css) so the window never flashes a
+     wrong color before the WebView paints, and the system bars blend
+     with the screen's top and bottom edges in the idle state. The bars
+     stay at the idle values in the other states (a static compromise —
+     Android 15+ ignores these colors under edge-to-edge anyway). -->
 <resources>
-    <color name="window_bg">#272730</color>
+    <!-- window mid-tone: the gradient's 35% stop — the flash minimizer -->
+    <color name="window_bg">#2d2d37</color>
+    <!-- idle gradient top (0%): what sits behind the status bar -->
+    <color name="status_bar_bg">#3b3a4a</color>
+    <!-- idle gradient base (70–100%): what the screen ends on -->
+    <color name="nav_bar_bg">#26262e</color>
     <color name="brand_red">#EE3029</color>
 </resources>

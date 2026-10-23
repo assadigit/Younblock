@@ -12,6 +12,35 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (2026-10-24 — the refinement round's platform alignment; the v7 screen on every version — UI-SPEC (2).md)
+
+- **The refinement round's screen is now the one screen on every
+  version — Windows, Linux and Android alike.** The lever is a physical
+  key cap (a satin red top face over a 9px `#8f130e` side wall, resting
+  above the track floor; pressing sinks it 6px), pulled UP to connect
+  and DOWN to disconnect with the 45% release-commit, tap, and
+  finger-following drag; the four states carry whole-screen gradient
+  backgrounds (slate / slate pulse / sage-teal / warm amber) that
+  cross-fade in 700ms behind the halftone texture and 5% grain; the
+  rings and circles of the v3 dial are gone outright. Commit a6ed5b3
+  landed the screen in the shared Svelte tree — which every edition
+  embeds — and this round aligns the three platform shells around it.
+- **The desktop window now opens at the reference design size,
+  360×780** (was 360×640, the pre-refinement design height): tall
+  enough that the hint line and the Open-YouTube card slot clear the
+  lever's track outright instead of riding over it. The resize floors
+  stay 320×560 — the short-screen CSS (≤700px) keeps smaller windows
+  honest, with the card slot designed to overlap the track's bottom
+  edge when it must. The Windows client-size fix (D48) follows the new
+  design size automatically.
+- **Every shell now pre-paints the refinement round's idle colors**
+  instead of the pre-refinement approximation: the Wails window
+  background is `#3b3a4a` (the idle gradient's top — no flash before
+  the WebView paints on Windows and Linux), and the Android theme's
+  window mid-tone is `#2d2d37` with the status and navigation bars
+  carrying the gradient's own top (`#3b3a4a`) and base (`#26262e`), so
+  the idle screen reads edge-to-edge as one surface.
+
 ### Changed (2026-10-23 — the one-UI round, 1.6.7-debug.1, versionCode 34; every version, one release, one UI — D110/D111)
 
 - **Every version now ships the same screen.** The separate Classic
