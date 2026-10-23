@@ -701,7 +701,57 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 1. v1.6.6-android-debug.17 — the negative re-ask + the origin-IP penalty box: DNS blips stop locking hosts out and dead origins stop being re-gambled (SHIPPED — a regular release, the CURRENT build)
+## 0. v0.8.1 — the Android 14 connect-crash fix round (1.6.7-debug.2, versionCode 35 — the unified release v0.8.1, the CURRENT build)
+
+**What this build is:** versionCode 35, built at the 3639ef3 commit
+(the fix/android14-fgs-special-use line merged to main), the pinned
+debug certificate — **installs directly over v0.8.0's debug.34** in
+place; settings and usage history survive. The APK asset on the
+release page is NAMED **v1.6.7-debug2.apk** (D103 — the filename
+itself names the build).
+
+**What was wrong:** the v0.8.0 APK installed everywhere but crashed
+the moment Connect was tapped on every Android 14+ phone in the field
+(Xiaomi, Samsung) — while phones on Android 13 or older never showed
+it. Read against the decompiled bytecode and the AOSP android14
+ActiveServices/ForegroundServiceTypePolicy: the VPN service entered
+the foreground with the `connectedDevice` service type, which
+Android 14 (API 34+) enforces by requiring one of that type's
+prerequisite permissions — none were declared — so the system threw
+the SecurityException that killed onStartCommand. Android 13 and
+older never enforce the policy, which is exactly why it looked like
+"works only on the author's phone."
+
+**The fix:** the service now enters the foreground with the
+`specialUse` type on Android 14+ (Google's designated type for VPN
+apps — no prerequisite permission; the manifest declares
+`connectedDevice|specialUse` with `PROPERTY_SPECIAL_USE_FGS_SUBTYPE
+="vpn"`, satisfying the API 29+ subset rule for both branches), keeps
+`connectedDevice` on 10–13, and goes untyped on 8–9. Hardening rides
+along: any platform refusal of the foreground promotion or the
+service start unwinds honestly (engine out of its gate-held
+connecting state, service stopped) instead of crashing the process.
+
+**The any-version sweep (the "works on every Android" audit):**
+Android 15/16 edge-to-edge (fitsSystemWindows on the WebView root —
+the theme's bar colors are ignored at targetSdk 35+); Android 13's
+once-per-install POST_NOTIFICATIONS ask (the tunnel never depended
+on it, but the notification was invisible without it); the
+old-WebView boot floor (an explicit es2017 vite target plus
+feature-detected fills for queueMicrotask/globalThis/replaceAll and
+LeverButton's ResizeObserver, so an Android 8.0 factory WebView
+boots instead of white-screening); Android 12+ background-start
+refusals caught. minSdk stays 26 — pinned by the gomobile AAR's
+`-androidapi=26`.
+
+**The release:** the round ships as the unified release
+[v0.8.1](https://github.com/assadigit/Younblock/releases/tag/v0.8.1)
+(id 422318891) — the APK only, byte-identical re-download verified
+(37,274,209 B, asset id 670435482, SHA-256 3a1e152d…09b95); the Go
+engine is untouched, so the desktop editions are unchanged and
+remain at v0.8.0.
+
+## 1. v1.6.6-android-debug.17 — the negative re-ask + the origin-IP penalty box: DNS blips stop locking hosts out and dead origins stop being re-gambled (SHIPPED — a regular release, superseded: the unified line v0.8.0/v0.8.1 carries the engine forward unchanged)
 
 **What this build is:** versionCode 16, built at the M8-y commit, the
 pinned debug certificate — **installs directly over debug.16** in

@@ -5296,3 +5296,60 @@ the one device-only item remains the badge race from the UI v3 round
 (docs/ui-v3/REPORT.md). The one-UI round's promise is now structural:
 one tree, one screen, one release — when the UI changes, every
 version changes the same.
+
+## The Android 14 fix round (2026-10-23, 1.6.7-debug.2, versionCode 35 — the unified release v0.8.1)
+
+**The brief.** The v0.8.0 field report: the APK installed everywhere
+but crashed the moment Connect was tapped on every Android 14+ phone
+(Xiaomi, Samsung), while the owner's own ≤ 13 device never showed it.
+The owner's follow-up ruling: "Make sure this app would work with any
+android version, whether new or OLD" — then "Release in the github."
+
+**The diagnosis (read from the bytecode, not guessed).** The shipped
+service called startForeground with the connectedDevice type while the
+app declares NONE of that type's prerequisite permissions. API 34+
+(targetSdk 36) enforces the per-type FGS policy
+(FGS_TYPE_PERMISSION_CHANGE_ID, enforced by default;
+PermissionChecker.checkPermissionForPreflight hard-denies undeclared
+permissions regardless of foreground state) — the SecurityException
+killed onStartCommand. The owner's phone runs Android ≤ 13, where the
+enforcement does not exist: hence "works only on my phone." Verified
+against the decompiled v1.6.7-debug1.apk and the AOSP android14
+ActiveServices.java / ForegroundServiceTypePolicy.java.
+
+**The fix (three commits on fix/android14-fgs-special-use, merged
+to main).** d6e87ca: the specialUse type on 34+ (manifest union
+connectedDevice|specialUse + FOREGROUND_SERVICE_SPECIAL_USE +
+PROPERTY_SPECIAL_USE_FGS_SUBTYPE="vpn"; the version-branched call —
+34+ SPECIAL_USE, 29–33 CONNECTED_DEVICE, <29 untyped) plus the
+honest-unwind hardening (a refused promotion or service start stops
+the engine and the service instead of crashing). b0b5d0d: the
+any-version sweep — edge-to-edge fitsSystemWindows for 15/16, the
+once-per-install POST_NOTIFICATIONS ask for 13+, and the old-WebView
+boot floor (vite es2017 + the polyfills module + the feature-detected
+ResizeObserver). 3639ef3: the 1.6.7-debug.2 version string.
+
+**The artifact and the release loop.** Built in a fresh sandbox
+through the repo's own lanes (Go 1.27.3 — the same toolchain the
+v0.8.0 AAR carries; gomobile bind arm/arm64/amd64 -androidapi=26;
+SDK 36 + build-tools 36.1.0 + NDK 28.2; Temurin 21.0.13; gradle
+9.8.1 / AGP 9.2.0). Verified before shipping: aapt badging
+(versionCode 35, versionName 1.6.7, minSdk 26, targetSdk 36), the
+apksigner D85 cert (c76bb7c6…8551d — installs over debug.34 in
+place), the compiled binary manifest (foregroundServiceType
+0x40000010 = specialUse|connectedDevice; the property present), and
+the jadx-decompiled startForegroundHonest (34+ → 1073741824, 29–33
+→ 16, <29 untyped, every refusal returning false into the honest
+unwind). Shipped as the unified release
+[v0.8.1](https://github.com/assadigit/Younblock/releases/tag/v0.8.1)
+(id 422318891), the APK only — the Go engine is untouched, so the
+desktop editions are unchanged and remain at v0.8.0 — re-downloaded
+and byte-identical (cmp + SHA-256):
+
+  v1.6.7-debug2.apk  37,274,209 B  (asset id 670435482, SHA-256 3a1e152d…09b95)
+
+The record for the field: install over v0.8.0 in place (same debug
+certificate), tap Connect on the Android 14+ phones that crashed —
+the crash signature is dead. The test matrix: a 14+ phone (the fix),
+a ≤ 13 phone (regression), a 15/16 phone (the bars), and ideally a
+never-updated 8/9 device (the WebView floor).
