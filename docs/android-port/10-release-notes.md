@@ -701,7 +701,27 @@ cancellation banners and stays as history; doc 07 §9's row is closed
 as cancelled; ADR-AUTH-0001 is retired (doc 08). Younblock stays one
 free-for-all app.**
 
-## 0. v0.8.1 — the Android 14 connect-crash fix round (1.6.7-debug.2, versionCode 35 — the unified release v0.8.1, the CURRENT build)
+## 0a. v0.8.2 — the initial UI/UX polish round (1.6.7-debug.3, versionCode 36 — the unified release v0.8.2, the CURRENT build)
+
+**What this build is:** versionCode 36, built at the 2f02300 commit on
+main, the pinned debug certificate — **installs directly over
+debug.35** in place. The APK asset is NAMED **v1.6.7-debug3.apk**
+(D103). The groundwork before the owner's directed UI round: (1) the
+Android BACK button closes the open modal (the menu sheet, then the
+diagnostics over it) instead of leaving the app — the shell probes
+window.YounblockUI.back() (frontend/src/lib/shellback.ts) and falls
+back to the default back whenever the page says no, so the behavior is
+only ever additive; (2) the Chromium half of the thin scrollbars for
+the sheet and the diagnostics (the Android WebView, this UI's main
+surface, previously showed Firefox-only styling). Shell + UI bundle
+only — the Go engine is untouched, and the desktop editions are
+unaffected (they remain at v0.8.0).
+
+**The release:** [v0.8.2](https://github.com/assadigit/Younblock/releases/tag/v0.8.2)
+(id 422341932), one asset — v1.6.7-debug3.apk, 37,274,433 B, asset id
+670517792, SHA-256 80c928a2…6eb46, byte-identical re-download verified.
+
+## 0. v0.8.1 — the Android 14 connect-crash fix round (1.6.7-debug.2, versionCode 35 — the unified release v0.8.1, superseded by v0.8.2's polish round (the fix itself carries forward unchanged))
 
 **What this build is:** versionCode 35, built at the 3639ef3 commit
 (the fix/android14-fgs-special-use line merged to main), the pinned
