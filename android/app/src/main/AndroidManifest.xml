@@ -3,7 +3,8 @@
      Permission inventory, honest and minimal:
        INTERNET                            engine sockets (DoH, upstream dials)
        FOREGROUND_SERVICE                  the M5 foreground service keeping the tunnel alive
-       FOREGROUND_SERVICE_CONNECTED_DEVICE the FGS type for the VPN service (API 34+ policy)
+       FOREGROUND_SERVICE_CONNECTED_DEVICE the FGS type the VPN service starts as on API 29–33 (unpoliced there)
+       FOREGROUND_SERVICE_SPECIAL_USE      the FGS type the VPN service starts as on API 34+ (the debug.2 fix)
        POST_NOTIFICATIONS                  runtime permission on 13+; the state notification
        (no location, no storage beyond app-private, no SYSTEM_ALERT_WINDOW,
         no request-install-packages; ACCESS_NETWORK_STATE deliberately NOT
@@ -18,6 +19,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- debug.2 (the Android 14 fix): the VPN service starts as
+         specialUse on API 34+ — the one FGS type with NO runtime
+         prerequisites, exactly because no connectedDevice prerequisite
+         (CHANGE_NETWORK_STATE, BLUETOOTH_CONNECT, …) belongs in this
+         inventory. Without this line, startForeground(SPECIAL_USE)
+         itself would throw the same class of SecurityException the
+         v0.8.0 APK crashed on. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- UI v3 (docs/ui-v3/UI-SPEC.md §4, listed in docs/ui-v3/REPORT.md):
          the lever button's haptics run through the WebView's
@@ -64,17 +73,37 @@
             </intent-filter>
         </activity>
 
-        <!-- The routing path (roadmap M4): foreground, connectedDevice
-             type, only the system may bind (BIND_VPN_SERVICE). The
-             app itself starts it explicitly from the connect flow. -->
+        <!-- The routing path (roadmap M4): foreground, only the
+             system may bind (BIND_VPN_SERVICE); the app itself starts
+             it explicitly from the connect flow. The type UNION is
+             the debug.2 fix for the Android 14 connect crash: the
+             shipped connectedDevice-only declaration made every 14+
+             phone throw the FGS type-policy SecurityException out of
+             startForeground (the type demands one of its runtime
+             prerequisites — CHANGE_NETWORK_STATE, BLUETOOTH_CONNECT,
+             … — none of which this honest inventory holds), while
+             the owner's <= 13 device never enforced the policy,
+             which is why only his phone worked. specialUse is
+             Google's designated escape hatch for exactly this: no
+             runtime prerequisites, just the permission above plus
+             the subtype property below. The UNION keeps
+             connectedDevice for the 29–33 branch (the subset rule
+             validates the PASSED type against this list); < 29
+             ignores the attribute entirely (untyped call). -->
         <service
             android:name=".YounblockVpnService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice"
+            android:foregroundServiceType="connectedDevice|specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <!-- The specialUse declaration's required subtype (API 34+
+                 reads it; older platforms ignore the element): this
+                 service maintains the VPN tunnel itself. -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
         </service>
     </application>
 </manifest>

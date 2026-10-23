@@ -20,7 +20,34 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 34: the one-UI round (1.6.7-debug.1 -- the
+        // versionCode 35: the Android 14 connect-crash fix round
+        // (1.6.7-debug.2 -- the FGS type policy fix). The v0.8.0
+        // field report: the APK installed everywhere but crashed on
+        // the connect tap of every Android 14+ phone (Xiaomi,
+        // Samsung), while the owner's own <= 13 device never showed
+        // it -- which is exactly why it looked like "only my phone".
+        // Root cause (verified against the decompiled bytecode and
+        // AOSP android14 ActiveServices/ForegroundServiceTypePolicy):
+        // startForeground(FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        // with NONE of the type's prerequisite runtime permissions
+        // declared -- API 34+ enforces the per-type policy
+        // (FGS_TYPE_PERMISSION_CHANGE_ID, enforced by default) and
+        // throws the SecurityException that killed onStartCommand.
+        // The fix: specialUse on 34+ (Google's designated
+        // no-prerequisite escape hatch -- FOREGROUND_SERVICE_SPECIAL_USE
+        // + PROPERTY_SPECIAL_USE_FGS_SUBTYPE="vpn" in the manifest,
+        // and the version-branched startForeground call in
+        // YounblockVpnService), with the manifest type union
+        // connectedDevice|specialUse keeping the 29-33 branch legal
+        // under the API 29+ subset rule. Hardening rides along: a
+        // refused foreground promotion or service start now unwinds
+        // honestly (engine out of its gate-held connecting, service
+        // stopped) instead of crashing the process. The Go engine is
+        // untouched -- no proxy, dialer, pool, tier or setting
+        // change rides in this build. Installs over debug.34 in place
+        // (the same pinned debug certificate -- D85). D103: the APK
+        // asset is named v1.6.7-debug2.apk.
+        // versionCode 34 was: the one-UI round (1.6.7-debug.1 -- the
         // unified-release round). Every edition -- this APK, the
         // Windows apps, the Linux window and web editions -- now
         // ships the SAME UI v3 main screen: the classic editions
@@ -153,7 +180,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 34
+        versionCode = 35
         versionName = "1.6.7"
     }
 

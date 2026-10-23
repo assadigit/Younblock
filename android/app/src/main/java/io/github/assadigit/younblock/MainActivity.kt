@@ -166,7 +166,21 @@ class MainActivity : Activity() {
 
     private fun startVpnService() {
         val intent = Intent(this, YounblockVpnService::class.java)
-        startForegroundService(intent)
+        // debug.2 hardening: Android 12+ can refuse a foreground start
+        // whose caller is no longer eligible (the state listener fires
+        // this from a "connecting" event while the user may already have
+        // left the page — ForegroundServiceStartNotAllowedException).
+        // A refusal is the honest stop, never a crash: the engine
+        // leaves its gate-held "connecting" (no zombie — the same rule
+        // as onDestroy), the process survives, and onResume's
+        // reconciliation re-derives the state when the user returns.
+        runCatching { startForegroundService(intent) }
+            .onFailure {
+                Log.w(TAG, "foreground service start refused: ${it.message}")
+                EngineHolder.engine?.let { eng ->
+                    Log.i(TAG, "engine stop (service start refused): ${eng.stop()}")
+                }
+            }
     }
 
     @Deprecated("Deprecated in Java")

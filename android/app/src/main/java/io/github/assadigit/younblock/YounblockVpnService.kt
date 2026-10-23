@@ -18,7 +18,8 @@ import org.json.JSONObject
 
 /**
  * The Android network service (docs/android-port 04 §2/§6, ADR-0009/
- * 0010/0011; roadmaps M4 + M5). Foreground, `connectedDevice` type: builds
+ * 0010/0011; roadmaps M4 + M5). Foreground — `specialUse` type on
+ * Android 14+, `connectedDevice` on 29–33 (the debug.2 fix): builds
  * the TUN with the per-app allow-list, hands the fd to the engine
  * facade once the engine is serving ([mobile.Engine.startTun]), and
  * unwinds honestly on every path to "off" — user stop, engine error,
@@ -89,6 +90,11 @@ class YounblockVpnService : VpnService() {
     /** The established TUN, held until the engine is serving. */
     private var tunPfd: ParcelFileDescriptor? = null
 
+    /** True once a startForeground call succeeded — a later refusal is
+     *  a notification refresh (cosmetic), never the promotion itself
+     *  (debug.2 hardening). */
+    private var foregroundUp = false
+
     /** True once startTun succeeded (the fd is Go's from then on). */
     private var tunBound = false
 
@@ -133,7 +139,17 @@ class YounblockVpnService : VpnService() {
         // connect run then holds at the start gate (D77) until
         // establishTun below opens it.
         val engine = EngineHolder.ensure(this)
-        startForegroundHonest()
+        // debug.2 hardening: the promotion must succeed or the run dies
+        // HERE — an uncaught startForeground refusal was exactly the
+        // crash the v0.8.0 field reported (the Android 14 type-policy
+        // SecurityException). stopSelfHonest unwinds the gate-held
+        // engine, re-arms the gate, and satisfies the
+        // startForegroundService contract with a prompt stopSelf; the
+        // page shows Not Connected, never a tombstone.
+        if (!startForegroundHonest()) {
+            stopSelfHonest()
+            return START_NOT_STICKY
+        }
 
         if (JSONObject(engine.getState()).optString("phase", "off") == "off") {
             val res = engine.start()
@@ -432,17 +448,66 @@ class YounblockVpnService : VpnService() {
      * facade's vpnState report — the same JSON the host tests verify.
      * "Active" only when it reports routing; "degraded" when it routes
      * degraded; "connecting" while the gate/start sequence is pending.
+     *
+     * The type branch (debug.2, the Android 14 connect-crash fix): API
+     * 34+ enforces a per-type permission policy at startForeground
+     * time — connectedDevice demands one of its runtime prerequisites
+     * (CHANGE_NETWORK_STATE, BLUETOOTH_CONNECT, …) which this app's
+     * honest inventory deliberately does not hold, and the resulting
+     * SecurityException crashed the process on the connect tap of
+     * every Android 14+ phone (the owner's <= 13 device never enforced
+     * it — which is why it looked like "only my phone works").
+     * specialUse is Google's designated escape hatch: no runtime
+     * prerequisites, declared in the manifest union with the required
+     * PROPERTY_SPECIAL_USE_FGS_SUBTYPE and started with the matching
+     * type flag here. 29–33 keep the shipped connectedDevice call
+     * (unpoliced there; the manifest union satisfies the API 29+
+     * subset rule for both branches), and < 29 takes the untyped
+     * call the platform predates.
+     *
+     * Returns false when the platform refuses the call instead of
+     * throwing through the caller (debug.2 hardening): a refused
+     * PROMOTION kills the fresh connect run honestly through
+     * [stopSelfHonest] (onStartCommand), while a refused REFRESH — the
+     * tunnel is already foreground and serving — is logged and
+     * survived: a stale status text must never tear down a tunnel
+     * that routes.
      */
-    private fun startForegroundHonest() {
+    private fun startForegroundHonest(): Boolean {
         val text = notificationText()
         val notification = buildNotification(text)
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(
-                NOTIFICATION_ID, notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        val refreshing = foregroundUp
+        return try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+                    startForeground(
+                        NOTIFICATION_ID, notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                    )
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                    startForeground(
+                        NOTIFICATION_ID, notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+                    )
+                else ->
+                    startForeground(NOTIFICATION_ID, notification)
+            }
+            foregroundUp = true
+            true
+        } catch (e: Exception) {
+            if (refreshing) {
+                // A refresh of an already-foreground notification: the
+                // tunnel routes and keeps routing — the stale text is
+                // the honest cost of never killing a live tunnel over
+                // cosmetics.
+                Log.w(TAG, "notification refresh refused (tunnel keeps serving): $e")
+            } else {
+                // The promotion itself: nothing can follow on a
+                // service the system refuses to foreground —
+                // onStartCommand unwinds the whole run honestly.
+                Log.e(TAG, "foreground promotion refused: $e")
+            }
+            false
         }
     }
 
