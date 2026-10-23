@@ -51,6 +51,19 @@ type Snapshot struct {
 	// there has never been one. No omitempty: the explicit null is
 	// how a cleared history clears the screen's Last-session line.
 	LastSession *usage.SessionRecord `json:"lastSession"`
+	// Degraded (the v3 screen's slow mode): the serving run flapped to
+	// the engine's degraded phase — the run still serves, the health
+	// monitor is re-checking. The same signal the HTTP/SSE host folds
+	// into its snapshots for the Android WebView (one UI, one set of
+	// signals — every edition now); omitempty keeps old hosts' JSON
+	// unchanged when the capability is absent.
+	Degraded bool `json:"degraded,omitempty"`
+	// Warming (the M8-an warm gate): the engine serves but its video
+	// lane is still settling. Meaningful only while connected; the
+	// screen additionally gates its warming copy on the host's
+	// autoOpenTarget capability, so this surfaces only where something
+	// waits on the gate.
+	Warming bool `json:"warming,omitempty"`
 }
 
 // Engine is the thin wrapper around your existing proxy code.
@@ -73,6 +86,24 @@ type Engine interface {
 // does not know instead of showing a made-up zero.
 type UsageSource interface {
 	Usage() (downBytes, upBytes int64, lastSession *usage.SessionRecord)
+}
+
+// HealthSource is the optional Engine capability behind the v3 screen's
+// slow-mode and warming signals: whether the serving run currently sits
+// in the engine's degraded phase (slow mode) and whether its warm gate
+// is still holding. Polled on the same once-a-second stats cadence; a
+// bridge without it simply never sets Degraded/Warming (the screen then
+// shows neither, exactly like before this capability existed).
+type HealthSource interface {
+	Health() (degraded, warming bool)
+}
+
+// healthFrom reads the health pair off an engine that can report it.
+func healthFrom(engine Engine) (degraded, warming bool) {
+	if src, ok := engine.(HealthSource); ok {
+		return src.Health()
+	}
+	return false, false
 }
 
 // usageFrom reads the usage triple off an engine that can count.
@@ -251,6 +282,7 @@ func (b *Bridge) refreshStats() {
 	b.mu.Unlock()
 
 	down, up, ping := b.engine.Stats() // called without the lock: it may take a moment
+	degraded, warming := healthFrom(b.engine)
 
 	b.mu.Lock()
 	if b.snap.Phase != PhaseConnected {
@@ -258,6 +290,7 @@ func (b *Bridge) refreshStats() {
 		return
 	}
 	b.snap.DownBps, b.snap.UpBps, b.snap.PingMs = down, up, ping
+	b.snap.Degraded, b.snap.Warming = degraded, warming
 	// Round-3: the usage counters tick on the same once-a-second
 	// cadence as the speeds.
 	b.snap.DownBytes, b.snap.UpBytes, b.snap.LastSession = usageFrom(b.engine)

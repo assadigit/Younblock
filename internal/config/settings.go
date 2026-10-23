@@ -171,8 +171,8 @@ type Settings struct {
 	// rulings D86 + D87); removing every entry is a user choice that
 	// persists — the M7 NO_TARGET_APPS door (D81) refuses that connect
 	// closed. Desktop editions persist the field but never read it —
-	// one settings.json serves every edition, and the classic screen's
-	// spread-based saves round-trip it untouched.
+	// one settings.json serves every edition, and the one screen's
+	// index-signature saves round-trip it untouched.
 	Apps     []string `json:"apps"`
 	Advanced Advanced `json:"advanced"`
 }

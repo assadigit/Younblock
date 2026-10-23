@@ -51,9 +51,10 @@ export interface Snapshot {
   /** The last finished session; null when there has never been one. */
   lastSession?: SessionRecord | null;
   /** M8-an (ADR-0052): true while the engine is serving but its video
-   * lane is still warming — the connect-time hand-off's hold. Set only
-   * by the HTTP/SSE host (the engine's own state carries `warm`);
-   * absent on the Wails and preview hosts, where nothing waits on it. */
+   * lane is still warming — the connect-time hand-off's hold. Set by the
+   * HTTP/SSE host (the engine's own state carries `warm`) and by the
+   * Wails bridge's HealthSource; absent on the preview host, where
+   * nothing waits on it. */
   warming?: boolean;
   /** UI v3 (docs/ui-v3/UI-SPEC.md §8): true while the engine reports its
    * serving run degraded (its health signal — a real engine event, never a

@@ -189,8 +189,8 @@
   // Load the settings once the sheet is first opened on a host that
   // actually has them (per-app routing, the connect-time hand-off, or
   // the tray capability — the surfaces that read settings.json).
-  // Re-reading on every open keeps the state fresh if the classic
-  // screen saved meanwhile.
+  // Re-reading on every open keeps the state fresh if another
+  // edition's screen saved meanwhile.
   let loadedForOpen = false;
   $: if (open && (perAppRouting || autoOpenTarget || tray) && backend && !loadedForOpen) {
     loadedForOpen = true;
@@ -422,8 +422,8 @@
          The old surface lived at the very BOTTOM of this sheet (below
          Help) behind an android gate, its Copy used the raw
          navigator.clipboard call that silently fails inside the Android
-         WebView — and the M8-p rewrite shipped only in the classic tree
-         the APK never renders. One first-class entry on every platform
+         WebView — and the M8-p rewrite shipped only in the since-retired
+         classic tree. One first-class entry on every platform
          now: it opens the full DiagnosticsView (report + the honest
          clipboard ladder + Share + selectable text). -->
     <button type="button" class="diag-entry" on:click={() => dispatch("diagnostics")}>
@@ -1066,7 +1066,7 @@
     color: var(--text-tertiary);
   }
 
-  /* The switch: the sheet's own drawing (the classic screen's toggle,
+  /* The switch: the sheet's own drawing (the old screen's toggle,
     weight-matched to the 44px controls around it). The hidden input
     covers the whole track, so the touch target is the switch itself. */
   .toggle {

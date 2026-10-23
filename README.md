@@ -29,14 +29,15 @@ direct, untouched, exactly as if the app were not running.
 
 For now this is a **debug-signed test build, not a release** ("we're
 not releasing yet" — the release candidate, now wearing the owner's
-own logo): download `v1.6.6-debug33.apk` from the
+own logo): download `v1.6.7-debug1.apk` from the
 repo's
 [Releases page](https://github.com/assadigit/Younblock/releases) — the
-`v1.6.6-android-debug.33` release (a regular release in this private
-repo, D89, and the repo's Latest; the APK asset's name carries the
+`v0.8.0` release (the **unified release**: every version — the APK and
+the Windows and Linux apps — ships together in this one release, on
+purpose, from here on; D111); the APK asset's name carries the
 build number, D103, so the downloaded file always names its build —
-**make sure the filename says debug33**; it installs over any earlier
-debug build in place; its notes explain the current test circle —
+**make sure the filename says debug1**; it installs over any earlier
+debug build in place (versionCode 34 > 33); its notes explain the current test circle —
 **the launcher icon is the owner's own logo** (his
 `younblock-logo-v1.png`: the 3D padlock with the play button, the
 silver shackle, the red sparks, the younblock wordmark on his dark
@@ -118,6 +119,25 @@ keystore and that backup in **two different safe
 places** — losing either means the next signed release needs
 uninstall-before-update. The full plan:
 [docs/android-port/07-security-privacy-and-distribution.md](docs/android-port/07-security-privacy-and-distribution.md) §8.
+
+**What's new in version 1.6.7** (the "one UI, one release" release):
+
+- **Every version now ships the same screen.** The Android APK, the
+  Windows apps, the Linux window and web editions — all of them carry
+  the same UI v3 main screen (the charcoal + red lever screen from the
+  UI v3 round). The separate "Classic" editions are retired: there is
+  one app, one screen, so when the UI changes, every version changes
+  the same.
+- **Every version now ships in the same release.** One GitHub release
+  carries all of them together — the APK, the Windows apps, the Linux
+  packages — built from one tree by `release-unified.sh`, so no
+  version can drift behind the others again (the APK had run 34 debug
+  rounds while the desktop downloads stood still at v0.7.6 — that gap
+  is closed and cannot reopen).
+- **The desktop apps gained the phone's honest signals.** The Windows
+  and Linux apps now read the engine's real slow-mode ("degraded") and
+  warm-gate states — the same facts the Android app already showed —
+  through the bridge, with no engine change.
 
 **What's new in version 1.6.5** (the "offline means offline" release):
 
@@ -327,20 +347,22 @@ effects are turned off** (or when Windows itself runs without animations, e.g. o
 The easiest way is to skip building entirely: go to the repo's **Releases** page on
 GitHub and download the file for your machine from the latest release:
 
+Every version ships in the **same release** (the unified release, D111)
+— the Android APK rides beside the desktop files, all built from one
+tree with the one UI v3 screen (the separate Classic editions are
+retired, D110):
+
 | File | For | What it is |
 |---|---|---|
+| `v1.6.7-debug1.apk` | Android (8.0+) | the debug-signed test build — same screen, same engine, installs over earlier debug builds |
 | `younblock.exe` | 64-bit Windows | the app you use every day (window, tray, button) |
 | `younblock-x86.exe` | 32-bit Windows (or 64-bit) | the same full app, built 32-bit |
-| `younblock-classic.exe` | 64-bit Windows | **Classic**: the simple pre-redesign UI, same engine |
-| `younblock-classic-x86.exe` | 32-bit Windows | the same Classic app, built 32-bit |
 | `younblock_…_amd64.deb` | 64-bit Linux Mint | the app as a proper package — opens in its **own window** |
-| `younblock-classic_…_amd64.deb` | 64-bit Linux Mint | **Classic** as the same proper package |
 | `younblock_…_i386.deb` | 32-bit Linux Mint | the browser-style package, built 32-bit |
 | `Younblock-…-x86_64.AppImage` | 64-bit Linux | one portable file — opens in its **own window**, carries everything inside |
-| `Younblock-Classic-…-x86_64.AppImage` | 64-bit Linux | **Classic** as the same portable file |
 | `Younblock-…-i686.AppImage` | 32-bit Linux | the browser-style portable file, built 32-bit |
 | `Younblock-…-x86_64.flatpak` | 64-bit Linux | the app as a Flatpak bundle |
-| `younblock-linux-amd64` | 64-bit Linux (Mint 20+) | one file, runs as-is, opens in your browser (both screens: `?ui=classic`) |
+| `younblock-linux-amd64` | 64-bit Linux (Mint 20+) | one file, runs as-is, opens in your browser |
 | `younblock-linux-386` | 32-bit Linux (old Mint) | the same one file, built 32-bit |
 
 (`younblock-core.exe` / `younblock-core-x86.exe` are the same engines without a
@@ -470,13 +492,12 @@ Notes on the two new switches:
 
 ## The Linux version (Linux Mint and friends)
 
-The Linux editions are the **same engine and the same screens**. Since 1.6.4
-the 64-bit `.deb` and `.AppImage` are **real desktop apps** — their own
-window, their own taskbar icon, a normal menu entry — while the plain
-one-file edition keeps the browser-page style (and carries both screens:
-add `?ui=classic` to its address for the simple UI). Both editions exist
-as **Younblock** (the redesigned screen) and **Younblock Classic** (the
-simple pre-redesign UI).
+The Linux editions are the **same engine and the same screen** (the one UI
+v3 main screen every version ships — the separate Classic editions and
+the `?ui=classic` switch are retired, D110). Since 1.6.4 the 64-bit `.deb`
+and `.AppImage` are **real desktop apps** — their own window, their own
+taskbar icon, a normal menu entry — while the plain one-file edition
+keeps the browser-page style.
 
 ### Which Linux download should I pick?
 
@@ -490,15 +511,13 @@ on your machine:
   `apt remove younblock` uninstalls it. The `_amd64` one opens in its own
   window and pulls its display engine from Mint's own repositories (apt
   keeps it fresh); the `_i386` one (for a genuine 32-bit Mint) keeps the
-  browser-page style. `younblock-classic_…_amd64.deb` is the same package
-  with the Classic screen — both can be installed side by side.
+  browser-page style.
 - **The `.AppImage` — best if you want a single, portable executable file
   that you download and launch.** Make it runnable once
   (`chmod +x Younblock-…-x86_64.AppImage`) and double-click or run it; a
   normal app window opens — no browser, nothing installed; delete the file
   and it's gone. It carries its whole display engine inside (~75 MB), so it
   runs on any 64-bit Mint since 21 even with nothing else installed.
-  `Younblock-Classic-…-x86_64.AppImage` is the same with the Classic screen.
   The `_i686` AppImage (32-bit) keeps the browser-page style.
 - **The Flatpak — best for convenient installation with fewer dependency
   conflicts.** `flatpak install --user Younblock-….flatpak` (one-time setup
@@ -513,7 +532,7 @@ on your machine:
   ```
 - **The plain file** (`younblock-linux-amd64` / `-386`) — the original
   one-file edition, unchanged. Download, `chmod +x`, run; the page it opens
-  carries both screens (`?ui=classic` to switch).
+  is the same one screen.
 
 Whichever you pick, start-with-OS (Settings) writes the right launcher for
 that edition, and every edition updates the same way: download the new file,

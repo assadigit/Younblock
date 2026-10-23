@@ -1,6 +1,7 @@
 <!-- App.svelte — the Younblock UI v3 main screen (docs/ui-v3/UI-SPEC.md).
-     The pro variant the Android app's WebView loads (and every edition that
-     does not bake ?ui=classic): one flex column — header, status block
+     The ONE screen every edition loads (the Android WebView, the Windows
+     apps, the Linux window and web editions — the variant switch is
+     retired): one flex column — header, status block
      centered in the free space above the button, the fixed button zone at
      --yb-button-center-y, hint, the reserved card slot, the safe insets.
      State is carried by data-state/data-health on this root; every value

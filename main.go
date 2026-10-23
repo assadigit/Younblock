@@ -2,14 +2,11 @@
 // section 3): a fixed dark window over the engine, a tray icon (Windows),
 // single-instance behavior, and a --minimized launch mode.
 //
-// The same source builds both editions (D66): the redesigned connect
-// screen (360 x 628) and the classic simple UI (360 x 760, the v0.6.0
-// screen). The frontend picks its screen from VITE_UI_VARIANT at build
-// time; this shell picks the window size from the same fact via
-//
-//	wails build -ldflags "-X main.windowSize=360x760"
-//
-// so a classic frontend never lands in a short pro window or vice versa.
+// One screen (the one-UI round): every edition — this shell, the Linux
+// window and web editions, the Android WebView — ships the same UI v3
+// main screen, so a UI change lands on every version at once. The
+// window's client size is the v3 design size (360 x 640); the classic
+// editions and their VITE_UI_VARIANT/windowSize override are retired.
 package main
 
 import (
@@ -31,10 +28,9 @@ var assets embed.FS
 //go:embed packaging/icons/younblock.png
 var windowIcon []byte
 
-// windowSize is the design client size of the edition being built. The
-// pro default lives here; the classic build overrides it through the
-// linker (see the package comment). Kept a string because -X can only
-// set strings.
+// windowSize is the design client size of the app window — the v3
+// screen's design size. Kept a string (a -X override remains possible
+// for one-off builds), but no released lane overrides it anymore.
 var windowSize = "360x640"
 
 // designW/designH are the parsed values every sizing decision reads.

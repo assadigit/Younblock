@@ -12,6 +12,34 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (2026-10-23 — the one-UI round, 1.6.7-debug.1, versionCode 34; every version, one release, one UI — D110/D111)
+
+- **Every version now ships the same screen.** The separate Classic
+  editions (the second, never-reworked UI tree) are retired: the APK,
+  the Windows apps, the Linux window and web editions all carry the
+  one UI v3 main screen — so when the UI changes, every version
+  changes the same (D110). `?ui=classic` is inert now (same screen
+  either way); the honest clipboard ladder the classic tree held
+  moved into the shared lib and stays.
+- **Every version now ships in the same release.** One GitHub release
+  carries the APK, the Windows apps, the Linux packages and the
+  offline pack together, built by the new `release-unified.sh` lane
+  (D111) — the desktop downloads had stood at v0.7.6 while the APK
+  line ran 34 debug rounds; that gap is closed and cannot reopen.
+- **The desktop apps gained the phone's honest signals:** the Windows
+  and Linux apps now read the engine's real slow-mode (degraded) and
+  warm-gate states through the Wails bridge (optional HealthSource
+  capability — pure observation, no engine change), the same facts
+  the Android app already showed.
+- **Version line unified:** in-app version 1.6.6 → 1.6.7 everywhere;
+  the APK is 1.6.7-debug.1, versionCode 34 (installs over debug.34 in
+  place — the pinned debug certificate, D85). The debug counter
+  restarts at .1 under the new base; the versionCode keeps climbing.
+- Acceptance: svelte-check 0/0, the full Go suite green (21
+  packages), the bundle verified token-faithful and classic-free,
+  Playwright smoke of the one boot path at three viewports —
+  docs/ui-v3/REPORT.md (the one-UI round section).
+
 ### Changed (2026-10-22 — the UI v3 round, debug.34, versionCode 33; the main-screen rework, docs/ui-v3)
 
 - **The main screen is new** (docs/ui-v3/UI-SPEC.md; the design tokens

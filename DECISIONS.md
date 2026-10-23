@@ -2501,3 +2501,65 @@ the debug.32 field report's evidence).**
 3. Next decision ID: D110. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D110 — one screen for every version (the classic editions retire,
+2026-10-23, the one-UI round — the owner's ruling: "update the UI of
+all versions, they must be consistent, so when we change UI all
+versions change the same").**
+
+1. **RECORDED as owner-ruled — every edition now ships the same UI v3
+   main screen:** the APK's WebView, the Windows apps, the Linux
+   window and web editions all load the one screen
+   (`frontend/src/App.svelte`, tokens imported from
+   docs/ui-v3/younblock-tokens.css). The variant dispatcher and its
+   `VITE_UI_VARIANT`/`?ui=classic` switch are retired (the URL
+   parameter is left inert, not rejected); the classic component tree
+   is deleted from the head of the tree (git history keeps it — the
+   editions were a standing divergence by design: a second UI no
+   rework ever touched, which is exactly the shape the ruling ends).
+   The one shared file the classic tree held (lib/clipboard.ts, the
+   honest clipboard ladder) moved into the shared lib and stays.
+2. **The desktops additionally gain the phone's honest signals:** the
+   Wails bridge now folds the engine's real degraded (slow mode) and
+   warm-gate states into its snapshots (ui_bridge.go's optional
+   HealthSource, engine_adapter.go observing State.Phase/State.Warm) —
+   pure observation, zero engine change; the v3 spec §8 audit already
+   established these are real engine events. The one-UI ruling is read
+   to its end: one screen AND one set of signals on every version.
+3. **versionCode 34 / versionName 1.6.7 / mobile string
+   1.6.7-debug.1:** the base version moves with the unified line
+   (1.6.6 → 1.6.7), so the debug counter restarts at .1 under the new
+   base; the versionCode keeps climbing monotonically (34 > 33), so
+   the APK installs over debug.34 in place (the pinned D85
+   certificate).
+4. Next decision ID: D111. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)
+
+**D111 — every version ships in the same release (the unified
+release lane, 2026-10-23, the one-UI round — the owner's ruling:
+"from now on, release all versions in same release").**
+
+1. **RECORDED as owner-ruled — one GitHub release carries every
+   version, from here on:** the APK, the Windows apps (64/32-bit), the
+   headless engines, the Linux web editions, the .deb installers, the
+   AppImages and the offline pack all ride ONE release (first run:
+   tag v0.8.0). The lane is `release-unified.sh`: build everything
+   (build.sh + build-android.sh + build-offline-pack.sh, the pack
+   best-effort), push the tag, create the release, upload every
+   artifact, then re-download and byte-compare each one (the release
+   discipline the debug rounds already held, applied to the whole
+   set). The token rides GITHUB_TOKEN, never the repo.
+2. **The release-shaped divergence this ends:** the desktop downloads
+   stood at v0.7.6 (the UI v2 screen) while the APK line ran 34 debug
+   releases to UI v3 — the "apk ui differs with other versions" the
+   owner saw was five weeks of un-released desktop rounds, not a code
+   fork. One release lane makes the gap structurally impossible: the
+   same tree, the same screen, the same release.
+3. **The separate android-debug.N release series is superseded** by
+   the unified series (the APK asset keeps its D103 build-carrying
+   name inside the unified release; versionCode keeps the Android
+   upgrade order honest).
+4. Next decision ID: D112. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

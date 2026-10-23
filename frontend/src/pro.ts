@@ -1,6 +1,6 @@
 // pro-main.ts — the entry for the v3 main screen: the flex column, the
-// lever button, the ring. Kept as its own module so the dispatcher
-// (main.ts) can load exactly one variant per edition (D66).
+// lever button, the ring. The ONE screen's module, loaded by main.ts for
+// every edition (the variant switch is retired — one UI everywhere).
 //
 // UI v3 (docs/ui-v3/UI-SPEC.md): the design tokens are IMPORTED from
 // docs/ui-v3/younblock-tokens.css — the single source of truth; no value

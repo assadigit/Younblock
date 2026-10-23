@@ -193,3 +193,120 @@ next field round can target it.
 This round ships as the single commit "UI v3: new main screen". The debug
 build that carries it (versionCode 33, mobile string 1.6.6-debug.34) is
 released separately per the repo's release convention.
+
+---
+
+# The one-UI round — every version ships the same screen (2026-10-23)
+
+The owner's next ruling, verbatim in intent: *from now on, release all
+versions in the same release; update the UI of all versions — they must
+be consistent, so when we change the UI all versions change the same;
+currently the APK UI differs from the other versions.* Two decisions
+land with it (DECISIONS.md D110/D111): the classic editions retire (one
+screen everywhere) and every version rides one GitHub release (built by
+the new `release-unified.sh`).
+
+## Why the APK differed from the other versions (the diagnosis)
+
+Three facts, no guessing:
+
+1. **The APK and the desktop editions already share one screen source**
+   (`frontend/src/App.svelte`, served by the same webui bundle — the
+   desktop line through Wails, the APK through its WebView). The UI v3
+   round changed that one screen, so any desktop build from the current
+   tree would already match the APK.
+2. **The divergence was release-shaped, not code-shaped:** the desktop
+   downloads stood still at the v0.7.6 release (Oct 2026's UI v2 screen
+   in `younblock.exe`/`.deb`/AppImage) while the APK line ran 34 debug
+   releases — the last of which (debug.34) carries UI v3. A person
+   comparing the newest APK with the newest desktop download sees two
+   different screens because the desktop download is five weeks of
+   rounds behind, not because the code differs.
+3. **The classic editions were a standing, by-design divergence:** a
+   whole second component tree (`frontend/src/classic/`) baked into
+   separate released binaries (`younblock-classic.exe`, the Classic deb
+   and AppImage) that no UI rework ever touches — exactly the "one
+   version's UI changes and the others don't" shape the ruling ends.
+
+## What changed (file list)
+
+**One screen — the classic variant retires (D110):**
+
+| File | Change |
+|---|---|
+| `src/main.ts` | rewritten: no variant dispatcher — one boot path that loads the v3 screen for every edition; `?ui=classic` is now an inert no-op (verified: same screen, same state, either way) |
+| `src/classic/` (tree) | deleted (git history keeps it). The one shared file it held, `lib/clipboard.ts` (the honest clipboard ladder), **moved** to `src/lib/clipboard.ts` — `DiagnosticsView.svelte` imports it from there now |
+| `src/vite-env.d.ts` | `VITE_UI_VARIANT` dropped (nothing bakes a variant anymore) |
+| `src/pro.ts`, `src/App.svelte`, `src/lib/MenuSheet.svelte`, `src/lib/DiagnosticsView.svelte`, `src/lib/types.ts` | header/import comment updates only (the variant references they carried are gone); zero rendering logic touched |
+
+**Desktop parity — the Wails bridge gains the phone's honest signals
+(engine untouched, D110's "consistent" read to its end):**
+
+| File | Change |
+|---|---|
+| `ui_bridge.go` | `Snapshot` gains optional `degraded`/`warming` (omitempty, so old hosts' JSON is unchanged); a new optional `HealthSource` engine capability, polled on the existing once-a-second stats cadence — a bridge without it behaves exactly as before |
+| `engine_adapter.go` | implements `Health()`: reads the engine's existing `State.Phase` (`degraded` → slow mode) and `State.Warm` (the M8-an gate) — pure observation, zero engine change |
+
+The v3 spec §8 audit already established these are real engine events;
+until now only the HTTP/SSE host (the APK's path) folded them into
+snapshots, so the desktops could never show slow mode. Now every
+edition's screen reads the same signals from the same engine.
+
+**The build lanes:**
+
+| File | Change |
+|---|---|
+| `build.sh` | the classic lanes are gone (no `VITE_UI_VARIANT` bakes, no `windowSize=360x760` overrides, no classic deb/AppImage); every artifact list updated |
+| `build.bat` | the same retirement for the Windows-native lane |
+| `main.go` | header + `windowSize` comment: one edition, the v3 design window (360×640) as the only default |
+| `release-unified.sh` | **new** — the unified release lane (D111): builds EVERY version (build.sh + build-android.sh + the offline pack, best-effort), renames the APK per D103, pushes the tag, creates ONE GitHub release, uploads every artifact, re-downloads and byte-compares each one, prints the release record for PROGRESS.md. The token rides `GITHUB_TOKEN` (never the repo) |
+
+**Versioning (the unified line):** `AppVersion` 1.6.6 → **1.6.7**,
+`wails.json` 1.6.7, `versionCode` 33 → **34**, `versionName` 1.6.7,
+mobile string **1.6.7-debug.1**. The base moved with the unified line,
+so the debug counter restarts at .1 under the new base; the versionCode
+keeps climbing monotonically (34 > 33), so the APK still installs over
+debug.34 in place (the pinned D85 certificate). The round's comments in
+`android/app/build.gradle.kts` and `mobile/mobile.go` record all of it.
+
+## What was verified this round (everything runnable here)
+
+- `svelte-check`: **0 errors / 0 warnings**.
+- `vite build`: clean; the bundle carries the v3 tokens verbatim
+  (`--yb-cap-hi:#e75655` in `dist/assets/*.css`), one JS entry, **zero**
+  references to the classic tree.
+- `go build ./...` ✓ and the **full `go test ./...` green — 21
+  packages ok**, including the root package (the bridge changes), the
+  engine suite (18.7 s), `internal/webui` and `mobile` (46 s) against
+  the new bundle.
+- `gofmt -l` = **115 files, the exact pre-existing baseline** (the three
+  Go files this round touched were formatted; stash-diff-proven).
+- Playwright smoke of the one boot path: all four states render at
+  360×640, 360×800 and 412×915; `?ui=classic` is inert (same screen,
+  same state). Fresh screenshots: `docs/ui-v3/screenshots/
+  oneui-disconnected-360x800.png`, `oneui-connected-360x800.png`,
+  `oneui-desktop-360x640.png` (the Windows/Linux window size).
+
+## The release (D111's first run)
+
+The unified release — tag **v0.8.0**, every version in it — is created
+by `release-unified.sh` after this commit; the artifact record (release
+id, asset ids, sizes, SHA-256 digests, the byte-identical re-download
+verifications) lands in PROGRESS.md and CHANGELOG.md with the docs
+follow-up commit, per the repo's convention.
+
+## Deviations and notes
+
+- **`?ui=classic` is left inert rather than rejected** — the simplest
+  option: an old bookmark or muscle-memory URL renders the same screen
+  everyone gets; no redirect, no error page.
+- **The historical README "What's new" sections keep their Classic
+  mentions** — they describe the releases that actually shipped them;
+  every *current-guidance* section now states the one-screen policy.
+- **The desktop Wails bridge polls health once a second** (the stats
+  cadence it already had) rather than subscribing to engine events —
+  slow-mode onset may show up to ~1 s late on desktop; the decoration
+  is not worth new plumbing. The APK's SSE path stays event-driven.
+- **No new tests were written** (the session's standing rule); the
+  existing suite — including the bridge's own tests — runs green
+  against the changes.

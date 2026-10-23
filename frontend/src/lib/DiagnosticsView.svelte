@@ -2,20 +2,17 @@
   // DiagnosticsView.svelte — the pro screen's diagnostics surface (M8-q,
   // the ADR-0015 port). The M8-p round built the first-class evidence
   // path (a Diagnostics screen, honest copy, the system share sheet)
-  // into the CLASSIC tree only — but the Android APK bakes the pro
-  // screen (D66: VITE_UI_VARIANT is set only by the classic desktop
-  // editions; build-android.sh leaves it unset, so main.ts defaults to
-  // pro). Ali's device never rendered the classic tree, so debug.9
-  // shipped the promised button into a variant their phone cannot show.
-  // This is the same surface in the variant every webui edition serves:
+  // into the CLASSIC tree only — retired with it: the classic editions
+  // and their variant switch are gone (one UI everywhere), and this is
+  // the one surface every edition serves:
   //
   //   * the report the engine already builds (version, connection
   //     state, counters, the tunnel timing lines, the last 200 log
   //     lines — and, inside the APK, the TUN counters and the shell
   //     build identity), auto-loaded when the view opens;
-  //   * Copy report — through the SAME clipboard ladder the classic
-  //     screen uses (lib/clipboard.ts: the Android shell bridge, the
-  //     async API, the execCommand fallback), with honest feedback:
+  //   * Copy report — through the clipboard ladder (lib/clipboard.ts:
+  //     the Android shell bridge, the async API, the execCommand
+  //     fallback), with honest feedback:
   //     "Copied" only when a path really succeeded;
   //   * Share — the system share sheet, rendered only where the shell
   //     bridge offers it (the APK);
@@ -28,7 +25,7 @@
   // button (the entry point) on close.
   import { createEventDispatcher, onDestroy } from "svelte";
   import type { Backend, NetworkTestStatus, Settings } from "./backend";
-  import { canShare, copyText, shareText } from "../classic/lib/clipboard";
+  import { canShare, copyText, shareText } from "./clipboard";
   import { ChevronLeft, Copy, Share2, RefreshCw, Check } from "./icons";
 
   export let backend: Backend | null = null;

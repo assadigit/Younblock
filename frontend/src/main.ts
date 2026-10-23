@@ -1,20 +1,8 @@
-// main.ts — the variant dispatcher (D66): both screens live in the bundle,
-// exactly one loads at startup.
+// main.ts — boots the one screen (the UI v3 main screen, docs/ui-v3).
 //
-//   * the baked default comes from VITE_UI_VARIANT at build time — the
-//     "classic" desktop editions are built with it set, everything else
-//     ships the redesigned screen;
-//   * ?ui=classic or ?ui=pro on the URL overrides the default, which is
-//     how the browser (single-executable) editions offer both.
-async function boot(): Promise<void> {
-  const fromUrl = new URLSearchParams(window.location.search).get("ui");
-  const baked = import.meta.env.VITE_UI_VARIANT;
-  const variant = (fromUrl ?? baked ?? "pro").toLowerCase();
-  if (variant === "classic") {
-    await import("./classic/main");
-  } else {
-    await import("./pro");
-  }
-}
-
-void boot();
+// The variant switch is retired (the one-UI round): every edition — the
+// Android WebView, the Windows apps, the Linux window and web editions —
+// ships this same screen, so a UI change lands on every version at once.
+// The entry lives in pro.ts (the name stays: it is the v3 screen's own
+// module, importing the v3 tokens from docs/ui-v3/younblock-tokens.css).
+import "./pro";

@@ -81,3 +81,14 @@ func (y *younblockEngine) Stats() (downBps, upBps float64, pingMs int) {
 func (y *younblockEngine) Usage() (downBytes, upBytes int64, lastSession *usage.SessionRecord) {
 	return y.eng.Usage()
 }
+
+// Health implements the bridge's HealthSource (the one-UI round): the
+// engine's real serving-run health, read straight off its state — the
+// same facts the HTTP/SSE host folds into its snapshots for the Android
+// WebView, so every edition's screen reads the same signals. The engine
+// itself is untouched; this only observes it.
+func (y *younblockEngine) Health() (degraded, warming bool) {
+	st := y.eng.GetState()
+	serving := st.Phase == engine.PhaseOn || st.Phase == engine.PhaseDegraded
+	return st.Phase == engine.PhaseDegraded, serving && !st.Warm
+}
