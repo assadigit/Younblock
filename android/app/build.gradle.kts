@@ -47,6 +47,27 @@ android {
         // change rides in this build. Installs over debug.34 in place
         // (the same pinned debug certificate -- D85). D103: the APK
         // asset is named v1.6.7-debug2.apk.
+        // The same round's any-version audit (the "works on every
+        // Android" sweep) closed three more gaps, all shell/UI layer:
+        // (1) Android 15/16 edge-to-edge -- fitsSystemWindows on the
+        // WebView root (the theme's bar colors are ignored at
+        // targetSdk 35+; without it the UI draws under the system
+        // bars); (2) Android 13+ -- the once-per-install
+        // POST_NOTIFICATIONS ask, so the tunnel's honest status
+        // notification is visible (the service itself never depended
+        // on it); (3) the OLD-phone WebView floor -- vite's explicit
+        // es2017 build target plus LeverButton's feature-detected
+        // ResizeObserver, so an Android 8.0 factory WebView (Chrome
+        // ~58, where Play cannot update it) parses the bundle and
+        // boots instead of white-screening. The floor itself stays
+        // honest: minSdk 26 is pinned by the gomobile AAR's
+        // -androidapi=26 (build-android.sh, doc 06 §1) -- lowering it
+        // requires rebuilding the AAR lower AND this shell's 26+
+        // APIs (startForegroundService, NotificationChannel,
+        // stopForeground(int)), and is NOT done silently: an APK
+        // that installs on Android 7 and crashes in libgojni.so
+        // would be the same "works only on the author's phone"
+        // class this round exists to kill.
         // versionCode 34 was: the one-UI round (1.6.7-debug.1 -- the
         // unified-release round). Every edition -- this APK, the
         // Windows apps, the Linux window and web editions -- now

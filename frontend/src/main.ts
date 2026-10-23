@@ -5,4 +5,7 @@
 // ships this same screen, so a UI change lands on every version at once.
 // The entry lives in pro.ts (the name stays: it is the v3 screen's own
 // module, importing the v3 tokens from docs/ui-v3/younblock-tokens.css).
+import "./lib/polyfills"; // FIRST: the any-version WebView floor fills
+// (queueMicrotask/globalThis/replaceAll) must exist before the svelte
+// runtime's own top-level probes evaluate — see that file's header.
 import "./pro";

@@ -70,6 +70,16 @@ class MainActivity : Activity() {
             allowFileAccess = false    // doc 07 §6 hardening: local page only
             allowContentAccess = false
         }
+        // The any-version floor (the 1.6.7-debug.2 round): Android 15+
+        // draws targetSdk 35+ windows edge-to-edge — this theme's bar
+        // colors are ignored there, and without this line the WebView
+        // would extend UNDER the status and navigation bars (the
+        // Svelte screen's top partially obscured on the newest phones —
+        // the exact inverse of the old-phone gaps this round closes).
+        // fitsSystemWindows keeps the content between the bars on 15/16
+        // and is unchanged behavior on 8–14; the keyboard's adjustResize
+        // rides the same classic path on every version.
+        webView.fitsSystemWindows = true
         // M8-p (ADR-0015): the page's copy/share escape hatch. The
         // interface is deliberately minimal — two fire-and-forget actions
         // with CALLER-provided text, nothing that reads data back out —
@@ -165,6 +175,7 @@ class MainActivity : Activity() {
     }
 
     private fun startVpnService() {
+        maybeRequestNotificationConsent()
         val intent = Intent(this, YounblockVpnService::class.java)
         // debug.2 hardening: Android 12+ can refuse a foreground start
         // whose caller is no longer eligible (the state listener fires
@@ -181,6 +192,31 @@ class MainActivity : Activity() {
                     Log.i(TAG, "engine stop (service start refused): ${eng.stop()}")
                 }
             }
+    }
+
+    /**
+     * The 13+ notification ask (the any-version round): Android 13 hides
+     * every notification — including the VPN service's honest Active/
+     * Connecting status — unless POST_NOTIFICATIONS is granted at runtime.
+     * The tunnel itself never depends on it (the service runs either way,
+     * 13+ shows it in the drawer's running-apps section), but a VPN whose
+     * status nobody can see reads as broken. Asked once per install, at
+     * the moment the user has just committed to connecting (after the VPN
+     * consent — the dialogs never stack); a denial costs only the
+     * notification, never the tunnel, so the result is deliberately not
+     * inspected. Below 13 the permission does not exist and the ask is
+     * skipped — the manifest declaration carries it there.
+     */
+    private fun maybeRequestNotificationConsent() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (notifAskedOnce(this)) return
+        markNotifAsked(this)
+        runCatching {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_POSTS,
+            )
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -351,11 +387,22 @@ class MainActivity : Activity() {
     companion object {
         private const val TAG = "Younblock"
         private const val REQUEST_PREPARE = 100
+        private const val REQUEST_POSTS = 101
         /** The Open YouTube card's target (UI v3 spec §6) — the same
          *  package the connect-time hand-off opens. */
         private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
         private const val PREFS = "m5_lifecycle"
         private const val KEY_EXPLAINED = "consent_explained"
+        private const val KEY_NOTIF_ASKED = "posts_notifications_asked"
+
+        private fun notifAskedOnce(context: Context): Boolean =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_NOTIF_ASKED, false)
+
+        private fun markNotifAsked(context: Context) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_NOTIF_ASKED, true).apply()
+        }
 
         /**
          * One consent request in flight, process-wide (survives rotation;

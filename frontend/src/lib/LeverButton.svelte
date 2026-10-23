@@ -36,13 +36,25 @@
 
   onMount(() => {
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(trackEl);
+    // The any-version floor (the 1.6.7-debug.2 round): ResizeObserver
+    // is Chrome 64+ — an Android 8.0 factory WebView (Chrome ~58, common
+    // where Play cannot update it) throws a ReferenceError right here and
+    // kills the main screen, the white-page failure class. The window
+    // resize listener below already covers the track's every real
+    // resize case (the layout is viewport-driven; rotation arrives as a
+    // window resize), so the observer is a belt-and-braces refinement
+    // old WebViews simply skip.
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(measure);
+      ro.observe(trackEl);
+      window.addEventListener("resize", measure);
+      return () => {
+        ro.disconnect();
+        window.removeEventListener("resize", measure);
+      };
+    }
     window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
+    return () => window.removeEventListener("resize", measure);
   });
 
   // ---- resting end: the cap waits at the BOTTOM while connecting and
