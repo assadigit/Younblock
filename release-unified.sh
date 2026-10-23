@@ -122,13 +122,12 @@ fi
 
 CHECKSUMS="$(mktemp)"
 BODY="$(mktemp)"
-trap 'rm -f "$CHECKSUMS" "$BODY"' EXIT
 {
   echo "## SHA-256 checksums"
   echo
   echo '```'
   for f in "${ASSETS[@]}"; do
-    sha256sum "$(basename "$f")" | sed "s/  /  /"
+    ( cd "$(dirname "$f")" && sha256sum "$(basename "$f")" )
   done
   echo '```'
 } >"$CHECKSUMS"
@@ -144,26 +143,59 @@ trap 'rm -f "$CHECKSUMS" "$BODY"' EXIT
 } >"$BODY"
 
 # ---------------------------------------------------------------------------
-# [5] Publish: push the tag, create the release, upload every asset.
+# [5] Publish: push the tag, create the release (or resume the one this
+#     tag already has — a timed-out run can be re-run safely), upload
+#     every asset (an already-uploaded asset with the right size is
+#     skipped; a wrong-size one is replaced). The verify step's
+#     byte-compare is the final word either way.
 # ---------------------------------------------------------------------------
 git push origin "refs/tags/$TAG"
 
-RELEASE_JSON="$(curl -s -X POST \
-  -H "$(auth_header)" \
-  -H "Accept: application/vnd.github+json" \
-  -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG — all versions, one release, one UI\",\"body\":$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' "$BODY"),\"draft\":false,\"prerelease\":false}" \
-  "https://api.github.com/repos/$REPO/releases")"
-RELEASE_ID="$(printf '%s' "$RELEASE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("id",""))')"
+RELEASE_JSON="$(curl -s -H "$(auth_header)" \
+  "https://api.github.com/repos/$REPO/releases/tags/$TAG")"
+RELEASE_ID="$(printf '%s' "$RELEASE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("id",""))' 2>/dev/null || true)"
 if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "None" ]; then
-  echo "release creation failed:" >&2
-  printf '%s\n' "$RELEASE_JSON" >&2
-  exit 1
+  RELEASE_JSON="$(curl -s -X POST \
+    -H "$(auth_header)" \
+    -H "Accept: application/vnd.github+json" \
+    -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG — all versions, one release, one UI\",\"body\":$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' "$BODY"),\"draft\":false,\"prerelease\":false}" \
+    "https://api.github.com/repos/$REPO/releases")"
+  RELEASE_ID="$(printf '%s' "$RELEASE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("id",""))')"
+  if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "None" ]; then
+    echo "release creation failed:" >&2
+    printf '%s\n' "$RELEASE_JSON" >&2
+    exit 1
+  fi
+  echo "release $TAG created (id $RELEASE_ID)"
+else
+  echo "resuming the existing release $TAG (id $RELEASE_ID)"
 fi
-echo "release $TAG created (id $RELEASE_ID)"
+
+asset_field() { # asset_field <json-file> <name> <field>
+  python3 -c 'import json,sys
+for a in json.load(open(sys.argv[1])):
+    if a["name"]==sys.argv[2]:
+        print(a[sys.argv[3]]); break' "$1" "$2" "$3"
+}
 
 UPLOAD_BASE="https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets"
+LISTING="$(mktemp)"
+trap 'rm -f "$CHECKSUMS" "$BODY" "$LISTING"' EXIT
+curl -s -H "$(auth_header)" \
+  "https://api.github.com/repos/$REPO/releases/$RELEASE_ID/assets" -o "$LISTING"
 for f in "${ASSETS[@]}"; do
   name="$(basename "$f")"
+  size="$(stat -c%s "$f")"
+  have_id="$(asset_field "$LISTING" "$name" "id")"
+  if [ -n "$have_id" ] && [ "$(asset_field "$LISTING" "$name" "size")" = "$size" ]; then
+    echo "  $name: already uploaded (same size) — skipping"
+    continue
+  fi
+  if [ -n "$have_id" ]; then
+    echo "  $name: replacing the stale upload..."
+    curl -s -X DELETE -H "$(auth_header)" \
+      "https://api.github.com/repos/$REPO/releases/assets/$have_id" >/dev/null || true
+  fi
   echo "  uploading $name ($(du -h "$f" | cut -f1))..."
   for attempt in 1 2 3; do
     UP="$(curl -s -X POST \

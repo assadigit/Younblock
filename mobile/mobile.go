@@ -70,9 +70,10 @@ type Engine struct {
         tun *tunState // the live TUN stack (nil when none); see tun.go
 
         // shellVersion (M8-p, ADR-0015) is the APK's identity string as
-        // Kotlin reports it from PackageManager ("1.6.6 (versionCode 8)"), so
+        // Kotlin reports it from PackageManager ("1.6.7 (versionCode 34)"), so
         // a pasted diagnostic report names the exact build it came from —
-        // versionName alone stays 1.6.6 across debug rounds. Guarded by mu.
+        // versionName rides the unified line (1.6.7 since the one-UI round;
+        // 1.6.6 across the earlier debug rounds). Guarded by mu.
         shellVersion string
 
         // deviceInfo / netInfo (M8-af, ADR-0043, spec W9): the phone's
@@ -161,7 +162,16 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // M8-ao (debug.32, versionCode 31): the logo-icon round
         // — the owner's younblock-logo-v1.png becomes the
         // launcher icon (ADR-0054, D108; playback untouched).
-        opts := engine.Options{Platform: plat, Version: "1.6.6-debug.34"}
+        // M8-ap (debug.33, versionCode 32): the refresh-half removal
+        // round (ADR-0055, D109).
+        // UI v3 (debug.34, versionCode 33): the main-screen rework
+        // (docs/ui-v3).
+        // The one-UI round (1.6.7-debug.1, versionCode 34): the classic
+        // editions retire, every edition ships the same v3 screen, and
+        // all versions ride one GitHub release from here on. The base
+        // moved 1.6.6 -> 1.6.7 with the unified line, so the debug
+        // counter restarts at .1; the versionCode keeps climbing.
+        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.1"}
         if mutate != nil {
                 mutate(&opts)
         }

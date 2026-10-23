@@ -20,7 +20,24 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 33: the UI v3 build (debug.34 -- the
+        // versionCode 34: the one-UI round (1.6.7-debug.1 -- the
+        // unified-release round). Every edition -- this APK, the
+        // Windows apps, the Linux window and web editions -- now
+        // ships the SAME UI v3 main screen: the classic editions
+        // and their variant switch are retired (one source tree,
+        // one screen, so a UI change lands on every version at
+        // once), and every version rides the SAME GitHub release
+        // from here on (release-unified.sh; D110/D111). The base
+        // version moves with the unified line (1.6.6 -> 1.6.7),
+        // so the debug counter restarts at .1 under the new base
+        // -- the versionCode keeps climbing monotonically (34 >
+        // 33), so this still installs over debug.34 in place (the
+        // same pinned debug certificate -- D85). The Go engine is
+        // untouched; the desktops additionally gain the real
+        // slow-mode/warming signals the WebView already had
+        // (ui_bridge's HealthSource). D103: the APK asset is
+        // named v1.6.7-debug1.apk.
+        // versionCode 33 was: the UI v3 build (debug.34 -- the
         // main-screen rework round, docs/ui-v3). The new main
         // screen per docs/ui-v3/UI-SPEC.md, its design tokens
         // IMPORTED (never copied) from docs/ui-v3/
@@ -136,8 +153,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 33
-        versionName = "1.6.6"
+        versionCode = 34
+        versionName = "1.6.7"
     }
 
     signingConfigs {
