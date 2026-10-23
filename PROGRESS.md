@@ -5353,3 +5353,48 @@ certificate), tap Connect on the Android 14+ phones that crashed —
 the crash signature is dead. The test matrix: a 14+ phone (the fix),
 a ≤ 13 phone (regression), a 15/16 phone (the bars), and ideally a
 never-updated 8/9 device (the WebView floor).
+
+## The initial UI/UX polish round (2026-10-23, 1.6.7-debug.3, versionCode 36 — the unified release v0.8.2)
+
+**The brief.** The owner wrapped the session: "Push commit release the
+latest version, then give me a next session prompt to work on the UI/UX
+of the app — I will send the instructions in the next session myself;
+you just do some initial polishing and refining." So this round is the
+groundwork: refinements in feel, not in design — the owner's directed
+UI round comes next.
+
+**What shipped (two refinements, both shell/UI layer):** (1) the
+Android BACK button now closes the open modal — the menu sheet, then
+the diagnostics over it — instead of leaving the app; MainActivity's
+onBackPressed probes window.YounblockUI.back() (the new
+frontend/src/lib/shellback.ts, wired in App.svelte on the modal
+states) and falls through to the default back whenever the page says
+no, so the behavior is only ever additive (browser-initiated script is
+not the page's eval — the CSP never applies to the probe; and a
+WebView that refused it would keep today's behavior; the manifest does
+not opt into OnBackInvokedCallback, so the classic override fires on
+8–16); (2) the Chromium half of the thin scrollbars — the sheet and
+the diagnostics styled them for Firefox only, and the app's main
+surface (the Android WebView) showed its fat default bar. The Go
+engine is untouched.
+
+**The artifact and the release loop.** One commit (2f02300) on main,
+built through the repo's own lane (the sandbox toolchain from the
+fix round: Go 1.27.3, SDK 36/build-tools 36.1.0/NDK 28.2, Temurin
+21.0.13, gradle 9.8.1/AGP 9.2.0). Verified before shipping: aapt
+badging versionCode 36, the D85 cert, the back probe present in
+classes3.dex, and the bundle's YounblockUI + the new version string
+inside libgojni.so. Shipped as the unified release
+[v0.8.2](https://github.com/assadigit/Younblock/releases/tag/v0.8.2)
+(id 422341932) — one incident handled honestly: the lane swept the
+leftover debug.2 APK out of dist/ into the release (it ships every
+file there); the stale asset was deleted and the release body's
+checksum table regenerated, and the final public re-download verified
+byte-identical:
+
+  v1.6.7-debug3.apk  37,274,433 B  (asset id 670517792, SHA-256 80c928a2…6eb46)
+
+The record for the field: install over debug.35 in place (same debug
+certificate); BACK with the sheet open closes the sheet (the desktops'
+Escape flow unchanged); the sheet and diagnostics scroll with slim
+dark bars on the phone.
