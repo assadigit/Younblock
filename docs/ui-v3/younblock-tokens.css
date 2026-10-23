@@ -1,114 +1,135 @@
 /* =====================================================================
-   Younblock UI v3 - design tokens
+   Younblock UI tokens — the refinement round (UI-SPEC (2).md, v7)
    ---------------------------------------------------------------------
-   CONFIGURATION: change values in this top block only.
+   Every value in this file is PORTED from younblock-ui-reference (1).html
+   (the source of truth for this round) — do not invent values here.
    Sizes are CSS px (= Android dp inside the WebView).
-   Reference screen: 360 x 800.
+   Reference screen: 360 x 780.
+
+   The tokens live on .yb-screen (the main element), so the legacy
+   :root tokens in frontend/src/tokens.css (the menu sheet's surfaces)
+   keep feeding the unchanged components untouched.
    ===================================================================== */
-:root {
+.yb-screen {
   /* ---- Colors: neutrals ---- */
-  --yb-base:       #26262E;   /* main background (bottom)            */
-  --yb-base-lift:  #3A3947;   /* background gradient top             */
-  --yb-text:       #F4F0EE;   /* primary text            13.3:1 on base */
-  --yb-text-dim:   #BDB7B5;   /* secondary text          5.7:1 on lift  */
+  --yb-base:       #26262E;   /* idle background bottom (body pre-paint) */
+  --yb-text:       #F4F0EE;   /* primary text                          */
+  --yb-text-dim:   #BDB7B5;   /* secondary text on flat surfaces       */
+  --yb-hint:       #d9d8e2;   /* hint text (10:1 on the idle bg)       */
 
-  /* ---- Colors: brand red (cap, logo, glow) ---- */
-  --yb-red:        #D8201E;   /* cap. White text on it: 5.07:1       */
-  --yb-cap-hi:     #E75655;   /* cap highlight edge                  */
-  --yb-cap-lo:     #8F1514;   /* cap shadow + track rim              */
-  --yb-red-text:   #FF4A4F;   /* red text / thin icons ONLY (4.5:1)  */
+  /* ---- Colors: brand red (the cap; the reds from the reference) ---- */
+  --red-1: #f0392c;
+  --red-2: #d7291e;
+  --red-3: #b81610;
+  --red-4: #8f0d09;
+  --yb-red: #d7291e;          /* single-value red for legacy uses      */
 
-  /* ---- Colors: caution (failed + slow ONLY, always with icon+words) ---- */
-  --yb-amber:      #FFB020;   /* 8.2:1 on base                       */
+  /* ---- The physical key cap (reference :root, copied exactly) ---- */
+  --track-w: 128px;
+  --track-h: 272px;
+  --pill-w: 112px;
+  --pill-h: 124px;
+  --pad: 8px;                 /* gap between cap and track edge        */
+  --pad-bottom: 18px;         /* extra bottom room = the cap's visible thickness */
+  --r-track: 34px;            /* concentric radii: cap = track - pad    */
+  --r-cap: 26px;
+  --travel: calc(var(--track-h) - var(--pill-h) - var(--pad) - var(--pad-bottom)); /* pill slide distance (122px) */
+  --edge: #8f130e;            /* side wall of the cap (its thickness)  */
+  --cap-top: inset 0 1px 0 rgba(255,255,255,.45), inset 0 0 0 1px rgba(255,255,255,.08), inset 0 -2px 3px rgba(80,0,0,.30);
+  --cap-rest: var(--cap-top), 0 9px 0 var(--edge), 0 10px 0 rgba(0,0,0,.38), 0 20px 22px rgba(0,0,0,.50);
+  --cap-press: var(--cap-top), 0 3px 0 var(--edge), 0 4px 0 rgba(0,0,0,.38), 0 8px 10px rgba(0,0,0,.45);
 
-  /* ---- Colors: LED + rings ---- */
-  --yb-led:        #FFF6F3;
-  --yb-ring-idle:  #966070;   /* decorative, not text                */
-  --yb-ring-live:  #FFF6F3;
+  /* ---- Touch + button zone ---- */
+  --yb-touch-padding: 16px;   /* invisible extra hit area              */
+  --yb-button-center-y: 67%;  /* vertical center of the button zone    */
 
-  /* ---- Button sizes ---- */
-  --yb-track-w:        112px;
-  --yb-track-h:        clamp(220px, 32vh, 260px);
-  --yb-cap-w:          96px;
-  --yb-cap-h:          124px;
-  --yb-track-padding:  8px;      /* gap between cap and track edge    */
-  --yb-ring-size:      min(290px, calc(100vw - 24px));
-  --yb-touch-padding:  16px;     /* invisible extra hit area          */
-  --yb-swipe-threshold: 0.6;     /* fraction of travel to complete    */
-  --yb-button-center-y: 67%;     /* vertical center of button zone    */
-
-  /* ---- Type sizes (keep the existing font family) ---- */
+  /* ---- Type sizes (the app's existing font family is kept) ---- */
   --yb-fs-headline: 32px;
-  --yb-fs-sub:      16px;
-  --yb-fs-timer:    28px;
-  --yb-fs-stats:    14px;
+  --yb-fs-sub:      15px;
+  --yb-fs-timer:    34px;
+  --yb-fs-stats:    15px;
   --yb-fs-hint:     14px;
-  --yb-fs-cap:      22px;
+  --yb-fs-cap:      18px;
+  --yb-fs-eyebrow:  15px;
 
   /* ---- Layout ---- */
   --yb-page-margin: 16px;
-  --yb-card-h:      64px;        /* Open YouTube card                 */
-  --yb-menu-btn:    48px;        /* "..." button, minimum touch size  */
+  --yb-card-h:      64px;     /* Open YouTube card                    */
+  --yb-menu-btn:    48px;     /* "..." button, minimum touch size     */
 
-  /* ---- Motion ---- */
-  --yb-t-color:   400ms;         /* color/glow transitions            */
-  --yb-t-cap:     280ms;         /* cap travel                        */
-  --yb-t-shake:   300ms;
-  --yb-breathe:   4s;            /* live ring breathing               */
-  --yb-led-pulse: 1.2s;          /* connecting LED pulse              */
-}
-
-/* =====================================================================
-   State tokens. Set data-state on the screen's root element:
-   data-state="disconnected | connecting | failed | connected"
-   Optional: data-health="slow" (only valid with connected)
-   ===================================================================== */
-[data-state="disconnected"] {
-  --state-led-opacity:  0.35;
-  --state-ring:         var(--yb-ring-idle);
-  --state-ring-opacity: 0.8;
-  --state-glow:         rgba(216, 32, 30, 0);
-  --state-sub:          var(--yb-text-dim);
-}
-[data-state="connecting"] {
-  --state-led-opacity:  1;               /* animate 0.3 to 1 */
-  --state-ring:         var(--yb-ring-live);
-  --state-ring-opacity: 0.5;             /* rotating sweep   */
-  --state-glow:         rgba(216, 32, 30, 0.12);
-  --state-sub:          var(--yb-text-dim);
-}
-[data-state="failed"] {
-  --state-led-opacity:  0.35;            /* two quick blinks, then dim */
-  --state-ring:         var(--yb-amber);
-  --state-ring-opacity: 0.5;
-  --state-glow:         rgba(216, 32, 30, 0);
-  --state-sub:          var(--yb-amber); /* always with a warning icon */
-}
-[data-state="connected"] {
-  --state-led-opacity:  1;
-  --state-ring:         var(--yb-ring-live);
-  --state-ring-opacity: 0.35;            /* breathing 0.10 to 0.35     */
-  --state-glow:         rgba(216, 32, 30, 0.28);
-  --state-sub:          var(--yb-text-dim);
-}
-[data-state="connected"][data-health="slow"] {
-  --state-sub:          var(--yb-amber); /* always with a caution icon */
+  /* ---- Motion (reference timings; most one-offs live in components) ---- */
+  --yb-t-color: 400ms;        /* LED color/shadow transitions         */
+  --yb-t-bg: 700ms;           /* state background cross-fade          */
+  --yb-t-cap: 550ms;          /* cap travel                           */
+  --yb-ease-cap: cubic-bezier(.2,.9,.3,1.15); /* the springy slide    */
 }
 
 /* =====================================================================
-   Shared background (same in every state)
+   State tokens — set data-state on the screen's root element:
+   data-state="idle | connecting | connected | failed"
+   Optional: data-health="slow" (only valid with connected).
+   Copied exactly from the reference .app[data-state=...] rules.
    ===================================================================== */
+.yb-screen[data-state="idle"] {
+  --c-aura: transparent;
+  --c-led: #6b6b78;
+  --c-led-glow: transparent;
+  --c-sub: #c9c8d4;
+  --pill-glow: rgba(255,40,30,.40);
+  --c-icon: #4a4a58;
+}
+.yb-screen[data-state="connecting"] {
+  --c-aura: rgba(255,90,70,.55);
+  --c-led: #ffffff;
+  --c-led-glow: rgba(255,255,255,.7);
+  --c-sub: #c9c8d4;
+  --pill-glow: rgba(255,40,30,.30);
+  --c-icon: #4a4a58;
+}
+.yb-screen[data-state="connected"] {
+  --c-aura: rgba(57,185,76,.55);
+  --c-led: #39b94c;
+  --c-led-glow: rgba(57,185,76,.85);
+  --c-sub: #f0f7f3;
+  --pill-glow: rgba(255,40,30,.22);
+  --c-icon: #2f5a47;
+}
+.yb-screen[data-state="failed"] {
+  --c-aura: rgba(255,167,38,.55);
+  --c-led: #ffa726;
+  --c-led-glow: rgba(255,167,38,.85);
+  --c-sub: #ffd9a0;
+  --pill-glow: rgba(255,40,30,.30);
+  --c-icon: #5a4230;
+}
+/* the slow variant of connected: the same readable amber as failed */
+.yb-screen[data-state="connected"][data-health="slow"] {
+  --c-sub: #ffd9a0;
+}
+
+/* The screen: text color + its own stacking context so the background
+   layers (negative z-index) paint behind the content, above the body. */
 .yb-screen {
-  background: linear-gradient(to bottom, var(--yb-base-lift) 0%, var(--yb-base) 35%, var(--yb-base) 100%);
   color: var(--yb-text);
-  transition: background-color var(--yb-t-color) ease;
+  isolation: isolate;
 }
 
-/* Reduced motion: no shake, no breathing, no sweep, no pulse */
+/* Short screens: lift the button zone so the hint + card always clear
+   the track (the reference screen is 360x780; phones down to ~640px
+   keep every element visible). */
+@media (max-height: 700px) {
+  .yb-screen {
+    --yb-button-center-y: 58%;
+  }
+}
+
+/* Reduced motion: the token-driven durations drop to zero (the global
+   rule in app.css stops every animation; components add their own
+   static fallbacks where the reference defines one). */
 @media (prefers-reduced-motion: reduce) {
-  :root {
+  .yb-screen {
     --yb-t-color: 0ms;
+    --yb-t-bg: 0ms;
     --yb-t-cap: 0ms;
-    --yb-t-shake: 0ms;
   }
 }

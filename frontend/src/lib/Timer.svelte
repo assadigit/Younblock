@@ -1,6 +1,8 @@
 <script lang="ts">
-  // Timer.svelte — the big connection timer (design.md: 40/700, and every
-  // digit sits in a fixed-width box so the numbers never jitter).
+  // Timer.svelte — the big connection timer (the refinement round: 34/700
+  // with 2px letter-spacing, the reference .timer values; the app's
+  // existing font is kept). Every digit sits in a fixed-width box so the
+  // numbers never jitter even where the face lacks tabular figures.
   export let value = "00:00:00";
 
   $: chars = [...value];
@@ -16,9 +18,11 @@
   .timer {
     display: flex;
     justify-content: center;
-    font-size: var(--fs-timer);
+    font-family: var(--font);
+    font-size: var(--yb-fs-timer);
     font-weight: var(--fw-bold);
-    color: var(--text-primary);
+    letter-spacing: 2px;
+    color: var(--yb-text);
     line-height: 1.15;
     /* tabular figures when the face has them; the fixed boxes below
        already guarantee steady spacing when it does not. */

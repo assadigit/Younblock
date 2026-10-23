@@ -1,9 +1,10 @@
-// haptics.ts — the v3 button's haptics (spec §4): tick when a swipe crosses
-// the threshold or springs back, confirm when connect/disconnect completes,
-// error on entering the failed state. The Android WebView implements
-// navigator.vibrate (the VIBRATE permission is declared for exactly this);
-// where it is missing — desktops, the Linux web edition, test harnesses —
-// every call is a silent no-op. No new bridge was added for it.
+// haptics.ts — the key cap's haptics (the refinement round, UI-SPEC (2) §3
+// items 8 and 12): 8 ms when the finger presses the cap down, 12 ms when a
+// connect or disconnect completes (engine-confirmed), 30/60/30 on entering
+// the failed state. The Android WebView implements navigator.vibrate (the
+// VIBRATE permission is declared for exactly this); where it is missing —
+// desktops, the Linux web edition, test harnesses — every call is a silent
+// no-op. No new bridge was added for it.
 
 type Pattern = number | number[];
 
@@ -22,14 +23,14 @@ function fire(pattern: Pattern): void {
   }
 }
 
-/** 10 ms — the swipe crossed the threshold, or the cap sprang back. */
-export function tick(): void {
-  fire(10);
+/** 8 ms — the finger pressed the key cap down (UI-SPEC §3 item 12). */
+export function press(): void {
+  fire(8);
 }
 
-/** 25 ms — a connect or disconnect completed (engine-confirmed). */
+/** 12 ms — a connect or disconnect completed (UI-SPEC §3 item 8). */
 export function confirm(): void {
-  fire(25);
+  fire(12);
 }
 
 /** 30/60/30 — entering the failed state. */

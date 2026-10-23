@@ -1,22 +1,23 @@
-<!-- App.svelte — the Younblock UI v3 main screen (docs/ui-v3/UI-SPEC.md).
-     The ONE screen every edition loads (the Android WebView, the Windows
-     apps, the Linux window and web editions — the variant switch is
-     retired): one flex column — header, status block
-     centered in the free space above the button, the fixed button zone at
-     --yb-button-center-y, hint, the reserved card slot, the safe insets.
-     State is carried by data-state/data-health on this root; every value
-     comes from docs/ui-v3/younblock-tokens.css (imported by pro.ts). -->
+<!-- App.svelte — the Younblock main screen (the refinement round,
+     UI-SPEC (2).md v7; every visual value ported from
+     younblock-ui-reference (1).html).
+     One flex column — header, status block centered in the free space
+     above the button, the key-cap lever at --yb-button-center-y, hint,
+     the reserved card slot, the safe insets. State is carried by
+     data-state/data-health on this root; the state backgrounds are
+     three stacked gradient layers cross-fading in 700 ms (never a hard
+     cut), with the halftone dot texture + 5% grain over them. No rings,
+     no circles anywhere. -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import DiagnosticsView from './lib/DiagnosticsView.svelte'
   import MenuSheet from './lib/MenuSheet.svelte'
-  import RingV3 from './lib/RingV3.svelte'
   import LeverButton from './lib/LeverButton.svelte'
   import OpenYouTubeCard from './lib/OpenYouTubeCard.svelte'
   import Timer from './lib/Timer.svelte'
   import { createBackend } from './lib/backend'
   import { formatBytes, formatDuration, formatDurationWords } from './lib/format'
-  import { AlertTriangle, ArrowDown, ArrowUp, Ellipsis } from './lib/icons'
+  import { AlertTriangle, ArrowDown, ArrowUp } from './lib/icons'
   import * as haptics from './lib/haptics'
   import { failedSubLine, V3_COPY, v3State, type V3State } from './lib/v3'
   import { pushBackHandler } from './lib/shellback'
@@ -41,8 +42,8 @@
   let snap: Snapshot = { phase: 'disconnected', connectedAtMs: null, downBps: 0, upBps: 0, pingMs: null, downBytes: -1, upBytes: -1, lastSession: null }
   let now = Date.now()
   let menuOpen = false
-  // the diagnostics dialog over the stage (unchanged from the v2 wiring;
-  // the menu sheet's contents are out of scope per spec §1)
+  // the diagnostics dialog over the stage (unchanged from the previous
+  // wiring; the menu sheet's contents are out of scope per spec §1)
   let diagOpen = false
   let menuButton: HTMLElement | undefined
   let appVersion = ''
@@ -98,7 +99,7 @@
     if (unregisterBack !== null) unregisterBack()
   })
 
-  // ---- the v3 state (spec §5/§8): engine events only, never UI timers
+  // ---- the state (engine events only, never UI timers)
   $: warming = snap.phase === 'connected' && snap.warming === true && autoOpenTarget
   $: state = v3State(snap, localError, warming)
   $: slow = state === 'connected' && snap.degraded === true
@@ -106,30 +107,34 @@
   // a new live status from Go replaces any older local error (unchanged)
   $: if (snap.phase === 'connecting' || snap.phase === 'connected') localError = ''
 
-  // ---- per-state copy (spec §5, exact)
+  // ---- per-state copy (the reference T table, exact)
   $: headline = V3_COPY[state].headline
   $: hint = V3_COPY[state].hint
   $: lastSessionLine =
-    state === 'disconnected' && snap.lastSession
+    state === 'idle' && snap.lastSession
       ? `Last session: ${formatDurationWords(snap.lastSession.endMs - snap.lastSession.startMs)}, ${formatBytes(snap.lastSession.downBytes + snap.lastSession.upBytes)}`
       : ''
-  // only a session that really ran (>1 minute) gets the line (spec §5)
+  // only a session that really ran (>1 minute) gets the line
   $: lastSessionShown =
     !!snap.lastSession && snap.lastSession.endMs - snap.lastSession.startMs > 60_000
   $: stateSub =
     state === 'connecting'
       ? warming
         ? WARMING_DETAIL
-        : 'Opening a route to YouTube...'
+        : V3_COPY.connecting.sub
       : state === 'failed'
         ? failedSubLine(snap.message)
         : state === 'connected'
           ? slow
             ? 'Slow connection, tuning...'
-            : 'YouTube unblocked.'
+            : V3_COPY.connected.sub
           : ''
-  $: subLine = localError !== '' ? localError : lastSessionShown ? lastSessionLine : stateSub
-  // amber is never alone: the icon always sits beside the words (spec §5)
+  // the sub-line: a local error wins; the last-session line only fills
+  // the idle state — connecting/connected/failed always speak their own
+  // line (the reference T table), never the session stats
+  $: subLine =
+    localError !== '' ? localError : state === 'idle' ? (lastSessionShown ? lastSessionLine : '') : stateSub
+  // the amber words are never alone: the icon always sits beside them
   $: subAmber = localError === '' && stateSub !== '' && (state === 'failed' || (state === 'connected' && slow))
 
   // ---- the connected state's live figures
@@ -137,13 +142,13 @@
   $: showStats = state === 'connected' && snap.downBytes >= 0 && snap.upBytes >= 0
   $: elapsed = snap.connectedAtMs ? Math.max(0, now - snap.connectedAtMs) : 0
 
-  // ---- haptics on the engine-confirmed transitions (spec §4): confirm
-  // when a connect or disconnect completes, error entering failed.
-  let prevState: V3State = 'disconnected'
+  // ---- haptics on the engine-confirmed transitions (UI-SPEC §3 item 8):
+  // 12 ms when a connect or disconnect completes, error entering failed.
+  let prevState: V3State = 'idle'
   $: if (prevState !== state) {
     if (state === 'failed') haptics.error()
     else if (state === 'connected' && prevState === 'connecting') haptics.confirm()
-    else if (state === 'disconnected' && prevState !== 'disconnected') haptics.confirm()
+    else if (state === 'idle' && prevState !== 'idle') haptics.confirm()
     prevState = state
   }
 
@@ -179,13 +184,12 @@
       showError('Could not stop. Try again.')
     }
   }
-  function onTrigger(e: CustomEvent<{ action: 'connect' | 'cancel' | 'retry' | 'disconnect' }>) {
+  function onTrigger(e: CustomEvent<{ action: 'connect' | 'retry' | 'disconnect' }>) {
     switch (e.detail.action) {
       case 'connect':
       case 'retry':
         void doConnect()
         break
-      case 'cancel':
       case 'disconnect':
         void doDisconnect()
         break
@@ -199,16 +203,21 @@
   data-health={slow ? 'slow' : null}
   data-hidden={hidden ? 'true' : null}
 >
+  <!-- the state backgrounds: stacked layers, cross-fade 700 ms (no hard cut) -->
+  <div class="bg idle" aria-hidden="true"></div>
+  <div class="bg connected" aria-hidden="true"></div>
+  <div class="bg failed" aria-hidden="true"></div>
+  <!-- the texture: fine halftone dots fading in toward the bottom + 5% grain -->
+  <div class="tex" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
   <header class="yb-header">
     <div class="brand">
       {#if LOGO_URL}
         <img src={LOGO_URL} alt="" />
       {:else}
-        <!-- the existing logo, recolored (spec §1: keep it, recolor it) -->
-        <svg class="logo" viewBox="0 0 28 20" aria-hidden="true" focusable="false">
-          <rect width="28" height="20" rx="6" />
-          <path d="M11 5.5l8 4.5-8 4.5z" />
-        </svg>
+        <!-- the logo mark: red gradient tile with the white play triangle -->
+        <span class="mark" aria-hidden="true"></span>
       {/if}
       <span>{APP_NAME}</span>
     </div>
@@ -219,22 +228,15 @@
       aria-label="Open menu"
       on:click={() => (menuOpen = true)}
     >
-      <Ellipsis class="menu-icon" />
+      <span class="dots" aria-hidden="true">•••</span>
     </button>
   </header>
 
   <!-- the status block, centered in the free space above the button -->
   <section class="status-area">
     <div class="status">
-      {#if state !== 'connected'}
-        <!-- the ghost play mark (existing style, very low opacity) -->
-        <svg class="ghost" viewBox="0 0 120 84" aria-hidden="true" focusable="false">
-          <path
-            fill-rule="evenodd"
-            d="M26 2h68a24 24 0 0 1 24 24v32a24 24 0 0 1-24 24H26A24 24 0 0 1 2 58V26A24 24 0 0 1 26 2zM48 24v36l32-18z"
-          />
-        </svg>
-      {/if}
+      <!-- the ghost play mark (fades away while connected) -->
+      <div class="ghost" aria-hidden="true"></div>
       <div class="label">{STATUS_LABEL}</div>
       <div class="live" aria-live="polite">
         <h1 class="headline">{headline}</h1>
@@ -272,9 +274,8 @@
     {/if}
   </div>
 
-  <!-- the fixed button zone: ring + track + cap, identical in every state -->
+  <!-- the fixed button zone: the key-cap lever, identical in every state -->
   <div class="yb-button-zone" aria-hidden="false">
-    <RingV3 {state} />
     <LeverButton {state} on:trigger={onTrigger} />
   </div>
 
@@ -305,11 +306,16 @@
 </main>
 
 <style>
-  /* the screen: the tokens' .yb-screen paints the constant background;
-     this adds the v3 column (spec §3). The safe insets are items 1 and 7. */
+  /* the screen: the state backgrounds are the stacked .bg layers (the
+     tokens file scopes every value); the body pre-paints --yb-base so
+     there is never a flash of the wrong color on app start. The safe
+     insets ride the column paddings. */
   .yb-screen {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -319,7 +325,63 @@
     --yb-header-h: calc(var(--yb-safe-top) + 12px + var(--yb-menu-btn));
   }
 
-  /* ---- 2. the header row, anchored to the top, 12px below the safe area */
+  /* ---- the state backgrounds: stacked layers, cross-fade 700 ms ---- */
+  .bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -3;
+    opacity: 0;
+    transition: opacity var(--yb-t-bg) ease;
+  }
+  .bg.idle {
+    background: linear-gradient(180deg, #3b3a4a 0%, #2d2d37 35%, #26262e 70%, #26262e 100%);
+  }
+  .bg.connected {
+    background: linear-gradient(180deg, #54756a 0%, #46665b 38%, #2d443c 78%, #253a33 100%);
+  }
+  .bg.failed {
+    background: linear-gradient(180deg, #7b5a3f 0%, #664a33 38%, #3a2b20 78%, #2e2219 100%);
+  }
+  .yb-screen[data-state='idle'] .bg.idle,
+  .yb-screen[data-state='connecting'] .bg.idle,
+  .yb-screen[data-state='connected'] .bg.connected,
+  .yb-screen[data-state='failed'] .bg.failed {
+    opacity: 1;
+  }
+
+  /* ---- the texture: fine halftone dots fading in toward the bottom ---- */
+  .tex {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -2;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1.5px);
+    background-size: 7px 7px;
+    -webkit-mask-image: linear-gradient(180deg, transparent 35%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 35%, #000 100%);
+  }
+
+  /* ---- and the 5% grain overlay ---- */
+  .grain {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  }
+
+  /* ---- the header row, anchored to the top, 12px below the safe area ---- */
   .yb-header {
     flex: none;
     margin: 12px var(--yb-page-margin) 0;
@@ -327,33 +389,46 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    position: relative;
+    z-index: 1;
     --wails-draggable: drag; /* frameless Wails windows drag by this bar */
   }
   .brand {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-family: var(--font);
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 600;
-    letter-spacing: 0.01em;
     color: var(--yb-text);
   }
-  .brand .logo {
-    width: 28px;
-    height: 20px;
-    fill: var(--yb-red);
+  /* the logo mark: red gradient tile with the white play triangle */
+  .brand .mark {
+    width: 34px;
+    height: 24px;
+    flex: none;
+    background: linear-gradient(180deg, #f0392c, #c3180f);
+    border-radius: 7px;
+    position: relative;
+    box-shadow:
+      0 0 14px rgba(255, 40, 30, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
   }
-  .brand .logo path {
-    fill: #fff;
+  .brand .mark:after {
+    content: '';
+    position: absolute;
+    left: 13px;
+    top: 7px;
+    border-left: 9px solid #fff;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
   }
   .brand img {
     height: 24px;
     width: auto;
   }
-  /* the "..." button: 48x48 minimum with a visible outline (spec §3.2).
-     1.5px --yb-text at 45%: 3.38:1 non-text contrast on the background
-     (checked in docs/ui-v3/REPORT.md; raise the mix if it ever drops). */
+  /* the "..." button: a FILLED glass circle with a top highlight (not an
+     outlined ring) — --yb-menu-btn keeps the 48px minimum touch size */
   .menu {
     --wails-draggable: no-drag;
     flex: none;
@@ -363,27 +438,26 @@
     place-items: center;
     padding: 0;
     border-radius: 50%;
-    border: 1.5px solid color-mix(in srgb, var(--yb-text) 45%, transparent);
-    background: transparent;
+    border: 0;
+    color: #fff;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    transition: background var(--yb-t-color) ease;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 6px 14px rgba(0, 0, 0, 0.35);
   }
-  .menu:hover {
-    background: color-mix(in srgb, var(--yb-text) 8%, transparent);
+  .menu .dots {
+    font-family: var(--font);
+    font-size: 20px;
+    line-height: 1;
+    letter-spacing: 1px;
   }
   .menu:active {
     transform: scale(0.94);
   }
-  .menu :global(.menu-icon) {
-    width: 22px;
-    height: 22px;
-    color: var(--yb-text);
-    stroke-width: 2.4;
-  }
 
-  /* ---- 3. the status block, centered in the free space above the button:
-     the area ends exactly where the button zone begins. */
+  /* ---- the status block, centered in the free space above the button ---- */
   .status-area {
     flex: none;
     min-height: 0;
@@ -392,7 +466,7 @@
     align-items: center;
     justify-content: center;
     height: calc(
-      var(--yb-button-center-y) - var(--yb-ring-size) / 2 - var(--yb-header-h) - 12px
+      var(--yb-button-center-y) - (var(--track-h) + 2 * var(--yb-touch-padding)) / 2 - var(--yb-header-h) - 12px
     );
   }
   .status {
@@ -401,21 +475,47 @@
     align-items: center;
     text-align: center;
     padding: 0 var(--yb-page-margin);
+    position: relative;
+    z-index: 1;
   }
+  /* the ghost play mark: a low glass tile that fades away while connected */
   .ghost {
-    width: 120px;
-    height: auto;
-    margin-bottom: 10px;
-    fill: var(--yb-text);
-    opacity: 0.05;
-    transition: opacity var(--yb-t-color) ease;
+    width: 92px;
+    height: 66px;
+    flex: none;
+    margin: 0 auto 12px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    transition: opacity 0.4s, height 0.4s, margin 0.4s;
   }
+  .ghost:after {
+    content: '';
+    position: absolute;
+    left: 37px;
+    top: 19px;
+    border-left: 24px solid rgba(255, 255, 255, 0.12);
+    border-top: 14px solid transparent;
+    border-bottom: 14px solid transparent;
+  }
+  .yb-screen[data-state='failed'] .ghost:after {
+    border-left-color: rgba(255, 190, 90, 0.3);
+  }
+  .yb-screen[data-state='connected'] .ghost {
+    opacity: 0;
+    height: 0;
+    margin: 0;
+  }
+  /* the small line above the headline */
   .label {
     font-family: var(--font);
-    font-size: var(--yb-fs-stats);
+    font-size: var(--yb-fs-eyebrow);
     font-weight: 500;
-    letter-spacing: 0.05em;
-    color: var(--yb-text-dim);
+    letter-spacing: 0.3px;
+    color: var(--c-sub);
+    opacity: 0.85;
+    transition: color var(--yb-t-color) ease;
   }
   .live {
     display: flex;
@@ -423,16 +523,18 @@
     align-items: center;
   }
   .headline {
-    margin-top: 6px;
+    margin-top: 4px;
     font-family: var(--font);
     font-size: var(--yb-fs-headline);
     font-weight: 700;
-    line-height: 1.25;
+    line-height: 1.1;
+    white-space: nowrap;
     color: var(--yb-text);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
   }
   .sub {
     margin-top: 8px;
-    min-height: 22px;
+    min-height: 23px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -440,11 +542,8 @@
     font-family: var(--font);
     font-size: var(--yb-fs-sub);
     font-weight: 500;
-    color: var(--state-sub); /* per-state: dim, or amber with the icon */
+    color: var(--c-sub); /* per-state: dim, light green, or readable amber */
     transition: color var(--yb-t-color) ease;
-  }
-  .sub.amber {
-    color: var(--yb-amber);
   }
   .sub :global(.sub-icon) {
     width: 18px;
@@ -457,25 +556,22 @@
     stroke-linejoin: round;
   }
 
-  /* the connected state's timer + stats (spec §5) */
+  /* the connected state's timer + stats (the Timer component carries the
+     reference values itself: 34/700, 2px letter-spacing, tabular boxes) */
   .yb-timer {
-    margin-top: 10px;
-  }
-  .yb-timer :global(.timer) {
-    font-size: var(--yb-fs-timer); /* smaller than the headline (28 < 32) */
-    font-weight: 700;
-    color: var(--yb-text);
+    margin-top: 14px;
   }
   .stats {
-    margin-top: 10px;
+    margin-top: 8px;
     display: flex;
     justify-content: center;
-    gap: 24px;
+    gap: 18px;
     font-family: var(--font);
     font-size: var(--yb-fs-stats);
     font-weight: 500;
-    color: var(--yb-text-dim);
+    color: var(--c-sub);
     font-variant-numeric: tabular-nums;
+    transition: color var(--yb-t-color) ease;
   }
   .stats span {
     display: inline-flex;
@@ -489,7 +585,7 @@
     stroke-width: 2;
   }
 
-  /* ---- 5/6. the hint and the reserved card slot, pushed to the bottom */
+  /* ---- the hint and the reserved card slot, pushed to the bottom ---- */
   .below-spacer {
     flex: 1 1 0;
     min-height: 12px;
@@ -502,33 +598,36 @@
     font-size: var(--yb-fs-hint);
     font-weight: 500;
     letter-spacing: 0.01em;
-    color: var(--yb-text-dim);
+    color: var(--yb-hint); /* raised to #d9d8e2 (10:1 on the idle bg) */
+    opacity: 0.9;
+    position: relative;
+    z-index: 1;
   }
   .card-slot {
     flex: none;
-    position: relative; /* above the ring where they meet on short screens */
+    position: relative; /* above the lever where they meet on short screens */
     z-index: 1;
     display: flex;
     margin: 12px var(--yb-page-margin) var(--yb-page-margin);
     height: var(--yb-card-h); /* always reserved; blank when not connected */
   }
 
-  /* ---- 4. the fixed button zone: identical in every state (spec §3.4) */
+  /* ---- the fixed button zone: the key-cap lever, identical in every state ---- */
   .yb-button-zone {
     position: absolute;
     left: 50%;
     top: var(--yb-button-center-y);
-    width: var(--yb-ring-size);
-    height: var(--yb-ring-size);
+    width: calc(var(--track-w) + 2 * var(--yb-touch-padding));
+    height: calc(var(--track-h) + 2 * var(--yb-touch-padding));
     transform: translate(-50%, -50%);
     z-index: 0;
   }
 
-  /* short phones (spec §3): the track already shrank via clamp(); shrink
-     the status spacing first, never the button */
+  /* short phones: shrink the status spacing first, never the button */
   @media (max-height: 700px) {
     .ghost {
-      width: 96px;
+      width: 92px;
+      height: 66px;
       margin-bottom: 6px;
     }
     .headline {
@@ -552,8 +651,8 @@
     }
   }
 
-  /* performance (spec §9): page hidden or screen off — every animation
-     pauses (position and words still carry the state) */
+  /* performance: page hidden or screen off — every animation pauses
+     (position and words still carry the state) */
   .yb-screen[data-hidden='true'] :global(*),
   .yb-screen[data-hidden='true'] {
     animation-play-state: paused !important;

@@ -8,10 +8,6 @@
 // root font (app.css), so every icon is sized in rem through CSS instead —
 // the components render plain <svg> elements the sheet's styles can reach.
 export {
-  Power,
-  Ellipsis,
-  ChevronsUp,
-  ChevronsDown,
   ArrowDown,
   ArrowUp,
   X,
@@ -22,9 +18,7 @@ export {
   Share2,
   RefreshCw,
   Check,
-  // UI v3 (docs/ui-v3): the Open YouTube card's launch glyph (right side,
-  // external-link only — no chevron) and the amber lines' warning icons
-  // (never amber alone; the icon always sits beside the words).
-  ExternalLink,
+  // the amber lines' warning icons (never amber alone; the icon always
+  // sits beside the words).
   AlertTriangle,
 } from "lucide-svelte";
