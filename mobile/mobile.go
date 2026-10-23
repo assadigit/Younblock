@@ -184,7 +184,13 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // the thin scrollbars (the Android WebView — this UI's main
         // surface — previously showed Firefox-only styling). Shell +
         // frontend only; the engine below is untouched.
-        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.3"}
+        // The refinement round + platform alignment (1.6.7-debug.4,
+        // versionCode 37): the owner's directed UI round (UI-SPEC (2).md
+        // v7) — the key-cap lever, the state backgrounds, the circles
+        // removed — plus the shells' alignment around it (the 360x780
+        // reference design size, the idle pre-paint colors). Frontend +
+        // shell resources only; the engine below is untouched.
+        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.4"}
         if mutate != nil {
                 mutate(&opts)
         }

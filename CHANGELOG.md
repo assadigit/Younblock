@@ -12,7 +12,7 @@ every release are on the
 
 ## [Unreleased]
 
-### Changed (2026-10-24 — the refinement round's platform alignment; the v7 screen on every version — UI-SPEC (2).md)
+### Changed (2026-10-24 — the refinement round's platform alignment + the one release restored; v0.8.3, 1.6.7-debug.4, versionCode 37 — UI-SPEC (2).md v7)
 
 - **The refinement round's screen is now the one screen on every
   version — Windows, Linux and Android alike.** The lever is a physical
@@ -40,6 +40,15 @@ every release are on the
   window mid-tone is `#2d2d37` with the status and navigation bars
   carrying the gradient's own top (`#3b3a4a`) and base (`#26262e`), so
   the idle screen reads edge-to-edge as one surface.
+- **All versions consolidated in one release again — v0.8.3.** The
+  v0.8.1 and v0.8.2 rounds had regressed to APK-only releases, which
+  broke the one-release-carry-all ruling (D110/D111) the moment the
+  desktop downloads fell behind the phone's screen. v0.8.3 restores
+  the full set — APK, Windows apps (64/32), headless engines, Linux
+  web editions, the native Linux window edition, the .deb installers,
+  the AppImages, and the offline pack — every artifact built from this
+  one tree (1.6.7-debug.4, versionCode 37), each re-downloaded and
+  byte-compared after upload.
 
 ### Changed (2026-10-23 — the one-UI round, 1.6.7-debug.1, versionCode 34; every version, one release, one UI — D110/D111)
 

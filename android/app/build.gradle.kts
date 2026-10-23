@@ -20,7 +20,24 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 36: the initial UI/UX polish round
+        // versionCode 37: the refinement round — the owner's directed
+        // UI round (UI-SPEC (2).md v7, younblock-ui-reference (1).html)
+        // plus the platform alignment. The lever is a physical key cap
+        // (satin red top face over a 9px #8f130e side wall, resting above
+        // the track floor; press sinks it 6px), pulled UP to connect and
+        // DOWN to disconnect with the 45% release-commit, tap and
+        // finger-following drag; the four states carry whole-screen
+        // gradient backgrounds (slate / slate pulse / sage-teal / warm
+        // amber) cross-fading in 700ms behind the halftone texture +
+        // 5% grain; the v3 dial's rings and circles are gone outright.
+        // The shell pre-paints the new idle colors (window #2d2d37, bars
+        // #3b3a4a / #26262e) so the screen reads edge-to-edge with no
+        // wrong-color flash. The Go engine is untouched — no proxy,
+        // dialer, pool, tier or setting change rides in this build.
+        // Installs over debug.36 in place (the same pinned debug
+        // certificate -- D85). The D84 rule: every debug build bumps
+        // this. D103: the APK asset is named v1.6.7-debug4.apk.
+        // versionCode 36 was: the initial UI/UX polish round
         // (1.6.7-debug.3 — the groundwork before the owner's directed
         // UI round). Two refinements, both shell/UI layer: (1) the
         // Android back button now closes the open modal (the menu
@@ -221,7 +238,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 36
+        versionCode = 37
         versionName = "1.6.7"
     }
 
