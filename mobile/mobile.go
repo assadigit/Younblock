@@ -171,7 +171,11 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // all versions ride one GitHub release from here on. The base
         // moved 1.6.6 -> 1.6.7 with the unified line, so the debug
         // counter restarts at .1; the versionCode keeps climbing.
-        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.1"}
+        // The Android 14 fix round (1.6.7-debug.2, versionCode 35):
+        // the connect-crash fix (specialUse FGS type on API 34+,
+        // hardening, and the any-version sweep — Android 8 through 16)
+        // rides the shell + frontend only; the engine below is untouched.
+        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.2"}
         if mutate != nil {
                 mutate(&opts)
         }
