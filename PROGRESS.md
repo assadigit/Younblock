@@ -5197,3 +5197,102 @@ verified through /releases/latest), asset v1.6.6-debug34.apk (asset id
 667386224, the D103 name) re-downloaded byte-identical (cmp +
 SHA-256). The record for the field: install over debug.33, and the
 one device-only item is the badge race above.
+
+## The one-UI round (2026-10-23, 1.6.7-debug.1, versionCode 34 — the unified release v0.8.0)
+
+**The brief.** The owner's ruling, two sentences: "From now on,
+release all versions in same release, update the UI of all versions,
+they must be consistent, so when we change UI all versions change the
+same. Currently apk ui differs with other versions." Two decisions
+carry it (D110/D111): the classic editions retire (one screen
+everywhere), and every version rides one GitHub release from here on.
+
+**The diagnosis first.** The APK and the desktop editions already
+share one screen source (frontend/src/App.svelte, one webui bundle);
+the divergence the owner saw was release-shaped, not code-shaped —
+the desktop downloads stood at the v0.7.6 release (the UI v2 screen)
+while the APK line ran 34 debug rounds to UI v3. And the classic
+editions were a standing second UI tree no rework ever touched —
+exactly the "one version changes, the others don't" shape the ruling
+ends. The record: docs/ui-v3/REPORT.md (the one-UI round section).
+
+**The work.** One screen (D110): the variant dispatcher and the
+classic component tree retire (git history keeps them); main.ts boots
+the one v3 screen for every edition; ?ui=classic is inert (verified:
+same screen, same state, either way); the classic tree's one shared
+file — lib/clipboard.ts, the honest clipboard ladder — moved into the
+shared lib and stays. Desktop parity: the Wails bridge gains an
+optional HealthSource (ui_bridge.go) that folds the engine's real
+degraded (slow mode) and warm-gate states into desktop snapshots —
+engine_adapter.go observing State.Phase/State.Warm, pure observation,
+the engine untouched — so every edition's screen reads the same
+signals (until now only the HTTP/SSE host folded them, so the
+desktops could never show slow mode). One release (D111): the new
+release-unified.sh lane — builds every version (build.sh +
+build-android.sh + the offline pack, best-effort), pushes the tag,
+creates ONE release, uploads every artifact, re-downloads and
+byte-compares each one; rerun-safe (a timed-out run resumes the
+existing release — same-size assets skip, stale ones replace), and
+SKIP_BUILDS=1 publishes already-built artifacts only when HEAD is
+exactly the tag. build.sh/build.bat retire the classic lanes.
+
+**The version line.** AppVersion 1.6.6 → 1.6.7 (wails.json rides
+along), versionCode 33 → 34, versionName 1.6.7, mobile string
+1.6.7-debug.1. The base moved with the unified line, so the debug
+counter restarts at .1; the versionCode keeps climbing (34 > 33), so
+the APK installs over debug.34 in place (the pinned D85 certificate,
+re-verified on the built APK: c76bb7c6…8551d).
+
+**The round's verification.** svelte-check 0/0; vite build clean with
+the bundle carrying the v3 tokens verbatim (yb-cap-hi:#e75655 in the
+CSS) and zero classic references (one JS entry); go build ./... and
+the full go test ./... green — 21 packages ok, including the root
+package (the bridge changes), the engine suite (18.7 s), internal/
+webui and mobile (46 s) against the new bundle; gofmt at exactly the
+115-file pre-existing baseline (stash-diff-proven; the three touched
+Go files formatted); Playwright smoke of the one boot path — all four
+states at 360x640, 360x800, 412x915, ?ui=classic inert — with fresh
+screenshots in docs/ui-v3/screenshots/. The binaries verified before
+upload: younblock.exe and younblock-linux-amd64 carry the v3 tokens
+and no classic strings, version 1.6.7; aapt2 badging on the APK:
+versionCode 34 / versionName 1.6.7 / minSdk 26 / targetSdk 36,
+VIBRATE present, KILL_BACKGROUND_PROCESSES absent, libgojni.so
+carrying 1.6.7-debug.1 and the v3 tokens; apksigner the D85 cert.
+
+**The artifact and the release loop.** Shipped as two commits —
+"The one-UI round: every version ships the same screen (D110/D111)"
+(24f2574) and "The one-UI release round: the unified line" (b459fa9,
+carrying the version bumps and the lane's hardening) — tagged v0.8.0,
+built from that exact tree (Go 1.27.3, SDK 36, NDK 28.2, Temurin
+21.0.13, wails v2.16.0 cross-building the Windows apps from Linux,
+the jammy webkit stack for the native Linux window editions, the
+flatpak honestly skipped — no flatpak tools in this sandbox). The
+unified release — GitHub release v0.8.0 (id 421332606, the repo's
+Latest, verified through /releases/latest), 14 assets, every one
+re-downloaded and byte-identical (cmp + SHA-256):
+
+  v1.6.7-debug1.apk             37,187,069 B  (asset id 667509785)
+  younblock.exe                 13,683,200 B  (asset id 667510487)
+  younblock-x86.exe             13,060,096 B  (asset id 667510377)
+  younblock-core.exe            11,604,992 B  (asset id 667509967)
+  younblock-core-x86.exe        11,144,192 B  (asset id 667509923)
+  younblock-linux-amd64          8,945,824 B  (asset id 667510131)
+  younblock-linux-386            8,642,720 B  (asset id 667510025)
+  younblock-linux-gui-amd64     12,384,288 B  (asset id 667510240)
+  younblock_1.6.7_amd64.deb      4,223,576 B  (asset id 667510583)
+  younblock_1.6.7_i386.deb       3,136,512 B  (asset id 667510630)
+  Younblock-1.6.7-x86_64.AppImage 74,540,224 B (asset id 667509087)
+  Younblock-1.6.7-i686.AppImage   4,177,968 B  (asset id 667509039)
+  Younblock-offline_1.6.7.zip   196,452,411 B  (asset id 667509247)
+  younblock-setup_1.6.7.zip          7,864 B  (asset id 667510330)
+
+(younblock-linux-gui-amd64 — the raw native-window binary, the same
+file inside the deb and AppImage — ships as a convenience the v0.7.x
+releases never carried; noted here so the asset list reads honestly.)
+The SHA-256 table rides in the release body itself. The record for
+the field: the APK installs over debug.34 in place; the desktop
+downloads jump v0.7.6 → v0.8.0 with the same screen the phone shows;
+the one device-only item remains the badge race from the UI v3 round
+(docs/ui-v3/REPORT.md). The one-UI round's promise is now structural:
+one tree, one screen, one release — when the UI changes, every
+version changes the same.

@@ -253,7 +253,7 @@ echo "tag: $TAG   release id: $RELEASE_ID   url: https://github.com/$REPO/releas
 curl -s -H "$(auth_header)" "https://api.github.com/repos/$REPO/releases/$RELEASE_ID/assets" |
   python3 -c 'import json,sys
 for a in json.load(sys.stdin):
-    print(f"asset: {a[\"name\"]}  {a[\"size\"]} B  id {a[\"id\"]}")'
+    print("asset: %s  %d B  id %d" % (a["name"], a["size"], a["id"]))'
 cat "$CHECKSUMS"
 
 if [ "$FAILED" != 0 ]; then
