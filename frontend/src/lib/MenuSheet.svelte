@@ -761,6 +761,20 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   }
+  /* the polish round: the Chromium half of the thin scrollbar (the
+     Android WebView — this UI's main surface — and the Chromium desktops;
+     Firefox reads the two properties above; the old-WebView floor shows
+     its default bar and stays honest). A slim dark thumb, no track. */
+  .content::-webkit-scrollbar {
+    width: 6px;
+  }
+  .content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+  }
+  .content::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
   section {
     padding: 1.1rem 0.25rem 1.25rem;

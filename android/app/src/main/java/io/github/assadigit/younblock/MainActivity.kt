@@ -256,6 +256,34 @@ class MainActivity : Activity() {
             .show()
     }
 
+    /**
+     * The back button's page half (the 1.6.7-debug.3 polish round): the
+     * screen's modal surfaces — the menu sheet, the diagnostics view —
+     * close on BACK before the system default (leaving the app) runs.
+     * The shell probes the page's YounblockUI (lib/shellback.ts) with
+     * evaluateJavascript; "true" means the page closed a modal and the
+     * press is consumed. Every other result — no modal open, the page
+     * still loading, a WebView that refused the probe — falls through
+     * to the default back exactly as before this round: the behavior
+     * is only ever additive, never broken. (Browser-initiated script is
+     * not the page's own eval, so the page's CSP script-src 'self'
+     * does not apply to the probe.)
+     *
+     * The manifest does not opt into OnBackInvokedCallback, so this
+     * classic override fires on every version 8–16.
+     */
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        webView.evaluateJavascript(BACK_PROBE) { consumed ->
+            if (consumed != "true") defaultBack()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun defaultBack() {
+        super.onBackPressed()
+    }
+
     override fun onDestroy() {
         // The page goes down with the activity; the engine instance stays
         // for the process lifetime (the service keeps it if running).
@@ -388,6 +416,10 @@ class MainActivity : Activity() {
         private const val TAG = "Younblock"
         private const val REQUEST_PREPARE = 100
         private const val REQUEST_POSTS = 101
+        /** The back probe: returns true only when the page closed a
+         *  modal (window.YounblockUI is exposed the moment the bundle
+         *  boots — see frontend/src/lib/shellback.ts). */
+        private const val BACK_PROBE = "window.YounblockUI&&window.YounblockUI.back()"
         /** The Open YouTube card's target (UI v3 spec §6) — the same
          *  package the connect-time hand-off opens. */
         private const val YOUTUBE_PACKAGE = "com.google.android.youtube"

@@ -20,7 +20,27 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
-        // versionCode 35: the Android 14 connect-crash fix round
+        // versionCode 36: the initial UI/UX polish round
+        // (1.6.7-debug.3 — the groundwork before the owner's directed
+        // UI round). Two refinements, both shell/UI layer: (1) the
+        // Android back button now closes the open modal (the menu
+        // sheet, the diagnostics view) instead of leaving the app —
+        // MainActivity.onBackPressed probes the page's
+        // window.YounblockUI.back() (frontend/src/lib/shellback.ts,
+        // wired in App.svelte) and only falls through to the default
+        // back when the page says no modal was open; the manifest does
+        // not opt into OnBackInvokedCallback, so the classic override
+        // fires on every version 8-16, and the fail-safe means a
+        // WebView that refused the probe keeps today's behavior; (2)
+        // the Chromium half of the thin scrollbars (::-webkit-scrollbar
+        // rules beside the existing Firefox properties) — the Android
+        // WebView, this UI's main surface, previously showed its fat
+        // default bar in the menu sheet and the diagnostics view. The
+        // Go engine is untouched — no proxy, dialer, pool, tier or
+        // setting change rides in this build. Installs over debug.35
+        // in place (the same pinned debug certificate -- D85). D103:
+        // the APK asset is named v1.6.7-debug3.apk.
+        // versionCode 35 was: the Android 14 connect-crash fix round
         // (1.6.7-debug.2 -- the FGS type policy fix). The v0.8.0
         // field report: the APK installed everywhere but crashed on
         // the connect tap of every Android 14+ phone (Xiaomi,
@@ -201,7 +221,7 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 35
+        versionCode = 36
         versionName = "1.6.7"
     }
 

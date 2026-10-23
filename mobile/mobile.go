@@ -175,7 +175,16 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // the connect-crash fix (specialUse FGS type on API 34+,
         // hardening, and the any-version sweep — Android 8 through 16)
         // rides the shell + frontend only; the engine below is untouched.
-        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.2"}
+        // The initial UI/UX polish round (1.6.7-debug.3, versionCode 36):
+        // the Android back button now closes the open modal (the menu
+        // sheet, the diagnostics view) instead of leaving the app — the
+        // shell probes window.YounblockUI.back() (lib/shellback.ts) and
+        // falls back to the default back whenever the page says no, so
+        // the behavior is only ever additive; plus the Chromium half of
+        // the thin scrollbars (the Android WebView — this UI's main
+        // surface — previously showed Firefox-only styling). Shell +
+        // frontend only; the engine below is untouched.
+        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.3"}
         if mutate != nil {
                 mutate(&opts)
         }

@@ -486,6 +486,20 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   }
+  /* the polish round: the Chromium half of the thin scrollbar (the
+     Android WebView — this UI's main surface — and the Chromium desktops;
+     Firefox reads the two properties above; the old-WebView floor shows
+     its default bar and stays honest). */
+  .content::-webkit-scrollbar {
+    width: 6px;
+  }
+  .content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+  }
+  .content::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
   .intro {
     margin: 0;
@@ -596,6 +610,16 @@
     resize: vertical;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+  .report::-webkit-scrollbar {
+    width: 6px;
+  }
+  .report::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+  }
+  .report::-webkit-scrollbar-track {
+    background: transparent;
   }
   .report:focus-visible {
     outline: 0.125rem solid #fff;
@@ -749,5 +773,15 @@
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+  .report::-webkit-scrollbar {
+    width: 6px;
+  }
+  .report::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+  }
+  .report::-webkit-scrollbar-track {
+    background: transparent;
   }
 </style>

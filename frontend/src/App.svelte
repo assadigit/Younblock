@@ -19,6 +19,7 @@
   import { AlertTriangle, ArrowDown, ArrowUp, Ellipsis } from './lib/icons'
   import * as haptics from './lib/haptics'
   import { failedSubLine, V3_COPY, v3State, type V3State } from './lib/v3'
+  import { pushBackHandler } from './lib/shellback'
   import type { Snapshot } from './lib/types'
 
   // =====================================================================
@@ -52,6 +53,10 @@
   let hidden = false
   let stopListening: () => void = () => {}
   let clock: number | undefined
+  // the Android back button's page half (the polish round, see
+  // lib/shellback.ts): while any modal is open, BACK closes the topmost
+  // one instead of leaving the app.
+  let unregisterBack: (() => void) | null = null
   // An error raised by this window itself (for example Go refused the
   // call). It survives the next status update from Go so the person has
   // time to read it, and clears after 6 seconds — the one pre-existing
@@ -90,6 +95,7 @@
     window.clearInterval(clock)
     window.clearTimeout(errorTimer)
     document.removeEventListener('visibilitychange', onVisibility)
+    if (unregisterBack !== null) unregisterBack()
   })
 
   // ---- the v3 state (spec §5/§8): engine events only, never UI timers
@@ -139,6 +145,21 @@
     else if (state === 'connected' && prevState === 'connecting') haptics.confirm()
     else if (state === 'disconnected' && prevState !== 'disconnected') haptics.confirm()
     prevState = state
+  }
+
+  // ---- the back-button registration rides the modal states: the
+  // diagnostics (rendered above the sheet) closes first, then the sheet.
+  $: {
+    const modalUp = menuOpen || diagOpen
+    if (modalUp && unregisterBack === null) {
+      unregisterBack = pushBackHandler(() => {
+        if (diagOpen) diagOpen = false
+        else if (menuOpen) menuOpen = false
+      })
+    } else if (!modalUp && unregisterBack !== null) {
+      unregisterBack()
+      unregisterBack = null
+    }
   }
 
   // ---- the lever's triggers
