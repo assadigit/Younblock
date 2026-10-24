@@ -659,9 +659,16 @@
 </div>
 
 <style>
+  /* z-index 20/30 (the layering the diagnostics overlay's comment
+     documents: backdrop 20, sheet 30, diagnostics 40): the main
+     screen's content — header, status, hint, card slot — sits at
+     z-index 1 above the state layers, so a sheet with no z-index
+     painted UNDER them and the hint text collided with the sheet's
+     own rows (the settings-panel collision round). */
   .backdrop {
     position: fixed;
     inset: 0;
+    z-index: 20;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0;
     pointer-events: none;
@@ -676,6 +683,7 @@
     position: fixed;
     left: 50%;
     bottom: 0;
+    z-index: 30; /* above the backdrop (20); the diagnostics view (40) sits above this */
     width: min(100%, 22.5rem);
     max-height: min(78%, 30.5rem);
     display: flex;
