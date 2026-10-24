@@ -5600,3 +5600,55 @@ one constant and its comments in main.go plus frontend source; the
 lanes build the same committed tree as always). No release was cut:
 the version stays 1.6.7-debug.4 / versionCode 37 until the owner
 calls for the v0.8.4 round.
+
+## The collision fix + the official-release line (2026-10-24, v0.8.4, 1.6.8, versionCode 38)
+
+**The bug.** The owner's report: "when going to setting of app, the
+text reading 'tap swipe to connect' collide with setting panel."
+Root cause, confirmed in the DOM and in a screenshot: the refinement
+round raised the main screen's content — header, status block, hint,
+card slot — to z-index 1 (above the state background layers and the
+lever zone), but the menu sheet and its backdrop carried no z-index
+at all, so they painted UNDER that content. The hint line sat
+directly on top of the sheet's own settings rows; the status block
+and the last-session line rode over it too. The intended layering
+survived all along as a comment in the diagnostics overlay's CSS
+("above the sheet (30) and its backdrop (20)") — the sheet's own
+values had simply been lost somewhere in a rework. The fix restores
+them where the comment says: backdrop 20, sheet 30, diagnostics 40
+unchanged on top — the modal stack now reads content 1 < backdrop 20
+< sheet 30 < diagnostics 40. Verified through the ?demo= harness at
+360×640: reproduced first (VLM read the hint bleeding over the sheet
+exactly as the owner described), then fixed and re-shot — the sheet
+opaque and clean, the backdrop dimming everything behind it, and the
+menu → diagnostics chain stacking correctly; no console or page
+errors.
+
+**The official-release line.** The owner's ruling with the release
+ask: "update version. do not call it debug version anymore. it's an
+official release." The debug era ends at 1.6.7-debug.4/versionCode
+37: the line moves to 1.6.8/versionCode 38 with no -debug suffix
+anywhere it can be seen. internal/config AppVersion (the one source
+of truth, 1.6.7 → 1.6.8 — the desktop packages rename themselves
+after it: younblock_1.6.8_amd64.deb, Younblock-1.6.8-x86_64.AppImage,
+the offline pack), mobile.go's engine version string (1.6.7-debug.4 →
+1.6.8 — this is what Android's About line reports and what names the
+APK asset: v1.6.8.apk, no "debug" in the filename), the gradle
+versionName (1.6.8) and versionCode (38, monotonic), and wails.json's
+productVersion (the Windows exe's version resource). The lane's own
+release-unified.sh learned to read the plain mobile string (its sed
+required a -debug.N suffix — the fallback pattern handles both eras).
+And build-android.sh stops marking the build a debug tester: the
+-ldflags -X DebugTesterBuild=true flag is retired with this line —
+hostnames stay off by default (R21, the code default) and the
+"DEBUG BUILD: hostnames included for diagnosis" line is gone from
+the report. The APK keeps the pinned D85 certificate (installs over
+v0.8.3 in place — the release keystore lane, D88, stays a separate
+decision), and the Go engine is untouched by the whole round: no
+proxy, dialer, pool, tier or setting change rides in this build.
+
+**The proportion round rides along** (ebf3bf4, already on main): the
+360×640 window with the lever at 60%, and the timer at 16/400 under
+the state word. The frontend bundle rebuilt with the collision fix
+and re-copied into internal/webui/dist (the git-ignored build-time
+copy).

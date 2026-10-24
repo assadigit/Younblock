@@ -190,7 +190,16 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // removed — plus the shells' alignment around it (the 360x780
         // reference design size, the idle pre-paint colors). Frontend +
         // shell resources only; the engine below is untouched.
-        opts := engine.Options{Platform: plat, Version: "1.6.7-debug.4"}
+        // The official-release line (1.6.8, versionCode 38): the debug
+        // naming retires — the owner's ruling ("do not call it debug
+        // version anymore. it's an official release"). Rides the
+        // proportion round (the 360x640 window, the quiet half-size
+        // timer), the settings-panel collision fix (the sheet's
+        // z-index 20/30), and the Android lane's release shape
+        // (hostnames off by default, R21 — no DEBUG BUILD line).
+        // Frontend + shell + version line only; the engine below is
+        // untouched.
+        opts := engine.Options{Platform: plat, Version: "1.6.8"}
         if mutate != nil {
                 mutate(&opts)
         }

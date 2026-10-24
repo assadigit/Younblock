@@ -20,6 +20,16 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
+        // versionCode 38: the official-release line — the owner's
+        // ruling: "do not call it debug version anymore. it's an
+        // official release." versionName moves to 1.6.8 and the debug
+        // counter retires; rides the proportion round (the 360x640
+        // window, the quiet half-size timer), the settings-panel
+        // collision fix (the sheet's z-index 20/30), and the Android
+        // lane's release shape (hostnames off by default, R21 — no
+        // DEBUG BUILD line in the report). Installs over debug.37 in
+        // place (the same pinned debug certificate -- D85). D103: the
+        // APK asset is named v1.6.8.apk.
         // versionCode 37: the refinement round — the owner's directed
         // UI round (UI-SPEC (2).md v7, younblock-ui-reference (1).html)
         // plus the platform alignment. The lever is a physical key cap
@@ -238,8 +248,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 37
-        versionName = "1.6.7"
+        versionCode = 38
+        versionName = "1.6.8"
     }
 
     signingConfigs {

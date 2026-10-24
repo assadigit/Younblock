@@ -41,9 +41,15 @@ if [ -z "$VER" ]; then
   echo "could not read the version from internal/config/defaults.go" >&2
   exit 1
 fi
-# The mobile string (e.g. 1.6.7-debug.1) names the APK asset (D103):
-# v1.6.7-debug1.apk — the filename always names its build.
+# The mobile string names the APK asset (D103): the filename always
+# names its build — v1.6.7-debug1.apk through the debug era, v1.6.8.apk
+# from the official-release line on (the debug suffix is history now:
+# the plain pattern below is the fallback when no -debug.N rides the
+# string).
 MOBILE_VER="$(sed -n 's/.*Version: "\([0-9][0-9.]*-debug\.[0-9][0-9]*\)".*/\1/p' mobile/mobile.go)"
+if [ -z "$MOBILE_VER" ]; then
+  MOBILE_VER="$(sed -n 's/.*Version: "\([0-9][0-9.]*\)".*/\1/p' mobile/mobile.go)"
+fi
 if [ -z "$MOBILE_VER" ]; then
   echo "could not read the mobile version string from mobile/mobile.go" >&2
   exit 1

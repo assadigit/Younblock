@@ -12,6 +12,28 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed + Changed (2026-10-24 — the settings-panel collision fixed, the debug naming retired; v0.8.4, 1.6.8, versionCode 38 — the official release)
+
+- **The settings sheet no longer collides with the underlying screen.**
+  Opening the menu ("...") slid the sheet up carrying no z-index, so
+  every element the refinement round had raised to z-index 1 — the
+  status block, the hint line ("Tap or swipe up to connect"), the
+  card slot — painted ABOVE it: the hint sat right on top of the
+  settings rows. The sheet and its backdrop now carry the layering
+  the diagnostics overlay always documented in its own comment
+  (backdrop 20, sheet 30, diagnostics 40), restoring the modal
+  stack: content 1 < backdrop 20 < sheet 30 < diagnostics 40 —
+  verified with the menu open and through the menu into diagnostics.
+- **The debug naming retires — v0.8.4 is an official release.** The
+  version line moves to 1.6.8 / versionCode 38 with no -debug suffix
+  anywhere it can be seen: the APK asset is named v1.6.8.apk (was
+  v1.6.7-debug4.apk), Android's About line reports "1.6.8", and the
+  Android lane stops marking itself a debug-tester build — hostnames
+  stay off by default (R21, the release value) and the "DEBUG BUILD"
+  line is gone from the diagnostics report. The APK still carries
+  the pinned D85 certificate, so it installs over v0.8.3 in place;
+  the Go engine is untouched by the whole round.
+
 ### Changed (2026-10-24 — the proportion round: the window back to 360×640, the timer a quiet half-size figure)
 
 - **The desktop window is 360×640 again** (the pre-refinement design
