@@ -5,9 +5,12 @@
 // One screen (the one-UI round): every edition — this shell, the Linux
 // window and web editions, the Android WebView — ships the same UI v3
 // main screen, so a UI change lands on every version at once. The
-// window's client size is the reference design size (360 x 780, the
-// refinement round's younblock-ui-reference (1).html .app); the classic
-// editions and their VITE_UI_VARIANT/windowSize override are retired.
+// window's client size is the reference design size (360 x 640, the
+// proportion round: the 780 reference read as an over-tall strip on the
+// desktop, so the pre-refinement height is back with the vertical
+// rhythm retuned around it — see docs/ui-v3/younblock-tokens.css); the
+// classic editions and their VITE_UI_VARIANT/windowSize override are
+// retired.
 package main
 
 import (
@@ -30,13 +33,16 @@ var assets embed.FS
 var windowIcon []byte
 
 // windowSize is the design client size of the app window — the
-// refinement round's reference screen (UI-SPEC (2).md v7: the .app in
-// younblock-ui-reference (1).html is 360 x 780, tall enough that the
-// hint and the card slot clear the lever's track outright; the ≤700px
-// short-screen CSS keeps smaller windows and phones honest). Kept a
-// string (a -X override remains possible for one-off builds), but no
-// released lane overrides it anymore.
-var windowSize = "360x780"
+// proportion round's screen (360 x 640: the refinement round's 780
+// read as too tall a strip, so the window is back at the
+// pre-refinement height while the lever rides at 60% of the height,
+// which keeps the hint line and the card slot clearing the track
+// outright — no riding over anything). The resize floors stay
+// 320×560; phone-class viewports (700px and up, the Android WebView
+// among them) keep the reference's airier 780 rhythm through the
+// min-height CSS lane. Kept a string (a -X override remains possible
+// for one-off builds), but no released lane overrides it anymore.
+var windowSize = "360x640"
 
 // designW/designH are the parsed values every sizing decision reads.
 var designW, designH = parseWindowSize()
@@ -51,17 +57,18 @@ const (
 	windowMinH = 560
 )
 
-// parseWindowSize reads windowSize once, falling back to the pro size on
-// anything malformed (a bad -X flag should degrade, never crash).
+// parseWindowSize reads windowSize once, falling back to the design
+// size on anything malformed (a bad -X flag should degrade, never
+// crash).
 func parseWindowSize() (int, int) {
 	parts := strings.SplitN(windowSize, "x", 2)
 	if len(parts) != 2 {
-		return 360, 780
+		return 360, 640
 	}
 	w, errW := strconv.Atoi(strings.TrimSpace(parts[0]))
 	h, errH := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if errW != nil || errH != nil || w < 200 || h < 200 {
-		return 360, 780
+		return 360, 640
 	}
 	return w, h
 }

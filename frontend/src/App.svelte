@@ -1,6 +1,7 @@
 <!-- App.svelte — the Younblock main screen (the refinement round,
      UI-SPEC (2).md v7; every visual value ported from
-     younblock-ui-reference (1).html).
+     younblock-ui-reference (1).html; the proportion round re-centers
+     the rhythm on the 360×640 design screen).
      One flex column — header, status block centered in the free space
      above the button, the key-cap lever at --yb-button-center-y, hint,
      the reserved card slot, the safe insets. State is carried by
@@ -478,12 +479,14 @@
     position: relative;
     z-index: 1;
   }
-  /* the ghost play mark: a low glass tile that fades away while connected */
+  /* the ghost play mark: a low glass tile that fades away while connected
+     (the compact margins are the 640 design's; the tall-screen lane below
+     restores the reference's airier 12px) */
   .ghost {
     width: 92px;
     height: 66px;
     flex: none;
-    margin: 0 auto 12px;
+    margin: 0 auto 6px;
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.07);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -533,8 +536,8 @@
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
   }
   .sub {
-    margin-top: 8px;
-    min-height: 23px;
+    margin-top: 6px;
+    min-height: 20px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -556,13 +559,14 @@
     stroke-linejoin: round;
   }
 
-  /* the connected state's timer + stats (the Timer component carries the
-     reference values itself: 34/700, 2px letter-spacing, tabular boxes) */
+  /* the connected state's timer + stats (the Timer component carries its
+     values itself: 16/400 — half the headline, regular weight — with
+     tabular boxes; the compact margins are the 640 design's) */
   .yb-timer {
-    margin-top: 14px;
+    margin-top: 6px;
   }
   .stats {
-    margin-top: 8px;
+    margin-top: 6px;
     display: flex;
     justify-content: center;
     gap: 18px;
@@ -588,7 +592,7 @@
   /* ---- the hint and the reserved card slot, pushed to the bottom ---- */
   .below-spacer {
     flex: 1 1 0;
-    min-height: 12px;
+    min-height: 8px;
   }
   .hint {
     flex: none;
@@ -608,7 +612,7 @@
     position: relative; /* above the lever where they meet on short screens */
     z-index: 1;
     display: flex;
-    margin: 12px var(--yb-page-margin) var(--yb-page-margin);
+    margin: 10px var(--yb-page-margin) var(--yb-page-margin);
     height: var(--yb-card-h); /* always reserved; blank when not connected */
   }
 
@@ -623,31 +627,30 @@
     z-index: 0;
   }
 
-  /* short phones: shrink the status spacing first, never the button */
-  @media (max-height: 700px) {
+  /* tall screens (phone-class viewports 700px and up — the Android
+     WebView among them): the reference 780 rhythm — the airier spacing
+     the v7 screen was drawn against. The 640 design window and every
+     height between keep the compact base above; the button itself
+     never changes size, only where the extra air sits around it. */
+  @media (min-height: 700px) {
     .ghost {
-      width: 92px;
-      height: 66px;
-      margin-bottom: 6px;
-    }
-    .headline {
-      margin-top: 4px;
+      margin-bottom: 12px;
     }
     .sub {
-      margin-top: 6px;
-      min-height: 20px;
+      margin-top: 8px;
+      min-height: 23px;
     }
     .yb-timer {
-      margin-top: 6px;
+      margin-top: 14px;
     }
     .stats {
-      margin-top: 6px;
+      margin-top: 8px;
     }
     .below-spacer {
-      min-height: 8px;
+      min-height: 12px;
     }
     .card-slot {
-      margin-top: 10px;
+      margin-top: 12px;
     }
   }
 

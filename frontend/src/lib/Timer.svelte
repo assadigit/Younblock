@@ -1,8 +1,10 @@
 <script lang="ts">
-  // Timer.svelte — the big connection timer (the refinement round: 34/700
-  // with 2px letter-spacing, the reference .timer values; the app's
-  // existing font is kept). Every digit sits in a fixed-width box so the
-  // numbers never jitter even where the face lacks tabular figures.
+  // Timer.svelte — the connection timer (the proportion round: 16/400,
+  // exactly half the 32px headline it sits under, in the regular weight —
+  // the state word is the hero of the connected screen, the timer a
+  // quiet live figure beneath it, not a second headline). Every digit
+  // sits in a fixed-width box so the numbers never jitter even where the
+  // face lacks tabular figures.
   export let value = "00:00:00";
 
   $: chars = [...value];
@@ -20,8 +22,8 @@
     justify-content: center;
     font-family: var(--font);
     font-size: var(--yb-fs-timer);
-    font-weight: var(--fw-bold);
-    letter-spacing: 2px;
+    font-weight: var(--fw-regular); /* the proportion round: regular, not bold */
+    letter-spacing: 1px; /* scaled with the size (2px was drawn against 34px) */
     color: var(--yb-text);
     line-height: 1.15;
     /* tabular figures when the face has them; the fixed boxes below

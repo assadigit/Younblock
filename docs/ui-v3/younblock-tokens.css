@@ -4,7 +4,11 @@
    Every value in this file is PORTED from younblock-ui-reference (1).html
    (the source of truth for this round) — do not invent values here.
    Sizes are CSS px (= Android dp inside the WebView).
-   Reference screen: 360 x 780.
+   Design screen: 360 x 640 (the proportion round — the 780 reference
+   read as an over-tall strip on the desktop; the pre-refinement height
+   is back, with the lever retuned to 60% so nothing rides over
+   anything). Viewports of 700px and up keep the reference's airier
+   780 rhythm through the min-height lane below.
 
    The tokens live on .yb-screen (the main element), so the legacy
    :root tokens in frontend/src/tokens.css (the menu sheet's surfaces)
@@ -41,12 +45,18 @@
 
   /* ---- Touch + button zone ---- */
   --yb-touch-padding: 16px;   /* invisible extra hit area              */
-  --yb-button-center-y: 67%;  /* vertical center of the button zone    */
+  --yb-button-center-y: 60%;  /* vertical center of the button zone
+                                  (the proportion round: lifted from the
+                                  reference's 67% so the hint line and the
+                                  card slot still clear the track outright
+                                  at the 640 design height)             */
 
   /* ---- Type sizes (the app's existing font family is kept) ---- */
   --yb-fs-headline: 32px;
   --yb-fs-sub:      15px;
-  --yb-fs-timer:    34px;
+  --yb-fs-timer:    16px;     /* the proportion round: half the headline
+                                  (32/2), regular weight — the state word
+                                  is the hero, the timer a quiet figure   */
   --yb-fs-stats:    15px;
   --yb-fs-hint:     14px;
   --yb-fs-cap:      18px;
@@ -114,12 +124,13 @@
   isolation: isolate;
 }
 
-/* Short screens: lift the button zone so the hint + card always clear
-   the track (the reference screen is 360x780; phones down to ~640px
-   keep every element visible). */
-@media (max-height: 700px) {
+/* Tall screens (phone-class viewports, 700px and up — the Android
+   WebView among them): restore the reference 780 rhythm — the lever
+   rides lower at 67% with the airier spacing it was drawn against.
+   The 640 design and every window between keep the compact base. */
+@media (min-height: 700px) {
   .yb-screen {
-    --yb-button-center-y: 58%;
+    --yb-button-center-y: 67%;
   }
 }
 

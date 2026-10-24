@@ -5550,3 +5550,53 @@ the desktop downloads jump from the v0.7.6-era screen straight to the
 refinement round's key-cap screen; the engine rides exactly as v0.8.2
 shipped it. The one-release rule is observably back: one tag, one
 release, fourteen assets, every version of Younblock on it.
+
+## The proportion round (2026-10-24, no build yet — the 360×640 window and the quiet timer)
+
+The owner's two-line direction on the refinement round's screen: the
+app is "too long (too much height), make it more proportionate," and
+the timer should be "regular font, 50% smaller than connected" so the
+hierarchy reads right. Both landed in the shared tree, so every
+version gets them at once (D110).
+
+**The window.** 360×780 — the reference .app's height — read on a
+desktop as an over-tall strip, so the window returns to 360×640, the
+pre-refinement design height this changelog itself records. This is a
+retune, not a shrink: the lever's center moves 67% → 60% of the
+height, which is what actually keeps the hint line and the card slot
+clearing the track outright on the shorter canvas (track bottom 520,
+hint ~530, card top 560 — measured in the DOM, not assumed); the
+compact spacing that was the ≤700px short-screen fallback becomes the
+base CSS, and the reference's airier rhythm moves into a
+`min-height: 700px` lane — so phone-class viewports (the Android
+WebView among them) render exactly as the refinement round shipped
+them, verified side by side at 780. `main.go`'s windowSize, its two
+parse fallbacks, and the header comments follow; the resize floors
+stay 320×560 and the D48 Windows client-size fix reads
+designW/designH as always.
+
+**The timer.** 34px bold made the session time a second headline
+under "Connected"; it is 16px regular now — exactly half the 32px
+headline, `--fw-regular` added to the legacy weight tokens — with the
+letter-spacing scaled 2px → 1px to match the size. The tabular digit
+boxes and the dimmed colons carry over unchanged; the stats row
+(15/500, sub color) keeps its place under the quieter figure.
+
+**Verification.** `vite build` clean and the DOM audit through the
+`?demo=` harness: headline 32px/700, timer 16px/400, gaps
+header→headline 36, timer→track 66, track→hint 10, hint→card 10 —
+nothing touches anything at 640; VLM-checked point-by-point at
+360×640 (idle, connecting, connected, failed: proportion balanced,
+hierarchy with "Connected" the hero and the timer visibly half-height
+in regular weight, no clipping or overlap) and at 360×780 (idle and
+connected: the airier reference rhythm intact, lever at two-thirds) —
+no console or page errors. The bundle (`index-C-CikV_m.js`) is
+re-copied into `internal/webui/dist` (the git-ignored build-time
+copy).
+
+**What could not be verified here:** the Go and Gradle builds — this
+sandbox session has no Go toolchain and no Android SDK (the change is
+one constant and its comments in main.go plus frontend source; the
+lanes build the same committed tree as always). No release was cut:
+the version stays 1.6.7-debug.4 / versionCode 37 until the owner
+calls for the v0.8.4 round.

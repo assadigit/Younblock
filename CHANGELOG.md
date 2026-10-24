@@ -12,6 +12,28 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (2026-10-24 — the proportion round: the window back to 360×640, the timer a quiet half-size figure)
+
+- **The desktop window is 360×640 again** (the pre-refinement design
+  height — the refinement round's 780 read as an over-tall strip on a
+  desktop). The vertical rhythm is retuned around the shorter canvas
+  rather than merely shrunk: the lever's center rides at 60% of the
+  height (was 67%), which keeps the hint line and the Open-YouTube
+  card slot clearing the track outright — nothing rides over anything
+  at the default size. The compact spacing that used to be the
+  ≤700px fallback is now the base CSS, and a `min-height: 700px` lane
+  restores the reference's airier 780 rhythm for phone-class
+  viewports — so the Android WebView and tall desktop windows render
+  exactly as the refinement round shipped them. The resize floors
+  stay 320×560; the Windows client-size fix (D48) follows the design
+  size automatically.
+- **The connected timer is a quiet, half-size figure now: 16px in the
+  regular weight** (was 34px bold — a second headline competing with
+  the state word). "Connected" is unambiguously the hero of that
+  screen, the session time a live detail beneath it; the
+  letter-spacing scales with the size (2px → 1px) and the tabular
+  digit boxes keep the numbers steady as before.
+
 ### Changed (2026-10-24 — the refinement round's platform alignment + the one release restored; v0.8.3, 1.6.7-debug.4, versionCode 37 — UI-SPEC (2).md v7)
 
 - **The refinement round's screen is now the one screen on every
