@@ -61,8 +61,8 @@ GOOS=windows GOARCH=386 go build -trimpath -ldflags "-s -w" -o dist/younblock-co
 
 echo "[4/8] Building the Windows apps (the v3 screen)..."
 if command -v wails >/dev/null 2>&1; then
-  # The v3 screen; the design client size (360 x 780, the reference
-  # design) is main.go's own default now — no variant bake, no window
+  # The v3 screen; the design client size (360 x 640, the proportion
+  # round's design) is main.go's own default now — no variant bake, no window
   # override.
   wails build -m -platform windows/amd64 -trimpath -ldflags "-s -w"
   cp build/bin/younblock.exe dist/younblock.exe
