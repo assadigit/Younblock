@@ -5652,3 +5652,56 @@ proxy, dialer, pool, tier or setting change rides in this build.
 the state word. The frontend bundle rebuilt with the collision fix
 and re-copied into internal/webui/dist (the git-ignored build-time
 copy).
+
+**The release and its verification.** GitHub release
+[v0.8.4](https://github.com/assadigit/Younblock/releases/tag/v0.8.4)
+(id 423044995, the repo's Latest), 14 assets — the same set v0.8.3
+carried — every one re-downloaded and byte-identical (the lane's own
+verify):
+
+  v1.6.8.apk                     37,224,921 B  (SHA-256 4a2de7ef…b2c42)
+  younblock.exe                  13,694,976 B  (SHA-256 03d92280…2608a)
+  younblock-x86.exe              13,071,360 B  (SHA-256 481c2349…4688d)
+  younblock-core.exe             11,617,280 B  (SHA-256 e018f7e7…40940)
+  younblock-core-x86.exe         11,155,456 B  (SHA-256 e4c2a104…6276)
+  younblock-linux-amd64           8,962,208 B  (SHA-256 c90f2557…59a9b)
+  younblock-linux-386             8,650,912 B  (SHA-256 ba7302c5…f3ca1)
+  younblock-linux-gui-amd64      12,392,480 B  (SHA-256 7e730500…60052)
+  younblock_1.6.8_amd64.deb       4,223,876 B  (SHA-256 d6fd6077…ee4c0)
+  younblock_1.6.8_i386.deb        3,137,392 B  (SHA-256 363492e1…30b06)
+  Younblock-1.6.8-x86_64.AppImage 74,540,224 B (SHA-256 382f2124…c1aa)
+  Younblock-1.6.8-i686.AppImage    4,173,872 B (SHA-256 decb30dc…6926)
+  Younblock-offline_1.6.8.zip    197,356,267 B (SHA-256 71801cea…03ec5)
+  younblock-setup_1.6.8.zip           7,864 B (SHA-256 c6111fc5…72a19)
+
+Independent of the lane's own checks, the artifacts were inspected
+before trusting them: aapt2 badging on the APK reads versionCode 38 /
+versionName **1.6.8** (no debug suffix anywhere) / minSdk 26 /
+targetSdk 36; apksigner prints the pinned D85 debug certificate
+(SHA-256 c76bb7c6…8551d — installs over v0.8.3 in place); both
+younblock.exe and the APK carry this round's bundle
+(index-B5EH37wS.js, with the sheet's z-index 20/30 fix in the
+shipped CSS). The gomobile bind ran without the DebugTesterBuild
+flag, so the diagnostics report carries no "DEBUG BUILD" line and
+hostnames stay off by default (R21) — the release shape, as ruled.
+
+**The lane's two stumbles, for the next session.** (1) `go install
+golang.org/x/mobile/cmd/gomobile` is not enough: `gomobile bind`
+shells out to `gobind`, a SEPARATE binary
+(`go install golang.org/x/mobile/cmd/gobind@latest`) — the first run
+died with "gobind was not found. Please run gomobile init". (2) This
+sandbox's shared IP gets HTTP 429-rate-limited by Maven Central
+mid-resolution; the fix was Google's official Central mirror
+(maven-central.storage-download.googleapis.com) wired through a
+user-space ~/.gradle/init.gradle — but note the trap: declaring ANY
+project-level repository makes Gradle ignore the settings'
+dependencyResolutionManagement block, so the init script must ALSO
+declare google() or aapt2 (Google-repo-only) vanishes. With both
+repositories in the init script the build went green in one pass.
+
+**The record for the field:** install the APK over v0.8.3 in place
+(same pinned certificate); the desktop downloads jump to the
+proportion round's screen with the settings panel fixed; the engine
+rides exactly as v0.8.3 shipped it. One tag, one release, fourteen
+assets, every version of Younblock on it — and the line is official
+now: 1.6.8, no debug naming anywhere it can be seen.
