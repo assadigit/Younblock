@@ -2563,3 +2563,64 @@ release lane, 2026-10-23, the one-UI round — the owner's ruling:
 4. Next decision ID: D112. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D112 — "Quit Younblock": the one deliberate end-of-app action
+(2026-10-26, the quit round — the Android lane's requested feature:
+"Add a 'Quit Younblock' action… It fully ends the app: connection
+stopped, notification removed, app gone from the status bar and from
+Recents").**
+
+1. **RECORDED as requested — a separate, confirmed Quit, deliberately
+   outside every disconnect semantics:** the lever's tap and swipe
+   disconnect exactly as before; the notification's ordinary life is
+   untouched (nothing in the quit path weakens or removes the
+   persistent-notification behavior — the round only ADDS one door).
+   The control sits in the menu sheet's "..." overflow (the screen's
+   overflow surface), at the very bottom, Android-only, flat and
+   tertiary — never a primary button, never near the power lever. One
+   tap opens a confirmation dialog (title "Quit Younblock?", body
+   "This stops the connection and removes the notification. You can
+   open the app again at any time.", buttons Cancel and Quit — the
+   owner's exact copy); only Quit confirmed runs anything.
+2. **The ordered sequence (YounblockVpnService.performQuit +
+   MainActivity.quitYounblock):** (a) the engine run stops cleanly —
+   the same synchronous engine stop the honest paths use (proxy
+   listener down, watchdog and self-repair loops down); (b) the TUN
+   closes (unbindTun: the Go stack stops, the routes go with the fd)
+   and the VpnService stops; (c) foreground ends with
+   stopForeground(STOP_FOREGROUND_REMOVE) AND the notification is
+   cancelled by its ID (NotificationManager.cancel(1)) — the
+   belt-and-braces pair; (d) the re-starters are cancelled: the
+   service was already START_NOT_STICKY, the app has no boot
+   receiver, no jobs, no alarms and no Quick Settings tile (the
+   manifest's inventory is the proof), and the one real re-starter —
+   the Activity's connect flow — is gated by a process-wide
+   YounblockVpnService.quitting flag (raised before the teardown,
+   never cleared for the process's lifetime, checked by
+   ensureVpnService/startVpnService/reconcile and by
+   onStartCommand's raced-start guard); (e) the activity closes with
+   finishAndRemoveTask, taking the app out of Recents; (f) after the
+   queued teardown settles (600 ms — the service stop, the activity
+   destroy, the engine's trailing state events are all main-thread
+   messages ahead of the timer) the process is killed
+   (Process.killProcess + exitProcess(0) fallback), because the Go
+   runtime's and WebView's background threads never all return.
+3. **The bridge door is write-only, like the rest of the page's
+   surface:** window.YounblockShell.quitApp() (PageBridge, marshaled
+   to the main thread) dispatches the sequence and returns
+   immediately; a host without the door (the desktops, the Linux web
+   edition, an older APK) keeps the app alive and the dialog says so
+   honestly. The Quit row renders only where AppInfo reports the
+   android platform — the Wails builds are untouched (no frontend
+   behavior change is visible on them beyond the shared bundle's new
+   inert component).
+4. **Boot auto-start cannot be permanently disabled because none
+   exists** (AND-028: nothing auto-starts after reboot — no
+   BOOT_COMPLETED receiver, no RECEIVE_BOOT_COMPLETED permission).
+   Quit ends the current session only: the next manual launch is a
+   fresh process, the engine constructs, the page loads, the
+   notification appears on connect — the normal first-open behavior,
+   unchanged.
+5. Next decision ID: D113. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

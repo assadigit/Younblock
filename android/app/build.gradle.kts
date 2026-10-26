@@ -20,6 +20,28 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
+        // versionCode 39: the "Quit Younblock" round (D112) — the one
+        // deliberate, confirmed end-of-app action the Android lane was
+        // asked for. A quiet "Quit Younblock" row at the very bottom of
+        // the menu sheet ("...", Android only, never a primary button)
+        // opens a confirmation ("Quit Younblock?" / "This stops the
+        // connection and removes the notification. You can open the app
+        // again at any time." / Cancel + Quit); Quit runs the ordered
+        // end-of-app sequence: engine + proxy stopped, TUN closed,
+        // VpnService stopped, foreground out with the notification
+        // cancelled by ID, the quitting flag gating every re-starter
+        // (the connect flow, resume reconciliation, raced service
+        // starts — the app has no boot receiver, jobs, alarms or tile,
+        // and the service was already START_NOT_STICKY), the activity
+        // finished and removed from Recents (finishAndRemoveTask), the
+        // process ended. Disconnect behavior is untouched — the lever's
+        // tap and swipe, the notification's ordinary life, all exactly
+        // as in 1.6.8. The Go engine is untouched — no proxy, dialer,
+        // pool, tier or setting change rides in this build; the shell
+        // and the frontend carry the whole round. Installs over
+        // versionCode 38 in place (the same pinned debug certificate,
+        // D85). The versionName moves to 1.6.9 in lockstep with
+        // internal/config AppVersion.
         // versionCode 38: the official-release line — the owner's
         // ruling: "do not call it debug version anymore. it's an
         // official release." versionName moves to 1.6.8 and the debug
@@ -248,8 +270,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 38
-        versionName = "1.6.8"
+        versionCode = 39
+        versionName = "1.6.9"
     }
 
     signingConfigs {

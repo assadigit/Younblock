@@ -9,12 +9,15 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import mobile.Mobile
+import kotlin.system.exitProcess
 
 /**
  * The shell (docs/android-port 05 task 6, ADR-0005): one Activity, one
@@ -108,9 +111,12 @@ class MainActivity : Activity() {
     /**
      * State reconciliation on resume (doc 04 §5, M5): the truth is
      * re-derived from the engine + service, never trusted from a stale
-     * UI or a missed event.
+     * UI or a missed event. The quit gate (D112) is defense in depth:
+     * once a confirmed Quit is in flight, reconciliation must not
+     * re-derive itself into a service start.
      */
     private fun reconcile() {
+        if (YounblockVpnService.quitting) return
         val engine = EngineHolder.engine ?: return
         val phase = org.json.JSONObject(engine.state).optString("phase", "off")
         when {
@@ -137,6 +143,7 @@ class MainActivity : Activity() {
      * it (engine state events fire repeatedly during connecting).
      */
     private fun ensureVpnService() {
+        if (YounblockVpnService.quitting) return // D112: a quit in flight owns the process
         if (YounblockVpnService.running) return
         if (consentPending) return
         val prepare = VpnService.prepare(this)
@@ -175,6 +182,7 @@ class MainActivity : Activity() {
     }
 
     private fun startVpnService() {
+        if (YounblockVpnService.quitting) return // D112: never (re)start into a quitting process
         maybeRequestNotificationConsent()
         val intent = Intent(this, YounblockVpnService::class.java)
         // debug.2 hardening: Android 12+ can refuse a foreground start
@@ -284,6 +292,53 @@ class MainActivity : Activity() {
         super.onBackPressed()
     }
 
+    /**
+     * The "Quit Younblock" orchestration (D112) — the page's confirmed
+     * Quit lands here (PageBridge.quitApp, marshaled to the main
+     * thread), and the whole app ends, in order:
+     *
+     *  a-b-c-d. [YounblockVpnService.quit] runs the service's ordered
+     *     teardown: engine + proxy stopped, TUN closed, VpnService
+     *     stopped, foreground out, notification cancelled by ID, the
+     *     start gate re-armed — and the [YounblockVpnService.quitting]
+     *     flag it raises first is the restart-cancel half: the connect
+     *     flow, resume reconciliation and any raced service start are
+     *     all gated (this app has no boot receiver, jobs, alarms or
+     *     Quick Settings tile to cancel, and the service was already
+     *     START_NOT_STICKY — the manifest is the proof).
+     *  e. the webui server stops (the page's own loopback server — the
+     *     bridge call that triggered this has already returned) and the
+     *     activity closes with [finishAndRemoveTask], taking the app out
+     *     of Recents.
+     *  f. the process ends: the Go runtime's threads and the WebView's
+     *     render threads never all return, so after the teardown has
+     *     settled (the service stop, the activity destroy, the engine's
+     *     trailing state events — all main-thread messages queued ahead
+     *     of this timer) the process is killed, with exitProcess(0) as
+     *     the belt-and-braces fallback.
+     *
+     * Disconnect stays exactly what it was — the lever, the engine's
+     * own stop path, the notification's life: nothing in this flow
+     * touches them. The next manual launch is a fresh process: the
+     * engine constructs, the page loads, the notification appears on
+     * connect — the first-open behavior, unchanged.
+     */
+    private fun quitYounblock() {
+        Log.i(TAG, "quit: the confirmed end-of-app sequence begins")
+        // (a-d) the service-side ordered teardown (or the no-service
+        // end-state: gate re-armed, notification cancelled by ID).
+        YounblockVpnService.quit(this)
+        // (e) the page's own server down, then the activity + Recents gone.
+        EngineHolder.engine?.stopWebUI()
+        finishAndRemoveTask()
+        // (f) the process ends once the queued teardown settles.
+        Handler(Looper.getMainLooper()).postDelayed({
+            Log.i(TAG, "quit: teardown settled; ending the process")
+            runCatching { android.os.Process.killProcess(android.os.Process.myPid()) }
+            exitProcess(0)
+        }, QUIT_KILL_DELAY_MS)
+    }
+
     override fun onDestroy() {
         // The page goes down with the activity; the engine instance stays
         // for the process lifetime (the service keeps it if running).
@@ -335,7 +390,7 @@ class MainActivity : Activity() {
      * to the page, and only the engine's own loopback page can load here
      * at all (see [LoopbackOnlyClient]).
      */
-    private class PageBridge(private val activity: Activity) {
+    private class PageBridge(private val activity: MainActivity) {
 
         @JavascriptInterface
         fun copyToClipboard(text: String): Boolean {
@@ -368,6 +423,28 @@ class MainActivity : Activity() {
                 true // the sheet was dispatched; its own failure is logged above
             } catch (e: RuntimeException) {
                 Log.w(TAG, "share dispatch failed: ${e.message}")
+                false
+            }
+        }
+
+        /**
+         * The "Quit Younblock" door (D112): the page's confirmed Quit
+         * hands the whole end-of-app sequence to the shell. Arrives on
+         * the binder thread like every method here; the sequence itself
+         * marshals to the main thread (where the service, the engine
+         * calls and the activity lifecycle all live) and this returns
+         * immediately — the page is torn down with the app moments
+         * later, so there is nothing left to answer. Write-only like the
+         * rest of this surface: it launches the teardown, reads nothing
+         * back out.
+         */
+        @JavascriptInterface
+        fun quitApp(): Boolean {
+            return try {
+                activity.runOnUiThread { activity.quitYounblock() }
+                true // the teardown was dispatched; the app ends from here
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "quit dispatch failed: ${e.message}")
                 false
             }
         }
@@ -416,6 +493,12 @@ class MainActivity : Activity() {
         private const val TAG = "Younblock"
         private const val REQUEST_PREPARE = 100
         private const val REQUEST_POSTS = 101
+        /** The quit's process-kill grace (D112): long enough for the
+         *  service stop, the activity destroy and the engine's trailing
+         *  state events (all main-thread messages queued ahead of the
+         *  timer) to settle; short enough that "the app is gone" is
+         *  what the user sees. */
+        private const val QUIT_KILL_DELAY_MS = 600L
         /** The back probe: returns true only when the page closed a
          *  modal (window.YounblockUI is exposed the moment the bundle
          *  boots — see frontend/src/lib/shellback.ts). */

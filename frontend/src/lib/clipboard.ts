@@ -28,6 +28,10 @@
 export interface ShellBridge {
   copyToClipboard(text: string): boolean;
   shareText(text: string): boolean;
+  /** The "Quit Younblock" door (D112): optional so older shells —
+   *  and every non-APK host — keep typing cleanly without it. Present
+   *  in the APK from 1.6.9. */
+  quitApp?(): boolean;
 }
 
 declare global {
@@ -97,6 +101,28 @@ export function shareText(text: string): boolean {
   if (!bridge || typeof bridge.shareText !== "function") return false;
   try {
     return bridge.shareText(text);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Hand the confirmed "Quit Younblock" to the native shell (D112, the
+ * APK from 1.6.9): the shell runs the ordered end-of-app sequence —
+ * engine and proxy stopped, TUN closed, service stopped, foreground
+ * out, notification cancelled by ID, activity finished and removed
+ * from Recents, process ended — so there is nothing left for the page
+ * to do afterwards except die with the app. Resolves true when the
+ * sequence was dispatched; false when no quit-capable shell exists
+ * (the desktops, the Linux web edition, a plain browser, an older
+ * APK) — the caller then keeps the app alive and says so honestly,
+ * mirroring copyText's "report what actually happened" contract.
+ */
+export function quitApp(): boolean {
+  const bridge = shellBridge();
+  if (!bridge || typeof bridge.quitApp !== "function") return false;
+  try {
+    return bridge.quitApp();
   } catch {
     return false;
   }

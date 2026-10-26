@@ -12,6 +12,30 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (2026-10-26 — the "Quit Younblock" round; v0.8.5 line, 1.6.9, versionCode 39 — D112)
+
+- **The Android app can now be fully quit — "Quit Younblock".** The
+  menu's "..." sheet gains one quiet row at its very bottom (Android
+  only; flat and tertiary, never a primary button, far from the power
+  lever): "Quit Younblock". Tapping it opens a confirmation —
+  "Quit Younblock?" / "This stops the connection and removes the
+  notification. You can open the app again at any time." / Cancel +
+  Quit — and only a confirmed Quit runs the ordered end-of-app
+  sequence: the engine run and the local proxy stop cleanly, the TUN
+  closes, the VpnService stops, foreground mode ends and the
+  notification is cancelled by its ID, the quitting flag gates every
+  re-starter for the rest of the process's life (the connect flow,
+  resume reconciliation, raced service starts — the app has no boot
+  receiver, jobs, alarms or Quick Settings tile to cancel, and the
+  service was already START_NOT_STICKY), the activity closes with
+  finishAndRemoveTask so the app leaves Recents, and the process ends
+  once the teardown settles. The next manual launch is the normal
+  first-open, notification and all. **Disconnect is unchanged** — the
+  lever's tap and swipe, the persistent notification's ordinary life:
+  nothing in the round touches them. The Go engine is untouched; the
+  version line moves to 1.6.9 / versionCode 39 in the established
+  lockstep.
+
 ### Fixed + Changed (2026-10-24 — the settings-panel collision fixed, the debug naming retired; v0.8.4, 1.6.8, versionCode 38 — the official release)
 
 - **The settings sheet no longer collides with the underlying screen.**

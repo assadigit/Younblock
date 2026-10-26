@@ -199,7 +199,17 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // (hostnames off by default, R21 — no DEBUG BUILD line).
         // Frontend + shell + version line only; the engine below is
         // untouched.
-        opts := engine.Options{Platform: plat, Version: "1.6.8"}
+        // The "Quit Younblock" round (1.6.9, versionCode 39, D112): the
+        // Android shell gains the one deliberate, confirmed end-of-app
+        // action — the menu sheet's quiet Quit row, the confirmation
+        // dialog, the ordered teardown (engine + proxy stop, TUN close,
+        // service stop, foreground out + notification cancelled by ID,
+        // the quitting flag gating every re-starter, finishAndRemoveTask,
+        // process end) behind the page's YounblockShell.quitApp bridge
+        // door. Disconnect semantics are untouched; the engine below is
+        // untouched — the version bump rides the version-line lockstep
+        // only (the shell reports this string to the About page).
+        opts := engine.Options{Platform: plat, Version: "1.6.9"}
         if mutate != nil {
                 mutate(&opts)
         }

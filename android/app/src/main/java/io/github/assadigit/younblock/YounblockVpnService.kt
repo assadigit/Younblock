@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -126,6 +127,7 @@ class YounblockVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         running = true
         VpnProtector.attach(this)
         EngineEvents.addListener(stateListener)
@@ -133,6 +135,20 @@ class YounblockVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The "Quit Younblock" round (D112): a start that raced the quit —
+        // e.g. a state event had already queued the connect flow when the
+        // user confirmed Quit on the same main thread — must not resurrect
+        // anything. Unwind honestly: start no engine, promote no
+        // foreground, remove any notification the quit already cancelled,
+        // and stop promptly (the startForegroundService contract's own
+        // mitigation, the same shape the debug.2 hardening ships: the app
+        // is in the foreground, a prompt stop is accepted).
+        if (quitting) {
+            Log.i(TAG, "service start raced the quit; unwinding without starting")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // The service exists to carry traffic; if it was somehow started
         // without the engine, start it (idempotent-or-rejecting on the Go
         // side — the engine's phase guards decide, not this shell). The
@@ -421,6 +437,7 @@ class YounblockVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         EngineEvents.removeListener(stateListener)
         VpnProtector.detach(this)
         unbindTun()
@@ -557,6 +574,51 @@ class YounblockVpnService : VpnService() {
     }
 
     /**
+     * The "Quit Younblock" teardown (D112) — the one deliberate,
+     * confirmed end-of-app path, deliberately separate from every
+     * disconnect semantics above (the lever tap, the notification's
+     * life, [onRevoke] — all unchanged). Order, per the product's ask:
+     *
+     *  a. the engine run stops cleanly — the same synchronous [stop]
+     *     the honest paths use (proxy listener down, watchdog and
+     *     self-repair loops down, platform detach — a no-op on Android);
+     *  b. the TUN closes ([unbindTun]: the Go stack stops, the fd it
+     *     owns closes, the routes go with it) and the service stops
+     *     ([stopSelf]);
+     *  c. foreground mode ends with STOP_FOREGROUND_REMOVE AND the
+     *     notification is then cancelled by its ID — the belt-and-braces
+     *     pair, so the status bar is empty even if a promotion raced or
+     *     the system kept the post around;
+     *  d. the start gate re-arms closed. Nothing else can resurrect the
+     *     service: this service was already START_NOT_STICKY (no sticky
+     *     restart), and this app has no boot receiver, no jobs, no
+     *     alarms, no Quick Settings tile (the manifest's inventory is
+     *     the proof) — the one real re-starter, the Activity's connect
+     *     flow, is gated by the [quitting] flag this quit sets.
+     *
+     * Runs on the main thread (the caller marshals); the engine-stop
+     * events it triggers are posted behind it and land on paths already
+     * unwound — every step below is idempotent under their arrival.
+     */
+    private fun performQuit() {
+        // (a) the engine run stops cleanly
+        EngineHolder.engine?.let { eng ->
+            val phase = JSONObject(eng.getState()).optString("phase", "off")
+            if (phase != "off" && phase != "error" && phase != "stopping") {
+                Log.i(TAG, "engine stop (quit, phase $phase): ${eng.stop()}")
+            }
+        }
+        // (b) the TUN closes
+        unbindTun()
+        // (c) foreground out, then the notification gone by its ID
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+        // (d) the gate re-arms; nothing else may restart the service
+        EngineHolder.engine?.setVpnReady(false)
+        stopSelf()
+    }
+
+    /**
      * The one honest stop: foreground out, service out, and the engine
      * stopped whenever it was doing anything — without this service
      * nothing routes, so no state may claim otherwise (D78). The gate
@@ -587,6 +649,47 @@ class YounblockVpnService : VpnService() {
         private const val MTU = 1500
         private const val TUN_ADDRESS = "10.111.0.1"
         private const val VIRTUAL_DNS = "10.111.0.53"
+
+        /** The live service instance, main-thread-confined (onCreate →
+         *  onDestroy), so the quit door can reach the teardown of a
+         *  running service without inventing a second lifecycle. */
+        @Volatile
+        private var instance: YounblockVpnService? = null
+
+        /**
+         * True while a confirmed "Quit Younblock" is in flight (D112).
+         * Once set it never clears for this process's lifetime: nothing —
+         * the Activity's connect flow, a raced service start, a resume
+         * reconciliation — may (re)start the service or the engine, and
+         * [onStartCommand]'s quit guard unwinds any start that slips
+         * through anyway. The flag dies with the process (the quit's
+         * last step), so the NEXT manual launch is a fresh first-open,
+         * exactly as before this feature.
+         */
+        @Volatile
+        var quitting: Boolean = false
+            private set
+
+        /**
+         * The quit door (D112): marks the process as quitting, then runs
+         * the ordered teardown on the live service — or, with no service
+         * running (the app sat disconnected), still lands the honest
+         * end-state directly: the gate re-armed and the notification
+         * cancelled by its ID (a stale post from any earlier run cannot
+         * survive the quit). Main-thread only (the Activity marshals).
+         */
+        fun quit(context: Context) {
+            quitting = true
+            val live = instance
+            if (live != null) {
+                live.performQuit()
+            } else {
+                Log.i(TAG, "quit with no live service; clearing the end-state")
+                EngineHolder.engine?.setVpnReady(false)
+                context.getSystemService(NotificationManager::class.java)
+                    ?.cancel(NOTIFICATION_ID)
+            }
+        }
 
         /** Reads the configured per-app allow-list from the facade
          *  (M6, D79; D86): {"apps":[...]}. The list starts with the

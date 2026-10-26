@@ -40,7 +40,7 @@
   /** The backend for settings/report reads and saves (null in preview). */
   export let backend: Backend | null = null;
 
-  const dispatch = createEventDispatcher<{ close: void; diagnostics: void }>();
+  const dispatch = createEventDispatcher<{ close: void; diagnostics: void; quit: void }>();
 
   const android = platform === "android";
 
@@ -655,6 +655,23 @@
         <p>{line}</p>
       {/each}
     </section>
+
+    <!-- The "Quit Younblock" row (D112, Android only): the one
+         deliberate, confirmed end-of-app action — the menu's "..."
+         overflow is the screen's overflow surface, so it lives here,
+         at the very BOTTOM of the sheet, far from the screen's power
+         lever and quiet by design: flat, tertiary, a plain text row —
+         never a primary button, never a filled shape. The row only
+         OPENS the confirmation (App.svelte's QuitDialog); the
+         end-of-app sequence itself is the shell's. -->
+    {#if android}
+      <div class="quit-block">
+        <button type="button" class="quit-row" on:click={() => dispatch("quit")}>
+          <span class="quit-row-title">Quit Younblock</span>
+          <span class="quit-row-hint">Fully stop the app and remove its notification</span>
+        </button>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -1222,6 +1239,59 @@
   }
   .danger:hover:not(:disabled) {
     background: rgba(224, 107, 107, 0.12);
+  }
+
+  /* ---- the "Quit Younblock" row (D112, Android only) ---- */
+
+  /* The block rides the section rhythm (the separator above comes from
+     the sheet's section + section border — a div + section pair, so the
+     border is stated here) and keeps the row OUT of the sections'
+     red-uppercase rhythm: quit is the last resort, not a feature. */
+  .quit-block {
+    padding: 1.1rem 0.25rem 1.25rem;
+    border-top: 1px solid var(--sheet-border);
+    display: flex;
+    justify-content: center;
+  }
+  .quit-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    min-height: 3rem; /* a 48px target — tappable, never accidental */
+    padding: 0.375rem 1rem;
+    border: 0;
+    border-radius: 0.75rem;
+    background: transparent;
+    color: var(--text-tertiary); /* the quietest voice in the sheet */
+    font-family: inherit;
+    text-align: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .quit-row:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--text-secondary);
+  }
+  .quit-row:active {
+    transform: scale(0.99);
+  }
+  .quit-row:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .quit-row-title {
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.01em;
+  }
+  .quit-row-hint {
+    font-size: 0.6875rem;
+    font-weight: var(--fw-medium);
+    line-height: 1.4;
+    color: var(--text-tertiary);
+    opacity: 0.85;
   }
 
   /* The old in-sheet diagnostics view (.report/.diag-row) is gone —

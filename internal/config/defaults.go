@@ -14,8 +14,11 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version.
-const AppVersion = "1.6.8"
+// AppVersion — shown in the UI and reported by --version. 1.6.9 rides
+// the Android lane's "Quit Younblock" round (D112); the engine itself
+// is unchanged — the bump keeps the About line in lockstep with the
+// APK's versionName (the build.gradle.kts comment block records why).
+const AppVersion = "1.6.9"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

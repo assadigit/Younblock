@@ -15,6 +15,7 @@
   import MenuSheet from './lib/MenuSheet.svelte'
   import LeverButton from './lib/LeverButton.svelte'
   import OpenYouTubeCard from './lib/OpenYouTubeCard.svelte'
+  import QuitDialog from './lib/QuitDialog.svelte'
   import Timer from './lib/Timer.svelte'
   import { createBackend } from './lib/backend'
   import { formatBytes, formatDuration, formatDurationWords } from './lib/format'
@@ -46,6 +47,11 @@
   // the diagnostics dialog over the stage (unchanged from the previous
   // wiring; the menu sheet's contents are out of scope per spec §1)
   let diagOpen = false
+  // the "Quit Younblock" confirmation over everything (D112, the quit
+  // round): the sheet's quiet Quit row opens it; the dialog's Quit hands
+  // the end-of-app sequence to the Android shell. Android only — the
+  // desktop editions never see the row that opens it.
+  let quitOpen = false
   let menuButton: HTMLElement | undefined
   let appVersion = ''
   let platform = ''
@@ -154,12 +160,16 @@
   }
 
   // ---- the back-button registration rides the modal states: the
-  // diagnostics (rendered above the sheet) closes first, then the sheet.
+  // diagnostics (rendered above the sheet) closes first, then the quit
+  // dialog (rendered above everything), then the sheet. BACK always
+  // unwinds one modal layer, never the app — the quit round's one
+  // addition to the stack.
   $: {
-    const modalUp = menuOpen || diagOpen
+    const modalUp = menuOpen || diagOpen || quitOpen
     if (modalUp && unregisterBack === null) {
       unregisterBack = pushBackHandler(() => {
         if (diagOpen) diagOpen = false
+        else if (quitOpen) quitOpen = false
         else if (menuOpen) menuOpen = false
       })
     } else if (!modalUp && unregisterBack !== null) {
@@ -293,6 +303,12 @@
       menuOpen = false
       diagOpen = true
     }}
+    on:quit={() => {
+      // the sheet's quiet row opens the confirmation; the sheet itself
+      // steps out from under the dialog (the diagnostics pattern)
+      menuOpen = false
+      quitOpen = true
+    }}
   />
 
   {#if diagOpen}
@@ -301,6 +317,21 @@
       on:close={() => {
         diagOpen = false
         menuButton?.focus({ preventScroll: true })
+      }}
+    />
+  {/if}
+
+  {#if quitOpen && platform === 'android'}
+    <QuitDialog
+      on:cancel={() => {
+        quitOpen = false
+        menuButton?.focus({ preventScroll: true })
+      }}
+      on:quit={() => {
+        // The shell owns the end-of-app sequence now; the page dies with
+        // the app moments later. Closing the dialog locally is cosmetic —
+        // the app is already leaving.
+        quitOpen = false
       }}
     />
   {/if}
