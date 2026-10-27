@@ -109,6 +109,37 @@ func TestArcPoints(t *testing.T) {
 	}
 }
 
+// TestArcPointsFullCircleNoDuplicate is the D119 regression: a 360-degree
+// sweep must close WITHOUT repeating the starting point. A polygon that
+// counts its own closing point hands SetSurroundColorsWithCount a count
+// the real Windows GDI+ rejects — and a rejected call leaves the path
+// gradient's surround colors at their opaque-white default (the white
+// disc on the cap). Wine's laxer GDI+ accepted the over-count, which is
+// why only the owner's real machine ever showed it.
+func TestArcPointsFullCircleNoDuplicate(t *testing.T) {
+	for _, steps := range []int{16, 48} {
+		pts := arcPoints(0, 0, 10, 10, 0, 360, steps)
+		if len(pts) != steps {
+			t.Errorf("full circle steps=%d: %d points, want %d (no repeated closing point)", steps, len(pts), steps)
+		}
+		if pts[0] == pts[len(pts)-1] {
+			t.Errorf("full circle steps=%d: first == last point (%v)", steps, pts[0])
+		}
+		// Every point still on the circle.
+		for _, p := range pts {
+			d := p.X*p.X + p.Y*p.Y
+			if d < 81 || d > 121 {
+				t.Errorf("full circle point %v off radius 10", p)
+			}
+		}
+	}
+	// Partial arcs keep their exact endpoints (the strokes rely on it).
+	pts := arcPoints(0, 0, 10, 10, 224.6, -269.2, 36)
+	if len(pts) != 37 {
+		t.Errorf("partial arc: %d points, want 37", len(pts))
+	}
+}
+
 func TestBezierEndpointsAndOvershoot(t *testing.T) {
 	if easeCap(0) != 0 || easeCap(1) != 1 {
 		t.Fatalf("easeCap endpoints wrong: %f %f", easeCap(0), easeCap(1))

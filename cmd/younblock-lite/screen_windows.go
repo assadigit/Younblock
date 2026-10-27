@@ -8,15 +8,17 @@
 //
 // Every visual value below is ported from the tokens file: the state
 // gradient backgrounds with their 700 ms cross-fade, the halftone dot
-// texture and 5% grain, the glass header with the red brand tile, the
-// status column (ghost play tile, eyebrow, 32 px hero word, sub line,
-// tabular timer, arrowed byte totals), the Open YouTube card, and the
-// signature key-cap lever — the recessed 128x272 track with the
-// sliding 112x124 satin-red cap, its 9 px side wall, grip ridges, LED,
-// power icon and letterspaced cap label, driven by the same gesture
-// rules (tap, drag-follow, 45% commit threshold, springy 550 ms
-// travel) and the same breathing auras, on the same timings. The menu
-// sheet slides up from the bottom in the reference's surfaces.
+// texture (the 5% grain is web-only — D119: its mix-blend-mode overlay
+// has no GDI+ equivalent and a plain-alpha copy reads as static), the
+// glass header with the red brand tile, the status column (ghost play
+// tile, eyebrow, 32 px hero word, sub line, tabular timer, arrowed byte
+// totals), the Open YouTube card, and the signature key-cap lever — the
+// recessed 128x272 track with the sliding 112x124 satin-red cap, its
+// 9 px side wall, grip ridges, LED, power icon and letterspaced cap
+// label, driven by the same gesture rules (tap, drag-follow, 45%
+// commit threshold, springy 550 ms travel) and the same breathing
+// auras, on the same timings. The menu sheet slides up from the
+// bottom in the reference's surfaces.
 //
 // Text stays on plain GDI (weights 400-700, ClearType, per-character
 // drawing where the design letterspaces); every shape is a
@@ -26,6 +28,7 @@ package main
 
 import (
 	"math"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -212,25 +215,15 @@ func (w *liteWindow) drawBackground(g uintptr, width, height int32, sc Screen, n
 }
 
 // drawTextures blits the pre-rendered halftone dot layer (fading in
-// toward the bottom, 7 px grid, 1 px dots) and the 5% grain tile.
+// toward the bottom, 7 px grid, 1 px dots). The reference's second
+// texture — the 5% grain — is web-only (D119): it rides a
+// mix-blend-mode overlay in the CSS, and a plain-alpha approximation
+// reads as static (the owner's measured noise was 5x the reference's;
+// GDI+ has no blend modes, so the honest port drops the layer and keeps
+// the smooth gradient the browser shows underneath it).
 func (w *liteWindow) drawTextures(g uintptr, width, height int32) {
 	if w.dotBmp != 0 {
 		drawImageTile(g, w.dotBmp, 0, 0, width, height, 0, 0, width, height)
-	}
-	if w.grainBmp != 0 {
-		ts := w.grainSize
-		for y := int32(0); y < height; y += ts {
-			for x := int32(0); x < width; x += ts {
-				dw, dh := ts, ts
-				if x+dw > width {
-					dw = width - x
-				}
-				if y+dh > height {
-					dh = height - y
-				}
-				drawImageTile(g, w.grainBmp, x, y, dw, dh, 0, 0, dw, dh)
-			}
-		}
 	}
 }
 
@@ -276,8 +269,18 @@ func (w *liteWindow) drawMenuButton(g uintptr) {
 	d := rc.Right - rc.Left
 	cx, cy := (rc.Left+rc.Right)/2, (rc.Top+rc.Bottom)/2
 
-	// Drop shadow (0 6px 14px rgba(0,0,0,.35)) — a soft halo offset down.
-	w.glowEllipse(g, cx, cy+w.px(3), d/2, argb(0x59, 0x00, 0x00, 0x00), w.px(5))
+	// The drop shadow (0 6px 14px rgba(0,0,0,.35)) — a soft halo offset
+	// down: three stacked solid ellipses whose cumulative edge weight is
+	// .35 fading to .12 at the rim (D119: the layered-solid construction
+	// renders identically on every GDI+ — the old single path-gradient
+	// circle could diverge into a white ring on real Windows).
+	sr := d / 2
+	for _, s := range []struct {
+		e int32
+		a uint32
+	}{{w.px(5), 0x1E}, {w.px(3), 0x24}, {w.px(1), 0x2B}} {
+		w.fillEllipse(g, cx, cy+w.px(3), sr+s.e, argb(s.a, 0x00, 0x00, 0x00))
+	}
 
 	// The glass fill: rgba(255,255,255,.2) -> .08.
 	if br := newVGradient(rc.Left, rc.Top, d, d, []uint32{0x33FFFFFF, 0x14FFFFFF}, []float32{0, 1}); br != 0 {
@@ -613,9 +616,17 @@ func (w *liteWindow) drawLever(g uintptr, sc Screen, now int64) {
 	w.drawCap(g, rc, sc, now)
 }
 
-// drawTrackAura breathes the state's aura around the track (the
-// keyframes' blur/scale pairings, approximated as layered halos whose
-// intensity follows the same phases).
+// drawTrackAura breathes the state's aura around the track — the
+// keyframes' blur/scale pairings (`0 0 14px 1px` at rest to `0 0 46px 8px`
+// at the peak), rendered as a layered onion of solid rounded rects whose
+// stacked alphas make a near-gaussian falloff STRONGEST AT THE TRACK'S
+// EDGE. D119 replaced the old single path-gradient halo: its cone fell
+// off from the track's CENTER — weak at the edge, a tail twice too wide,
+// and (worst) its bright center bled green through the semi-transparent
+// track fill, washing the recessed slot's interior — the reference's
+// aura is an outer box-shadow and never touches the inside. The onion
+// runs under a CombineModeExclude clip on the track's own silhouette,
+// and solid fills render identically on every GDI+.
 func (w *liteWindow) drawTrackAura(g uintptr, rc wRect, sc Screen, now int64) {
 	c := stateColors[sc.State].Aura
 	if c == 0 {
@@ -651,10 +662,27 @@ func (w *liteWindow) drawTrackAura(g uintptr, rc wRect, sc Screen, now int64) {
 		return
 	}
 	tw, th := rc.Right-rc.Left, rc.Bottom-rc.Top
-	// Rest 14 px, peak 46 px — interpolate the halo size with the
-	// envelope.
-	expand := w.px(14) + int32(float64(w.px(32))*env)
-	w.glowRRect(g, rc.Left, rc.Top, tw, th, w.px(lyTrackR), expand, scaleAlpha(c, env))
+	// Rest 14 px, peak 46 px — the halo's reach follows the envelope.
+	extent := w.px(14) + int32(float64(w.px(32))*env)
+	tp := newPath(fillModeWinding)
+	if tp == 0 {
+		return
+	}
+	defer deletePath(tp)
+	addPathPolygon(tp, rrectPoints(rc.Left, rc.Top, tw, th, w.px(lyTrackR), 12))
+	// Everything OUTSIDE the track — the shadow's side of the boundary.
+	excludeClipPath(g, tp)
+	for _, s := range []struct {
+		e float64 // the layer's reach, as a fraction of the extent
+		a float64 // the layer's alpha share at the peak envelope
+	}{{0.20, 0.42}, {0.40, 0.25}, {0.60, 0.15}, {0.80, 0.09}, {1.00, 0.05}} {
+		e := int32(float64(extent) * s.e)
+		if e < 1 {
+			continue
+		}
+		w.fillRRect(g, rc.Left-e, rc.Top-e, tw+2*e, th+2*e, w.px(lyTrackR)+e, scaleAlpha(c, s.a*env))
+	}
+	resetClip(g)
 }
 
 // drawSwipeCue paints the three staggered chevrons in the empty top of
@@ -739,10 +767,31 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 		w.fillRRectB(g, capX, capY, capW, capH, w.px(lyCapR), br)
 		deleteBrush(br)
 	}
-	// The sheen (radial 130%x40% at 50% 0%: a top-center glow).
-	w.glowEllipseIn(g, capX+capW/2, capY+capH/4, capW/2+w.px(6), argb(0x33, 0xFF, 0xFF, 0xFF))
-	// The top bevel (inset 0 1px 0 rgba(255,255,255,.45)).
-	w.fillRRect(g, capX+w.px(2), capY+w.px(1), capW-w.px(4), w.px(2), w.px(2), argb(0x73, 0xFF, 0xFF, 0xFF))
+	// The sheen (radial 130%x40% at 50% 0%: rgba(255,255,255,.2) ->
+	// transparent 70%). Measured on the reference render, the visible
+	// gloss is a top-edge wash: ~28-31% white at the very top (right
+	// under the 45% bevel line), nearly full cap width, fading to zero
+	// by ~28 px down. Ported as a vertical gradient band confined to the
+	// cap's own silhouette by a GDI+ clip (D119: no path gradients here
+	// — the old circle brush rendered as an OPAQUE WHITE DISC on real
+	// Windows while wine showed it soft, so the class is banned from the
+	// cap; linear gradients and clips are deterministic everywhere).
+	if cp := newPath(fillModeWinding); cp != 0 {
+		addPathPolygon(cp, rrectPoints(capX, capY, capW, capH, w.px(lyCapR), 12))
+		setClipPath(g, cp)
+		shH := w.px(28)
+		if br := newVGradient(capX, capY, capW, shH,
+			[]uint32{0x4DFFFFFF, 0x47FFFFFF, 0x00FFFFFF},
+			[]float32{0, 0.35, 1}); br != 0 {
+			fillRectI(g, br, capX, capY, capW, shH)
+			deleteBrush(br)
+		}
+		// The top bevel (inset 0 1px 0 rgba(255,255,255,.45)) — inside
+		// the same clip so it can never poke over the rounded corners.
+		w.fillRRect(g, capX+w.px(2), capY+w.px(1), capW-w.px(4), w.px(2), w.px(2), argb(0x73, 0xFF, 0xFF, 0xFF))
+		resetClip(g)
+		deletePath(cp)
+	}
 	// The bottom inner shade (inset 0 -2px 3px rgba(80,0,0,.30)).
 	if br := newVGradient(capX, capY+capH-w.px(8), capW, w.px(8),
 		[]uint32{0x00500000, 0x4D500000}, []float32{0, 1}); br != 0 {
@@ -845,14 +894,16 @@ func (w *liteWindow) drawGrip(g uintptr, cx, y int32) {
 	}
 }
 
-// drawCapLabel paints the cap word — 18/700 uppercase, 2.2 px
-// letterspacing, engraved into the red face.
+// drawCapLabel paints the cap word — 18/700 uppercase (the CSS's
+// text-transform: uppercase — the design's cap always reads
+// START/WAIT/STOP/RETRY), 2.2 px letterspacing, engraved into the red
+// face.
 func (w *liteWindow) drawCapLabel(cx, y, capW int32, sc Screen) {
 	hdc := w.paintDC
 	old, _, _ := procSelectObject.Call(hdc, uintptr(w.fCap))
 	defer procSelectObject.Call(hdc, old)
 	procSetBkMode.Call(hdc, transparentBk)
-	label := sc.CapLabel
+	label := strings.ToUpper(sc.CapLabel)
 	spacing := w.pxf(2.2)
 	if spacing < 1 {
 		spacing = 1
@@ -1163,7 +1214,9 @@ func (w *liteWindow) drawSheetToggleRow(g uintptr, hdc uintptr, rc wRect, title,
 	kw := w.px(20)
 	kx := tx + w.px(3) + int32(float64(w.px(18))*pos)
 	ky := ty + (th-kw)/2
-	w.glowEllipse(g, kx+kw/2, ky+kw/2+w.px(1), kw/2, argb(0x66, 0x00, 0x00, 0x00), w.px(1))
+	// The thumb's tiny resting shadow (D119: a solid ellipse — the old
+	// path-gradient halo could render as a white ring on real Windows).
+	w.fillEllipse(g, kx+kw/2, ky+kw/2+w.px(1), kw/2+w.px(1), argb(0x33, 0x00, 0x00, 0x00))
 	w.fillEllipse(g, kx+kw/2, ky+kw/2, kw/2, argb(0xFF, 0xF4, 0xF1, 0xEE))
 	// The focus ring.
 	if w.focus == id {
@@ -1366,43 +1419,15 @@ func (w *liteWindow) glowRRect(g uintptr, x, y, wid, hei, r, expand int32, c uin
 	fillPath(g, br, p)
 }
 
-// glowEllipse paints a soft halo around a circle.
-func (w *liteWindow) glowEllipse(g uintptr, cx, cy, r int32, c uint32, expand int32) {
-	if expand <= 0 || c>>24 == 0 {
-		return
-	}
-	p := newPath(fillModeWinding)
-	if p == 0 {
-		return
-	}
-	defer deletePath(p)
-	pts := arcPoints(cx, cy, r+expand, r+expand, 0, 360, 48)
-	addPathPolygon(p, pts)
-	br := newPathGlow(p, c, 0, int32(len(pts)))
-	if br == 0 {
-		return
-	}
-	defer deleteBrush(br)
-	fillPath(g, br, p)
-}
-
-// glowEllipseIn paints an inward glow: bright at the center fading to
-// transparent at the circle's boundary (sheens).
-func (w *liteWindow) glowEllipseIn(g uintptr, cx, cy, r int32, c uint32) {
-	p := newPath(fillModeWinding)
-	if p == 0 {
-		return
-	}
-	defer deletePath(p)
-	pts := arcPoints(cx, cy, r, r, 0, 360, 48)
-	addPathPolygon(p, pts)
-	br := newPathGlow(p, c, 0, int32(len(pts)))
-	if br == 0 {
-		return
-	}
-	defer deleteBrush(br)
-	fillPath(g, br, p)
-}
+// (D119: glowEllipse and glowEllipseIn — soft halos built as full-circle
+// path gradients — are GONE. Their 360-degree polygons carried a repeated
+// closing point, so SetSurroundColorsWithCount was rejected by the real
+// Windows GDI+ and the fill collapsed to the default opaque-white
+// surround: a solid white disc where the cap's sheen belonged and a
+// white-ringed blob under the menu button, while wine rendered both
+// correctly the whole time. Every remaining glow rides rrectPoints —
+// 52 distinct boundary points, count always accepted — and the sheen is
+// a clipped linear-gradient band. No full-circle path gradients remain.)
 
 // focusRing paints the 3 px focus outline around a rounded rect.
 func (w *liteWindow) focusRing(g uintptr, rc wRect, r int32) {

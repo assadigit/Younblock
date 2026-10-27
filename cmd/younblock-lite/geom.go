@@ -108,7 +108,13 @@ func gdiRGB(c uint32) uintptr {
 
 // arcPoints samples an elliptical arc — screen angles (degrees,
 // clockwise, 0 = +x, 90 = +y) matching how the design's SVG paths read
-// in a y-down coordinate system.
+// in a y-down coordinate system. A full 360-degree sweep never repeats
+// the starting point (D119): GDI+ merges a duplicated closing point back
+// into the figure, so a polygon that counts its own closing point feeds
+// SetSurroundColorsWithCount a count the real Windows GDI+ rejects —
+// leaving the surround colors at their OPAQUE-WHITE default (the
+// white-disc bug; wine's laxer GDI+ accepts the mismatch, which is why
+// the wine oracle alone could never catch it).
 func arcPoints(cx, cy, rx, ry int32, startDeg, sweepDeg float64, steps int) []wPoint {
 	if steps < 1 {
 		steps = 1
@@ -120,6 +126,9 @@ func arcPoints(cx, cy, rx, ry int32, startDeg, sweepDeg float64, steps int) []wP
 			X: cx + int32(math.Round(float64(rx)*math.Cos(a))),
 			Y: cy + int32(math.Round(float64(ry)*math.Sin(a))),
 		})
+	}
+	if len(pts) > 1 && pts[0] == pts[len(pts)-1] {
+		pts = pts[:len(pts)-1] // full circles close without a repeated point
 	}
 	return pts
 }

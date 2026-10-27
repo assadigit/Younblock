@@ -422,7 +422,14 @@ may also show "Windows protected your PC" for an unsigned download — click
 SHA-256 is on the release page. (1.6.14, D118, fixed a different silence: three
 GDI+ quirks had been quietly skipping every gradient and glow since the beauty
 round — the screen you saw then was missing its whole soft layer; that layer is
-back, verified pixel-for-pixel against the reference.)
+back, verified pixel-for-pixel against the reference. And 1.6.15, D119, made it
+quiet: the background's film-grain — a browser blend-mode effect with no GDI+
+equivalent that had been rendering as visible static — is gone, and a
+full-circle glow quirk that turned the cap's gloss into a white disc on real
+Windows, while the Wine test harness showed it soft every time, is designed
+out: the gloss is now a clipped gradient band and every remaining glow is a
+shape whose parameters cannot be mis-counted. The lever's halo also hugs the
+outside of its slot now, and the cap word reads STOP, not Stop.)
 
 ## Building it yourself (optional)
 

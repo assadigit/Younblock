@@ -79,12 +79,9 @@ type liteWindow struct {
 	fSheetTitle, fRowTitle, fRowHint                  windows.Handle
 
 	// layout + pre-rendered texture layers (rebuilt on resize/DPI)
-	lay       layout
-	dotBmp    uintptr
-	dotMem    fixedMem
-	grainBmp  uintptr
-	grainMem  fixedMem
-	grainSize int32
+	lay    layout
+	dotBmp uintptr
+	dotMem fixedMem
 
 	// the screen state + its animation anchors
 	scr                Screen
@@ -512,17 +509,15 @@ func (w *liteWindow) disposeTextures() {
 	}
 	w.dotMem.free()
 	w.dotMem = fixedMem{}
-	if w.grainBmp != 0 {
-		disposeImage(w.grainBmp)
-		w.grainBmp = 0
-	}
-	w.grainMem.free()
-	w.grainMem = fixedMem{}
 }
 
 // buildTextures pre-renders the state-independent layers once per
 // resize: the halftone dot grid (7 px pitch, 1 px dots, alpha ramping
-// in below 35% of the height) and the 5% grain tile (160 px, seeded).
+// in below 35% of the height). The reference's 5% grain tile is gone
+// (D119): the web version renders it through a mix-blend-mode overlay,
+// and a plain-alpha approximation is measured 5x noisier than the
+// reference — static, not texture — so the lite screen keeps the
+// browser's smooth gradient instead.
 func (w *liteWindow) buildTextures(width, height int32) {
 	w.disposeTextures()
 	if width <= 0 || height <= 0 {
@@ -565,37 +560,6 @@ func (w *liteWindow) buildTextures(width, height int32) {
 				deleteGraphics(g)
 			}
 		}
-	}
-
-	// The grain tile (160 px logical, 5% opacity noise).
-	ts := w.px(160)
-	if ts < 8 {
-		ts = 8
-	}
-	w.grainSize = ts
-	if mem, buf := newFixedMem(ts, ts); mem.ptr != nil {
-		w.grainMem = mem
-		// A deterministic xorshift: the grain is texture, not
-		// randomness anyone can see; a fixed seed keeps every
-		// frame identical (no shimmer).
-		state := uint32(0x9E3779B9)
-		next := func() uint32 {
-			state ^= state << 13
-			state ^= state >> 17
-			state ^= state << 5
-			return state
-		}
-		for y := int32(0); y < ts; y++ {
-			row := buf[y*ts*4 : (y+1)*ts*4]
-			for x := int32(0); x < ts; x++ {
-				v := byte(next() & 0xFF)
-				row[x*4] = v    // B
-				row[x*4+1] = v  // G
-				row[x*4+2] = v  // R
-				row[x*4+3] = 13 // A — 5%
-			}
-		}
-		w.grainBmp = newScan0Bitmap(ts, ts, mem)
 	}
 }
 

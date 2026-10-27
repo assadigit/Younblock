@@ -207,6 +207,11 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // this round — the version bump rides the version-line
         // lockstep only (the shell reports this string to the About
         // page).
+        // 1.6.15 (D119) rides the quiet round — the lite exe's
+        // screen is clean (the grain is gone, the white-disc sheen is
+        // gone on real Windows, the aura hugs the track's outside,
+        // the cap word is uppercase) — still no mobile/Android
+        // change; the lockstep-only bump rule applies again.
         // 1.6.14 (D118) rides the look-right round — the lite
         // exe's three silent GDI+ defects are fixed and the reference's
         // typeface (Space Grotesk) rides inside the exe — still no
@@ -219,7 +224,7 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // becomes the v3 main screen (the lever, the gradients, the
         // sheet) — still no mobile/Android change; the lockstep-only
         // bump rule applies again.
-        opts := engine.Options{Platform: plat, Version: "1.6.14"}
+        opts := engine.Options{Platform: plat, Version: "1.6.15"}
         if mutate != nil {
                 mutate(&opts)
         }

@@ -53,3 +53,4 @@ android/app/libs/
 # not a credential).
 younblock-release.keystore
 younblock-keystore-backup_*.md
+.gocache/

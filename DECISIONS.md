@@ -3000,3 +3000,67 @@ entire time.
 4. Next decision ID: D119. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+---
+
+**D119 — the quiet round: the exe that showed but did not convince.**
+The owner's report on the v0.8.7 lite screen: "1. it's noisy, 2. items
+collide with each other, 3. glow and white circle which is weird."
+Measured, not judged: pixel-profiling the owner's screenshot against
+the states-preview reference found every one of the three, and a
+fourth the eye caught in the numbers.
+
+1. **The noise was the grain, and the grain is web-only.** The
+   reference's 5% grain rides `mix-blend-mode: overlay` in the CSS —
+   a CONTRAST effect. The lite's port was a plain-alpha gray-noise
+   tile at 5%, which is a FOG: the owner's background measured
+   13.2 hf-pixel-noise against the reference's 2.7 (5x). GDI+ has
+   no blend modes, so the honest port DROPS the layer and keeps the
+   smooth gradient the browser shows underneath it. The halftone
+   dots stay (they are plain alpha in the CSS too, and they measure
+   within the reference's own noise). Ruling: an effect whose
+   rendering contract cannot be honored natively is dropped, not
+   approximated into a worse artifact.
+
+2. **The white disc was a wine-oracle blind spot, and the lesson is
+   the sharpest one yet.** arcPoints sampled full circles as 49
+   points with the closing point REPEATED (the sweep loop's `i <=
+   steps`). GdipAddPathPolygonI merges the duplicate back into the
+   figure — 48 boundary points — so SetSurroundColorsWithCount was
+   handed a count of 49 and the REAL Windows GDI+ rejects it
+   (InvalidParameter), leaving the surround colors at their default
+   OPAQUE WHITE. The cap's sheen circle then rendered as a solid
+   white disc over three quarters of the key cap, and the menu
+   button's shadow halo rendered as a white-ringed blob — exactly
+   the owner's "white circle" and half the "collide" complaint. The
+   wine oracle accepted the over-count all along, which is why D118
+   shipped it verified. Ruling: wine proves what runs, never what
+   matches — any GDI+ call whose ACCEPTANCE depends on parameter
+   edge semantics (counts, modes, flags) must be designed so the
+   parameter cannot be wrong by construction (rrectPoints' distinct
+   points; arcPoints now de-duplicated), or avoided for a
+   deterministic primitive. The lite painter no longer builds ANY
+   full-circle path gradient: the sheen is a linear-gradient band
+   clipped to the cap's silhouette (GdipSetClipPath), the menu
+   shadow and toggle-thumb shadows are layered solid ellipses.
+
+3. **The aura painted the slot's interior.** A path gradient's
+   falloff runs from the shape's CENTROID — for the track-sized
+   halo that means the bright center sat inside the recessed slot
+   and bled green through the track's semi-transparent fill (the
+   owner's screenshot shows the track interior 40% greener than
+   the reference's). The reference's aura is an OUTER box-shadow.
+   Rewritten as a layered onion of solid rounded rects under a
+   CombineModeExclude clip on the track's own silhouette: strongest
+   at the track's edge, near-gaussian outward, nothing inside —
+   and deterministic on every GDI+.
+
+4. **The cap word rendered "Stop"; the design's CSS carries
+   `text-transform: uppercase`** — the reference reads START/WAIT/
+   STOP/RETRY. The painter now uppercases at draw time (the T-table
+   copy stays verbatim — it is the honest-copy source, and the
+   transform is presentation, not content).
+
+5. Next decision ID: D120. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

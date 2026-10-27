@@ -12,6 +12,56 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 — the quiet round; 1.6.15, versionCode 45 — D119)
+
+- **The lite exe's screen is quiet and clean — the owner's three
+  complaints on the v0.8.7 screen ("it's noisy", "items collide",
+  "glow and white circle which is weird") are each root-caused by
+  measurement and fixed, plus a fourth found in the numbers.**
+  1. **The noise was the grain.** The reference's 5% grain rides a
+     CSS `mix-blend-mode: overlay` — a contrast effect GDI+ has no
+     equivalent for; the plain-alpha port rendered 5x noisier than
+     the reference (13.2 vs 2.7 hf-pixel-noise, measured on the
+     owner's own screenshot). The grain layer is dropped; the
+     background is the smooth gradient the browser shows under
+     it, and the halftone dots (plain alpha in the CSS too) stay.
+  2. **The white disc on the cap and the white circle at the
+     menu button were the same bug: a wine-oracle blind spot.**
+     Full-circle glows were sampled as polygons that REPEATED the
+     closing point (49 points for a 48-point figure), so
+     `SetSurroundColorsWithCount` was handed a count real Windows
+     GDI+ REJECTS — leaving the surround colors at their default
+     OPAQUE WHITE: the cap's sheen rendered as a solid white disc
+     over three quarters of the key cap (the "items collide"
+     perception — LED, word and power icon all seemed to sit
+     inside it), and the "..." button's shadow halo rendered as a
+     white-ringed blob. Wine's laxer GDI+ accepted the over-count
+     every time, which is why the D118 round shipped it
+     "verified". The lite painter no longer builds any
+     full-circle path gradient: the sheen is a linear-gradient
+     band clipped to the cap's silhouette (a faithful port of the
+     reference's measured top-edge wash, ~30% white fading to
+     zero by 28 px), the menu shadow and the sheet's toggle-thumb
+     shadows are layered solid ellipses, and `arcPoints` never
+     repeats a closing point.
+  3. **The glow around the lever painted the slot's interior.**
+     The old aura was a path gradient whose falloff ran from the
+     track's CENTER — its bright middle bled green through the
+     track's semi-transparent fill (the slot read as a green
+     trough, the halo read weak at the edge and twice too wide).
+     The reference's aura is an outer box-shadow: the new aura is
+     a layered onion of solid rounded rects under a
+     CombineModeExclude clip on the track's own silhouette —
+     strongest at the track's edge, near-gaussian outward,
+     nothing inside, deterministic on every GDI+.
+  4. **The cap word renders in the design's case.** The CSS's
+     `text-transform: uppercase` was un-ported: the cap read
+     "Stop" where the reference reads STOP (same for Start/Wait/
+     Retry). The painter uppercases at draw time.
+  The engine, the zero-dependency contract, the gestures and the
+  copy are unchanged. The bump is the version-line lockstep
+  (1.6.15 / versionCode 45); no Android change rides this round.
+
 ### Fixed (2026-10-28 — the look-right round; 1.6.14, versionCode 44 — D118)
 
 - **The lite exe now LOOKS like the reference — three silent GDI+

@@ -14,24 +14,25 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version. 1.6.14 rides
-// the look-right round (D118): the lite desktop exe now LOOKS like the
-// reference — three silent GDI+ defects are fixed (every linear
-// gradient since the beauty round never drew: GdipCreateLineBrush
-// rejects WrapModeClamp with InvalidParameter; every soft glow carried
-// a hard white boundary ring: the path gradient's surround colors must
-// be written to every boundary point or the rest stay GDI+'s default
-// opaque white; and the window was born with a keyboard focus ring
-// painted on every frame). The reference's typeface — Space Grotesk,
-// the geometric sans the design mockups are set in — now rides INSIDE
-// the exe (four weights, go:embed, registered process-privately at
-// startup; an honest Segoe UI step-down if that ever fails). The
-// engine itself is unchanged — the bump keeps the About line in
-// lockstep with the APK's versionName (the build.gradle.kts comment
-// block records why). NOTE: the lite exe's version-info resource
+// AppVersion — shown in the UI and reported by --version. 1.6.15
+// rides the quiet round (D119): the lite exe's screen is clean — the
+// 5% grain is gone (its mix-blend-mode overlay has no GDI+ equivalent
+// and the plain-alpha copy rendered 5x noisier than the reference),
+// the cap's sheen no longer collapses into an opaque white disc on
+// real Windows (a full-circle path gradient whose repeated closing
+// point made SetSurroundColorsWithCount reject the count, leaving the
+// surround at GDI+'s default opaque white — wine's laxer GDI+ accepted
+// it, so only the owner's machine ever showed it), the menu button's
+// shadow and the sheet's toggle thumbs no longer white-ring, the track's
+// aura is a layered onion that hugs the track's OUTSIDE (the old
+// cone bled green through the semi-transparent track fill), and the
+// cap word renders in the design's uppercase. The engine itself is
+// unchanged — the bump keeps the About line in lockstep with the
+// APK's versionName (the build.gradle.kts comment block records
+// why). NOTE: the lite exe's version-info resource
 // (cmd/younblock-lite/rsrc_windows_*.syso) reads this constant —
 // scripts/gen_lite_resources.py regenerates it.
-const AppVersion = "1.6.14"
+const AppVersion = "1.6.15"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

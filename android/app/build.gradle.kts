@@ -57,6 +57,19 @@ android {
         // place (the same pinned debug certificate, D85). The
         // versionName moves to 1.6.12 in lockstep with
         // internal/config AppVersion.
+        // versionCode 45: the quiet round (D119) — the lite desktop
+        // exe's screen is CLEAN now: the 5% grain (unreproducible in
+        // GDI+, measured 5x noisier than the reference) is gone, the
+        // cap's sheen no longer collapses into an opaque white disc on
+        // real Windows (the full-circle path-gradient's repeated
+        // closing point made SetSurroundColorsWithCount reject the
+        // count — wine's laxer GDI+ accepted it, so every wine-verified
+        // build still shipped the bug), the track's aura is a layered
+        // onion hugging the track's OUTSIDE instead of bleeding green
+        // through the slot, the menu button and toggle thumbs no
+        // longer white-ring, and the cap word renders in the design's
+        // uppercase. Still no Android change; the lockstep-only bump
+        // rule applies once more.
         // versionCode 44: the look-right round (D118) — the lite
         // desktop exe's three silent GDI+ rendering defects are fixed
         // (the never-drawing gradients, the white glow rings, the
@@ -351,8 +364,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 44
-        versionName = "1.6.14"
+        versionCode = 45
+        versionName = "1.6.15"
     }
 
     signingConfigs {

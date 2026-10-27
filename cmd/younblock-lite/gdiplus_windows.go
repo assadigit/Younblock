@@ -51,6 +51,8 @@ var (
 	procGdipCreatePathGradientFromPath    = modGdiPlus.NewProc("GdipCreatePathGradientFromPath")
 	procGdipSetPathGradientCenterColor    = modGdiPlus.NewProc("GdipSetPathGradientCenterColor")
 	procGdipSetPathGradientSurroundColors = modGdiPlus.NewProc("GdipSetPathGradientSurroundColorsWithCount")
+	procGdipSetClipPath                   = modGdiPlus.NewProc("GdipSetClipPath")
+	procGdipResetClip                     = modGdiPlus.NewProc("GdipResetClip")
 	procGdipFillPath                      = modGdiPlus.NewProc("GdipFillPath")
 	procGdipFillEllipseI                  = modGdiPlus.NewProc("GdipFillEllipseI")
 	procGdipFillRectangleI                = modGdiPlus.NewProc("GdipFillRectangleI")
@@ -232,6 +234,16 @@ func newVGradient(x, y, w, h int32, colors []uint32, positions []float32) uintpt
 // name: every glow path here is a polygon we sampled ourselves, so the
 // count is known without asking the path (wine's gdiplus does not even
 // export GdipGetPathPointCount — a D117-class lazy-proc trap).
+//
+// D119's harder lesson lives here too: the count must be the path's
+// boundary-point count AS GDI+ SEES IT. A full-circle polygon that
+// repeats its closing point (49 points for a 48-point figure) makes
+// the real Windows GDI+ REJECT the call — InvalidParameter — and the
+// surround colors stay at their opaque-white default, filling the
+// whole path with white. Wine's gdiplus accepts the over-count, so a
+// wine-verified glow can still be a white disc on real Windows: never
+// trust wine alone for path-gradient count semantics (rrectPoints and
+// the de-duplicated arcPoints are the shapes this file may glow with).
 func newPathGlow(path uintptr, center, surround uint32, npts int32) uintptr {
 	if path == 0 {
 		return 0
@@ -250,6 +262,42 @@ func newPathGlow(path uintptr, center, surround uint32, npts int32) uintptr {
 	}
 	procGdipSetPathGradientSurroundColors.Call(b, uintptr(unsafe.Pointer(&cols[0])), uintptr(unsafe.Pointer(&npts)))
 	return b
+}
+
+// ---- clipping (deterministic fills inside a silhouette) ----
+
+// combineModeReplace is GDI+'s CombineModeReplace (the clip becomes
+// exactly this path — no intersection with any prior clip).
+const combineModeReplace = 0
+
+// combineModeExclude is GDI+'s CombineModeExclude (the new clip is the
+// current region MINUS this path — everything outside the shape).
+const combineModeExclude = 4
+
+// setClipPath confines every later fill on this graphics to the path's
+// interior (D119: the cap's sheen band and top bevel run inside the
+// cap's own silhouette, so nothing can poke over the rounded corners).
+func setClipPath(g, path uintptr) {
+	if g != 0 && path != 0 {
+		procGdipSetClipPath.Call(g, path, combineModeReplace)
+	}
+}
+
+// excludeClipPath confines every later fill to everything OUTSIDE the
+// path (D119: the track's aura is an outer shadow — the onion never
+// tints the recessed slot's interior, where the old path-gradient center
+// bled green through the semi-transparent track fill).
+func excludeClipPath(g, path uintptr) {
+	if g != 0 && path != 0 {
+		procGdipSetClipPath.Call(g, path, combineModeExclude)
+	}
+}
+
+// resetClip restores the graphics to unclipped fills.
+func resetClip(g uintptr) {
+	if g != 0 {
+		procGdipResetClip.Call(g)
+	}
 }
 
 // ---- fills ----
