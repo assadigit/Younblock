@@ -207,7 +207,11 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // this round — the version bump rides the version-line
         // lockstep only (the shell reports this string to the About
         // page).
-        opts := engine.Options{Platform: plat, Version: "1.6.11"}
+        // 1.6.12 (D115) rides the lite beauty round — the lite screen
+        // becomes the v3 main screen (the lever, the gradients, the
+        // sheet) — still no mobile/Android change; the lockstep-only
+        // bump rule applies again.
+        opts := engine.Options{Platform: plat, Version: "1.6.12"}
         if mutate != nil {
                 mutate(&opts)
         }

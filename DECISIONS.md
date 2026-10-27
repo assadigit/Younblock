@@ -2734,3 +2734,67 @@ sure younblock has this version, call it younblock-lite-desktop").**
 5. Next decision ID: D115. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+---
+
+**D115 — the lite beauty round: the lite edition carries the full
+version's screen, natively, still dependency-free ("The younblock Lite
+is too simple. my intent was to use the maximum beauty and quality of
+interface with go, without need to use dependencies. Lite version
+doesnt mean basic. it means be as beautiful and user friendly as you
+can, maintain the look and feel of the full version as much as you
+can, without needing dependency, so the file stays small"; the follow-up
+TLDR: "make a beautiful UI, follow the full version design as much you
+can, stay without dependency, so the file .exe version stays under
+30mb").**
+
+1. **"Lite" re-defined by its owner: light, not bare.** The D114
+   screen (one word, one line, one button) answered "simpler and more
+   reliable to install"; the owner's verdict reframes the goal — the
+   lite edition must keep the full version's LOOK AND FEEL as much as
+   a dependency-free .exe allows. The answer is not a web view in
+   hiding (that would reintroduce the runtime) but the v3 main screen
+   redrawn natively: every token ported from docs/ui-v3/
+   younblock-tokens.css and the Svelte components into
+   screen_windows.go, one painter, no toolkit.
+2. **GDI+ is a system component, not a dependency.** The anti-aliased
+   shapes, the multi-stop gradients, the soft auras and glows ride
+   gdiplus.dll — shipped inside every Windows since XP exactly like
+   user32 and gdi32, linked lazily, never installed. The words stay
+   on plain GDI (CreateFontIndirectW carries the design's real
+   400-700 weights; per-character drawing carries the cap label's
+   2.2 px letterspacing and the timer's tabular boxes). The
+   float-argument GDI+ entry points (REAL by value travels in XMM
+   registers Go's syscall never fills — the ABI trap) are avoided by
+   construction: rounded shapes are polygon-sampled paths, strokes
+   are capsule fills, gradient geometry reaches GDI+ as pointers.
+   The one unavoidable lParam dereference (WM_GETMINMAXINFO) rides
+   an unsafe.Pointer callback parameter, the vet-blessed direction.
+3. **The screen is the full version's, gesture for gesture:** the
+   state gradient backgrounds with 700 ms cross-fades, the halftone
+   texture, the glass header, the status column (ghost tile, hero
+   word, honest sub lines — the M8-an warming copy and the
+   last-session line included — tabular timer, byte totals), the
+   Open YouTube card, and the key-cap lever with the reference's
+   exact interaction rules: the cap follows the finger, releasing
+   past 45% of the 122 px travel commits, a plain tap fires with a
+   500 ms honest-revert guard, the 550 ms springy slide overshoots
+   on the reference's cubic-bezier. The menu sheet returns as the
+   "..." panel with the two settings toggles reading and writing the
+   ONE shared settings file — plus Open YouTube and the quiet Exit
+   row (the D112 quit semantics). The window is the design's
+   360x640, resizable to the same 320x560 floors, with a dark title
+   bar. The 30 fps animation clock carries the design's infinite
+   loops (the auras, the LED blink and breath, the swipe cue) and
+   parks itself while the window is hidden or minimized.
+4. **The budget holds:** the exe grows ~2 MB over the D114 build
+   (the painter and its tokens) and lands far under the 30 MB
+   ceiling; the build lane still needs ONLY Go; the OS-neutral
+   halves (view.go's state-to-screen mapping with the T-table copy,
+   app.go's wiring, geom.go's pure polygon/curve math) are
+   unit-tested on every host — 21 tests, go vet clean on linux,
+   windows/amd64 and windows/386, geometry included (capsule
+   containment, bezier overshoot, rrect bounds).
+5. Next decision ID: D116. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

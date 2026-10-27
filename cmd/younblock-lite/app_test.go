@@ -75,35 +75,55 @@ func TestAppConnectServeDisconnect(t *testing.T) {
 		t.Fatalf("on without a port: %+v", st)
 	}
 
-	// The view over the live state paints the connected screen.
-	v := view(app.Poll())
-	if v.ButtonLabel != "Disconnect" || v.Footer == "" {
-		t.Errorf("connected view = %+v", v)
+	// The screen over the live state paints the connected look — the
+	// warm gate first settles (M8-an: the warming look is the honest
+	// state for a tunnel that is up but not yet usable).
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		st = app.State()
+		if st.Phase == engine.PhaseOn && st.Warm {
+			break
+		}
+		if st.Phase == engine.PhaseError {
+			t.Fatalf("connect failed: %+v", st)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	v := screen(app.Poll())
+	if v.State != ScreenConnected || v.Action != LeverDisconnect || !v.ShowCard {
+		t.Errorf("connected screen = %+v", v)
 	}
 
 	app.Disconnect()
 	st = waitForPhase(t, app, engine.PhaseOff)
 	_ = st
-	if v := view(app.Poll()); v.Headline != "Off" {
-		t.Errorf("post-stop view = %+v", v)
+	if v := screen(app.Poll()); v.State != ScreenIdle {
+		t.Errorf("post-stop screen = %+v", v)
 	}
 }
 
 // The sink's channel must not block the engine when the UI is slow:
-// many rapid state changes collapse to the freshest one.
+// many rapid state changes collapse, and the answer is always the
+// engine's own live snapshot (the events are the wake-up signal; the
+// screen never paints a stale queued copy).
 func TestAppEventChannelDrainsToFreshest(t *testing.T) {
 	app := newTestApp(t)
 	for i := 0; i < 32; i++ {
 		app.OnEvent("state", `{"phase":"connecting"}`)
 	}
 	st := app.Poll()
-	if st.Phase != engine.PhaseConnecting {
-		t.Fatalf("Poll after 32 queued events = %s, want connecting (freshest)", st.Phase)
+	if st.Phase != engine.PhaseOff {
+		t.Fatalf("Poll after 32 queued events = %s, want the engine's live off (the queued copies are only the wake-up)", st.Phase)
 	}
 	// Non-state events are not the lite screen's concern.
 	app.OnEvent("stats", `{"downBps":1}`)
 	if st := app.Poll(); st.Phase != engine.PhaseOff {
 		t.Fatalf("a stats event changed the polled state: %+v", st)
+	}
+	// The stats fold: the byte totals still come from the engine's
+	// own snapshot, never a stale event.
+	if st := app.Poll(); st.Phase != engine.PhaseOff {
+		t.Fatalf("poll drifted: %+v", st)
 	}
 	// Garbage payloads are dropped, not fatal.
 	app.OnEvent("state", "{not json")

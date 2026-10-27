@@ -12,6 +12,38 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (2026-10-28 — the lite beauty round; v0.8.5 line, 1.6.12, versionCode 42 — D115)
+
+- **younblock-lite-desktop now carries the full version's screen.** The
+  owner's verdict on the first lite: "too simple — Lite doesn't mean
+  basic; it means be as beautiful and user-friendly as you can,
+  maintain the look and feel of the full version as much as you can,
+  without needing a dependency, so the .exe stays small." This round
+  delivers exactly that: the lite window IS the v3 main screen now —
+  the same 360x640 design the Wails desktop and the Android WebView
+  render — redrawn natively. The state gradient backgrounds with their
+  700 ms cross-fades and halftone-dot texture, the glass header with
+  the red brand tile, the status column (the ghost play tile, the
+  eyebrow, the 32 px hero word, the honest sub lines, the tabular
+  session timer, the arrowed byte totals), the Open YouTube card, and
+  the signature physical key-cap lever: the recessed 128x272 track,
+  the sliding satin-red 112x124 cap with its 9 px side wall, LED, grip
+  ridges, engraved letterspaced label and power icon — with the
+  reference's drag gestures (the cap follows the finger, releasing
+  past 45% of the travel commits, a plain tap fires) and its breathing
+  auras, blinking and pulsing on the same timings. The "..." button
+  opens a real menu sheet (the reference's sliding panel) with the two
+  honest settings toggles — connect-on-launch and open-YouTube-when-
+  connected, read and written through the SAME settings file — plus
+  Open YouTube and the quiet Exit row. Still one .exe, still zero
+  dependencies: GDI+ (a Windows system component inside every Windows
+  since XP) paints the anti-aliased shapes and gradients, plain GDI
+  paints the words in real weights, and the only float-argument ABI
+  hazards are avoided by construction (polygon-sampled paths, pointer-
+  passed gradient geometry). The exe grows ~2 MB and stays far under
+  the 30 MB budget; the window is resizable (floors 320x560) with a
+  dark title bar like the main desktop.
+
 ### Added (2026-10-27 — the lite desktop edition; v0.8.5 line, 1.6.11, versionCode 41 — D114)
 
 - **younblock-lite-desktop: the dependency-free Windows edition.**

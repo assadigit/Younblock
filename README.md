@@ -391,14 +391,19 @@ install, nothing that can be missing — copy it to any Windows 10+ computer and
 double-click (D114). The same engine, the same Windows proxy setting and the same
 settings file as the everyday app; your settings from the main app apply here too.
 
-The screen is deliberately simpler: the Y mark, one state word, one line, one button
-(Connect / Cancel / Disconnect / Retry), an **Open YouTube** link and the version
-footer. Closing it while connected asks first, and it always puts your internet
-settings back before it exits. What it does not have: the settings panel, the
-diagnostics page, the tray, the dedicated Chrome window — for those, use the main
-app (same tunnel, same settings). If a crashed run ever leaves the proxy behind,
-`younblock-lite-desktop.exe --restore-proxy` puts it back (the same hatch the
-headless engine has).
+The screen is the **full version's design** (D115): the same 360x640 main screen the
+everyday app and the Android app render — the state-colored gradient backgrounds,
+the big physical key-cap lever you pull up to connect (or just tap it), the live
+session timer and byte totals, the **Open YouTube** card while connected, and the
+"..." menu with the two settings toggles (they edit the same settings file the main
+app reads). It is drawn natively with the Windows system's own graphics (GDI/GDI+ —
+inside every Windows since forever), which is how it stays beautiful AND
+dependency-free; the exe is still one small file. Closing it while connected asks
+first, and it always puts your internet settings back before it exits. What it does
+not have: the diagnostics page, the tray, the dedicated Chrome window — for those,
+use the main app (same tunnel, same settings). If a crashed run ever leaves the
+proxy behind, `younblock-lite-desktop.exe --restore-proxy` puts it back (the same
+hatch the headless engine has).
 
 ## Building it yourself (optional)
 

@@ -14,16 +14,17 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version. 1.6.11 rides
-// the lite desktop edition's debut (D114): younblock-lite-desktop — the
-// dependency-free Windows shell (one .exe, a plain Win32 window, no
-// WebView2, nothing to install), sharing this same engine, settings and
-// proxy mechanism. The engine itself is unchanged — the bump keeps the
-// About line in lockstep with the APK's versionName (the
-// build.gradle.kts comment block records why). NOTE: the lite exe's
-// version-info resource (cmd/younblock-lite/rsrc_windows_*.syso) reads
-// this constant — scripts/gen_lite_resources.py regenerates it.
-const AppVersion = "1.6.11"
+// AppVersion — shown in the UI and reported by --version. 1.6.12 rides
+// the lite desktop edition's beauty round (D115): the same one-exe,
+// zero-dependency shell, its screen lifted to the v3 main screen itself
+// — the state gradients, the key-cap lever, the live timer/stats and
+// the menu sheet, redrawn natively (GDI+ shapes, GDI text, nothing to
+// install). The engine itself is unchanged — the bump keeps the About
+// line in lockstep with the APK's versionName (the build.gradle.kts
+// comment block records why). NOTE: the lite exe's version-info
+// resource (cmd/younblock-lite/rsrc_windows_*.syso) reads this
+// constant — scripts/gen_lite_resources.py regenerates it.
+const AppVersion = "1.6.12"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

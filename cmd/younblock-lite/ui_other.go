@@ -10,13 +10,13 @@
 package main
 
 import (
-        "fmt"
-        "os"
+	"fmt"
+	"os"
 )
 
 // runUI refuses honestly instead of pretending.
 func runUI(app *App) {
-        fmt.Println("The lite desktop edition is a Windows app.")
-        fmt.Println("On Linux, use the web edition (younblock-linux-*) or the native window edition.")
-        os.Exit(1)
+	fmt.Println("The lite desktop edition is a Windows app.")
+	fmt.Println("On Linux, use the web edition (younblock-linux-*) or the native window edition.")
+	os.Exit(1)
 }
