@@ -5705,3 +5705,199 @@ proportion round's screen with the settings panel fixed; the engine
 rides exactly as v0.8.3 shipped it. One tag, one release, fourteen
 assets, every version of Younblock on it — and the line is official
 now: 1.6.8, no debug naming anywhere it can be seen.
+
+## The lite desktop line — v0.8.5, every version in the one release again (2026-10-27/28, 1.6.12, versionCode 42 — D112–D116)
+
+**The owner's three asks between the releases.** (1) Android's back
+button left the app in Recents and the status bar after "closing" it
+— the answer is the one deliberate, confirmed end-of-app action: the
+"..." menu's quiet **"Quit Younblock"** row (D112, 1.6.9,
+versionCode 39): a confirmation, then the app stops the connection,
+removes the notification, and leaves the status bar and Recents
+entirely — gone is gone; disconnect stays a different, reversible
+thing. (2) The status-bar mark was an opaque square Android's
+alpha-mask rendering turned into a blob — the mark is now the white
+**Y**, drawn as pure strokes, legible in both light and dark status
+bars (D113, 1.6.10, versionCode 40). (3) "Release, merge push commit
+in the main branch" — the release at the end of this entry.
+
+**younblock-lite-desktop, the debut (D114, 1.6.11, versionCode 41).**
+The main Windows app rides Wails + WebView2 — a runtime some machines
+don't have and can't easily install (LTSC boxes, locked-down PCs).
+The lite edition is the answer for those: **one .exe, zero
+dependencies**, plain Win32 GDI — the same engine, the same settings
+file, the same Windows proxy mechanism with backup and crash
+recovery. Debut screen: the Y mark, the state word + LED, one line,
+one button, Open YouTube, the footer. The build lane
+(`build-lite-desktop.sh`) needs only Go; both 64/32-bit exes landed
+far under the 30 MB budget (10.46 MB / 10.06 MB). Verified: 12
+tests, `go vet` clean on linux + windows/amd64 + windows/386, PE
+inspection (.rsrc present, GUI subsystem, UTF-16 "Younblock
+Lite"/version strings), and the six-state design preview — but NOT
+executed on Windows (no display in this sandbox; the on-machine
+check was left to the owner). That gap is exactly what D117 later
+paid for.
+
+**The lite beauty round (D115, 1.6.12, versionCode 42).** The
+owner's verdict on the debut: "too simple. Lite doesn't mean basic;
+be as beautiful and user-friendly as you can, maintain the look and
+feel of the full version as much as you can, without needing a
+dependency, so the .exe stays small." The lite window now IS the v3
+main screen: the state gradients with 700 ms cross-fades, pre-built
+halftone dots + 5 % grain, the glass header with the red brand tile,
+the status column (ghost tile, hero word, honest sub lines, tabular
+timer, arrowed byte totals), the Open YouTube card with its 450 ms
+rise, the full key-cap lever (aura, cap glow, shadow, wall, sheen,
+LED, grip, label, power icon; the 45 %-commit gesture rules with the
+500 ms honest-revert head start), and the menu sheet with action
+rows, animated toggles and the quiet Exit row. The ABI insight that
+shaped the whole painter: GDI+'s float-by-value entry points cannot
+be called through Go's syscall layer on windows/amd64 (by-value
+floats travel in XMM registers syscall never fills) — so the painter
+binds ONLY integer/pointer GDI+ entry points (rounded shapes are
+polygon-sampled paths, strokes are capsule fills, gradient geometry
+reaches GDI+ as PointF/blend-array POINTERS) and keeps ALL text on
+plain GDI (CreateFontIndirectW with the design's real 400–700
+weights; per-character DrawTextW for the cap label's 2.2 px
+letterspacing and the timer's tabular boxes). gdiplus.dll ships in
+every Windows since XP — a system component, not a dependency.
+Verified: 21 tests, vet ×3 targets, both exes ~10.6 MB — again,
+execution on real Windows left to the owner's machine.
+
+**The red-cap ruling (D116, no app change).** The owner: "i think
+your button color is off. it must be red. see this." The attachment
+was the repo's own tracked reference — the cap is the bright satin
+red in ALL FOUR states (STOP stays red; the state speaks through the
+glow). The delivered preview rendered it dark maroon: PIL's
+`Image.paste` REPLACES masked pixels instead of alpha-blending, so
+the mostly-transparent sheen and shade layers wiped the red face in
+the MOCKUP only. The exe was never wrong (the face is the exact
+#EC3D34→#D62A20→#C8231D stops via direct SourceOver fills, paint
+order verified statically). The renderer was fixed (composite to
+clip, alpha_composite to blend), the ruling recorded as D116: the
+cap is always the brand red; never "fix" the connected cap to green.
+
+**The v0.8.5 release.** Tagged on 45158fb; every lane built from
+the tagged tree: the frontend bundle, the Linux web editions, the
+headless Windows engines, the Wails Windows apps 64/32, the NATIVE
+Linux app + debs + AppImages (the first run honestly skipped the
+native lane — a jammy deb download was truncated; the corrupt file
+deleted, the webkit stack re-fetched, the lane re-run and built),
+the two lite exes, the APK (npm ci + vite + gomobile bind + gradle),
+and the 192 MB offline pack + setup zip. Static checks: aapt2
+badging reads versionCode 42 / versionName 1.6.12 / minSdk 26 /
+targetSdk 36; apksigner prints the pinned D85 debug certificate
+(SHA-256 c76bb7c6…8551d — installs over v1.6.10 in place). Published
+as [v0.8.5](https://github.com/assadigit/Younblock/releases/tag/v0.8.5)
+(id 425942487), 16 assets, every one re-downloaded and
+byte-identical — the first release carrying the lite edition:
+
+  v1.6.12.apk                      37,233,697 B  (SHA-256 e29fc1fd…9f32f)
+  younblock.exe                    13,703,168 B  (SHA-256 4d58c0bd…dc8c)
+  younblock-x86.exe                13,079,552 B  (SHA-256 fa35671c…7a84)
+  younblock-core.exe               11,625,472 B  (SHA-256 646f0f8f…6c3b)
+  younblock-core-x86.exe           11,163,648 B  (SHA-256 b3a1df9f…c7fd)
+  younblock-linux-amd64             8,966,304 B  (SHA-256 33b5f82d…986d)
+  younblock-linux-386               8,663,200 B  (SHA-256 5b30e3ff…7f25)
+  younblock-linux-gui-amd64        12,404,768 B  (SHA-256 969f1274…fe1e)
+  younblock_1.6.12_amd64.deb        4,225,348 B  (SHA-256 eeb98734…0cf5)
+  younblock_1.6.12_i386.deb         3,139,092 B  (SHA-256 6753dce2…93e6)
+  Younblock-1.6.12-x86_64.AppImage 74,540,224 B (SHA-256 f47fbf64…ac3a)
+  Younblock-1.6.12-i686.AppImage    4,173,872 B (SHA-256 a7a04763…5baa4)
+  younblock-lite-desktop.exe       10,599,424 B  (SHA-256 2c717439…9145)  ← superseded by v0.8.6
+  younblock-lite-desktop-x86.exe   10,205,184 B  (SHA-256 e96bfa2f…2e36)  ← superseded by v0.8.6
+  Younblock-offline_1.6.12.zip    201,161,247 B (SHA-256 8d09df58…6ab26)
+  younblock-setup_1.6.12.zip            7,864 B (SHA-256 02678ead…a769)
+
+On-Windows and on-Android runtime checks remained the owner's
+machine (no display in this sandbox), as documented in every prior
+round — and the owner's very next report proved the point: the lite
+exe did not run. That report is the next entry.
+
+## The runs-anywhere round — v0.8.6, the lite fix release (2026-10-28, 1.6.13, versionCode 43 — D117)
+
+**The owner's report: "The lite version didn't run on my computer."**
+A windowsgui process has no console — the v1.6.12 lite exe's death
+was completely invisible: double-click, nothing, no error. This
+round built the Windows lane's standing runtime oracle: a ROOTLESS
+portable Wine harness (the Debian wine debs extracted into a
+user-space root, a rewritten wineserver wrapper, an LD_PRELOAD
+path-shift shim for wine's hardcoded library paths, zlib1.dll and a
+64-bit rundll32 placed into the prefix where wineboot looks for
+them, Xvfb for the display — proot is SIGSYS-blocked by seccomp
+here; the LD_PRELOAD route is the one that works). Running the REAL
+shipped v1.6.12 exe under it reproduced the owner's failure in
+seconds, with a full stack: panic "Failed to find
+AdjustWindowRectForDpi procedure in user32.dll" — the lazy loader
+PANICS on a missing export, so every `ok == 0` fallback written
+below an optional call was unreachable code.
+AdjustWindowRectForDpi is a Windows 10 1607+ export; the whole DPI
+ladder (SetProcessDpiAwarenessContext 1607+, shcore's
+SetProcessDpiAwareness 8.1+) had the same shape.
+
+**The second, worse bug the first fix exposed.** `DrawTextW` — the
+call that paints every word on the screen — was bound to gdi32.dll,
+which has NEVER exported it on ANY Windows (it is a user32 export):
+the window appeared for one frame and died on the first paint, on
+every machine, whatever the Windows version. Neither bug was
+visible to any static check run in D114/D115/D116 — compile, vet,
+PE inspection, mockup previews all green. The systematic answer:
+`scripts/audit_procs.py` checks EVERY lazy-proc DLL/name binding in
+the package against wine's real DLL export tables — exactly those
+two issues plus one dead never-called declaration (removed);
+AdjustWindowRectForDpi stays "missing" by design, guarded with the
+AdjustWindowRect fallback (wine = a faithful pre-1607 stand-in).
+
+**The fixes (D117).** Every optional door is availability-guarded
+(`procOK`, a one-time Find()) and steps down honestly:
+per-monitor-v2 → per-monitor-v1 → system-DPI-aware → unaware, the
+door taken written to the run log; `adjustFrame()` replaces the
+three duplicated AdjustWindowRectForDpi sites; `windowDpi()` falls
+back to the screen's system DPI; `DwmSetWindowAttribute` is skipped
+when absent; DrawTextW re-bound to user32. And the
+never-silent-death layer: every launch truncates and writes
+`younblock-lite.log` beside the exe (fallbacks: the user cache dir,
+then temp) recording the REAL Windows version (ntdll's
+RtlGetVersion — immune to compat-shim lies), the exe's path, every
+startup milestone, and any panic from anywhere (the message loop
+recovers and logs instead of dying; a startup failure raises a real
+MessageBox with the error and the log's path). Before this round,
+a windowsgui failure was literally invisible; now it always leaves
+a sentence that says why.
+
+**Verified — the first RUNTIME verification the lite edition has
+ever had.** The 1.6.13 exe under wine + Xvfb: a clean log (the DPI
+chain walks down to system-dpi-aware — the pre-1607 path EXERCISED,
+because wine deliberately lacks the 1607+ APIs — the exact machine
+class that crashed before), the full v3 screen painting, a tapped
+lever (a PostMessage clicker — FindWindow + WM_LBUTTONDOWN/UP, no
+XTEST in this sandbox) connecting for real: proxy listening on
+127.0.0.1:4525 → tunnel up → first byte → DoH warm → warm gate
+open, the Windows proxy set and restored through wine's registry;
+the connected screen showing the running timer, byte totals and the
+Open YouTube card; the menu sheet opening with its rows and
+toggles. The screenshots were VLM-verified against the design and
+the app stayed alive through the whole session. The check on a REAL
+Windows remains the owner's machine — but the crashing class is
+precisely what wine stands in for, and this time the exe was
+actually run before it shipped.
+
+**The v0.8.6 release — a scoped patch, per the D89 precedent.**
+Only the artifacts this round changed ship; every other lane stays
+on v0.8.5 and the release notes point there (the next unified
+release will carry the version bump through all lanes). Tagged on
+b32fe8b (the D117 fix commit, pushed to main) and published as
+[v0.8.6](https://github.com/assadigit/Younblock/releases/tag/v0.8.6)
+(id 426018361), both assets re-downloaded and byte-identical:
+
+  younblock-lite-desktop.exe      10,613,248 B  (SHA-256 9cf79174…6749)
+  younblock-lite-desktop-x86.exe  10,218,496 B  (SHA-256 17bb4350…296f)
+
+The v0.8.5 page gained the superseding pointer note for its two
+lite exes (identical bytes are never re-released; the note
+redirects, exactly as D89 did for the helper asset). The publishing
+token rode a one-off in-memory git credential helper and the
+environment — never on disk, never in the repo; `.git/config` was
+checked clean after the push. The CHANGELOG's D117 heading now
+carries the v0.8.6 note inline, matching how the v0.8.5-line
+entries were annotated.

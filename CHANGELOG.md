@@ -12,7 +12,7 @@ every release are on the
 
 ## [Unreleased]
 
-### Fixed (2026-10-28 — the runs-anywhere round; 1.6.13, versionCode 43 — D117)
+### Fixed (2026-10-28 — the runs-anywhere round; v0.8.6, 1.6.13, versionCode 43 — D117)
 
 - **younblock-lite-desktop actually runs now — two fatal startup
   bugs are gone, and no launch can ever fail silently again.** The
