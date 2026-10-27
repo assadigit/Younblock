@@ -80,6 +80,7 @@ const (
 	fillModeAlternate      = 0 // even-odd: overlapping subfigures punch holes
 	fillModeWinding        = 1 // non-zero: overlapping subfigures union
 	wrapModeClamp          = 4
+	wrapModeTileFlipXY     = 3 // the linear-gradient brush rejects Clamp (D118)
 	unitPixel              = 2
 	pixelFormat32bppARGB   = 0x26200A
 )
@@ -197,32 +198,41 @@ func newVGradient(x, y, w, h int32, colors []uint32, positions []float32) uintpt
 	p1 := gPointF{X: float32(x), Y: float32(y)}
 	p2 := gPointF{X: float32(x), Y: float32(y + h)}
 	var b uintptr
-	if r, _, _ := procGdipCreateLineBrush.Call(
+	r1, _, _ := procGdipCreateLineBrush.Call(
 		uintptr(unsafe.Pointer(&p1)),
 		uintptr(unsafe.Pointer(&p2)),
 		uintptr(colors[0]), uintptr(colors[len(colors)-1]),
-		wrapModeClamp,
+		wrapModeTileFlipXY,
 		uintptr(unsafe.Pointer(&b)),
-	); !gpOK(r) {
+	)
+	if !gpOK(r1) {
 		return 0
 	}
-	if r, _, _ := procGdipSetLinePresetBlend.Call(
+	r2, _, _ := procGdipSetLinePresetBlend.Call(
 		b,
 		uintptr(unsafe.Pointer(&colors[0])),
 		uintptr(unsafe.Pointer(&positions[0])),
 		uintptr(len(colors)),
-	); !gpOK(r) {
+	)
+	if !gpOK(r2) {
 		procGdipDeleteBrush.Call(b)
 		return 0
 	}
 	return b
 }
 
-// newPathGlow builds a path-gradient brush over an already-built path:
-// centerColor at the path's centroid fading to the surround color at
-// its boundary — the outward-glow primitive the v3 screen's soft
-// shadows and auras are made of.
-func newPathGlow(path uintptr, center, surround uint32) uintptr {
+// newPathGlow builds a path-gradient brush over an already-built path
+// of npts boundary points: centerColor at the path's centroid fading to
+// the surround color at its boundary — the outward-glow primitive the
+// v3 screen's soft shadows and auras are made of. The surround color
+// must be written to EVERY boundary point (SetSurroundColorsWithCount
+// paints only the first `count` and leaves the rest at GDI+'s default
+// OPAQUE WHITE — a single color leaves a hard white ring on the glow's
+// boundary, the D118 white-line bug). The count is the CALLER's to
+// name: every glow path here is a polygon we sampled ourselves, so the
+// count is known without asking the path (wine's gdiplus does not even
+// export GdipGetPathPointCount — a D117-class lazy-proc trap).
+func newPathGlow(path uintptr, center, surround uint32, npts int32) uintptr {
 	if path == 0 {
 		return 0
 	}
@@ -231,9 +241,14 @@ func newPathGlow(path uintptr, center, surround uint32) uintptr {
 		return 0
 	}
 	procGdipSetPathGradientCenterColor.Call(b, uintptr(center))
-	n := int32(1)
-	sc := surround
-	procGdipSetPathGradientSurroundColors.Call(b, uintptr(unsafe.Pointer(&sc)), uintptr(unsafe.Pointer(&n)))
+	if npts < 1 {
+		npts = 1
+	}
+	cols := make([]uint32, npts)
+	for i := range cols {
+		cols[i] = surround
+	}
+	procGdipSetPathGradientSurroundColors.Call(b, uintptr(unsafe.Pointer(&cols[0])), uintptr(unsafe.Pointer(&npts)))
 	return b
 }
 

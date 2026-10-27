@@ -58,6 +58,7 @@ const (
 
 // Focus / hot identities (the sheet's rows ride the 100 range).
 const (
+	focusNone   = -1 // born unfocused: no ring until the keyboard speaks (D118)
 	focusLever  = 0
 	focusCard   = 1
 	focusMenu   = 2
@@ -122,6 +123,10 @@ type liteWindow struct {
 	// interaction
 	focus int
 	hot   int
+	// kbdNav: focus rings appear only once the user has actually
+	// navigated with the keyboard (Tab) — the reference's behavior, and
+	// the end of the born-with-a-white-ring artifact (D118)
+	kbdNav bool
 
 	// the paint in progress (the memory DC — the cap label's
 	// per-character GDI text needs it)
@@ -156,7 +161,7 @@ func runUI(app *App) {
 		return
 	}
 
-	w := &liteWindow{app: app, hot: -1, focus: focusLever}
+	w := &liteWindow{app: app, hot: -1, focus: focusNone}
 	if !w.create() {
 		diagLog("window creation failed — exiting")
 		return
@@ -445,17 +450,9 @@ func makeFontPx(dpi int32, heightPx int32, weight int32) windows.Handle {
 		CharSet: defaultCharset,
 		Quality: clearTypeQuality,
 	}
-	copy(lf.FaceName[:], utf16FaceName())
+	copy(lf.FaceName[:], faceNameUTF16())
 	h, _, _ := procCreateFontIndirectW.Call(uintptr(unsafe.Pointer(&lf)))
 	return windows.Handle(h)
-}
-
-// utf16FaceName is "Segoe UI" as UTF-16 (LOGFONTW wants the wide form)
-// — the system-ui face the web screen resolves to on Windows, so both
-// desktops set the same words.
-func utf16FaceName() []uint16 {
-	w, _ := windows.UTF16FromString("Segoe UI")
-	return w
 }
 
 func makeBrush(color uintptr) uintptr {
@@ -1042,6 +1039,7 @@ func (w *liteWindow) onButtonDown(lp uintptr) {
 		return
 	}
 	h := w.hitMain(x, y)
+	w.kbdNav = false // pointer use: rings off again (the reference's behavior)
 	switch h {
 	case 0:
 		// The lever: gestures are inert while connecting (the
@@ -1204,6 +1202,7 @@ func (w *liteWindow) onKey(wp uintptr) bool {
 			return true
 		}
 	case vkTab:
+		w.kbdNav = true
 		if w.sheetOpen {
 			// 100..104, wrapping.
 			if w.focus < focusSheet0 || w.focus > 104 {
@@ -1215,7 +1214,7 @@ func (w *liteWindow) onKey(wp uintptr) bool {
 			}
 		} else {
 			// The lever, the card (while it exists), the menu.
-			if w.focus == focusLever {
+			if w.focus == focusNone || w.focus == focusLever {
 				if w.scr.ShowCard {
 					w.focus = focusCard
 				} else {

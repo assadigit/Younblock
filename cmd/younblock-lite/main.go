@@ -69,6 +69,11 @@ func main() {
 		}
 	}()
 
+	// The reference's typeface, embedded (D118): Space Grotesk's four
+	// weights register process-privately before any font is built —
+	// with an honest Segoe UI step-down if that ever fails.
+	registerEmbeddedFonts()
+
 	// The platform adapter runs crash recovery in New() on Windows (a
 	// leftover proxy setting from a crashed run is restored right now,
 	// before anything starts) — the lite edition inherits that for

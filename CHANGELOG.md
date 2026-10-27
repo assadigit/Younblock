@@ -12,6 +12,80 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 — the look-right round; 1.6.14, versionCode 44 — D118)
+
+- **The lite exe now LOOKS like the reference — three silent GDI+
+  defects painted the v1.6.13 screen as a black void with a thin
+  red outline, and all three are gone.** The owner's report: "IT
+  works, but it's too ugly. I want to look-like the
+  dependency-needed version." Pixel-comparing the owner's
+  screenshot against the states-preview reference showed the
+  state gradients, the header's red tile, the cap's satin face,
+  the track's recess and the card's glass all MISSING — every
+  semi-transparent layer that makes the design was absent, on
+  every machine, since the beauty round (D115). The wine oracle
+  (D117's harness) reproduced it exactly, and instrumented A/B
+  strips named the causes in two runs:
+  1. **Every linear gradient never drew.** `GdipCreateLineBrush`
+     was called with `WrapModeClamp` — a wrap mode the
+     linear-gradient brush REJECTS (status 2, InvalidParameter;
+     the C++ wrapper throws for it too). The painter's error
+     handling was honest (skip the fill), so the screen simply
+     painted its fallback: black. Every `newVGradient` since D115
+     returned a dead brush — invisible to compile, vet and PE
+     inspection, obvious the moment the exe is actually RUN.
+     Fixed with `WrapModeTileFlipXY` (the fill always exactly
+     covers the gradient band, so tiling never shows).
+  2. **Every soft glow wore a hard white ring.** The auras,
+     sheens and shadows are path-gradient brushes, and GDI+
+     keeps ONE surround color per boundary point, defaulting to
+     OPAQUE WHITE: `SetSurroundColorsWithCount` paints only the
+     first `count` points, so the single transparent surround
+     color left every other point white — a 2 px white outline on
+     each glow's boundary (the "stray vertical lines" in the
+     owner's screenshot). Fixed by writing the surround color to
+     every point (the polygon builders know their counts;
+     wine's gdiplus does not even export GdipGetPathPointCount —
+     a D117-class lazy-proc trap the refactor avoided).
+  3. **The window was born wearing a keyboard focus ring.** The
+     focus field initialized to the lever, so a bright 3 px ring
+     painted around the button zone from the first frame on
+     every launch. Focus rings now appear only after real
+     keyboard navigation (the first Tab), and pointer use hides
+     them again — the reference's behavior.
+- **The reference's typeface rides inside the exe: Space
+  Grotesk.** The design mockups (and the
+  `younblock-ui-reference` HTML the states-preview was rendered
+  from) are set in Space Grotesk, a geometric sans no Windows
+  ships; the lite was falling back to Segoe UI — the single
+  biggest residual difference after the rendering fixes. The
+  four static weights (400/500/600/700, instantiated from the
+  official variable font, ~350 KB) are `go:embed`ded in the exe
+  and registered process-privately at startup
+  (`AddFontMemResourceEx`, FR_PRIVATE: nothing is installed
+  beside the exe, nothing leaks to other processes — the
+  zero-dependency contract holds), with an honest Segoe UI
+  step-down if registration ever fails (the face chosen is
+  written to younblock-lite.log). Space Grotesk is SIL OFL 1.1
+  (the license text ships beside the fonts in the repo) —
+  embedding is exactly what the license permits.
+- **Verified end-to-end under the wine oracle for every state:**
+  idle (the slate gradient, the ghost tile, the glossy satin-red
+  cap in its recessed pit — VLM: "no white lines, no banding, no
+  misplaced elements"), connected (the teal gradient's row
+  profile matches the reference's stop-for-stop within AA
+  tolerance; the green aura, the bright red cap, the timer and
+  byte totals), and the menu sheet (title, rows, toggles, scrim).
+  The typeface change was verified two ways (15 % pixel change
+  in the text area; VLM confirming the geometric letterforms —
+  single-story g, circular terminals). One honest note: the
+  full desktop edition's own font stack ("Sora Variable" first)
+  never loads any webfont (no @font-face exists — it renders
+  the system font), and the Inter files in frontend/public/fonts
+  are orphans no code references; that gap is recorded, not
+  papered over — a future round may embed the face in the web
+  editions too.
+
 ### Fixed (2026-10-28 — the runs-anywhere round; v0.8.6, 1.6.13, versionCode 43 — D117)
 
 - **younblock-lite-desktop actually runs now — two fatal startup

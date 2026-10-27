@@ -2924,3 +2924,79 @@ report: "The lite version didn't run on my computer."
 5. Next decision ID: D118. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D118 — the look-right round: the exe that ran but did not show.**
+The owner's report: "IT works, but it's too ugly. I want to look-like
+the dependency-needed version." The runs-anywhere round (D117) had
+fixed the crashes; what remained was that the screen it painted bore
+almost no resemblance to the reference — because the beauty round's
+whole soft layer (gradients, glows, glass) had been silently dead the
+entire time.
+
+1. **Static green is not running green — the rule D117 taught, now
+   extended to RENDERING.** The v1.6.12/1.6.13 lite passed compile,
+   vet, PE inspection AND wine screenshots in D117 — the runtime
+   oracle confirmed "screen correct" because the CONTENT (words,
+   LED, aura colors) was there; nobody measured the LUMINANCE. The
+   owner's screenshot (12.png) finally made it measurable: the state
+   gradient rendered at ~15-30 % of intended strength... which turned
+   out to be the AURA and sheen layers over a BLACK base, i.e. the
+   gradient layers themselves drew NOTHING. Lesson recorded: a
+   runtime oracle must also pixel-check against the design's own
+   numbers (this round's row-profile comparison against the
+   reference PNG's actual pixel values caught what two rounds of
+   VLM "looks right" reviews missed — VLM judged content presence,
+   not fidelity; its "flat olive background" complaint was even
+   wrong in the useful direction). Rule: for every visual round,
+   pixel-compare the render against the reference's measured
+   profile, and distrust both "compile-green" and "VLM says fine"
+   alone.
+
+2. **Three GDI+ API contracts were violated, all silently.**
+   (a) `GdipCreateLineBrush` REJECTS WrapModeClamp (returns
+   InvalidParameter; the C++ LinearGradientBrush constructor throws
+   ArgumentException for it) — every linear gradient since D115
+   never drew; fixed with WrapModeTileFlipXY, safe because every
+   fill in the painter exactly covers its gradient band. (b) A
+   path-gradient brush keeps one surround color per boundary POINT,
+   defaulting to opaque white; `SetSurroundColorsWithCount` writes
+   only the first `count` — a single transparent surround leaves
+   the rest white, a hard ring on every glow's edge. Fixed by
+   naming the point count at the polygon builders (also dodging
+   GdipGetPathPointCount, which wine's gdiplus does not export —
+   the D117 lazy-proc class). (c) The focus field was born on the
+   lever, painting a 3 px focus ring from the first frame —
+   keyboard-affordance belongs to keyboard navigation: the ring
+   appears on the first Tab and hides on pointer use. General
+   rule: GDI+'s flat API fails QUIETLY through status codes the
+   lazy layer happily ignores; every future brush must check its
+   creation status the way the painter now does, and optional
+   entry points need the D117 guard discipline in BOTH
+   directions (missing export AND rejected parameter).
+
+3. **The typeface is part of the design, so it rides in the exe.**
+   The reference HTML (the states-preview's source) is set in
+   Space Grotesk; the tokens name "Sora Variable" first; neither
+   loads anywhere and the web editions render the system font
+   (the Inter files in frontend/public/fonts are unreferenced
+   orphans — recorded, not deleted). For the lite, the honest
+   match to the owner's attached target is the reference's face:
+   four static weights instantiated from the official variable
+   font (fontTools varLib.instancer, name tables corrected —
+   Google's variable TTF stamps family "Space Grotesk Light" on
+   every instance, which GDI would mis-match), embedded via
+   go:embed (~350 KB against a 30 MB budget), registered with
+   AddFontMemResourceEx FR_PRIVATE at startup — process-private,
+   nothing installed, nothing leaked, nothing surviving the exit:
+   the D114 zero-dependency contract holds by construction. SIL
+   OFL 1.1 permits exactly this; the license text ships beside
+   the fonts. The honest step-down stays: any registration
+   failure falls back to Segoe UI and writes the face it chose
+   to the run log. Ruling for the future: when the web editions
+   get their @font-face round, Space Grotesk (the reference's
+   actual face) is the family to ship — one UI means one face
+   across editions.
+
+4. Next decision ID: D119. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

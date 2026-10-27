@@ -398,7 +398,11 @@ session timer and byte totals, the **Open YouTube** card while connected, and th
 "..." menu with the two settings toggles (they edit the same settings file the main
 app reads). It is drawn natively with the Windows system's own graphics (GDI/GDI+ —
 inside every Windows since forever), which is how it stays beautiful AND
-dependency-free; the exe is still one small file. Closing it while connected asks
+dependency-free; the exe is still one small file. The design's own typeface —
+**Space Grotesk**, the geometric sans the reference mockups are set in — is embedded
+inside the exe (1.6.14+, ~350 KB, registered privately for the process only;
+nothing is installed, and if that ever fails it honestly falls back to your
+system font and says so in the log). Closing it while connected asks
 first, and it always puts your internet settings back before it exits. What it does
 not have: the diagnostics page, the tray, the dedicated Chrome window — for those,
 use the main app (same tunnel, same settings). If a crashed run ever leaves the
@@ -415,7 +419,10 @@ on Windows versions older than 10-1607, one on every Windows — were found by
 running the real exe under a Wine harness, and both are fixed). Windows SmartScreen
 may also show "Windows protected your PC" for an unsigned download — click
 **More info → Run anyway**; the exe is the file this repository built, and its
-SHA-256 is on the release page.
+SHA-256 is on the release page. (1.6.14, D118, fixed a different silence: three
+GDI+ quirks had been quietly skipping every gradient and glow since the beauty
+round — the screen you saw then was missing its whole soft layer; that layer is
+back, verified pixel-for-pixel against the reference.)
 
 ## Building it yourself (optional)
 

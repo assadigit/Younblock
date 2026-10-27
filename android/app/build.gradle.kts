@@ -57,6 +57,12 @@ android {
         // place (the same pinned debug certificate, D85). The
         // versionName moves to 1.6.12 in lockstep with
         // internal/config AppVersion.
+        // versionCode 44: the look-right round (D118) — the lite
+        // desktop exe's three silent GDI+ rendering defects are fixed
+        // (the never-drawing gradients, the white glow rings, the
+        // born-on focus ring) and the reference's Space Grotesk type
+        // face rides inside the exe. Still no Android change; the
+        // lockstep-only bump rule applies once more.
         // versionCode 43: the runs-anywhere round (D117) — the lite
         // desktop exe's two fatal startup bugs (the pre-1607
         // AdjustWindowRectForDpi panic; DrawTextW bound to the wrong
@@ -345,8 +351,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 43
-        versionName = "1.6.13"
+        versionCode = 44
+        versionName = "1.6.14"
     }
 
     signingConfigs {

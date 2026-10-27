@@ -1196,6 +1196,11 @@ func (w *liteWindow) drawFocusRings(g uintptr, sc Screen, now int64) {
 	if w.sheetPos(now) > 0.5 {
 		return // the sheet draws its own
 	}
+	if !w.kbdNav {
+		return // rings are for KEYBOARD navigation only (D118): the
+		// window is born with no ring, pointer use keeps them hidden,
+		// the first Tab brings them in — the reference's behavior
+	}
 	switch w.focus {
 	case 0:
 		// The lever: the track's outline + touch padding.
@@ -1351,8 +1356,9 @@ func (w *liteWindow) glowRRect(g uintptr, x, y, wid, hei, r, expand int32, c uin
 	if rr > (hei+2*expand)/2 {
 		rr = (hei + 2*expand) / 2
 	}
-	addPathPolygon(p, rrectPoints(x-expand, y-expand, wid+2*expand, hei+2*expand, rr, 12))
-	br := newPathGlow(p, c, 0)
+	pts := rrectPoints(x-expand, y-expand, wid+2*expand, hei+2*expand, rr, 12)
+	addPathPolygon(p, pts)
+	br := newPathGlow(p, c, 0, int32(len(pts)))
 	if br == 0 {
 		return
 	}
@@ -1370,8 +1376,9 @@ func (w *liteWindow) glowEllipse(g uintptr, cx, cy, r int32, c uint32, expand in
 		return
 	}
 	defer deletePath(p)
-	addPathEllipse(p, cx-r-expand, cy-r-expand, 2*(r+expand), 2*(r+expand))
-	br := newPathGlow(p, c, 0)
+	pts := arcPoints(cx, cy, r+expand, r+expand, 0, 360, 48)
+	addPathPolygon(p, pts)
+	br := newPathGlow(p, c, 0, int32(len(pts)))
 	if br == 0 {
 		return
 	}
@@ -1387,8 +1394,9 @@ func (w *liteWindow) glowEllipseIn(g uintptr, cx, cy, r int32, c uint32) {
 		return
 	}
 	defer deletePath(p)
-	addPathEllipse(p, cx-r, cy-r, 2*r, 2*r)
-	br := newPathGlow(p, c, 0)
+	pts := arcPoints(cx, cy, r, r, 0, 360, 48)
+	addPathPolygon(p, pts)
+	br := newPathGlow(p, c, 0, int32(len(pts)))
 	if br == 0 {
 		return
 	}

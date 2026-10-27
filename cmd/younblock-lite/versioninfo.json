@@ -3,13 +3,13 @@
     "FileVersion": {
       "Major": 1,
       "Minor": 6,
-      "Patch": 13,
+      "Patch": 14,
       "Build": 0
     },
     "ProductVersion": {
       "Major": 1,
       "Minor": 6,
-      "Patch": 13,
+      "Patch": 14,
       "Build": 0
     },
     "FileFlagsMask": "3f",
@@ -22,12 +22,12 @@
     "Comments": "Helps YouTube load in your browser. The lite desktop edition: one file, no dependencies.",
     "CompanyName": "github.com/assadigit",
     "FileDescription": "Younblock Lite",
-    "FileVersion": "1.6.13.0",
+    "FileVersion": "1.6.14.0",
     "InternalName": "younblock-lite-desktop",
     "LegalCopyright": "",
     "OriginalFilename": "younblock-lite-desktop.exe",
     "ProductName": "Younblock Lite",
-    "ProductVersion": "1.6.13"
+    "ProductVersion": "1.6.14"
   },
   "VarFileInfo": {
     "Translation": {
