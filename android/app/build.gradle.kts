@@ -57,6 +57,12 @@ android {
         // place (the same pinned debug certificate, D85). The
         // versionName moves to 1.6.12 in lockstep with
         // internal/config AppVersion.
+        // versionCode 43: the runs-anywhere round (D117) — the lite
+        // desktop exe's two fatal startup bugs (the pre-1607
+        // AdjustWindowRectForDpi panic; DrawTextW bound to the wrong
+        // DLL) are fixed and every launch now leaves younblock-lite.log
+        // beside the exe. Still no Android change; the lockstep-only
+        // bump rule applies once more.
         // versionCode 42: the lite beauty round (D115) — the lite
         // desktop screen becomes the v3 main screen (the state
         // gradients, the key-cap lever, the timer/stats, the menu
@@ -339,8 +345,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 42
-        versionName = "1.6.12"
+        versionCode = 43
+        versionName = "1.6.13"
     }
 
     signingConfigs {

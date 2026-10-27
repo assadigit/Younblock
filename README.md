@@ -405,6 +405,18 @@ use the main app (same tunnel, same settings). If a crashed run ever leaves the
 proxy behind, `younblock-lite-desktop.exe --restore-proxy` puts it back (the same
 hatch the headless engine has).
 
+**If it ever fails to start** (1.6.13+): every launch writes
+`younblock-lite.log` right next to the exe (or in your LocalAppData cache when
+the exe's folder is read-only) — open it, it says what happened in plain lines,
+including your exact Windows version and which compatibility door the app took.
+A failed start also shows an error dialog with the same details instead of
+dying silently (that round's story is D117: two invisible startup crashes — one
+on Windows versions older than 10-1607, one on every Windows — were found by
+running the real exe under a Wine harness, and both are fixed). Windows SmartScreen
+may also show "Windows protected your PC" for an unsigned download — click
+**More info → Run anyway**; the exe is the file this repository built, and its
+SHA-256 is on the release page.
+
 ## Building it yourself (optional)
 
 **The easy way:** download the **`younblock-setup`** zip from the

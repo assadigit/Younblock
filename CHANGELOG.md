@@ -12,6 +12,54 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 — the runs-anywhere round; 1.6.13, versionCode 43 — D117)
+
+- **younblock-lite-desktop actually runs now — two fatal startup
+  bugs are gone, and no launch can ever fail silently again.** The
+  owner's report: "The lite version didn't run on my computer."
+  Running the real v1.6.12 exe under wine (a rootless portable
+  Wine + Xvfb harness this round built, and now the repo's runtime
+  oracle for the Windows lane) caught the failure in seconds:
+  1. `AdjustWindowRectForDpi` — a Windows 10 1607+ export — was
+     called through the lazy loader, which PANICS when a procedure
+     is missing. The code meant to fall back to `AdjustWindowRect`,
+     but the `ok == 0` fallback sat AFTER a call that never
+     returned: on any Windows older than 1607 the process died
+     before the window existed. The whole DPI ladder had the same
+     shape (`SetProcessDpiAwarenessContext` 1607+, shcore's
+     `SetProcessDpiAwareness` 8.1+). Every optional door is now
+     availability-guarded (`procOK`, a one-time `Find()` check)
+     and steps down honestly: per-monitor-v2 → per-monitor-v1 →
+     system-DPI-aware → unaware, with the door taken written to
+     the run log. `GetDpiForWindow` falls back to the screen's
+     system DPI; `DwmSetWindowAttribute` is skipped when absent.
+  2. `DrawTextW` — the function that paints every word on the
+     screen — was bound to **gdi32.dll**, which has never exported
+     it on ANY Windows (it is a user32 export). The window appeared
+     for a frame and died on the first paint, on every machine,
+     whatever the Windows version. An export-table audit of every
+     lazy-proc binding in the package (checked against wine's real
+     DLL export tables) confirmed all the others; this is fixed and
+     the audit script is kept in the repo's tool belt.
+- **The lite exe now leaves evidence.** Every launch writes
+  `younblock-lite.log` (truncated per run, so it never grows) next
+  to the exe — falling back to the user's cache dir, then the temp
+  dir — recording the real Windows version (RtlGetVersion never
+  lies), the exe's path, the DPI door that opened, GDI+ status,
+  window creation, and any panic from anywhere (the message loop
+  recovers and logs instead of dying; a startup failure raises a
+  real MessageBox with the error and the log's path). A
+  windowsgui process has no console; before this round its
+  failures were literally invisible.
+- **Verified end-to-end under wine for real this time**: the fixed
+  exe starts, paints the full v3 screen, a tapped lever connects
+  (engine log: proxy listening → tunnel up → first byte → warm
+  gate open), the connected screen shows the running timer, byte
+  totals and the Open YouTube card, the menu sheet opens with its
+  rows and toggles — and the run log tells the whole story. The
+  two exes are rebuilt at 1.6.13 with the version-info resource to
+  match.
+
 ### Changed (2026-10-28 — the lite beauty round; v0.8.5 line, 1.6.12, versionCode 42 — D115)
 
 - **younblock-lite-desktop now carries the full version's screen.** The

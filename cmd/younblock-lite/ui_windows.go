@@ -72,15 +72,19 @@ var (
 	procGetModuleHandleW      = modKernel32.NewProc("GetModuleHandleW")
 	procDwmSetWindowAttribute = modDwmapi.NewProc("DwmSetWindowAttribute")
 
-	procCreateFontIndirectW    = modGdi32.NewProc("CreateFontIndirectW")
-	procCreateSolidBrush       = modGdi32.NewProc("CreateSolidBrush")
-	procCreatePen              = modGdi32.NewProc("CreatePen")
-	procExtCreatePen           = modGdi32.NewProc("ExtCreatePen")
-	procDeleteObject           = modGdi32.NewProc("DeleteObject")
-	procSelectObject           = modGdi32.NewProc("SelectObject")
-	procSetTextColor           = modGdi32.NewProc("SetTextColor")
-	procSetBkMode              = modGdi32.NewProc("SetBkMode")
-	procDrawTextW              = modGdi32.NewProc("DrawTextW")
+	procCreateFontIndirectW = modGdi32.NewProc("CreateFontIndirectW")
+	procCreateSolidBrush    = modGdi32.NewProc("CreateSolidBrush")
+	procCreatePen           = modGdi32.NewProc("CreatePen")
+	procExtCreatePen        = modGdi32.NewProc("ExtCreatePen")
+	procDeleteObject        = modGdi32.NewProc("DeleteObject")
+	procSelectObject        = modGdi32.NewProc("SelectObject")
+	procSetTextColor        = modGdi32.NewProc("SetTextColor")
+	procSetBkMode           = modGdi32.NewProc("SetBkMode")
+	// DrawTextW is a USER32 export (D117: it was bound to gdi32 —
+	// a DLL that has never exported it on ANY Windows — which
+	// killed the first paint on every machine; wine's export table
+	// is what caught it).
+	procDrawTextW              = modUser32.NewProc("DrawTextW")
 	procGetTextExtentPoint32W  = modGdi32.NewProc("GetTextExtentPoint32W")
 	procGetDeviceCaps          = modGdi32.NewProc("GetDeviceCaps")
 	procFillRect               = modUser32.NewProc("FillRect")
@@ -209,6 +213,7 @@ const (
 
 	mbYesNo        = 0x00000004
 	mbIconQuestion = 0x00000020
+	mbIconError    = 0x00000010
 	idYes          = 6
 
 	csHRedraw = 0x0002
@@ -248,6 +253,17 @@ const (
 
 	dpiAwarePerMonitorV2 = ^uintptr(3) // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
 )
+
+// procOK reports whether a lazy procedure actually exists on THIS
+// Windows (D117). LazyProc.Call PANICS when the export is missing —
+// the D116-era code meant to fall back through the older doors, but
+// the `ok == 0` fallbacks were unreachable: on any Windows older than
+// the API's debut the Call died before returning, which is exactly
+// how v1.6.12 silently failed to start (AdjustWindowRectForDpi exists
+// only since Windows 10 1607; wine reproduces the same miss and is
+// how the bug was caught). Find() resolves once and caches, so the
+// guard is free after the first call.
+func procOK(p *windows.LazyProc) bool { return p.Find() == nil }
 
 // rgb packs a GDI COLORREF (0x00BBGGRR).
 func rgb(r, g, b uint8) uintptr {

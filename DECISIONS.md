@@ -2846,3 +2846,81 @@ states-preview reference).**
 5. Next decision ID: D117. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+---
+
+**D117 — the runs-anywhere round: the lite exe's two fatal startup
+bugs, the wine oracle, and the every-launch log.** The owner's
+report: "The lite version didn't run on my computer."
+
+1. **The root cause was two unguarded lazy-proc calls, and the
+   report was exact.** Running the actual shipped v1.6.12 exe under
+   wine (see 2) reproduced the failure in seconds with a full
+   stack: `panic: Failed to find AdjustWindowRectForDpi procedure
+   in user32.dll`. AdjustWindowRectForDpi is a Windows 10 1607+
+   export; `LazyProc.Call` panics when a procedure is missing, so
+   the `ok == 0` fallback written right below it was unreachable
+   code on every Windows older than 1607 — the process died before
+   a window existed, and a -H windowsgui process has no console, so
+   the death was invisible. Fixing that exposed the second, worse
+   one: `DrawTextW` was bound to gdi32.dll — a DLL that has never
+   exported it on any Windows (it is a user32 export) — so the
+   window died on its FIRST PAINT even on a fully patched Windows
+   11. Neither bug was reachable by any static check that had been
+   run (compile, vet, PE inspection, mockup previews — all green),
+   because both live in the runtime resolution of system calls.
+   The lesson stands with D114's "GDI and user32 have shipped
+   inside every Windows since forever": *available since forever*
+   and *bound to the right module* are two different claims, and
+   only running the binary tests either.
+
+2. **Wine is now the repo's runtime oracle for the Windows lanes.**
+   A rootless portable Wine harness was built in this round and is
+   the standing recipe: Debian's wine64 + libwine + libz-mingw-w64
+   debs extracted into a user-owned prefix (no root), an
+   LD_PRELOAD path shim redirecting wine's build-time /usr/lib and
+   /usr/share/wine paths into the extraction, WINEDLLPATH pointing
+   at the extracted DLL tree, zlib1.dll placed inside the prefix's
+   system32 (wine's user32 imports it), and Xvfb for the display.
+   Wine's user32 deliberately lacks AdjustWindowRectForDpi, so the
+   harness doubles as a faithful stand-in for a pre-1607 Windows —
+   the exact machine class the fallback code must survive on. Every
+   future lite desktop round runs the exe here before it ships: the
+   window must appear, the log must be clean, the lever tap must
+   connect. The harness scripts (wine shim, X11 screenshotter, the
+   PostMessage clicker, the export-table audit) are persisted in
+   the sandbox tool belt and the audit one is documented in the
+   changelog; screenshots of the idle, connected and sheet states
+   from THIS round are the first runtime-verified evidence the lite
+   edition has ever had.
+
+3. **The DPI ladder is now a guarded chain, and it logs its door.**
+   `procOK(proc)` (a one-time `Find()` — the check the lazy loader
+   always had and the old code never used) gates every optional
+   door: SetProcessDpiAwarenessContext (1607+) → shcore
+   SetProcessDpiAwareness (8.1+) → SetProcessDPIAware (Vista) →
+   honestly unaware; AdjustWindowRectForDpi (1607+) →
+   AdjustWindowRect (always); GetDpiForWindow (1607+) → the
+   screen's system DPI via GetDeviceCaps; DwmSetWindowAttribute →
+   skipped when absent. The window survives on any Windows and the
+   run log records which door opened — on wine this round the chain
+   walked all the way down to system-DPI-aware and the app ran
+   perfectly, which IS the pre-1607 certification.
+
+4. **Every launch now leaves evidence.** younblock-lite.log —
+   truncated per run (it cannot grow unbounded), written beside the
+   exe with fallbacks to the user's cache dir and the temp dir —
+   records the true Windows version (RtlGetVersion, immune to the
+   compatibility-shim lies GetVersionEx tells), the exe path, the
+   DPI door, GDI+ status, window creation, and every recovered
+   panic (the wndProc wraps its body in recover-and-log: a paint
+   path can no longer kill the app, it can only complain). A
+   startup failure raises a MessageBox with the error and the log
+   path — the dialog the owner should have seen the first time.
+   Rule for every future shell round: a GUI process that can die
+   silently WILL die silently eventually; ship the log with the
+   first exe, not the second.
+
+5. Next decision ID: D118. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

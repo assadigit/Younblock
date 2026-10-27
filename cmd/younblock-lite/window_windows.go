@@ -140,11 +140,14 @@ func runUI(app *App) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	makeDpiAware()
+	diagLog("dpi awareness: %s", makeDpiAware())
 
-	if !gdiplusStartup() {
+	if gdiplusStartup() {
+		diagLog("gdiplus: started")
+	} else {
 		// Not fatal: the painter's fallback keeps the screen
 		// honest (flat background, the words) without GDI+.
+		diagLog("gdiplus: unavailable — the GDI-only fallback paints")
 	}
 	defer gdiplusShutdown()
 
@@ -155,8 +158,10 @@ func runUI(app *App) {
 
 	w := &liteWindow{app: app, hot: -1, focus: focusLever}
 	if !w.create() {
+		diagLog("window creation failed — exiting")
 		return
 	}
+	diagLog("window up: dpi=%d state=%s", w.dpi, w.scr.State)
 	app.OnEngineQuit(func() {
 		procPostMessageW.Call(uintptr(w.hwnd), wmAppQuit, 0, 0)
 	})
@@ -192,14 +197,35 @@ func runUI(app *App) {
 }
 
 // makeDpiAware asks for per-monitor v2 (crisp text at any scaling),
-// falling back through the older doors — each best-effort, because a
-// blurry-but-working window still beats a failed call.
-func makeDpiAware() {
-	if r, _, _ := procSetProcessDpiAwarenessContx.Call(dpiAwarePerMonitorV2); r != 0 {
-		if r, _, _ := procSetProcessDpiAwareness.Call(2); r != 0 {
-			procSetProcessDPIAware.Call()
+// falling back through the older doors — each GUARDED (D117): the
+// lazy Call panics when an export is missing, and every one of these
+// three doors debuted on a different Windows (1607 / 8.1 / Vista), so
+// the chain must step over absent procs instead of dying on them.
+// Returns the door taken, for the run log.
+func makeDpiAware() string {
+	if procOK(procSetProcessDpiAwarenessContx) {
+		r, _, _ := procSetProcessDpiAwarenessContx.Call(dpiAwarePerMonitorV2)
+		if r == 0 {
+			return "per-monitor-v2"
 		}
+		diagLog("dpi: SetProcessDpiAwarenessContext refused (err %d) — stepping down", r)
+	} else {
+		diagLog("dpi: SetProcessDpiAwarenessContext absent (pre-1607 Windows) — stepping down")
 	}
+	if procOK(procSetProcessDpiAwareness) {
+		r, _, _ := procSetProcessDpiAwareness.Call(2)
+		if r == 0 {
+			return "per-monitor-v1"
+		}
+		diagLog("dpi: SetProcessDpiAwareness refused (err %d) — stepping down", r)
+	} else {
+		diagLog("dpi: shcore SetProcessDpiAwareness absent — stepping down")
+	}
+	if procOK(procSetProcessDPIAware) {
+		procSetProcessDPIAware.Call()
+		return "system-dpi-aware"
+	}
+	return "none (unaware)"
 }
 
 // bringUpExisting returns true when another instance already owns the
@@ -259,21 +285,20 @@ func (w *liteWindow) create() bool {
 		wc.IconSm = windows.Handle(h)
 	}
 	wc.Size = uint32(unsafe.Sizeof(wc))
-	r, _, _ := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
+	r, _, err := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
 	if r == 0 {
+		diagLog("RegisterClassExW failed: %v", err)
 		return false
 	}
 
 	// Outer size for the design client size at this DPI.
 	dpi := systemDpi()
+	w.dpi = dpi
 	frame := wRect{0, 0, px2(dpi, liteClientW), px2(dpi, liteClientH)}
 	style := uintptr(wsCaption | wsSysMenu | wsMinimizeBx | wsThickenFrame | wsMaximizeBox)
-	if ok, _, _ := procAdjustWindowRectForDpi.Call(
-		uintptr(unsafe.Pointer(&frame)), style, 0, uintptr(dpi)); ok == 0 {
-		procAdjustWindowRect.Call(uintptr(unsafe.Pointer(&frame)), style, 0)
-	}
+	adjustFrame(&frame, style, dpi)
 	title := mustUtf16("Younblock Lite")
-	h, _, _ := procCreateWindowExW.Call(
+	h, _, err := procCreateWindowExW.Call(
 		0,
 		uintptr(unsafe.Pointer(className)),
 		uintptr(unsafe.Pointer(title)),
@@ -283,6 +308,7 @@ func (w *liteWindow) create() bool {
 		0, 0, uintptr(inst), 0,
 	)
 	if h == 0 {
+		diagLog("CreateWindowExW failed: %v", err)
 		return false
 	}
 	w.hwnd = windows.Handle(h)
@@ -315,8 +341,13 @@ func (w *liteWindow) create() bool {
 
 // darkenTitleBar asks DWM for the dark caption (and, where Windows 11
 // allows, the screen's own colors) — best-effort, matching the main
-// desktop's dark-theme window chrome.
+// desktop's dark-theme window chrome. DWM ships since Vista, but the
+// guard keeps the promise airtight (D117): a missing door is skipped,
+// never fatal.
 func (w *liteWindow) darkenTitleBar() {
+	if !procOK(procDwmSetWindowAttribute) {
+		return
+	}
 	hwnd := uintptr(w.hwnd)
 	one := uintptr(1)
 	size := uintptr(4)
@@ -343,12 +374,19 @@ func systemDpi() int32 {
 	return 96
 }
 
-// windowDpi reads the window's own DPI (per-monitor aware).
+// windowDpi reads the window's own DPI (per-monitor aware); without
+// the 1607 door (or when it fails) the screen's system DPI is the
+// honest answer — it is exactly what an unaware window renders at.
 func (w *liteWindow) windowDpi() int32 {
-	if r, _, _ := procGetDpiForWindow.Call(uintptr(w.hwnd)); r != 0 {
-		return int32(r)
+	if procOK(procGetDpiForWindow) {
+		if r, _, _ := procGetDpiForWindow.Call(uintptr(w.hwnd)); r != 0 {
+			return int32(r)
+		}
+		diagLog("dpi: GetDpiForWindow returned 0 — using the system DPI")
+	} else {
+		diagLog("dpi: GetDpiForWindow absent (pre-1607 Windows) — using the system DPI")
 	}
-	return w.dpi
+	return systemDpi()
 }
 
 // px converts logical 96-dpi pixels to this window's device pixels.
@@ -567,6 +605,16 @@ func (w *liteWindow) buildTextures(width, height int32) {
 // ---- the message pump ----
 
 func (w *liteWindow) wndProc(hwnd windows.Handle, msg uint32, wp uintptr, lp unsafe.Pointer) uintptr {
+	// The never-die guard (D117): a panic anywhere in the message
+	// handling — the paint path included — is logged and survived,
+	// because a dead window tells the owner nothing while a logged
+	// one tells us everything.
+	defer func() {
+		if rec := recover(); rec != nil {
+			diagLog("PANIC in wndProc (msg 0x%04x): %v", msg, rec)
+			w.invalidate()
+		}
+	}()
 	switch msg {
 	case wmCreate:
 		w.hwnd = hwnd
@@ -657,15 +705,29 @@ func (w *liteWindow) onSize(wp uintptr) {
 	w.sizeDirty = true
 }
 
+// adjustFrame grows a client rectangle to the outer window frame at
+// this DPI — the modern door when this Windows has it (1607+), the
+// ever-present AdjustWindowRect otherwise. The pre-D117 shape of this
+// helper — an `ok == 0` fallback after a lazy Call that PANICS when
+// the export is missing — is the one line that kept the lite edition
+// from starting on any Windows older than 1607 (procOK tells the
+// whole story).
+func adjustFrame(frame *wRect, style uintptr, dpi int32) {
+	if procOK(procAdjustWindowRectForDpi) {
+		if ok, _, _ := procAdjustWindowRectForDpi.Call(
+			uintptr(unsafe.Pointer(frame)), style, 0, uintptr(dpi)); ok != 0 {
+			return
+		}
+	}
+	procAdjustWindowRect.Call(uintptr(unsafe.Pointer(frame)), style, 0)
+}
+
 // onMinMaxInfo clamps the window to the design's floors (320x560
 // client — the same floors the main desktop enforces).
 func (w *liteWindow) onMinMaxInfo(lp unsafe.Pointer) {
 	frame := wRect{0, 0, w.px(liteMinW), w.px(liteMinH)}
 	style := uintptr(wsCaption | wsSysMenu | wsMinimizeBx | wsThickenFrame | wsMaximizeBox)
-	if ok, _, _ := procAdjustWindowRectForDpi.Call(
-		uintptr(unsafe.Pointer(&frame)), style, 0, uintptr(w.dpi)); ok == 0 {
-		procAdjustWindowRect.Call(uintptr(unsafe.Pointer(&frame)), style, 0)
-	}
+	adjustFrame(&frame, style, w.dpi)
 	// MINMAXINFO is 5 POINTs; ptMinTrackSize is the fourth. The array
 	// view keeps every pointer in this file flowing in the Go-owned,
 	// out-parameter direction only.
@@ -697,10 +759,7 @@ func (w *liteWindow) onDpiChanged(wp uintptr) {
 	}
 	frame := wRect{0, 0, cw, ch}
 	style := uintptr(wsCaption | wsSysMenu | wsMinimizeBx | wsThickenFrame | wsMaximizeBox)
-	if ok, _, _ := procAdjustWindowRectForDpi.Call(
-		uintptr(unsafe.Pointer(&frame)), style, 0, uintptr(newDpi)); ok == 0 {
-		procAdjustWindowRect.Call(uintptr(unsafe.Pointer(&frame)), style, 0)
-	}
+	adjustFrame(&frame, style, newDpi)
 	w.dpi = newDpi
 	procSetWindowPos.Call(
 		uintptr(w.hwnd), 0,

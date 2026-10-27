@@ -40,7 +40,6 @@ var (
 	procGdipSetSmoothingMode              = modGdiPlus.NewProc("GdipSetSmoothingMode")
 	procGdipCreatePath                    = modGdiPlus.NewProc("GdipCreatePath")
 	procGdipDeletePath                    = modGdiPlus.NewProc("GdipDeletePath")
-	procGdipSetFillMode                   = modGdiPlus.NewProc("GdipSetFillMode")
 	procGdipAddPathLineI                  = modGdiPlus.NewProc("GdipAddPathLineI")
 	procGdipAddPathPolygonI               = modGdiPlus.NewProc("GdipAddPathPolygonI")
 	procGdipAddPathEllipseI               = modGdiPlus.NewProc("GdipAddPathEllipseI")

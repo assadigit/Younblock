@@ -38,6 +38,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/assadigit/Younblock/internal/config"
 	"github.com/assadigit/Younblock/internal/engine"
@@ -54,26 +55,47 @@ func main() {
 		return
 	}
 
+	// The run log (D117): every launch leaves its trail — the Windows
+	// it landed on, which DPI door opened, what fell back, what broke.
+	// A -H windowsgui process has no console; before this existed, a
+	// startup panic was literally invisible (that is how v1.6.12's
+	// missing-API crash went undiagnosed).
+	diagInit()
+	defer func() {
+		if rec := recover(); rec != nil {
+			diagLog("PANIC (fatal): %v\n%s", rec, debug.Stack())
+			diagFatal(rec)
+			os.Exit(1)
+		}
+	}()
+
 	// The platform adapter runs crash recovery in New() on Windows (a
 	// leftover proxy setting from a crashed run is restored right now,
 	// before anything starts) — the lite edition inherits that for
 	// free, exactly like the main desktop.
 	plat := platform.New()
+	diagLog("platform ready (proxy crash recovery ran in New)")
 
 	if *restore {
 		if err := plat.RestoreProxy(); err != nil {
+			diagLog("--restore-proxy failed: %v", err)
 			fmt.Println("Restore failed:", err)
 			os.Exit(1)
 		}
+		diagLog("--restore-proxy: internet settings restored")
 		fmt.Println("Internet settings restored.")
 		return
 	}
 
 	app, err := NewApp(engine.Options{Platform: plat})
 	if err != nil {
-		fmt.Println("Startup failed:", err)
+		diagLog("startup failed: %v", err)
+		// fmt alone is invisible under windowsgui — SAY it in a dialog.
+		diagFatal(err)
 		os.Exit(1)
 	}
+	diagLog("engine wired; entering the window life")
 
 	runUI(app)
+	diagLog("clean exit")
 }
