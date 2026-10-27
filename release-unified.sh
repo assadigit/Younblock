@@ -2,7 +2,8 @@
 # release-unified.sh — the unified release lane (the one-release round,
 # D111): builds EVERY version from this one source tree and ships them
 # together as ONE GitHub release — the Windows apps (64/32-bit), the
-# headless engines, the Linux web editions, the .deb installers, the
+# headless engines, the LITE desktop exes (the dependency-free Win32
+# edition, D114), the Linux web editions, the .deb installers, the
 # AppImages, the offline pack, and the Android APK. One release, one UI
 # (D110: every edition ships the same v3 screen), one version line.
 #
@@ -95,6 +96,11 @@ else
   # dist/ — whatever this machine could build ships; the honest skip
   # messages name what it could not.
   ./build.sh
+
+  # The lite desktop lane (D114): the dependency-free Win32 edition —
+  # one Go command, no Node, no wails; it never skips (its only
+  # prerequisite is Go itself, which is already running this lane).
+  ./build-lite-desktop.sh
 
   # The Android half: the same frontend bundle (the same screen) rides
   # the gomobile AAR into the APK.

@@ -12,6 +12,37 @@ every release are on the
 
 ## [Unreleased]
 
+### Added (2026-10-27 — the lite desktop edition; v0.8.5 line, 1.6.11, versionCode 41 — D114)
+
+- **younblock-lite-desktop: the dependency-free Windows edition.**
+  The main Windows app rides Wails + WebView2 — a runtime the target
+  machine must have, which is exactly why installs fail on LTSC,
+  Server, frozen or offline boxes. The lite edition is one .exe with
+  a plain Win32 window (user32 + gdi32, inside every Windows since
+  forever): nothing to install, nothing that can be missing — copy
+  it and double-click, on 64-bit (`younblock-lite-desktop.exe`) and
+  32-bit (`younblock-lite-desktop-x86.exe`) Windows. The SAME
+  engine, the SAME settings file (changes made in the main app apply
+  here; connect-on-launch and open-browser-on-connect are honored)
+  and the SAME Windows system-proxy mechanism with backup and crash
+  recovery — the platform adapter is shared, not forked. The screen
+  is deliberately simpler: the Y-mark header, one state word with an
+  LED dot, one honest line ("Getting the first video ready…"
+  included), one primary button (Connect / Cancel / Disconnect /
+  Retry), an Open YouTube link and a version footer — no settings
+  panel, no diagnostics, no tray, no dedicated browser session
+  (those stay the main app's job). It is DPI-aware with graceful
+  fallbacks, double-buffered, keyboard-accessible, single-instance,
+  asks before closing while connected, and quits the D112 way: the
+  engine stops and restores the proxy BEFORE the process exits. The
+  exe carries the owner's mark plus honest version info (committed
+  .syso resources), and its build lane needs ONLY Go — no Node, no
+  npm, no WebView2, no wails CLI (`build-lite-desktop.sh` on Linux,
+  `build-lite-desktop.bat` on Windows, both wired into the unified
+  release). The main desktop, the Android lane and the Go engine
+  are untouched; the version line moves to 1.6.11 / versionCode 41
+  in the established lockstep.
+
 ### Fixed (2026-10-27 — the status-bar glyph round; v0.8.5 line, 1.6.10, versionCode 40 — D113)
 
 - **The status-bar mark is now a "Y", not a filled solid square.**

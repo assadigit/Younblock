@@ -14,14 +14,16 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version. 1.6.10 rides
-// the Android lane's status-bar glyph round (D113): the notification's
-// small icon becomes the Y mark — alpha-only strokes, replacing the
-// pill glyph whose opaque backdrop square flattened to a filled solid
-// square in the status bar's monochrome mask. The engine itself is
-// unchanged — the bump keeps the About line in lockstep with the
-// APK's versionName (the build.gradle.kts comment block records why).
-const AppVersion = "1.6.10"
+// AppVersion — shown in the UI and reported by --version. 1.6.11 rides
+// the lite desktop edition's debut (D114): younblock-lite-desktop — the
+// dependency-free Windows shell (one .exe, a plain Win32 window, no
+// WebView2, nothing to install), sharing this same engine, settings and
+// proxy mechanism. The engine itself is unchanged — the bump keeps the
+// About line in lockstep with the APK's versionName (the
+// build.gradle.kts comment block records why). NOTE: the lite exe's
+// version-info resource (cmd/younblock-lite/rsrc_windows_*.syso) reads
+// this constant — scripts/gen_lite_resources.py regenerates it.
+const AppVersion = "1.6.11"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

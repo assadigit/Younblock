@@ -357,6 +357,8 @@ retired, D110):
 | `v1.6.7-debug1.apk` | Android (8.0+) | the debug-signed test build — same screen, same engine, installs over earlier debug builds |
 | `younblock.exe` | 64-bit Windows | the app you use every day (window, tray, button) |
 | `younblock-x86.exe` | 32-bit Windows (or 64-bit) | the same full app, built 32-bit |
+| `younblock-lite-desktop.exe` | 64-bit Windows | the **lite** edition — one file, **no dependencies at all** (no WebView2 needed) |
+| `younblock-lite-desktop-x86.exe` | 32-bit Windows (or 64-bit) | the lite edition, built 32-bit |
 | `younblock_…_amd64.deb` | 64-bit Linux Mint | the app as a proper package — opens in its **own window** |
 | `younblock_…_i386.deb` | 32-bit Linux Mint | the browser-style package, built 32-bit |
 | `Younblock-…-x86_64.AppImage` | 64-bit Linux | one portable file — opens in its **own window**, carries everything inside |
@@ -379,6 +381,24 @@ Two things to know about the downloaded file:
   `certutil -hashfile younblock.exe SHA256` in a Command Prompt.
 - It needs the WebView2 part of Windows, which Windows 11 (and any Windows 10 with
   Edge installed) already has.
+
+## The lite desktop edition (no dependencies at all)
+
+`younblock-lite-desktop.exe` is the **lite** edition for machines where even WebView2
+is a problem — LTSC and Server Windows, locked-down or offline boxes that never took
+the update that brings it. It is **one .exe with a plain Win32 window**: nothing to
+install, nothing that can be missing — copy it to any Windows 10+ computer and
+double-click (D114). The same engine, the same Windows proxy setting and the same
+settings file as the everyday app; your settings from the main app apply here too.
+
+The screen is deliberately simpler: the Y mark, one state word, one line, one button
+(Connect / Cancel / Disconnect / Retry), an **Open YouTube** link and the version
+footer. Closing it while connected asks first, and it always puts your internet
+settings back before it exits. What it does not have: the settings panel, the
+diagnostics page, the tray, the dedicated Chrome window — for those, use the main
+app (same tunnel, same settings). If a crashed run ever leaves the proxy behind,
+`younblock-lite-desktop.exe --restore-proxy` puts it back (the same hatch the
+headless engine has).
 
 ## Building it yourself (optional)
 
@@ -582,7 +602,9 @@ What is different, honestly:
 `younblock-x86.exe` is the complete app built for 32-bit Windows, for an older
 PC or a 32-bit virtual machine. It runs on 64-bit Windows too. It needs 32-bit
 WebView2 (Windows 10/11 fetch it automatically the first time). Everything is
-the same as the 64-bit app, including the tray and the self-repair.
+the same as the 64-bit app, including the tray and the self-repair. On a box
+where that 32-bit WebView2 cannot be fetched, `younblock-lite-desktop-x86.exe`
+(the lite edition above) runs with no runtime at all.
 
 ## The built-in test and the headless engine
 

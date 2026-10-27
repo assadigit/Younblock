@@ -199,19 +199,15 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
         // (hostnames off by default, R21 — no DEBUG BUILD line).
         // Frontend + shell + version line only; the engine below is
         // untouched.
-        // The status-bar glyph round (1.6.10, versionCode 40, D113): the
-        // notification's small icon — the mark the Android status bar
-        // shows while the tunnel runs — becomes the Y: alpha-only white
-        // strokes on transparency, drawn on the 24dp status-bar grid, in
-        // place of the M8-am pill glyph, whose opaque background square
-        // flattened to exactly that filled solid square in the status
-        // bar's monochrome alpha mask (the owner's report). The launcher
-        // icon, the notification's title/text/channel, the D112 Quit
-        // teardown and every disconnect behavior are untouched; the
-        // engine below is untouched — the version bump rides the
-        // version-line lockstep only (the shell reports this string to
-        // the About page).
-        opts := engine.Options{Platform: plat, Version: "1.6.10"}
+        // The lite desktop edition's debut (1.6.11, versionCode 41,
+        // D114): younblock-lite-desktop — the dependency-free Windows
+        // shell over this same engine (one .exe, a plain Win32 window,
+        // no WebView2, nothing to install), built by the
+        // build-lite-desktop.sh lane. No mobile/Android change rides
+        // this round — the version bump rides the version-line
+        // lockstep only (the shell reports this string to the About
+        // page).
+        opts := engine.Options{Platform: plat, Version: "1.6.11"}
         if mutate != nil {
                 mutate(&opts)
         }
