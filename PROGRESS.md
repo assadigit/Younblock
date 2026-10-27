@@ -5901,3 +5901,140 @@ environment — never on disk, never in the repo; `.git/config` was
 checked clean after the push. The CHANGELOG's D117 heading now
 carries the v0.8.6 note inline, matching how the v0.8.5-line
 entries were annotated.
+
+## The look-right round — v0.8.7, every version in the one release again (2026-10-28, 1.6.14, versionCode 44 — D118)
+
+**The owner's report: "IT works, but it's too ugly. I want to
+look-like the dependency-needed version"** — with a screenshot of
+the running lite (12.png) and the states-preview reference attached
+as the target. The instruction also changed the release shape:
+"consolidate all versions in next version, I want to see all
+versions, regardless if they had change or not" — so v0.8.7 is the
+full unified release again, every lane rebuilt and shipped together.
+
+**The diagnosis was measurable, not impressionistic.** Pixel-profiles
+of the owner's screenshot against the reference's connected panel:
+the background rendered at ~15-30 % of intended strength — and the
+shape of that residue (a green tint confined to the lever zone, a
+neutral-black elsewhere) identified it as the AURA over a BLACK base:
+the state gradient itself drew NOTHING. Cross-checking the repo's own
+D117 wine screenshots showed the same signature — the defect was on
+every machine since the beauty round (D115), and the D117 "connected
+screen correct" VLM check had verified CONTENT (words, LED, cap
+outline) while the luminance sat broken. The owner's screenshot was
+the first measurement that mattered.
+
+**Instrumented A/B strips under the wine oracle named the causes in
+two runs.** Solid-brush fills rendered EXACT (the #8f130e edge was
+pixel-perfect) while every line-gradient strip painted nothing — and
+the run log showed `GdipCreateLineBrush` returning status 2
+(InvalidParameter) on every call: **WrapModeClamp is not a legal wrap
+mode for the linear-gradient brush** (the C++ wrapper throws for it
+too; GDI+ has rejected it since forever). Fixed with
+WrapModeTileFlipXY — safe because every fill in the painter exactly
+covers its gradient band. That fix exposed the second defect: a hard
+2 px white ring on every glow's boundary — GDI+'s path gradient
+keeps ONE surround color per boundary point defaulting to OPAQUE
+WHITE, and `GdipSetPathGradientSurroundColorsWithCount` paints only
+the first `count` points; the single transparent surround left the
+rest white. Fixed by naming each polygon's point count (also dodging
+GdipGetPathPointCount, which wine's gdiplus does not export — the
+D117 lazy-proc class). The third defect was cosmetic but visible in
+the owner's screenshot: a bright 3 px focus ring around the lever
+zone from the first frame — the window was BORN with focus on the
+lever. Focus rings now appear only after real keyboard navigation
+(the first Tab) and hide on pointer use.
+
+**The typeface: Space Grotesk, embedded.** The reference HTML's font
+stack is "Space Grotesk" first; the full version's tokens name "Sora
+Variable" first — but no @font-face exists anywhere and the web
+editions render the system font (the Inter files in
+frontend/public/fonts are unreferenced orphans — recorded in D118,
+left in place). For the lite the honest match to the owner's
+attached target is the reference's face: four static weights
+instantiated from Google's official variable font (fontTools
+varLib.instancer — with the name tables corrected: Google's variable
+TTF stamps family "Space Grotesk Light" on every instance, which
+GDI would mis-match), ~350 KB total, `go:embed`ded, registered at
+startup with AddFontMemResourceEx FR_PRIVATE — process-private,
+nothing installed, nothing leaked: the D114 zero-dependency contract
+holds by construction. The honest step-down stays (any registration
+failure falls back to Segoe UI and writes the chosen face to the run
+log; verified 4/4 registered under wine). SIL OFL 1.1 permits the
+embedding; the license text ships beside the fonts in the repo.
+
+**Verified, the measurable way.** Row-profiles of the fixed render
+against the reference's own pixels: the connected teal ramp
+(#54756a-family top to #253a33 bottom), the aura band, the cap face
+stops (#EC3D34→#C8231D — the earlier "63 % red face" was the edge
+wall + sheen layers over a never-drawn gradient) and the idle slate
+ramp all match within AA tolerance; the white boundary lines are gone
+(the old x=104/x=263 lines now read the plain background). VLM
+reviews of idle/connected/sheet found no artifacts; the typeface
+change verified two ways (15 % pixel change in the text area; VLM
+confirming the geometric letterforms). The 21 lite tests, `go vet`
+on linux + windows/amd64 + windows/386, and the PE inspection
+(.rsrc, UTF-16 "Younblock Lite"/"1.6.14"/"Space Grotesk" strings,
+GUI subsystem, both exes ~10-11 MB) all green. One VLM false-positive
+lesson recorded in D118: side-by-side mockup comparisons at different
+physical scales produce phantom defects ("flat olive background",
+"massive timer", "radial gradient") that the pixel profiles refute —
+measure first, then believe.
+
+**The v0.8.7 release — every lane rebuilt from the tagged tree.**
+The toolchain had to be re-restored in stages (the background
+toolchain restore died with the sandbox's between-calls process
+reaper; JDK→cmdline-tools→SDK→NDK→gomobile/gobind→wails, each its
+own call). The Maven-mirror init.gradle was rebuilt from the v0.8.4
+lesson (Google's Central mirror + google(), or aapt2 vanishes). Disk
+filled twice mid-lane: freed the orphaned ~/gocache, .cache/younblock
+and the browser caches; one stray `younblock-lite` binary from a
+no -o build was caught before commit (the recurring incident). Every
+lane built from v0.8.7: the frontend bundle, the Linux web editions,
+the headless Windows engines, the Wails Windows apps 64/32, the
+NATIVE Linux app + debs + AppImages, the two lite exes, the APK
+(aapt2: versionCode 44 / versionName 1.6.14 / minSdk 26 /
+targetSdk 36; apksigner: the pinned D85 debug certificate
+c76bb7c6…8551d — installs over v1.6.12 in place), and the 193 MB
+offline pack + setup zip. Published as
+[v0.8.7](https://github.com/assadigit/Younblock/releases/tag/v0.8.7)
+(id 426076385), 16 assets, every one re-downloaded and
+byte-identical:
+
+  v1.6.14.apk                      37,232,865 B  (SHA-256 d06742e1…3435)
+  younblock.exe                    13,703,168 B  (SHA-256 4c4bde14…4a11)
+  younblock-x86.exe                13,079,552 B  (SHA-256 452848f1…2882)
+  younblock-core.exe               11,625,472 B  (SHA-256 70d11e1c…e020)
+  younblock-core-x86.exe           11,163,648 B  (SHA-256 db324d62…caa0)
+  younblock-linux-amd64             8,966,304 B  (SHA-256 0cfce098…617a)
+  younblock-linux-386               8,663,200 B  (SHA-256 8054c7aa…6b57)
+  younblock-linux-gui-amd64        12,404,768 B  (SHA-256 d114a381…89e9)
+  younblock_1.6.14_amd64.deb        4,225,444 B  (SHA-256 966068a9…9688)
+  younblock_1.6.14_i386.deb         3,139,184 B  (SHA-256 cadf85b1…5339)
+  Younblock-1.6.14-x86_64.AppImage 74,540,224 B (SHA-256 071d73a6…a2d7)
+  Younblock-1.6.14-i686.AppImage    4,173,872 B (SHA-256 c07d8295…82a5)
+  younblock-lite-desktop.exe       10,968,576 B  (SHA-256 0481983f…6eff1)
+  younblock-lite-desktop-x86.exe   10,573,824 B  (SHA-256 b8661016…ae4c2)
+  Younblock-offline_1.6.14.zip    201,359,338 B (SHA-256 b100c398…aecc)
+  younblock-setup_1.6.14.zip            7,864 B (SHA-256 c338b6e0…3661)
+
+The v0.8.6 page gained its superseding pointer note (its lite exes
+run but render the broken-looking screen; v0.8.7 replaces them —
+identical bytes are never re-released, the note redirects). Two
+publishing hiccups this round, both fixed and recorded: the first
+`git push` of main failed transiently with "Invalid username or
+token" (a retry with the same one-off in-memory credential helper
+succeeded — the tag had already gone through), and
+release-unified.sh's bare `git push` could not authenticate at all on
+a token-authenticated machine — the script now pushes through the
+same one-off helper (committed as the tooling fix b0887fc, pushed
+after the release). The token never touched disk; `.git/config` was
+checked clean after every push.
+
+**The record for the field:** the lite exe from v0.8.7 is the one to
+run — it runs (D117) AND shows the reference's screen (D118): the
+gradients, the glows, the glass, the Space Grotesk words. The
+on-REAL-Windows check remains the owner's machine, with
+younblock-lite.log beside the exe naming anything that falls back.
+The web editions' own missing-@font-face gap is recorded in D118 for
+a future round — one UI means one face across editions.
