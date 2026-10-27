@@ -53,8 +53,11 @@
          icon.ico mark — the adaptive mipmap set
          scripts/gen_android_icons.py traces from the 32px source
          (five flat colors, the source's z-order), with legacy raster
-         tiles for pre-adaptive contexts. The simple pill glyph stays
-         the notification's small icon (drawable/ic_notification). -->
+         tiles for pre-adaptive contexts. The notification's small
+         icon (drawable/ic_notification) is the Y mark (D113):
+         alpha-only strokes on transparency, because the status bar
+         renders small icons as a monochrome alpha mask — never an
+         opaque backdrop, or the mask flattens to a solid square. -->
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"

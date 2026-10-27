@@ -2624,3 +2624,50 @@ Recents").**
 5. Next decision ID: D113. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D113 — the status-bar glyph: the Y mark replaces the opaque square
+(2026-10-27, the icon round — the owner's ask: "Currently when the
+app is on the android's top bar (notification area) it shows a filled
+solid square. can't we show a symbol like Y or play symbol instead?").**
+
+1. **The diagnosis is the rendering model, not a broken asset:**
+   Android renders a notification's small icon as an ALPHA MASK —
+   every color is discarded and the system tints the surviving shape
+   monochrome (white in a dark bar, dark in a light one). The M8-am
+   pill glyph (drawable/ic_notification, D104's ruling that "the
+   pill glyph stays the notification mark") drew its brand-red pill
+   and green LED on an OPAQUE 108x108 background square — so the
+   alpha mask was a full solid square, and the bar showed exactly
+   that: the "filled solid square" the owner reported. The pill never
+   had a voice up there; the status bar never shows color, so the
+   red track and the green dot existed only in the color contexts
+   (the launcher, the shade header on some OEM builds) — never in
+   the bar the owner looks at.
+2. **The Y wins over the play triangle:** the owner offered "Y or
+   play symbol" — Y is the name's first letter, the mark that reads
+   as Younblock rather than as generic media-control chrome (a play
+   triangle in a status bar says "something is playing", the wrong
+   story for a tunnel that runs silently; the launcher's padlock
+   already carries the play motif in full color where color exists).
+   The glyph is drawn as geometry, never an image: alpha-only white
+   round-cap strokes on transparency — arms meeting at (12, 11.4),
+   stem down to (12, 19.2), stroke 2.4dp, round caps and joins — on
+   the 24dp status-bar grid with Material-keyline optical margins,
+   so the letter survives every vendor's raster size and both bar
+   themes. Rendered at bar size and VLM-verified before shipping:
+   the preview reads as the letter Y, legible on both dark and light
+   strips, strokes-only with no backdrop (the verification preview
+   ships as download/y-icon-preview.png).
+3. **Scope stays surgical:** one drawable changes
+   (ic_notification.xml — the background square path is deleted, the
+   pill and LED paths go with it); the Kotlin call site keeps
+   R.drawable.ic_notification untouched; the launcher icon (the
+   owner's padlock mark, D108's mipmap set), the notification's
+   title, text, channel, ongoing life, the D112 Quit teardown and
+   every disconnect behavior are untouched; the Go engine is
+   untouched. The version line moves to 1.6.10 / versionCode 40 in
+   the established lockstep (internal/config AppVersion, gradle, and
+   the mobile facade's Version string together).
+4. Next decision ID: D114. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

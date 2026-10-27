@@ -12,6 +12,28 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-27 — the status-bar glyph round; v0.8.5 line, 1.6.10, versionCode 40 — D113)
+
+- **The status-bar mark is now a "Y", not a filled solid square.**
+  While the tunnel runs, Android shows the notification's small
+  icon in the top bar — rendered as a monochrome ALPHA MASK: every
+  color discarded, the surviving shape tinted. The old pill glyph
+  carried an opaque background square behind its brand-red track,
+  so the mask read as a solid filled square (the pill and its LED
+  were invisible up there; the bar never shows color). The glyph is
+  redrawn as the Y mark — the first letter of the name, the one
+  symbol that reads as the app at that size, chosen over the play
+  triangle, which says "something is playing" rather than "the
+  tunnel runs": alpha-only white round-cap strokes on transparency,
+  on the 24dp status-bar grid, VLM-verified legible as the letter at
+  bar size in both dark and light themes. Nothing else moves: the
+  launcher icon stays the owner's padlock mark, the notification's
+  title/text/channel and its persistent life are untouched, Quit
+  and disconnect behave exactly as in 1.6.9, and the Go engine is
+  untouched — one drawable carries the whole round. The version
+  line moves to 1.6.10 / versionCode 40 in the established
+  lockstep.
+
 ### Added (2026-10-26 — the "Quit Younblock" round; v0.8.5 line, 1.6.9, versionCode 39 — D112)
 
 - **The Android app can now be fully quit — "Quit Younblock".** The

@@ -552,9 +552,12 @@ class YounblockVpnService : VpnService() {
         )
         // minSdk 26: the channel constructor always exists.
         return Notification.Builder(this, CHANNEL_ID)
-            // M8-am: the pill glyph (the launcher icon is now the
-            // owner's mark in the mipmap set; the status bar tints
-            // small icons monochrome, where the simple mark reads).
+            // D113: the Y mark — alpha-only white strokes on
+            // transparency, so the status bar's monochrome alpha
+            // mask IS the letter (the M8-am pill glyph's opaque
+            // backdrop square flattened to the filled solid square
+            // the owner reported; the launcher icon stays the
+            // owner's padlock mark in the mipmap set).
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)

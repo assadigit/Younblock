@@ -20,6 +20,33 @@ android {
         applicationId = "io.github.assadigit.younblock"
         minSdk = 26
         targetSdk = 36
+        // versionCode 40: the status-bar glyph round (D113) — the
+        // owner's ask: "when the app is on the android's top bar
+        // (notification area) it shows a filled solid square. can't we
+        // show a symbol like Y or play symbol instead?" Root cause:
+        // Android renders a notification's small icon as an ALPHA MASK
+        // only — colors are discarded and the system tints the mask
+        // monochrome — and the M8-am pill glyph (ic_notification) drew
+        // its brand-red pill and green LED on an OPAQUE 108x108
+        // background square, so the mask WAS a solid square: the pill
+        // never had a voice in the bar. The fix: ic_notification is
+        // redrawn as the Y mark — the first letter of the name, the one
+        // symbol that reads as the app at that size, over the play
+        // triangle (which says "something is playing", the wrong story
+        // for a silent tunnel; the launcher's padlock already carries
+        // the play motif in full color where color exists) — alpha-only
+        // white round-cap strokes on transparency, on the 24dp
+        // status-bar grid with Material-keyline optical margins, stroke
+        // 2.4dp, VLM-verified legible as the letter at bar size in both
+        // bar themes. One drawable changes; the Kotlin call site keeps
+        // R.drawable.ic_notification. The launcher icon (the owner's
+        // padlock mark, D108's mipmap set), the notification's title,
+        // text, channel and ongoing life, the D112 Quit teardown and
+        // every disconnect behavior are untouched; the Go engine is
+        // untouched — no proxy, dialer, pool, tier or setting change
+        // rides in this build. Installs over versionCode 39 in place
+        // (the same pinned debug certificate, D85). The versionName
+        // moves to 1.6.10 in lockstep with internal/config AppVersion.
         // versionCode 39: the "Quit Younblock" round (D112) — the one
         // deliberate, confirmed end-of-app action the Android lane was
         // asked for. A quiet "Quit Younblock" row at the very bottom of
@@ -270,8 +297,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 39
-        versionName = "1.6.9"
+        versionCode = 40
+        versionName = "1.6.10"
     }
 
     signingConfigs {

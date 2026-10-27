@@ -1,22 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The notification glyph (M8-am, ADR-0051, D104): the pill track
-     with its LED dot, in the brand red — the simple mark that reads as
-     a silhouette in the status bar, where Android tints small icons
-     monochrome anyway. The launcher icon is the owner's icon.ico mark
-     (the mipmap set scripts/gen_android_icons.py traces); this glyph
-     stays the shell's status voice. -->
+<!-- The notification glyph (D113): the Y mark — the first letter of
+     the name, the one symbol that reads as the app at status-bar
+     size. Android renders a notification's small icon as an ALPHA
+     MASK only: every color is discarded and the system tints the
+     surviving shape monochrome, so the old M8-am pill glyph — brand
+     red and green drawn on an opaque 108x108 background square —
+     flattened to exactly that filled solid square in the bar (the
+     pill and its LED were invisible up there). This glyph is
+     alpha-only: white round-cap strokes on transparency, the two
+     arms meeting at (12, 11.4) and the stem down to (12, 19.2),
+     stroke 2.4dp, drawn on the 24dp status-bar grid with
+     Material-keyline optical margins so the letter survives every
+     vendor's raster size and both bar themes. The launcher icon is
+     untouched (the owner's padlock mark, the mipmap set
+     scripts/gen_android_icons.py composes); this glyph stays the
+     shell's status voice. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
     <path
-        android:fillColor="#272730"
-        android:pathData="M0,0h108v108h-108z" />
-    <path
-        android:fillColor="#EE3029"
-        android:pathData="M24,50a30,14 0 1,0 60,0a30,14 0 1,0 -60,0z" />
-    <path
-        android:fillColor="#36BF51"
-        android:pathData="M50,50a4,4 0 1,0 8,0a4,4 0 1,0 -8,0z" />
+        android:pathData="M5.4,4.8 L12,11.4 L18.6,4.8 M12,11.4 L12,19.2"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
 </vector>
