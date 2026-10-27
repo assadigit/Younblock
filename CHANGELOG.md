@@ -44,6 +44,30 @@ every release are on the
   the 30 MB budget; the window is resizable (floors 320x560) with a
   dark title bar like the main desktop.
 
+### Fixed (2026-10-28 — the red-cap round; v0.8.5 line, no app change — D116)
+
+- **The lite design preview's button now renders in the brand red.**
+  The owner's verdict on the D115 design preview: "i think your button
+  color is off. it must be red. see this" — pointing at the repo's own
+  states-preview reference, where the key cap is the bright satin red
+  in every state (START, WAIT, STOP and RETRY alike; only the glow
+  around it changes with the state). The investigation found the .exe
+  was NEVER wrong — the Go painter fills the face with the exact
+  `#EC3D34 → #D62A20 → #C8231D` gradient stops, and the paint order
+  keeps every overlay off it. The bug was in the design-preview
+  mockup itself (scripts/render_lite_preview.py, now in the repo):
+  PIL's `Image.paste` REPLACES pixels where the mask is set instead
+  of alpha-blending, so pasting the mostly-transparent sheen and
+  bottom-shade layers through the cap mask wiped the red face to
+  transparent black — the preview's button read dark. The mockup now
+  clips with `Image.composite` and blends with `alpha_composite`
+  (only opaque sources are ever pasted), the five-panel preview is
+  regenerated at docs/ui-v3/screenshots/lite-desktop-preview.png with
+  the cap verified pixel-exact against the gradient stops in all four
+  states, and the ruling is recorded: the cap is always the brand
+  red; the state speaks through the glow, never through the face.
+  No shipped artifact changes — the version stays 1.6.12.
+
 ### Added (2026-10-27 — the lite desktop edition; v0.8.5 line, 1.6.11, versionCode 41 — D114)
 
 - **younblock-lite-desktop: the dependency-free Windows edition.**

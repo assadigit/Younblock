@@ -2798,3 +2798,51 @@ can, stay without dependency, so the file .exe version stays under
 5. Next decision ID: D116. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D116 — the red-cap round: the key cap is the brand red in every
+state, and the design preview said otherwise because PIL's paste
+replaces where it should blend ("But i think your button color is
+off. it must be red. see this" — the owner, attaching the repo's own
+states-preview reference).**
+
+1. **The ruling first.** The reference (younblock-states-preview
+   (1).png, tracked at the repo root) shows the cap as the bright
+   satin red in ALL FOUR states — START, WAIT, STOP and RETRY alike
+   (STOP included: the connected state speaks through the green aura
+   and the green LED, never through the face). This is what
+   LeverButton.svelte and screen_windows.go already paint: the
+   `#EC3D34 → #D62A20 → #C8231D` gradient with the `#8F130E` wall,
+   state-independent. The ruling is now recorded so no future round
+   "fixes" the connected cap to green.
+2. **The exe was never wrong.** The Go painter fills the face
+   directly with a GDI+ linear-gradient brush (opaque stops, the
+   preset blend at 0/0.55/1) over the polygon-sampled rounded rect —
+   a plain SourceOver fill, and the paint order (background →
+   textures → track → cap → header → status → card → sheet) keeps
+   every later layer off the face except the intended sheen, bevel,
+   LED, grip, label and icon. Static verification stands; nothing
+   shipped changes and the version stays 1.6.12.
+3. **The bug was in the design-preview mockup.** The D115 preview
+   PNG (the artifact the owner judged) was rendered by a PIL
+   re-implementation, and it drew the sheen and the bottom shade as
+   `Image.paste(mostly-transparent layer, mask=cap box)` — but
+   paste REPLACES masked pixels instead of alpha-blending, so the
+   whole face was wiped to the layer's transparent black, leaving
+   only faint gray remnants where the sheen had color. The cap read
+   dark — exactly the "off" the owner saw. The fix: clip with
+   `Image.composite` and blend with `alpha_composite`; only opaque
+   sources may ever be pasted. The mockup is now part of the repo
+   (scripts/render_lite_preview.py) so the design-verification lane
+   and its lessons live with the code, and the regenerated preview
+   (docs/ui-v3/screenshots/lite-desktop-preview.png) is checked
+   pixel-exact: the mid-face samples all four states at
+   RGB(212,44,34), matching the gradient's 0.55 stop ±2.
+4. **Process note.** The delivered artifact was a mockup standing in
+   for the real renderer (no Windows display in the build sandbox) —
+   so the mockup's fidelity is release-critical, not cosmetic. Its
+   known-drift list (fonts: DejaVu for Segoe UI) stays documented in
+   the script header; anything beyond that is a bug to fix, exactly
+   as this round did.
+5. Next decision ID: D117. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)
