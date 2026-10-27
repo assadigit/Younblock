@@ -59,6 +59,10 @@ APK_NAME="v${MOBILE_VER/-debug./-debug}.apk"
 
 auth_header() { printf 'Authorization: token %s' "$TOKEN"; }
 
+# The one-off git credential helper: the token rides the environment and
+# memory only — .git/config stays clean (the D118 publishing rule).
+CRED='!f() { echo "username=x-access-token"; echo "password=$GITHUB_TOKEN"; }; f'
+
 echo "=== Younblock unified release ($TAG, app $VER, apk $APK_NAME) ==="
 
 # The tree must be clean no matter what: the lane releases a committed
@@ -161,7 +165,7 @@ BODY="$(mktemp)"
 #     skipped; a wrong-size one is replaced). The verify step's
 #     byte-compare is the final word either way.
 # ---------------------------------------------------------------------------
-git push origin "refs/tags/$TAG"
+git -c credential.helper="$CRED" push origin "refs/tags/$TAG"
 
 RELEASE_JSON="$(curl -s -H "$(auth_header)" \
   "https://api.github.com/repos/$REPO/releases/tags/$TAG")"
