@@ -212,26 +212,32 @@ func (p *Platform) Capabilities() engine.Capabilities {
 // DialControl returns nil on desktop.
 func (p *Platform) DialControl() engine.ControlFunc { return nil }
 
-// Attach applies the system proxy per the mode (file 01, section 8).
+// Attach applies the system proxy per the routing target and mode (file
+// 01, section 8; D123). RoutingTargetChrome (the shipped default) routes
+// only a dedicated Chrome instance the shell launches, so the system-wide
+// proxy is NEVER touched — no other browser, no other Chrome profile and
+// no system component sees this app's relay. RoutingTargetSystem applies
+// the manual proxy values per Mode; ModeManual still touches nothing
+// because the user chose to point a browser at the proxy by hand. The
+// single decision lives in config.Settings.SystemProxyActive so the
+// watchdog and the engine's live re-evaluate stay in lockstep.
 func (p *Platform) Attach(port int, s config.Settings) error {
-        switch s.Mode {
-        case config.ModeManual:
-                return nil // touch nothing in Windows
-        default:
-                return p.sys.Enable(port)
+        if !s.SystemProxyActive() {
+                return nil // chrome target, or manual mode: touch nothing in Windows
         }
+        return p.sys.Enable(port)
 }
 
 // EnsureAttached re-asserts the system proxy when another program has
 // overwritten it while we are on (the watchdog's anti-clobber check). It
-// returns whether it had to rewrite something.
+// returns whether it had to rewrite something. A chrome-target run never
+// set the proxy, so there is nothing to re-assert (D123); the watchdog's
+// tick is a quiet no-op.
 func (p *Platform) EnsureAttached(port int, s config.Settings) (bool, error) {
-        switch s.Mode {
-        case config.ModeManual:
+        if !s.SystemProxyActive() {
                 return false, nil
-        default:
-                return p.sys.ensure(port)
         }
+        return p.sys.ensure(port)
 }
 
 // Detach restores the previous settings.

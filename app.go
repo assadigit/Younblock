@@ -154,10 +154,12 @@ func (a *App) OnEvent(name string, json string) {
 }
 
 // onStateEvent reacts to phase changes for shell-level behavior that must
-// stay out of the neutral engine: the optional dedicated Chrome session
-// (user-requested; DECISIONS.md D40). "on" launches it when the setting is
-// set; "off" and "error" end it (that Chrome is hard-wired to our proxy,
-// which just stopped).
+// stay out of the neutral engine: the dedicated Chrome session
+// (user-requested; DECISIONS.md D40, D123). "on" launches it when the
+// routing target is chrome (the default — that Chrome IS the routing, so
+// it opens every connect) or when OpenBrowserOnConnect is set (the legacy
+// extra Chrome on top of a system-wide proxy); "off" and "error" end it
+// (that Chrome is hard-wired to our proxy, which just stopped).
 func (a *App) onStateEvent(payload string) {
 	var st struct {
 		Phase string `json:"phase"`
@@ -169,11 +171,20 @@ func (a *App) onStateEvent(payload string) {
 	switch st.Phase {
 	case "on":
 		var s struct {
-			OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
+			OpenBrowserOnConnect bool                 `json:"openBrowserOnConnect"`
+			RoutingTarget        config.RoutingTarget `json:"routingTarget"`
 		}
-		if err := jsonUnmarshalStrict(a.eng.GetSettingsJSON(), &s); err == nil && s.OpenBrowserOnConnect {
-			port := st.Port
-			go a.launchBrowserSession(port)
+		if err := jsonUnmarshalStrict(a.eng.GetSettingsJSON(), &s); err == nil {
+			// D123: a chrome routing target opens a dedicated Chrome
+			// instance every connect — it carries the proxy flags and a
+			// separate profile, so it IS how the unblocking reaches the
+			// user, regardless of the legacy OpenBrowserOnConnect switch.
+			// A system target still honours OpenBrowserOnConnect for the
+			// optional extra Chrome on top of the system-wide proxy.
+			if s.RoutingTarget == config.RoutingTargetChrome || s.OpenBrowserOnConnect {
+				port := st.Port
+				go a.launchBrowserSession(port)
+			}
 		}
 	case "off", "error":
 		go a.stopBrowserSession()

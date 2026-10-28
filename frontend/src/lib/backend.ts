@@ -57,6 +57,11 @@ export interface Settings {
   startWithWindows: boolean;
   connectOnLaunch: boolean;
   openBrowserOnConnect: boolean;
+  /** D123 (schema v9): how Windows points its traffic at the local proxy.
+   *  "chrome" (the default) routes only a dedicated Chrome instance the
+   *  shell launches; "system" routes the whole Windows network. Read by
+   *  the sheet's routing row on browserSession hosts (Windows). */
+  routingTarget?: string;
   firstRunDone: boolean;
   closeNoticeShown: boolean;
   /** D93: hiding in the tray on close is opt-in (default false = a real

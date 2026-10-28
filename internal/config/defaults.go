@@ -983,6 +983,52 @@ func (m Method) Valid() bool {
 		m == MethodStrong || m == MethodLegacy
 }
 
+// RoutingTarget selects how Windows points its traffic at the local proxy
+// (D123). It is the desktop counterpart of the Android per-app allow-list:
+// a way to keep the unblocking scoped so the rest of the system, every
+// other browser and every other Chrome profile keep their own connection
+// and their own profile.
+//
+//   - RoutingTargetChrome (the shipped default) routes ONLY a dedicated
+//     Chrome instance the shell launches with proxy flags and a separate
+//     user-data-dir. The system-wide proxy is never touched, so no other
+//     browser or Chrome profile sees this app's relay. The dedicated
+//     Chrome IS the routing: the shell opens it on connect and closes it
+//     on disconnect.
+//   - RoutingTargetSystem routes the whole Windows network through the
+//     proxy the way every version before D123 did — the manual
+//     ProxyEnable/ProxyServer/ProxyOverride values every mainstream
+//     browser follows. Every browser, every Chrome profile and every
+//     system component that honours the Windows proxy setting goes
+//     through this app while it runs.
+//
+// The field persists on every edition (one settings.json serves them all)
+// but only the Windows adapter reads it: the Android shell routes through
+// its VPN slot's per-app list, and the Linux/stub desktops have no
+// dedicated-browser launch. Mode (youtube/all/manual) is orthogonal and
+// still decides WHICH hosts the proxy processes once traffic reaches it;
+// RoutingTarget decides HOW the browser is pointed at the proxy.
+type RoutingTarget string
+
+const (
+	// RoutingTargetChrome routes only a dedicated Chrome instance (D123
+	// default). The system-wide proxy is left untouched.
+	RoutingTargetChrome RoutingTarget = "chrome"
+	// RoutingTargetSystem routes the whole Windows network through the
+	// proxy (the pre-D123 behavior).
+	RoutingTargetSystem RoutingTarget = "system"
+)
+
+// DefaultRoutingTarget is the shipped default (D123): route only a
+// dedicated Chrome instance, so the whole system and every other browser
+// or profile keeps its own connection.
+const DefaultRoutingTarget = RoutingTargetChrome
+
+// Valid reports whether r is a known routing target.
+func (r RoutingTarget) Valid() bool {
+	return r == RoutingTargetChrome || r == RoutingTargetSystem
+}
+
 // DoHServer is one secure-DNS service: a display name, a URL template that
 // contains {dns} where the encoded query goes, and bootstrap IP addresses used
 // to reach the service before DNS itself works.

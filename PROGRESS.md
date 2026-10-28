@@ -6416,3 +6416,122 @@ rebuilds deterministically); and the release script's final call
 was cut by a session timeout AFTER the upload completed — the API
 showed all 16 assets present, and the byte-verification run after
 resuming confirmed the publish had finished before the cut.
+
+## D123 — the routing-scope round (route only a dedicated Chrome by default)
+
+Date: 2026-10-28 (Asia/Tehran), machine: Linux sandbox, user `z`.
+
+The owner's ruling (verbatim): "currently younblock proxy whole the
+windows network. But I want it to be an additional option. the default
+option is only proxy one chrome instance, so the whole system and other
+browsers or other browser profiles doesnt get same treatment and
+profile." Every version before this applied the Windows system-wide
+proxy on every connect; this round flips the default to a dedicated
+Chrome instance and keeps the whole-system path as an explicit option.
+The reasoning is in `DECISIONS.md` D123; the user-facing note is in
+`CHANGELOG.md`.
+
+What changed (complete files only, no TODOs):
+
+- `internal/config/defaults.go` — new `RoutingTarget` type with
+  `RoutingTargetChrome` ("chrome", the shipped default) and
+  `RoutingTargetSystem` ("system"), `DefaultRoutingTarget`, and a
+  `Valid()` method. Placed beside `Mode`/`Method` since the three are
+  the settings' enum knobs.
+- `internal/config/settings.go` — schema bump v8 → v9. New
+  `RoutingTarget RoutingTarget` field on `Settings` (json
+  `routingTarget`), set in `DefaultSettings()` and validated in
+  `Normalize` (invalid → chrome default). New method
+  `Settings.SystemProxyActive()` — `RoutingTargetSystem && Mode !=
+  manual` — the ONE platform decision the Windows Attach path, the
+  watchdog and the live re-evaluate all read. v9 migration in
+  `LoadFor`: every pre-v9 file (the field absent, the behavior
+  experienced was the system-wide proxy, never a choice) carries to
+  `RoutingTargetChrome`, the v5/v8 pattern verbatim; a v9 file's
+  explicit "system" rides verbatim.
+- `internal/platform/windows/windows.go` — `Attach`/`EnsureAttached`
+  now route through `s.SystemProxyActive()`. chrome target (or manual
+  mode) is a no-op: the system-wide proxy is NEVER touched, so no other
+  browser or profile sees this app's relay. system target applies the
+  manual values per Mode as before. (Build-tagged windows; not compiled
+  on the Linux dev machine — verified by review against the
+  platform-neutral `sysproxy_logic.go`.)
+- `internal/engine/jsonapi.go` — `SaveSettingsJSON` re-evaluates the
+  system proxy LIVE on a routing-target change while On: `Detach` (undo
+  any proxy a system run set — a no-op when nothing was set) then
+  `Attach` (apply the new target). So a switch to chrome never leaves
+  the whole system pointed at a proxy the user wanted scoped to one
+  browser. The dedicated Chrome window itself opens/closes on the next
+  connect (the shell owns it).
+- `app.go` — `onStateEvent` launches the dedicated Chrome on EVERY
+  connect when the target is chrome (that Chrome IS the routing — it
+  carries the proxy flags and a separate profile, regardless of the
+  legacy `OpenBrowserOnConnect`); a system target still honours
+  `OpenBrowserOnConnect` for the optional extra Chrome on top.
+- `frontend/src/lib/backend.ts` — `routingTarget?: string` on the
+  `Settings` interface.
+- `frontend/src/lib/MenuSheet.svelte` — new `browserSession` prop; a
+  "Route the whole system, or only a dedicated Chrome" row (a
+  two-button segmented control, gated on `browserSession` = Windows
+  only) with title/hint copy that says exactly what each position does
+  before the user flips it (R13). Full-document save path matches the
+  keep-in-tray / auto-open rows; on failure the control snaps back.
+- `frontend/src/App.svelte` — reads `capabilities.browserSession` and
+  passes it to the sheet.
+- `internal/config/settings_v8_test.go` — the two version assertions
+  that pinned `8` now read `settingsVersion` (the schema-bump
+  maintenance a v9 carries; the v8 migration logic itself is
+  unchanged).
+- `DECISIONS.md` D123, `CHANGELOG.md` `[Unreleased]` → `### Changed`.
+
+Commands run with real results (Linux sandbox, Go 1.26.3 installed
+user-space to `/home/z/go` because the repo's `go.mod` requires
+`go 1.26.3` and the sandbox had no Go; `GOTOOLCHAIN=local`):
+
+```
+$ go vet ./internal/config/...           -> exit 0 (clean)
+$ go test ./internal/config/...          -> ok  github.com/assadigit/Younblock/internal/config  0.011s
+$ go vet ./internal/engine/...           -> exit 0 (clean)
+$ go build ./internal/...                -> BUILD_OK
+$ go test ./internal/config/... ./internal/engine/... ./internal/browser/... ./internal/platform/...
+   -> config ok; engine ok EXCEPT TestNetworkTestGatingAndStatus (5.08s,
+      "the network test never finished"); browser ok; platform/android ok;
+      platform/linux ok; platform/windows ok
+$ git stash && go test ./internal/engine/ -run TestNetworkTestGatingAndStatus -count=1
+   -> FAIL (same 5.08s timeout)  — confirmed PRE-EXISTING/environmental,
+      not caused by this round's changes; the stash was popped and the
+      RoutingTarget field verified back in settings.go
+$ go test ./internal/engine/ -run 'TestSaveSettings|TestSettings|TestMode|TestProxy|TestAttach|TestDetach|TestWatchdog'
+   -> ok  github.com/assadigit/Younblock/internal/engine  0.342s
+$ go vet .   (after `mkdir -p frontend/dist` + a .gitkeep placeholder so
+   the //go:embed all:frontend/dist in main.go resolves) -> exit 0 (clean;
+   the main package, including app.go's new config.RoutingTarget use,
+   type-checks)
+$ (cd frontend && bun install && bun run check)
+   -> svelte-check found 0 errors and 0 warnings
+```
+
+What could NOT be verified on this machine (stated honestly, per the
+non-negotiables):
+
+- The Windows adapter itself (`windows.go`, `browser_windows.go`) is
+  `//go:build windows` and never compiles on the Linux dev machine, so
+  the real Attach/EnsureAttached and the real Chrome launch were NOT
+  run here. They were verified by review against the platform-neutral
+  `sysproxy_logic.go` (whose tests pass) and by the engine's stub-path
+  tests. The owner's real Windows machine is the only honest proof that
+  the dedicated Chrome opens on connect and the system proxy stays
+  untouched under chrome — exactly the kind of claim the spec says only
+  Ali's real connection can prove.
+- The pre-existing `TestNetworkTestGatingAndStatus` timeout is
+  environmental (it fails on the original code too, before any of this
+  round's changes touched the tree) and is not a regression from D123.
+
+The friction log for this round: the sandbox had no Go toolchain, so
+Go 1.26.3 was downloaded and installed user-space (`/home/z/go`,
+`GOTOOLCHAIN=local`, `GOPATH=/home/z/gopath`) to match the repo's
+`go.mod`; the `frontend/dist` embed in `main.go` has no matching files
+on a non-built tree, so a `.gitkeep` placeholder was created for `go
+vet .` only and removed afterward (the path is `.gitignore`d). No
+system changes were made; no secrets were written into the repo; the
+GitHub token rides the environment only for the push.

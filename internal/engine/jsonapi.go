@@ -116,6 +116,25 @@ func (e *Engine) SaveSettingsJSON(payload string) string {
 				e.logger.Warn("re-attach after mode change failed", "reason", errKind(err))
 			}
 		}
+		// D123: a routing-target change re-evaluates the system proxy
+		// live. Detach undoes any proxy a system-target run set (a
+		// no-op when nothing was set), then Attach applies the new
+		// target — chrome touches nothing, system applies the manual
+		// values per Mode. The dedicated Chrome session a chrome target
+		// opens is owned by the shell's onStateEvent, so it takes effect
+		// on the next connect; the system-proxy side is corrected here
+		// so a switch to chrome never leaves the whole system pointed at
+		// a proxy the user wanted scoped to one browser.
+		if normalized.RoutingTarget != prev.RoutingTarget {
+			if err := e.platform.Detach(); err != nil {
+				e.logger.Warn("detach before routing-target re-attach failed", "reason", errKind(err))
+			}
+			if err := e.platform.Attach(e.port, normalized); err != nil {
+				e.logger.Warn("re-attach after routing-target change failed", "reason", errKind(err))
+			}
+			e.logger.Info("routing target changed",
+				"target", normalized.RoutingTarget)
+		}
 		if normalized.Method != prev.Method || settingsFragmentChanged(prev, normalized) {
 			e.server.SetFragment(e.currentPreset(), e.currentFragmentConfig())
 			e.resolver.Load().SetFragment(e.currentPreset(), e.currentFragmentConfig())

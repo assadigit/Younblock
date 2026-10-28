@@ -12,6 +12,40 @@ every release are on the
 
 ## [Unreleased]
 
+### Changed (the routing-scope round — D123)
+
+- **Younblock now routes only a dedicated Chrome instance by default on
+  Windows, instead of the whole system.** The owner's ruling: "currently
+  younblock proxy whole the windows network. But I want it to be an
+  additional option. the default option is only proxy one chrome
+  instance, so the whole system and other browsers or other browser
+  profiles doesnt get same treatment and profile."
+  - When you press the button, Younblock opens its OWN Chrome window —
+    a separate profile with the proxy built in — and only that window
+    is unblocked. Your normal Chrome, every other browser and every
+    other Chrome profile keep working exactly as they were: no shared
+    proxy, no shared profile, no shared treatment.
+  - The whole-system proxy is still there as an explicit option: open
+    the menu → Settings → "Route the whole system, or only a dedicated
+    Chrome" and choose **Whole system**. That restores the previous
+    behavior (every browser and app that follows the Windows proxy
+    setting goes through Younblock while it runs).
+  - Existing installs move to the new default (dedicated Chrome) on
+    upgrade; the setting is one tap away if you want the whole system
+    back. New installs start on the dedicated Chrome.
+- **What changed under the hood (D123, schema v9):** a new
+  `routingTarget` setting (`"chrome"` default, `"system"` optional).
+  `chrome` never touches the Windows system-wide proxy — the dedicated
+  Chrome's `--proxy-server` flag and separate `--user-data-dir` (the
+  D40 machinery) are the whole routing. `system` applies the manual
+  ProxyEnable/ProxyServer/ProxyOverride values per Mode as every
+  version before D123 did. The single decision lives in
+  `config.Settings.SystemProxyActive()` so the Windows Attach path, the
+  watchdog's anti-clobber check and the live re-evaluate on settings
+  save all read one rule. The field persists on every edition but only
+  the Windows adapter reads it; the UI row appears only on Windows
+  (the `browserSession` capability).
+
 ### Fixed (2026-10-28 — the float-geometry round; 1.6.18, versionCode 48 — D122)
 
 - **The lite screen's remaining "resolution and low-bit quirks" are

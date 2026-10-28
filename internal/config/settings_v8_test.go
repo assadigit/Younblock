@@ -72,12 +72,15 @@ func TestAutoOpenYouTubeV8MigrationAndOwnersWord(t *testing.T) {
 	if !migrated.AutoOpenYouTube {
 		t.Fatal("a pre-v8 Android file must migrate autoOpenYouTube to true (the field was never a choice)")
 	}
-	if migrated.Version != 8 {
-		t.Fatalf("migrated version = %d, want 8", migrated.Version)
+	// A pre-v8 file migrates through every later schema too (D123's v9
+	// routingTarget migration runs for every file below v9); the version
+	// lands on the current schema version, not 8.
+	if migrated.Version != settingsVersion {
+		t.Fatalf("migrated version = %d, want %d", migrated.Version, settingsVersion)
 	}
 
 	// The same v7 file on a desktop stays off (inert there) — and still
-	// normalizes its version to 8 like every file.
+	// normalizes its version to the current schema like every file.
 	dirD := t.TempDir()
 	writeSettingsFile(t, dirD, `{
   "version": 7,
@@ -163,7 +166,7 @@ func TestAutoOpenYouTubeRoundTrip(t *testing.T) {
 	if back.AutoOpenYouTube {
 		t.Fatal("the saved false did not survive the round-trip")
 	}
-	if back.Version != 8 {
-		t.Fatalf("round-tripped version = %d, want 8", back.Version)
+	if back.Version != settingsVersion {
+		t.Fatalf("round-tripped version = %d, want %d", back.Version, settingsVersion)
 	}
 }

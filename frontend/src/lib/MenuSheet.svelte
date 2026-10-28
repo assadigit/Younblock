@@ -37,6 +37,12 @@
    *  desktop) — D93 gates the close setting's row on it: a platform with
    *  no tray has nothing to keep running, so the row never shows there. */
   export let tray = false;
+  /** True only when the host reports the dedicated-browser-session
+   *  capability (the Windows desktop — the only shell that launches a
+   *  dedicated Chrome with proxy flags). D123 gates the routing-target
+   *  row on it: the chrome/system choice is meaningful only where a
+   *  dedicated browser can be launched AND a system proxy exists. */
+  export let browserSession = false;
   /** The backend for settings/report reads and saves (null in preview). */
   export let backend: Backend | null = null;
 
@@ -131,6 +137,19 @@
   const AUTO_OPEN_HINT =
     "On by default: the moment the connection is ready, Younblock opens the YouTube app for you, so the first video starts through the ready tunnel. Off: nothing is opened for you.";
 
+  // The D123 routing-target choice (browserSession hosts only — the
+  // Windows desktop). "chrome" is the shipped default: only a dedicated
+  // Chrome window Younblock opens itself is routed, so your normal
+  // Chrome, every other browser and every other profile keep their own
+  // connection. "system" routes the whole Windows network the way every
+  // version before D123 did. The copy says exactly what each position
+  // does before the user flips anything (R13: nothing changes silently).
+  const ROUTING_TITLE = "Route the whole system, or only a dedicated Chrome";
+  const ROUTING_CHROME_LABEL = "Only a dedicated Chrome";
+  const ROUTING_SYSTEM_LABEL = "Whole system";
+  const ROUTING_HINT =
+    "Default: Younblock opens its own Chrome window with a separate profile — only that window is unblocked, so your normal Chrome and other browsers keep working as they were. Whole system: every browser and app that follows the Windows proxy setting goes through Younblock while it runs.";
+
   // =====================================================================
 
   // ---- the apps list (Android only) ------------------------------------
@@ -192,7 +211,7 @@
   // Re-reading on every open keeps the state fresh if another
   // edition's screen saved meanwhile.
   let loadedForOpen = false;
-  $: if (open && (perAppRouting || autoOpenTarget || tray) && backend && !loadedForOpen) {
+  $: if (open && (perAppRouting || autoOpenTarget || tray || browserSession) && backend && !loadedForOpen) {
     loadedForOpen = true;
     void refreshSettings();
   }
@@ -292,6 +311,37 @@
       autoOpenError = e instanceof Error ? `Could not save: ${e.message}` : "Could not save. Try again.";
     } finally {
       autoOpenBusy = false;
+    }
+  }
+
+  // ---- the routing target (D123, browserSession platforms) ---------------
+
+  let routingBusy = false;
+  let routingError = "";
+
+  /** The saved routing target, clamped to the two known values. An absent
+   *  field (a host that never wrote it) reads as the shipped default
+   *  "chrome", matching the Go Normalize path. */
+  $: routingTarget =
+    settings?.routingTarget === "system" ? "system" : "chrome";
+
+  /** Full-document save, the auto-open row's path verbatim: the whole
+   *  settings document round-trips, every other field untouched, and on
+   *  failure the segmented control snaps back to the last saved state.
+   *  The engine re-evaluates the system proxy live (a switch to chrome
+   *  never leaves the whole system pointed at a proxy the user wanted
+   *  scoped to one browser); the dedicated Chrome window itself opens or
+   *  closes on the next connect. */
+  async function saveRoutingTarget(next: "chrome" | "system"): Promise<void> {
+    if (!backend || !settings || routingBusy || routingTarget === next) return;
+    routingBusy = true;
+    routingError = "";
+    try {
+      settings = await backend.saveSettings({ ...settings, routingTarget: next });
+    } catch (e) {
+      routingError = e instanceof Error ? `Could not save: ${e.message}` : "Could not save. Try again.";
+    } finally {
+      routingBusy = false;
     }
   }
 
@@ -560,16 +610,53 @@
 
     <!-- The settings section renders for whichever host rows it holds:
          D93's close setting on tray hosts (the Windows desktop — every
-         other platform has nothing to keep running), and M8-am's
-         connect-time hand-off on autoOpenTarget hosts (Android). One
-         sheet, honest per host — a platform with neither never shows
-         the section. -->
-    {#if tray || autoOpenTarget}
+         other platform has nothing to keep running), M8-am's connect-time
+         hand-off on autoOpenTarget hosts (Android), and D123's routing
+         target on browserSession hosts (the Windows desktop). One sheet,
+         honest per host — a platform with none of them never shows the
+         section. -->
+    {#if tray || autoOpenTarget || browserSession}
       <section aria-labelledby="settings-heading">
         <h2 id="settings-heading">Settings</h2>
         {#if settings === null}
           <p class="dim">Loading…</p>
         {:else}
+          {#if browserSession}
+            <div class="setting-row setting-row--stacked">
+              <div class="setting-text">
+                <span class="setting-title">{ROUTING_TITLE}</span>
+                <span class="setting-hint">{ROUTING_HINT}</span>
+              </div>
+              <div
+                class="segmented"
+                role="radiogroup"
+                aria-label={ROUTING_TITLE}
+                data-busy={routingBusy}
+              >
+                <button
+                  type="button"
+                  class="seg"
+                  role="radio"
+                  aria-checked={routingTarget === "chrome"}
+                  disabled={routingBusy}
+                  on:click={() => saveRoutingTarget("chrome")}
+                >
+                  {ROUTING_CHROME_LABEL}
+                </button>
+                <button
+                  type="button"
+                  class="seg"
+                  role="radio"
+                  aria-checked={routingTarget === "system"}
+                  disabled={routingBusy}
+                  on:click={() => saveRoutingTarget("system")}
+                >
+                  {ROUTING_SYSTEM_LABEL}
+                </button>
+              </div>
+            </div>
+            {#if routingError}<p class="inline-error" role="alert">{routingError}</p>{/if}
+          {/if}
           {#if tray}
             <div class="setting-row">
               <div class="setting-text">
@@ -1155,6 +1242,56 @@
   }
   .toggle input:disabled + .toggle-track {
     opacity: 0.45;
+  }
+
+  /* ---- the D123 routing target (a two-button segmented control) ---- */
+
+  /* The routing row stacks: the title/hint above, the control below —
+     the two labels ("Only a dedicated Chrome" / "Whole system") need
+     the full row width to read on a narrow sheet, so the toggle's
+     right-aligned single-line layout does not fit. */
+  .setting-row--stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+  .segmented {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.10);
+  }
+  .segmented[data-busy="true"] {
+    opacity: 0.6;
+  }
+  .seg {
+    flex: 1;
+    min-height: 2.25rem;
+    padding: 0 0.5rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
+    font-weight: var(--fw-semibold);
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background 180ms ease, color 180ms ease;
+  }
+  .seg:hover:not(:disabled) {
+    color: var(--text-secondary);
+  }
+  .seg[aria-checked="true"] {
+    background: var(--red-500);
+    color: #fff;
+  }
+  .seg:focus-visible {
+    outline: 0.125rem solid #fff;
+    outline-offset: 0.125rem;
+  }
+  .seg:disabled {
+    cursor: default;
   }
 
   /* ---- the round-3 Data usage section ---- */

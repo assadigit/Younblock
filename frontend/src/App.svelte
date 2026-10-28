@@ -58,6 +58,7 @@
   let perAppRouting = false
   let autoOpenTarget = false
   let tray = false
+  let browserSession = false
   let hidden = false
   let stopListening: () => void = () => {}
   let clock: number | undefined
@@ -92,6 +93,7 @@
         perAppRouting = info?.capabilities?.perAppRouting ?? false
         autoOpenTarget = info?.capabilities?.autoOpenTarget ?? false
         tray = info?.capabilities?.tray ?? false
+        browserSession = info?.capabilities?.browserSession ?? false
       })
       .catch(() => {})
     stopListening = backend.subscribe((s) => (snap = s))
@@ -297,6 +299,7 @@
     {perAppRouting}
     {autoOpenTarget}
     {tray}
+    {browserSession}
     {backend}
     on:close={() => (menuOpen = false)}
     on:diagnostics={() => {

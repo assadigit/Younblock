@@ -70,7 +70,23 @@ import (
 // YouTube app to open; openBrowserOnConnect is the desktop
 // counterpart). A v8 file records the owner's explicit choice either
 // way.
-const settingsVersion = 8
+//
+// v9 (D123) adds `routingTarget` — the Windows routing-scope switch.
+// Before D123 every connect applied the Windows system-wide proxy, so
+// every browser, every Chrome profile and every system component that
+// honours the Windows proxy setting went through this app. The owner's
+// ruling flips the shipped default: route ONLY a dedicated Chrome
+// instance the shell launches with proxy flags and a separate
+// user-data-dir, so the rest of the system keeps its own connection
+// and its own profile. routingTarget was absent from every pre-v9
+// file, and its implicit "system" there is the shipped default the
+// previous rounds carried, never a choice the file's owner made — so
+// the v9 migration carries every pre-v9 file to the new default
+// "chrome" (the v5/v8 pattern: the absent field was never a decision).
+// The field persists on every edition but only the Windows adapter
+// reads it; a v9 file's explicit "system" is the owner's word and
+// rides verbatim.
+const settingsVersion = 9
 
 // Advanced holds troubleshooting-only settings, collapsed in the UI.
 // Zero values mean "use the preset default".
@@ -145,6 +161,15 @@ type Settings struct {
 	// OpenBrowserOnConnect opens a dedicated Chrome session (separate
 	// profile, proxy flags) when the engine turns on. Default off.
 	OpenBrowserOnConnect bool `json:"openBrowserOnConnect"`
+	// RoutingTarget (D123, schema v9) selects how Windows points its
+	// traffic at the local proxy. RoutingTargetChrome (the default)
+	// routes ONLY a dedicated Chrome instance the shell launches — the
+	// system-wide proxy is never touched, so no other browser or Chrome
+	// profile sees this app's relay. RoutingTargetSystem routes the
+	// whole Windows network (the pre-D123 behavior). The field persists
+	// on every edition but only the Windows adapter reads it; see
+	// SystemProxyActive for the platform decision.
+	RoutingTarget RoutingTarget `json:"routingTarget"`
 	// AutoOpenYouTube (M8-am, ADR-0051, schema v8, D105; the launch-only
 	// shape is M8-ap's ADR-0055): when the engine turns on, the Android
 	// shell opens the YouTube app — the connect-time hand-off so the
@@ -180,12 +205,13 @@ type Settings struct {
 // DefaultSettings returns the built-in settings.
 func DefaultSettings() Settings {
 	return Settings{
-		Version:  settingsVersion,
-		Mode:     DefaultMode,
-		Method:   DefaultMethod,
-		Port:     ListenPort,
-		AutoPort: AutoPort,
-		Apps:     DefaultApps(),
+		Version:       settingsVersion,
+		Mode:          DefaultMode,
+		Method:        DefaultMethod,
+		Port:          ListenPort,
+		AutoPort:      AutoPort,
+		RoutingTarget: DefaultRoutingTarget, // D123: route only a dedicated Chrome by default
+		Apps:          DefaultApps(),
 		Advanced: Advanced{
 			DoHServers:             Defaults(),
 			Domains:                DefaultDomains(),
@@ -212,6 +238,9 @@ func Normalize(s Settings) Settings {
 	if !s.Method.Valid() {
 		s.Method = DefaultMethod
 	}
+	if !s.RoutingTarget.Valid() {
+		s.RoutingTarget = DefaultRoutingTarget
+	}
 	if s.Port < 1 || s.Port > 65535 {
 		s.Port = ListenPort
 	}
@@ -234,6 +263,21 @@ func Normalize(s Settings) Settings {
 	s.Advanced.Domains = normalizeDomains(s.Advanced.Domains)
 	s.Apps = normalizeApps(s.Apps)
 	return s
+}
+
+// SystemProxyActive reports whether the platform should apply its
+// system-wide proxy for these settings (D123). RoutingTargetChrome (the
+// default) routes only a dedicated browser and NEVER touches the system
+// proxy; RoutingTargetSystem applies the system proxy per Mode — and
+// ModeManual still touches nothing, because the user chose to point a
+// browser at the proxy by hand. The Windows Attach/EnsureAttached and the
+// engine's live re-evaluate both route through this one decision so the
+// policy lives in a single testable place.
+func (s Settings) SystemProxyActive() bool {
+	if s.RoutingTarget != RoutingTargetSystem {
+		return false
+	}
+	return s.Mode != ModeManual
 }
 
 func normalizeDoH(list []DoHServer) []DoHServer {
@@ -500,6 +544,18 @@ func LoadFor(dir string, platform string) (s Settings, notice string, err error)
 		// there reads it).
 		if android && loaded.Version < 8 {
 			loaded.AutoOpenYouTube = true
+		}
+		// The v9 migration (D123): routingTarget was absent from every
+		// pre-v9 file, and the behavior every such file experienced was
+		// the system-wide proxy (the v1 default the previous rounds
+		// carried). The owner's ruling flips the shipped default to
+		// "chrome" — route only a dedicated Chrome instance — so the
+		// absent field (never a choice the file's owner made) carries to
+		// the new default, the v5/v8 pattern verbatim. A v9 file's
+		// explicit "system" is the owner's word and rides verbatim;
+		// Normalize still clamps a corrupt/unknown value to the default.
+		if loaded.Version < 9 {
+			loaded.RoutingTarget = RoutingTargetChrome
 		}
 	}
 	return Normalize(loaded), "", nil

@@ -3262,3 +3262,84 @@ roots, and both were in the geometry layer, not the compositor.
 5. Next decision ID: D123. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D123 — the routing-scope round: route only a dedicated Chrome by
+default; the whole-system proxy becomes an option.** The owner's
+ruling, verbatim: "currently younblock proxy whole the windows network.
+But I want it to be an additional option. the default option is only
+proxy one chrome instance, so the whole system and other browsers or
+other browser profiles doesnt get same treatment and profile." Every
+version before this one applied the Windows system-wide proxy on every
+connect (the manual ProxyEnable/ProxyServer/ProxyOverride values every
+mainstream browser follows), so every browser, every Chrome profile and
+every system component that honours the Windows proxy setting went
+through this app while it ran. The ruling flips the default: route ONLY
+a dedicated Chrome instance, and keep the whole-system path as an
+explicit option.
+
+1. **The routing-scope decision is a NEW field (RoutingTarget), not a
+   reuse of Mode.** Mode (youtube/all/manual) decides WHICH hosts the
+   proxy processes once traffic reaches it (the routedHost /
+   fragmentHost rules); RoutingTarget decides HOW the browser is
+   pointed at the proxy. They are orthogonal — a chrome-target run with
+   ModeYouTube still fragments only the YouTube-list hosts, but the
+   traffic that reaches the proxy comes only from the dedicated Chrome.
+   The single platform decision lives in
+   config.Settings.SystemProxyActive() — `RoutingTargetSystem && Mode
+   != manual` — so the Windows Attach/EnsureAttached and the engine's
+   live re-evaluate read one testable rule, not three scattered
+   switches.
+
+2. **RoutingTargetChrome (the shipped default) routes ONLY a dedicated
+   Chrome instance.** The shell launches Chrome with `--proxy-server`
+   and a separate `--user-data-dir` (the D40 machinery, unchanged), so
+   the session never touches the user's normal Chrome data. The
+   system-wide proxy is NEVER touched — no other browser, no other
+   Chrome profile, no system component sees this app's relay. That
+   Chrome IS the routing: onStateEvent opens it on EVERY connect
+   (regardless of the legacy OpenBrowserOnConnect switch), and closes
+   it on disconnect/error. The rest of the system keeps its own
+   connection and its own profile — exactly the owner's "doesn't get
+   same treatment and profile."
+
+3. **RoutingTargetSystem is the pre-D123 behavior, now the opt-in.** It
+   applies the manual proxy values per Mode (ModeManual still touches
+   nothing — the user points a browser at the proxy by hand). The
+   legacy OpenBrowserOnConnect switch keeps its extra-Chrome-on-top
+   role here only: an optional dedicated window above the system-wide
+   proxy. Under chrome it is inert (the dedicated Chrome already opens
+   as the routing itself).
+
+4. **Schema v9 migration: the absent field was never a choice, so it
+   carries to the new default.** routingTarget was absent from every
+   pre-v9 file, and the behavior every such file experienced was the
+   system-wide proxy (the v1 default the previous rounds carried). The
+   owner's ruling flips the shipped default to chrome, so the v9
+   migration sets every pre-v9 file to RoutingTargetChrome — the v5/v8
+   pattern verbatim (fragmentAllRouted, autoOpenYouTube). A v9 file's
+   explicit "system" is the owner's word and rides verbatim; Normalize
+   still clamps a corrupt/unknown value to the default.
+
+5. **The watchdog and the live re-evaluate stay honest under chrome.**
+   The anti-clobber EnsureAttached is a quiet no-op when nothing was
+   set (chrome target), so the watchdog's tick does no registry work.
+   The engine's SaveSettingsJSON re-evaluates the system proxy live on
+   a routing-target change: Detach undoes any proxy a system-target run
+   set (a no-op when nothing was set), then Attach applies the new
+   target — so a switch to chrome NEVER leaves the whole system pointed
+   at a proxy the user wanted scoped to one browser. The dedicated
+   Chrome window itself opens or closes on the next connect (the shell
+   owns it, not the engine).
+
+6. **The field persists everywhere; only Windows reads it.** One
+   settings.json serves every edition, so routingTarget round-trips on
+   Android and the Linux/stub desktops too, but only the Windows
+   adapter reads it: Android routes through its VPN slot's per-app
+   allow-list (the same scope idea, different mechanism), and the
+   Linux/stub desktops have no dedicated-browser launch. The UI row
+   gates on the browserSession capability — true only on Windows — so
+   the choice appears only where it does something.
+
+7. Next decision ID: D124. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)
