@@ -209,3 +209,48 @@ func TestAnimPhases(t *testing.T) {
 		t.Fatalf("cycle wrap: %f vs %f", p1, p2)
 	}
 }
+
+// TestCapsulePointsSquareCaps — D121: a 2 px stroke (r = 1) must emit
+// the four-corner square-cap quad, never the round-cap arcs: at this
+// radius the arc points collapse into near-coincident integers whose
+// polygon self-intersects and GDI+'s winding fill leaves only beaded
+// fragments (the owner's dotted send/receive arrows).
+func TestCapsulePointsSquareCaps(t *testing.T) {
+	pts := capsulePoints(100, 100, 110, 104, 1)
+	if len(pts) != 4 {
+		t.Fatalf("r=1 capsule points = %d, want the 4-point square-cap quad", len(pts))
+	}
+	// Every point sits exactly r from the segment's line.
+	for _, p := range pts {
+		d := math.Abs(float64((p.X-100)*4-(p.Y-100)*10)) / math.Hypot(4, 10)
+		if math.Abs(d-1) > 1.01 {
+			t.Fatalf("square-cap point %v distance %f, want 1", p, d)
+		}
+	}
+	// The quad must be a simple (non-self-intersecting) polygon: its
+	// signed area is non-zero and the two diagonals both cross inside.
+	area := 0.0
+	for i := range pts {
+		a, b := pts[i], pts[(i+1)%len(pts)]
+		area += float64(a.X)*float64(b.Y) - float64(b.X)*float64(a.Y)
+	}
+	if area == 0 {
+		t.Fatalf("square-cap quad has zero area: %v", pts)
+	}
+}
+
+// TestArcPointsCenterAnchoring — the power icon's glyph center is the
+// arc's center (12, 12.41) on the 24 grid (D121): a full ring sampled
+// around a center must keep every point within r of it.
+func TestArcPointsCenterAnchoring(t *testing.T) {
+	pts := arcPoints(200, 200, 8, 8, 0, 360, 36)
+	if len(pts) < 20 {
+		t.Fatalf("ring points = %d, want a sampled ring", len(pts))
+	}
+	for _, p := range pts {
+		d := math.Hypot(float64(p.X-200), float64(p.Y-200))
+		if math.Abs(d-8) > 1.01 {
+			t.Fatalf("ring point %v distance %f from center, want 8", p, d)
+		}
+	}
+}

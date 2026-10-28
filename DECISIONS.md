@@ -3124,3 +3124,68 @@ and the standing design law for the lite painter from here on.
 5. Next decision ID: D121. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+---
+
+**D121 — the polished-simple round: the ruling extends to every
+soft-effect emulation; center anchors are measured, not assumed.**
+The owner's report on the v0.8.9 lite screen: the power icon "is not
+centered at the bottom (it must be aligned center relative to STOP
+word)"; "Remove the text 'youtube unblocked'"; "send and receive has
+some artifacts like dots"; "a small artifact at the bottom of the
+container of bottom (on the middle)"; "the glow is not running with
+high quality, it's rendered 4 bit, and has no gradient and
+smoothness, if you can't render it without dependency delete the
+glow"; the "..." button "has same render problem, it has low
+quality". The feel itself passed ("overall feel is like the full
+version") — this round is rendering polish, and it retires the last
+soft-effect emulations.
+
+1. **An anchor is a contract: grid-origin vs center.** drawPowerIcon
+   treated its (cx, cy) as the 24-grid's top-left while both call
+   sites passed a CENTER — so the glyph landed +12 px (cap) / +8 px
+   (sheet) right of the intended axis. Pixel-measured in the owner's
+   screenshot: glyph center 187 vs cap center 175. Ruling: icon
+   functions take the glyph's visual center and derive the grid from
+   it; verification measures the glyph's bounding-box center against
+   the container's axis (183.5 = 183.5 now, both states).
+
+2. **The layered-solid onion was D120's mistake to keep.** D120
+   replaced the banned path-gradient halos with stacked solid rings,
+   believing SourceOver stacking "renders identically on every
+   GDI+". It renders identically — and identically BANDED: a
+   browser compositor blurs each layer before compositing (the
+   gaussian reads smooth), GDI+ composites the raw hard-edged ring,
+   so 4-5 discrete steps read exactly like a 4-bit gradient. The
+   owner's "4 bit, no gradient and smoothness" is the correct
+   engineering description. Per the ruling verbatim ("delete the
+   glow"), EVERY onion is removed: track aura, cap glow, brand-tile
+   halo, cap cast shadow, card drop shadow (the bottom-center
+   artifact: measured as a 7-row darker stepped band under the
+   card), menu-button stacked shadow, sheet top shadow. The painter
+   now has NO halo primitive at all — separation comes from edge,
+   color and contrast. The state speaks through the background
+   gradient, the LED bar and the sub color.
+
+3. **Stroke primitives must survive their smallest parameters.**
+   capsulePoints at r=1 (every 2 px stroke) emitted round-cap arcs
+   whose integer points collapse into near-coincident runs — the
+   polygon self-intersects and the winding fill leaves beaded
+   fragments: the owner's dotted arrowheads, the beaded swipe cues,
+   the menu button's highlight arc, the power icon's ring. Square
+   caps (a 4-point quad with ROUNDED normal offsets — truncation
+   degenerates shallow diagonals to the bare segment) are
+   pixel-identical at 2-3 px and cannot self-intersect. Ruling: every
+   polygon sampler has a degenerate-parameter test, or it does not
+   ship (TestCapsulePointsSquareCaps).
+
+4. **Copy changes by owner order are presentation decisions, not
+   drift.** "YouTube unblocked." is removed from the lite connected
+   screen by explicit order; the T-table keeps the empty slot with
+   the order cited, the sub band stays reserved (no reflow), and the
+   informative amber slow-variant line survives. The full edition's
+   Svelte copy is untouched — the lite diverges here deliberately.
+
+5. Next decision ID: D122. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

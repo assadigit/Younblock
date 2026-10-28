@@ -97,8 +97,10 @@ func TestScreenConnected(t *testing.T) {
 	if sc.Headline != "Connected" || sc.CapLabel != "Stop" {
 		t.Errorf("connected copy = %+v", sc)
 	}
-	if sc.Sub != "YouTube unblocked." {
-		t.Errorf("connected sub = %q", sc.Sub)
+	if sc.Sub != "" {
+		// D121: the owner ordered the "YouTube unblocked." line gone;
+		// the connected screen now carries no sub line at all.
+		t.Errorf("connected sub = %q, want empty", sc.Sub)
 	}
 	if sc.Action != LeverDisconnect {
 		t.Errorf("connected action = %d, want disconnect", sc.Action)

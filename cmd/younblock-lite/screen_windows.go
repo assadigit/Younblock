@@ -14,16 +14,25 @@
 // 128x272 track with the sliding 112x124 satin-red cap, its 9 px side
 // wall, grip ridges, LED, power icon and letterspaced cap label, driven
 // by the same gesture rules (tap, drag-follow, 45% commit threshold,
-// springy 550 ms travel) and the breathing track aura. The menu sheet
-// slides up from the bottom in the reference's surfaces.
+// springy 550 ms travel). The menu sheet slides up from the bottom in
+// the reference's surfaces.
 //
 // D120's reliability ruling (the owner's words: "if you can't render
 // those without dependency, remove those effects and make them simpler,
-// but reliable"): the screen now uses exactly three deterministic GDI+
+// but reliable"): the screen uses exactly three deterministic GDI+
 // primitives — solid fills, linear gradients, and clips. The path-
 // gradient glow class and both texture layers (grain D119, halftone
-// dots D120) are gone; every halo is a layered-solid onion; every text
-// row is anchored inside its own band.
+// dots D120) are gone; every text row is anchored inside its own band.
+//
+// D121 extends the ruling to the LAST emulation of a soft effect — the
+// layered-solid "onion" halos (track aura, cap glow, card and cap
+// shadows, the menu button's stacked shadow) read as 4-bit banded
+// rings on the owner's screen, so they are all gone too: shapes now
+// separate by edge, color and contrast alone, never by glow. The
+// 2-3 px stroke capsules take square caps (round-cap polygons
+// degenerated into beaded dots at that radius — the send/receive
+// arrows, the swipe cues), and the power icon anchors on its true
+// center (it sat 12 px right of the cap's axis).
 //
 // Text stays on plain GDI (weights 400-700, ClearType, per-character
 // drawing where the design letterspaces); every shape is a
@@ -77,33 +86,32 @@ var bgStops = map[ScreenState]struct {
 	},
 }
 
-// stateColors is the per-state token set (the data-state rules).
+// stateColors is the per-state token set (the data-state rules). D121
+// removed the glow color columns with the glow class itself: the
+// layered-solid onions read as 4-bit banded rings on the owner's
+// screen ("no gradient and smoothness"), and the owner's standing
+// ruling is delete-what-cannot-render-well — the state now speaks
+// through the background gradient, the LED bar and the sub color
+// alone.
 var stateColors = map[ScreenState]struct {
-	LED      uint32 // --c-led
-	LEDGlow  uint32 // --c-led-glow
-	Sub      uint32 // --c-sub
-	Aura     uint32 // --c-aura
-	PillGlow uint32 // --pill-glow
+	LED uint32 // --c-led
+	Sub uint32 // --c-sub
 }{
 	ScreenIdle: {
-		LED: argb(0xff, 0x6b, 0x6b, 0x78), LEDGlow: 0,
-		Sub: argb(0xff, 0xC9, 0xC8, 0xD4), Aura: 0,
-		PillGlow: argb(0x66, 0xFF, 0x28, 0x1E), // rgba(255,40,30,.40)
+		LED: argb(0xff, 0x6b, 0x6b, 0x78),
+		Sub: argb(0xff, 0xC9, 0xC8, 0xD4),
 	},
 	ScreenConnecting: {
-		LED: argb(0xff, 0xFF, 0xFF, 0xFF), LEDGlow: argb(0xb3, 0xFF, 0xFF, 0xFF),
-		Sub: argb(0xff, 0xC9, 0xC8, 0xD4), Aura: argb(0x8c, 0xFF, 0x5A, 0x46), // rgba(255,90,70,.55)
-		PillGlow: argb(0x4d, 0xFF, 0x28, 0x1E),
+		LED: argb(0xff, 0xFF, 0xFF, 0xFF),
+		Sub: argb(0xff, 0xC9, 0xC8, 0xD4),
 	},
 	ScreenConnected: {
-		LED: argb(0xff, 0x39, 0xB9, 0x4C), LEDGlow: argb(0xd9, 0x39, 0xB9, 0x4C),
-		Sub: argb(0xff, 0xF0, 0xF7, 0xF3), Aura: argb(0x8c, 0x39, 0xB9, 0x4C),
-		PillGlow: argb(0x38, 0xFF, 0x28, 0x1E),
+		LED: argb(0xff, 0x39, 0xB9, 0x4C),
+		Sub: argb(0xff, 0xF0, 0xF7, 0xF3),
 	},
 	ScreenFailed: {
-		LED: argb(0xff, 0xFF, 0xA7, 0x26), LEDGlow: argb(0xd9, 0xFF, 0xA7, 0x26),
-		Sub: argb(0xff, 0xFF, 0xD9, 0xA0), Aura: argb(0x8c, 0xFF, 0xA7, 0x26),
-		PillGlow: argb(0x4d, 0xFF, 0x28, 0x1E),
+		LED: argb(0xff, 0xFF, 0xA7, 0x26),
+		Sub: argb(0xff, 0xFF, 0xD9, 0xA0),
 	},
 }
 
@@ -224,14 +232,13 @@ func (w *liteWindow) drawBackground(g uintptr, width, height int32, sc Screen, n
 }
 
 // drawHeader paints the glass header: the red brand tile with its play
-// triangle and glow, the wordmark, and the "..." glass circle.
+// triangle, the wordmark, and the "..." glass circle. D121: the tile's
+// red glow halo is gone with the glow class (banded rings read as
+// artifacts; the crisp gradient tile carries the brand alone).
 func (w *liteWindow) drawHeader(g uintptr, hdc uintptr, width int32) {
 	m := w.px(lyMargin)
 	mk := w.lay.brandMark
 	mw, mh := mk.Right-mk.Left, mk.Bottom-mk.Top
-
-	// The tile's soft red glow (0 0 14px rgba(255,40,30,.55)).
-	w.glowRRect(g, mk.Left, mk.Top, mw, mh, w.px(lyBrandR), w.px(7), argb(0x8c, 0xFF, 0x28, 0x1E))
 
 	// The tile: vertical red gradient (#f0392c -> #c3180f).
 	if br := newVGradient(mk.Left, mk.Top, mw, mh, []uint32{0xfff0392c, 0xffc3180f}, []float32{0, 1}); br != 0 {
@@ -258,25 +265,14 @@ func (w *liteWindow) drawHeader(g uintptr, hdc uintptr, width int32) {
 	w.drawMenuButton(g)
 }
 
-// drawMenuButton paints the filled glass circle with its top highlight,
-// drop shadow and three dots.
+// drawMenuButton paints the filled glass circle with its top highlight
+// and three dots. D121: the stacked-ellipse drop shadow is gone with
+// the glow class (the owner read the banded rings as low quality); the
+// crisp circle and dots are the whole button.
 func (w *liteWindow) drawMenuButton(g uintptr) {
 	rc := w.lay.menuBtn
 	d := rc.Right - rc.Left
 	cx, cy := (rc.Left+rc.Right)/2, (rc.Top+rc.Bottom)/2
-
-	// The drop shadow (0 6px 14px rgba(0,0,0,.35)) — a soft halo offset
-	// down: three stacked solid ellipses whose cumulative edge weight is
-	// .35 fading to .12 at the rim (D119: the layered-solid construction
-	// renders identically on every GDI+ — the old single path-gradient
-	// circle could diverge into a white ring on real Windows).
-	sr := d / 2
-	for _, s := range []struct {
-		e int32
-		a uint32
-	}{{w.px(5), 0x1E}, {w.px(3), 0x24}, {w.px(1), 0x2B}} {
-		w.fillEllipse(g, cx, cy+w.px(3), sr+s.e, argb(s.a, 0x00, 0x00, 0x00))
-	}
 
 	// The glass fill: rgba(255,255,255,.2) -> .08.
 	if br := newVGradient(rc.Left, rc.Top, d, d, []uint32{0x33FFFFFF, 0x14FFFFFF}, []float32{0, 1}); br != 0 {
@@ -527,8 +523,10 @@ func (w *liteWindow) drawCard(g uintptr, hdc uintptr, sc Screen, now int64) {
 	x, y := rc.Left, rc.Top+lift
 	cw, chh := rc.Right-rc.Left, rc.Bottom-rc.Top
 
-	// The soft drop shadow (0 8px 18px rgba(0,0,0,.3)).
-	w.glowRRect(g, x, y+w.px(3), cw, chh, w.px(lyCardR), w.px(6), scaleAlpha(argb(0x4d, 0x00, 0x00, 0x00), alpha))
+	// D121: the onion drop shadow is gone with the glow class — its
+	// stepped dark bands below the bottom edge were the owner's
+	// "small artifact at the bottom of the container". The glass fill
+	// and the top highlight carry the card on their own.
 
 	// The glass fill: rgba(255,255,255,.12) -> .05.
 	if br := newVGradient(x, y, cw, chh,
@@ -573,15 +571,14 @@ func capRestPos(s ScreenState) float64 {
 	return 1
 }
 
-// drawLever paints the track with its aura, the cue chevrons, and the
-// key cap at its current (animated or dragged) position.
+// drawLever paints the recessed track with its cue chevrons and the
+// key cap at its current (animated or dragged) position. D121: the
+// breathing aura is gone — the layered-solid onion read as a 4-bit
+// banded glow on the owner's screen, and the owner's ruling on that
+// is deletion (the LED bar and the state colors speak the state).
 func (w *liteWindow) drawLever(g uintptr, sc Screen, now int64) {
 	rc := w.lay.track
 	tw, th := rc.Right-rc.Left, rc.Bottom-rc.Top
-
-	// The track's breathing aura (the aura/aurabeat keyframes),
-	// drawn behind everything.
-	w.drawTrackAura(g, rc, sc, now)
 
 	// The recessed track: a vertical near-black gradient.
 	if br := newVGradient(rc.Left, rc.Top, tw, th,
@@ -618,75 +615,6 @@ func (w *liteWindow) drawLever(g uintptr, sc Screen, now int64) {
 
 	// The cap.
 	w.drawCap(g, rc, sc, now)
-}
-
-// drawTrackAura breathes the state's aura around the track — the
-// keyframes' blur/scale pairings (`0 0 14px 1px` at rest to `0 0 46px 8px`
-// at the peak), rendered as a layered onion of solid rounded rects whose
-// stacked alphas make a near-gaussian falloff STRONGEST AT THE TRACK'S
-// EDGE. D119 replaced the old single path-gradient halo: its cone fell
-// off from the track's CENTER — weak at the edge, a tail twice too wide,
-// and (worst) its bright center bled green through the semi-transparent
-// track fill, washing the recessed slot's interior — the reference's
-// aura is an outer box-shadow and never touches the inside. The onion
-// runs under a CombineModeExclude clip on the track's own silhouette,
-// and solid fills render identically on every GDI+.
-func (w *liteWindow) drawTrackAura(g uintptr, rc wRect, sc Screen, now int64) {
-	c := stateColors[sc.State].Aura
-	if c == 0 {
-		return // idle: no aura
-	}
-	var phase float64
-	switch sc.State {
-	case ScreenConnecting:
-		phase = animCycle(now, w.stateEntered, 1100) // aura 1.1s
-	case ScreenConnected:
-		phase = animCycle(now, w.stateEntered, 3400) // aura 3.4s
-	case ScreenFailed:
-		phase = animCycle(now, w.stateEntered, 3600) // aurabeat 3.6s
-	}
-	// The intensity envelope: 0 at rest, 1 at the keyframe's peak.
-	env := 0.0
-	switch sc.State {
-	case ScreenConnecting, ScreenConnected:
-		env = math.Sin(math.Pi * phase) // 0 -> 1 -> 0
-	case ScreenFailed:
-		// aurabeat: peaks at 12-36%, dips at 24%, rests at 48%.
-		if phase < 0.12 {
-			env = phase / 0.12
-		} else if phase < 0.24 {
-			env = 1 - (phase-0.12)/0.12*0.55
-		} else if phase < 0.36 {
-			env = 0.45 + (phase-0.24)/0.12*0.55
-		} else if phase < 0.48 {
-			env = 1 - (phase-0.36)/0.12
-		}
-	}
-	if env <= 0.01 {
-		return
-	}
-	tw, th := rc.Right-rc.Left, rc.Bottom-rc.Top
-	// Rest 14 px, peak 46 px — the halo's reach follows the envelope.
-	extent := w.px(14) + int32(float64(w.px(32))*env)
-	tp := newPath(fillModeWinding)
-	if tp == 0 {
-		return
-	}
-	defer deletePath(tp)
-	addPathPolygon(tp, rrectPoints(rc.Left, rc.Top, tw, th, w.px(lyTrackR), 12))
-	// Everything OUTSIDE the track — the shadow's side of the boundary.
-	excludeClipPath(g, tp)
-	for _, s := range []struct {
-		e float64 // the layer's reach, as a fraction of the extent
-		a float64 // the layer's alpha share at the peak envelope
-	}{{0.20, 0.42}, {0.40, 0.25}, {0.60, 0.15}, {0.80, 0.09}, {1.00, 0.05}} {
-		e := int32(float64(extent) * s.e)
-		if e < 1 {
-			continue
-		}
-		w.fillRRect(g, rc.Left-e, rc.Top-e, tw+2*e, th+2*e, w.px(lyTrackR)+e, scaleAlpha(c, s.a*env))
-	}
-	resetClip(g)
 }
 
 // drawSwipeCue paints the three staggered chevrons in the empty top of
@@ -727,10 +655,12 @@ func (w *liteWindow) drawSwipeCue(g uintptr, rc wRect, now int64) {
 	}
 }
 
-// drawCap paints the key cap at its current position: the state glow,
-// the cast shadow, the side wall (9 px, 3 px pressed), the satin face
-// with its sheen and bevel, the LED, grip ridges, the letterspaced
-// label and the power icon.
+// drawCap paints the key cap at its current position: the side wall
+// (9 px, 3 px pressed), the satin face with its sheen and bevel, the
+// LED, grip ridges, the letterspaced label and the power icon. D121:
+// the state's glow halo and the onion cast shadow are gone with the
+// glow class — inside the recessed track the 9 px edge wall alone
+// grounds the cap, with no banded rings possible.
 func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 	// The cap's current travel offset (0 = top, 122 = bottom).
 	pos := w.capPosNow(now)
@@ -745,21 +675,6 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 	travelPx := float64(w.px(lyTravel))
 	capY := track.Top + w.px(lyPad) + sink + int32(pos*travelPx)
 	capW, capH := w.px(lyCapW), w.px(lyCapH)
-
-	// The state's cap glow (pulsepill while connecting; the slow
-	// breathing glow while idle/failed; connected's steady soft
-	// glow).
-	w.drawCapGlow(g, capX, capY, capW, capH, sc, now)
-
-	// The cast shadow (cap-rest's 0 20px 22px rgba(0,0,0,.50) —
-	// pressed sinks it to 0 8px 10px).
-	shadow := argb(0x66, 0x00, 0x00, 0x00)
-	soff := w.px(12)
-	if pressed {
-		shadow = argb(0x4d, 0x00, 0x00, 0x00)
-		soff = w.px(4)
-	}
-	w.glowRRect(g, capX, capY+soff, capW, capH, w.px(lyCapR), w.px(10), shadow)
 
 	// The side wall: the edge color showing under the face.
 	w.fillRRect(g, capX, capY, capW, capH+wall, w.px(lyCapR), tokEdge)
@@ -810,20 +725,6 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 	w.drawGrip(g, cx, capY+w.px(30))
 	w.drawCapLabel(cx, capY+w.px(53), capW, sc)
 	w.drawPowerIcon(g, cx, capY+w.px(100), w.px(24))
-}
-
-// drawCapGlow is the cap's quiet halo — one static layered ring in the
-// state's glow color (D120: the pulsepill/glow keyframe animations are
-// gone with the path-gradient class; the halo is subtle, deterministic,
-// and never churns. The state still speaks — through the aura, the LED,
-// and the cap word.)
-func (w *liteWindow) drawCapGlow(g uintptr, x, y, cw, chh int32, sc Screen, now int64) {
-	_ = now
-	c := stateColors[sc.State].PillGlow
-	if c == 0 {
-		return
-	}
-	w.glowRRect(g, x, y, cw, chh, w.px(lyCapR), w.px(12), c)
 }
 
 // drawLed paints the 24x4 LED bar with its inset shadow — the plain,
@@ -904,21 +805,30 @@ func (w *liteWindow) drawCapLabel(cx, y, capW int32, sc Screen) {
 }
 
 // drawPowerIcon paints the thin-line power icon (24-grid: the stem
-// M12 3v8 and the 269-degree arc) with a soft dark drop shadow.
+// M12 3v8 and the 269-degree arc) centered on (cx, cy) — the arc's
+// center (12, 12.41) is the glyph's visual anchor. D121: the old
+// grid-origin anchor landed the glyph center half the grid right of
+// the passed point, so the cap's icon sat 12 px off-center relative
+// to STOP (measured in the owner's screenshot: glyph center x 187 vs
+// cap center 175) — the exact misalignment the owner reported.
 func (w *liteWindow) drawPowerIcon(g uintptr, cx, cy, size int32) {
 	s := float64(size) / 24.0
-	px := func(v float64) int32 { return int32(math.Round(v * s)) }
+	pt := func(u, v float64) wPoint {
+		return wPoint{cx + int32(math.Round((u-12)*s)), cy + int32(math.Round((v-12.41)*s))}
+	}
 	// The drop shadow (drop-shadow(0 1px 0 rgba(90,0,0,.45))).
 	sh := argb(0x73, 0x5A, 0x00, 0x00)
 	sw := w.strokeW(1.9)
 	// Stem: (12,3) -> (12,11).
-	w.strokePolyline(g, []wPoint{{cx + px(12), cy + px(4)}, {cx + px(12), cy + px(12)}}, sw, sh)
+	w.strokePolyline(g, []wPoint{pt(12, 4), pt(12, 12)}, sw, sh)
 	// Arc: center (12, 12.41), r 8, from 224.6 degrees, -269.2 sweep
-	// (counter-clockwise: the gap stays at the top).
-	arc := arcPoints(cx+px(12), cy+px(12.41), px(8), px(8), 224.6, -269.2, 36)
+	// (counter-clockwise: the gap stays at the top). The radius rides
+	// s alone — the caller's size already carries the DPI.
+	rad := int32(math.Round(8 * s))
+	arc := arcPoints(pt(12, 12.41).X, pt(12, 12.41).Y, rad, rad, 224.6, -269.2, 36)
 	w.strokePolyline(g, arc, sw, sh)
 	// The white icon over it.
-	w.strokePolyline(g, []wPoint{{cx + px(12), cy + px(3)}, {cx + px(12), cy + px(11)}}, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
+	w.strokePolyline(g, []wPoint{pt(12, 3), pt(12, 11)}, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
 	w.strokePolyline(g, arc, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
 }
 
@@ -1042,8 +952,6 @@ func (w *liteWindow) drawSheet(g uintptr, hdc uintptr, width, height int32, now 
 	w.fillRRect(g, x, y, sw, sh+w.px(30), w.px(lySheetR), tokSheetBg) // +30 bleeds below the edge
 	// The top border (1px rgba(255,255,255,.07)).
 	w.fillRRect(g, x+w.px(2), y+w.px(1), sw-w.px(4), w.px(2), w.px(2), argb(0x12, 0xFF, 0xFF, 0xFF))
-	// A soft shadow above the sheet's top edge.
-	w.glowRRect(g, x, y-w.px(6), sw, w.px(12), w.px(lySheetR), w.px(8), argb(0x40, 0x00, 0x00, 0x00))
 
 	// The grabber (40x4, rgba(255,255,255,.18)).
 	w.fillRRect(g, x+(sw-w.px(40))/2, y+w.px(10), w.px(40), w.px(4), w.px(2), argb(0x2E, 0xFF, 0xFF, 0xFF))
@@ -1359,48 +1267,19 @@ func (w *liteWindow) strokePolyline(g uintptr, pts []wPoint, width int32, c uint
 	fillPath(g, b, p)
 }
 
-// glowRRect paints an outward soft halo around a rounded rect as a
-// layered onion of solid rounded rects (D120: the path-gradient glow —
-// GdipCreatePathGradientFromPath + SetSurroundColorsWithCount — is
-// GONE from this painter. On the owner's real Windows the surround
-// call silently fails and the fill collapses to GDI+'s opaque-white
-// default rim — the white-blob family reported twice now — while wine
-// renders it correctly every time, so the class is unverifiable and
-// therefore banned. Layered solids render identically on every GDI+
-// there has ever been: the stacked SourceOver alphas make the
-// near-gaussian falloff, strongest at the shape's edge, gone at the
-// halo's rim.)
-func (w *liteWindow) glowRRect(g uintptr, x, y, wid, hei, r, expand int32, c uint32) {
-	if expand <= 0 || c>>24 == 0 {
-		return
-	}
-	for _, s := range []struct {
-		e float64 // the ring's reach, as a fraction of expand
-		a float64 // the ring's alpha share at the shape's edge
-	}{{0.25, 0.34}, {0.50, 0.24}, {0.75, 0.16}, {1.00, 0.09}} {
-		e := int32(float64(expand) * s.e)
-		if e < 1 {
-			continue
-		}
-		rr := r + e
-		if rr > (wid+2*e)/2 {
-			rr = (wid + 2*e) / 2
-		}
-		if rr > (hei+2*e)/2 {
-			rr = (hei + 2*e) / 2
-		}
-		w.fillRRect(g, x-e, y-e, wid+2*e, hei+2*e, rr, scaleAlpha(c, s.a))
-	}
-}
-
-// (D119/D120 history: glowEllipse and glowEllipseIn — full-circle
+// (D119/D120/D121 history: glowEllipse and glowEllipseIn — full-circle
 // path gradients — were removed in D119 (their repeated closing point
 // made the real Windows GDI+ reject the surround-color count, leaving
 // an opaque-white disc); D120 finished the ruling by removing the path-
 // gradient class ENTIRELY — the rrect glows still diverged to a white
 // rim on the owner's real Windows while wine showed them soft, so no
-// path gradient exists in this painter anymore, at any count. Halos are
-// layered solid onions; gloss is a clipped linear gradient.)
+// path gradient exists in this painter anymore, at any count. D121
+// removed the layered-solid onion glowRRect itself: what reads as a
+// smooth gaussian on a browser's compositor reads as 4-bit banded
+// rings under GDI+ SourceOver, and the owner's ruling — "if you can't
+// render it without dependency, delete the glow" — is now total. No
+// halo primitive exists in this painter: shapes separate by edge,
+// color and the one crisp ring, never by glow.)
 
 // focusRing paints the 3 px focus outline around a rounded rect.
 func (w *liteWindow) focusRing(g uintptr, rc wRect, r int32) {

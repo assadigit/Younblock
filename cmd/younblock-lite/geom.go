@@ -161,6 +161,15 @@ func rrectPoints(x, y, w, h, r int32, arcSteps int) []wPoint {
 
 // capsulePoints returns one counter-clockwise capsule (a line segment
 // with round caps, as a closed polygon) — the stroke primitive.
+//
+// D121: at r <= 1 (the screen's 2 px strokes — every arrow, chevron,
+// cue and icon line) the round-cap arcs collapse into runs of
+// near-coincident integer points whose polygon self-intersects, and
+// GDI+'s winding fill then leaves only fragments — the owner's
+// "artifacts like dots" on the send/receive arrows and the beaded
+// swipe cues and menu-button highlight. A 2-3 px stroke gets square
+// caps instead: four clean corners, pixel-identical at that width,
+// and the polygon can never self-intersect.
 func capsulePoints(x1, y1, x2, y2, r int32) []wPoint {
 	dx, dy := float64(x2-x1), float64(y2-y1)
 	len := math.Hypot(dx, dy)
@@ -170,11 +179,21 @@ func capsulePoints(x1, y1, x2, y2, r int32) []wPoint {
 	}
 	ux, uy := dx/len, dy/len
 	nx, ny := -uy, ux // the left-hand normal (screen y-down)
-	nDeg := math.Atan2(ny, nx) * 180 / math.Pi
+	if r <= 1 {
+		// Rounded offsets: truncation collapses a shallow diagonal's
+		// 1 px normal to (0,0) and the quad degenerates to the bare
+		// segment (|n| = 1 guarantees a non-zero rounded component).
+		ax, ay := x1+int32(math.Round(nx)), y1+int32(math.Round(ny))
+		bx, by := x2+int32(math.Round(nx)), y2+int32(math.Round(ny))
+		cx, cy := x2-int32(math.Round(nx)), y2-int32(math.Round(ny))
+		dxp, dyp := x1-int32(math.Round(nx)), y1-int32(math.Round(ny))
+		return []wPoint{{ax, ay}, {bx, by}, {cx, cy}, {dxp, dyp}}
+	}
 	ax, ay := x1+int32(nx*float64(r)), y1+int32(ny*float64(r))
 	bx, by := x2+int32(nx*float64(r)), y2+int32(ny*float64(r))
 	cx, cy := x2-int32(nx*float64(r)), y2-int32(ny*float64(r))
 	dxp, dyp := x1-int32(nx*float64(r)), y1-int32(ny*float64(r))
+	nDeg := math.Atan2(ny, nx) * 180 / math.Pi
 	pts := []wPoint{{ax, ay}, {bx, by}}
 	// End cap: from +n around the forward direction to -n (sweep -180
 	// keeps the outline counter-clockwise in screen coordinates).

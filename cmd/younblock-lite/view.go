@@ -85,7 +85,7 @@ var v3Copy = map[ScreenState]struct{ Headline, Cap, Hint, Sub string }{
 		Headline: "Connected",
 		Cap:      "Stop",
 		Hint:     "Tap or swipe down to disconnect",
-		Sub:      "YouTube unblocked.",
+		Sub:      "", // D121: the owner ordered "YouTube unblocked." gone
 	},
 }
 

@@ -12,6 +12,67 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 — the polished-simple round; 1.6.17, versionCode 47 — D121)
+
+- **The lite screen is polished and artifact-free — the owner's
+  six-point report on the v0.8.9 screen (the power icon not
+  centered under STOP, the "YouTube unblocked." line to remove,
+  the dotted send/receive arrows, the bottom-center card
+  artifact, the 4-bit banded glow, the low-quality "..." button)
+  is fixed by geometry and by deletion, per the standing ruling:
+  the feel is right, the rendering is what needed work.**
+  1. **The power icon sat 12 px right of the cap's axis.**
+     `drawPowerIcon` anchored its 24-grid at the passed point's
+     TOP-LEFT, so the glyph's center landed at +12 — measured in
+     the owner's screenshot: glyph center x 187 vs cap/STOP
+     center 175, off by exactly half the grid. The icon now
+     anchors on the arc's own center (12, 12.41); wine-oracle
+     verification: glyph center 183.5 = cap center 183.5, and
+     the sheet's Exit-row icon (the same bug, +8 px there) is
+     centered by the same fix.
+  2. **"YouTube unblocked." is gone by order.** The connected
+     screen's sub line is empty now (the slow variant keeps its
+     informative amber words); the layout keeps the sub band so
+     nothing reflows.
+  3. **The dotted arrows were a stroke-primitive degeneration.**
+     At the screen's 2 px strokes the round-cap capsule polygons
+     collapse into runs of near-coincident integer points that
+     self-intersect — GDI+'s winding fill then leaves only
+     beaded fragments (the arrowheads, the swipe cues, the menu
+     button's highlight arc, the power icon's ring). 2-3 px
+     strokes take square caps instead: four clean corners,
+     pixel-identical at that width, never self-intersecting.
+     Wine-oracle verification: both arrowheads render as solid
+     chevrons joined to solid shafts.
+  4. **The bottom-center card artifact was the onion shadow.**
+     The card's "soft drop shadow" was four stacked solid
+     rounded rects — each a HARD edge — whose steps below the
+     card read as a dark banded strip (measured in the owner's
+     screenshot: a 7-row darker band exactly under the card's
+     bottom edge, x-span the card's width). The shadow is
+     deleted; the glass fill and top highlight carry the card.
+  5. **The glow is deleted — the ruling, verbatim.** "If you
+     can't render it without dependency delete the glow": the
+     layered-solid onions (D120's replacement for the banned
+     path gradients) still read as 4-bit banded rings — a
+     browser's compositor blurs each layer for free, GDI+
+     SourceOver stacks them raw. The track's breathing aura,
+     the cap's state glow, the brand tile's halo, the cap's
+     cast shadow, the menu button's stacked-ellipse shadow and
+     the sheet's top shadow are ALL removed. The state speaks
+     through the background gradient, the LED bar and the sub
+     color; shapes separate by edge and contrast, never by
+     glow. Nothing banded can exist: no halo primitive is left
+     in the painter.
+  6. **The "..." button is its crisp self.** The stacked shadow
+     gone (point 5), the beaded highlight arc repaired (point
+     3): the button is now the gradient glass circle and three
+     clean dots — verified crisp in the oracle.
+  The engine, the zero-dependency contract, the gestures and
+  the remaining copy are unchanged. The bump is the version-line
+  lockstep (1.6.17 / versionCode 47); no Android change rides
+  this round.
+
 ### Fixed (2026-10-28 — the reliable-simple round; 1.6.16, versionCode 46 — D120)
 
 - **The lite screen's text rows sit in their own bands, the ghost

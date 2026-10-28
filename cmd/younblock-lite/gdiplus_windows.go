@@ -219,26 +219,12 @@ func newVGradient(x, y, w, h int32, colors []uint32, positions []float32) uintpt
 // exactly this path — no intersection with any prior clip).
 const combineModeReplace = 0
 
-// combineModeExclude is GDI+'s CombineModeExclude (the new clip is the
-// current region MINUS this path — everything outside the shape).
-const combineModeExclude = 4
-
 // setClipPath confines every later fill on this graphics to the path's
 // interior (D119: the cap's sheen band and top bevel run inside the
 // cap's own silhouette, so nothing can poke over the rounded corners).
 func setClipPath(g, path uintptr) {
 	if g != 0 && path != 0 {
 		procGdipSetClipPath.Call(g, path, combineModeReplace)
-	}
-}
-
-// excludeClipPath confines every later fill to everything OUTSIDE the
-// path (D119: the track's aura is an outer shadow — the onion never
-// tints the recessed slot's interior, where the old path-gradient center
-// bled green through the semi-transparent track fill).
-func excludeClipPath(g, path uintptr) {
-	if g != 0 && path != 0 {
-		procGdipSetClipPath.Call(g, path, combineModeExclude)
 	}
 }
 

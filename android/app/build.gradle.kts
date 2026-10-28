@@ -57,6 +57,19 @@ android {
         // place (the same pinned debug certificate, D85). The
         // versionName moves to 1.6.12 in lockstep with
         // internal/config AppVersion.
+        // versionCode 47: the polished-simple round (D121) — the lite
+        // desktop exe's SIX owner-reported points are fixed: the power
+        // icon centered on the cap's axis under STOP (it sat 12 px
+        // right — the grid-origin anchor), the "YouTube unblocked."
+        // sub line removed by order, the beaded arrowheads and cue
+        // chevrons made solid (square caps at 2 px strokes — round-cap
+        // capsule polygons self-intersect at that radius), the banded
+        // onion shadow under the Open YouTube card deleted (the
+        // bottom-center artifact), the track aura deleted outright
+        // (the owner's ruling: a 4-bit banded glow is worse than no
+        // glow), and the "..." button stripped to its crisp circle
+        // and dots. Still no Android change; the lockstep-only bump
+        // rule applies once more.
         // versionCode 46: the reliable-simple round (D120) — the lite
         // desktop exe's THREE owner-reported defects are fixed: the
         // timer and byte-total rows drew into rects anchored at the
@@ -379,8 +392,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 46
-        versionName = "1.6.16"
+        versionCode = 47
+        versionName = "1.6.17"
     }
 
     signingConfigs {

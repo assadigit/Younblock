@@ -398,7 +398,11 @@ session timer and byte totals, the **Open YouTube** card while connected, and th
 "..." menu with the two settings toggles (they edit the same settings file the main
 app reads). It is drawn natively with the Windows system's own graphics (GDI/GDI+ —
 inside every Windows since forever), which is how it stays beautiful AND
-dependency-free; the exe is still one small file. The design's own typeface —
+dependency-free; the exe is still one small file. The rendering is deliberately
+**honest-simple** (D120/D121): glows, grain and halftones that a browser composites
+for free but GDI+ would band or bead are simply NOT drawn — every line is a solid
+stroke, every fill a crisp shape, so the lite screen cannot show a banded glow, a
+beaded arrowhead or a blobby halo on any machine. The design's own typeface —
 **Space Grotesk**, the geometric sans the reference mockups are set in — is embedded
 inside the exe (1.6.14+, ~350 KB, registered privately for the process only;
 nothing is installed, and if that ever fails it honestly falls back to your

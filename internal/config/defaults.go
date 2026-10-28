@@ -14,8 +14,19 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version. 1.6.16
-// rides the reliable-simple round (D120), answering the owner's
+// AppVersion — shown in the UI and reported by --version. 1.6.17
+// rides the polished-simple round (D121), answering the owner's
+// six-point report on 1.6.16: the power icon sat 12 px right of the
+// cap's axis (the grid-origin anchor — now centered on the glyph
+// itself), the "YouTube unblocked." sub line is gone by order, the
+// send/receive arrowheads rendered as beaded dots (round-cap capsule
+// polygons self-intersect at 2 px strokes — square caps now), the
+// banded onion shadows under the card read as an artifact (deleted
+// with the whole glow family), the track aura read as a 4-bit banded
+// glow (deleted — the owner's ruling: no glow at all rather than a
+// bad one), and the "..." button's stacked-ellipse shadow read as
+// low quality (deleted; the crisp circle and dots are the button).
+// 1.6.16 rode the reliable-simple round (D120), answering the owner's
 // three-defect report on 1.6.15: the timer and byte-total rows drew
 // into rects anchored at the window's TOP (DrawText's vertical
 // centering then stacked them through the eyebrow and hero — "numbers
@@ -34,7 +45,7 @@ const AppName = "Younblock"
 // why). NOTE: the lite exe's version-info resource
 // (cmd/younblock-lite/rsrc_windows_*.syso) reads this constant —
 // scripts/gen_lite_resources.py regenerates it.
-const AppVersion = "1.6.16"
+const AppVersion = "1.6.17"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"
