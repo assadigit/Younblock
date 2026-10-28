@@ -6245,3 +6245,79 @@ could not run Go 1.27 exes (bcryptprimitives.dll missing — wine 10
 solved it), the disk filled once mid-lane (the go build cache and the
 lane outputs together; cleaned between lanes), and the release run
 itself was clean — no re-runs needed.
+
+**The owner's report on the v0.8.9 screen — six points, the feel
+passing this time ("overall feel is like the full version"): "The Turn
+on/turn off icon is not centered at the bottom (it must be aligned
+center relative to STOP word). Remove the text 'youtube unblocked'.
+Send and receive has some artifacts like dots. There is a small
+artifact at the bottom of the container of bottom (on the middle). The
+glow is not running with high quality, it's rendered 4 bit, and has no
+gradient and smoothness — if you can't render it without dependency
+delete the glow. The setting button '...' has same render problem, it
+has low quality."** (D121 — the polished-simple round.)
+
+The diagnosis, by pixel-measurement in the owner's screenshot: the
+power icon's glyph center sat at x 187 against the cap's center 175 —
+exactly +12, half the 24-grid, because drawPowerIcon anchored the grid
+at the passed point's top-left while both call sites passed a CENTER
+(the sheet's Exit-row icon carried the same +8 bug). The dotted
+arrows, beaded cue chevrons, beaded menu-highlight arc and ringy power
+icon were one degeneration: capsulePoints at r=1 (every 2 px stroke)
+emits round-cap arcs whose integer points collapse into near-
+coincident runs — the polygon self-intersects and GDI+'s winding fill
+keeps only fragments. The bottom-center "small artifact" was the
+card's onion shadow: four stacked HARD-edged rounded rects whose steps
+measure as a 7-row darker band exactly under the card's bottom edge.
+And the "4 bit, no gradient and smoothness" glow was the honest truth
+about D120's layered-solid onions: a browser compositor blurs each
+layer before compositing, GDI+ SourceOver stacks them raw — 4-5
+discrete rings, by construction.
+
+The fixes: drawPowerIcon anchors on the arc's own center (12, 12.41)
+with the grid derived from it — wine-verified 183.5 = 183.5 in both
+the cap and the sheet's Exit row; "YouTube unblocked." is removed by
+order (the sub band stays reserved, the amber slow line survives);
+capsulePoints emits a square-cap quad at r<=1 with ROUNDED normal
+offsets (truncation degenerates shallow diagonals — caught by the new
+TestCapsulePointsSquareCaps); and THE GLOW FAMILY IS DELETED per the
+owner's verbatim ruling — track aura, cap glow, brand-tile halo, cap
+cast shadow, card shadow, menu-button stacked shadow, sheet top
+shadow, and glowRRect itself. No halo primitive exists in the painter
+now; the state speaks through the background gradient, the LED bar
+and the sub color. Wine-oracle verification of the rebuilt exe and
+then the shipping dist exe: the icon centered, zero text pixels in the
+sub band, both arrowheads solid chevrons on solid shafts, flat
+background around the track, clean card bottom, crisp menu button,
+the sheet clean (VLM: no artifacts, no dots, no banded shadows); the
+wine-run log deleted from dist/ before packaging (the v0.8.8 lesson,
+applied every round now).
+
+**The release (id 426467438):** all 16 assets rebuilt from the
+v0.8.10 tag — the APK (versionCode 47 / 1.6.17, minSdk 26, targetSdk
+36, the pinned D85 debug cert c76bb7c6…8551d), the Wails Windows apps
+64/32, the two lite exes (10,950,144 / 10,558,976 B), the headless
+engines, the Linux web editions, the native Linux app, the debs (the
+amd64 one NATIVE this time — the first build.sh pass had quietly
+fallen back to web debs when a disk-full run corrupted a cached
+webkit deb; the stack cache was purged, validated and re-fetched), the
+AppImages, and the offline/setup packs. All 16 byte-verified on
+re-download through the API (16/16, octet-stream Accept — the
+verification script initially forgot it and read JSON where bytes
+should be); the repo's Latest is v0.8.10; main pushed to the D121
+commit the tag stands on. The v0.8.9 page now carries the superseding
+pointer (its lite exes render the banded-glow screen).
+
+The friction log for this round: the sandbox wiped everything a FIFTH
+time (repo, Go, wine, mingw all rebuilt; the wine oracle this time
+needed zlib1.dll cross-compiled from official source with a portable
+mingw — Debian's wine PE imports it but does not ship it — plus a
+pathshift shim rewritten to forward variadic mode args, wrap
+posix_spawn for gcc, and fix a constructor heap corruption and a
+1-byte overflow in the path shift itself), the engine's
+TestNetworkTestGatingAndStatus fails on this sandbox's network (fails
+on the clean tree too — environmental, not this round's), the disk
+filled twice mid-lane (go build cache between lanes; the corrupt
+webkit deb above), and a build.sh background run died with its Bash
+call (background procs die between calls — the lane steps were re-run
+in the foreground).
