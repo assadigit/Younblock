@@ -6038,3 +6038,116 @@ on-REAL-Windows check remains the owner's machine, with
 younblock-lite.log beside the exe naming anything that falls back.
 The web editions' own missing-@font-face gap is recorded in D118 for
 a future round — one UI means one face across editions.
+
+## The quiet round — v0.8.8, every version in the one release again (2026-10-28, 1.6.15, versionCode 45 — D119)
+
+**The owner's report, three words and a picture: "1. it's noisy,
+2. items collide with each other, 3. glow and white circle which is
+weird"** — 369.png, the running 1.6.14 lite. The standing
+instruction holds: every version again ships in the one release, all
+16 lanes rebuilt from the one tagged tree, change or no change.
+
+**Every complaint was measured before it was touched** (the D118
+method, extended): pixel-profiling 369.png against the reference's
+connected panel, plus the same profile on the repo's own D118 wine
+screenshots. The numbers found all three complaints, and a fourth
+the eye had not named.
+
+**1. The noise was the grain, and it was 5x the reference's.** The
+owner's background measured 13.2 hf-pixel-deviation against the
+reference's 2.7. Root cause: the design's 5% grain rides a CSS
+`mix-blend-mode: overlay` (a CONTRAST effect); GDI+ has no blend
+modes, and the lite's plain-alpha gray-noise port renders as a fog —
+static, not texture. D119's ruling: an effect whose rendering
+contract cannot be honored natively is DROPPED, not approximated
+into a worse artifact. The grain layer is gone (the halftone dots
+stay — plain alpha in the CSS too, and within the reference's own
+noise floor). The lite's background now measures BELOW the
+reference (the browser's own grain is gone with the grain).
+
+**2. The white circle was real, on TWO controls, and it was a
+wine-oracle blind spot — the sharpest lesson of the round.**
+`arcPoints` sampled full circles as 49 points with the closing point
+REPEATED (the sweep loop's `i <= steps`); `GdipAddPathPolygonI`
+merges the duplicate back into the figure (48 boundary points), so
+`SetSurroundColorsWithCount` was handed 49 and the REAL Windows
+GDI+ rejects it — leaving the surround colors at their default
+OPAQUE WHITE. On the owner's machine the cap's sheen circle rendered
+as a solid white disc covering three quarters of the key cap (with
+the LED, the word and the power icon seemingly "colliding" inside
+it — complaint #2 was mostly this), and the "..." button's shadow
+halo rendered as a white-ringed blob (the second "white circle").
+Wine's laxer GDI+ accepted the over-count every time — which is
+exactly how the D118 round shipped it "verified". The ruling: wine
+proves what RUNS, never what MATCHES; any GDI+ call whose acceptance
+depends on parameter edge semantics must be designed so the
+parameter cannot be wrong by construction — or replaced with a
+deterministic primitive. The lite painter now contains NO full-circle
+path gradient at all: `arcPoints` never repeats a closing point (a
+regression test pins it), the sheen is a vertical linear-gradient
+band clipped to the cap's own silhouette via `GdipSetClipPath` (new
+binding, integer-safe), and the menu button's and toggle thumbs'
+shadows are layered solid ellipses. The sheen band's stops were
+measured off the reference's own pixels (~30% white at the top edge,
+full width, zero by 28 px down) — the port is now faithful to the
+RENDER, not just the CSS text.
+
+**3. The glow painted the slot's inside.** The old aura was one
+path-gradient halo whose falloff ran from the track's CENTER — its
+bright middle bled green through the semi-transparent track fill
+(the owner's slot interior measured 40% greener than the
+reference's), while the edge was weak and the tail twice too wide.
+The reference's aura is an outer box-shadow. Rewritten as a layered
+onion of five solid rounded rects under a `CombineModeExclude` clip
+on the track's silhouette — strongest at the edge, near-gaussian
+outward, NOTHING inside, deterministic on every GDI+.
+
+**4. The cap word rendered "Stop".** The design's CSS carries
+`text-transform: uppercase` — the reference reads START/WAIT/STOP/
+RETRY. The painter uppercases at draw time now; the T-table copy
+stays verbatim (the transform is presentation, not content).
+
+**Verification:** the full lite suite green (23 tests incl. the new
+full-circle regression); vet clean on linux + windows/amd64 +
+windows/386; the proc audit clean (the two new clip bindings
+exported); and the wine oracle end-to-end: idle + connected + sheet
+screens, the sheen's vertical profile matching the reference
+stop-for-stop (0.33/0.25/0.14/0.03/0 vs the reference's
+0.30/0.21/0.13/0.09/0), the track interior restored to the
+reference's dark recess, noise floor 0.00, and a VLM design pass on
+the final shipping exe: no white disc, no noise, no collisions, STOP
+uppercase, dim glass menu button, dark slot — 9/10.
+
+**The release (v0.8.8, id 426123125):** all 16 assets rebuilt from
+the v0.8.8 tag and byte-verified on re-download —
+
+| asset | size |
+|---|---|
+| v1.6.15.apk (versionCode 45, installs over 1.6.14 in place) | 37,232,869 B |
+| younblock.exe / younblock-x86.exe (Wails 64/32) | 13,703,168 / 13,079,552 B |
+| younblock-lite-desktop.exe / -x86.exe (the quiet screen) | 10,967,040 / 10,572,288 B |
+| younblock-core.exe / -x86.exe (headless engines) | 11,625,472 / 11,163,648 B |
+| younblock-linux-amd64 / -386 (web editions) | 8,966,304 / 8,663,200 B |
+| younblock-linux-gui-amd64 (native, webkit2_41) | 12,404,768 B |
+| younblock_1.6.15_amd64.deb / _i386.deb (native / web) | 4,224,888 / 3,139,256 B |
+| Younblock-1.6.15-x86_64.AppImage / -i686.AppImage | 74,540,224 / 4,173,872 B |
+| Younblock-offline_1.6.15.zip / younblock-setup_1.6.15.zip | 201,368,214 / 7,864 B |
+
+A wine-run `younblock-lite.log` rode into the release with the first
+upload pass (the harness writes the log beside the exe, and the exe
+lives in dist/) — caught in the record review, deleted from the
+release and from dist, the checksum line cleaned out of the body.
+The v0.8.7 page now carries the superseding pointer for its two lite
+exes (they render the white-disc screen on real Windows; take the
+lite from v0.8.8 — every other v0.8.7 asset unaffected), per the D89
+precedent.
+
+The build itself hit the round's usual friction honestly recorded:
+disk filled twice (the go build cache and the wails/gradle lanes
+together outgrew the sandbox's 10 GB), the first build.sh pass ran
+without wails on PATH and quietly packaged WEB debs/AppImages where
+the release needs the NATIVE variants — caught by the dist
+inventory, re-run with the full PATH; and the disk cleanup briefly
+deleted the TRACKED build/ directory (restored from git before the
+release script's clean-tree check refused to proceed — the check
+did its job).
