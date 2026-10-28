@@ -6321,3 +6321,98 @@ filled twice mid-lane (go build cache between lanes; the corrupt
 webkit deb above), and a build.sh background run died with its Bash
 call (background procs die between calls — the lane steps were re-run
 in the foreground).
+
+## The float-geometry round — v0.8.11 (2026-10-28, 1.6.18, versionCode 48 — D122)
+
+**The owner's verdict on the v0.8.10 screen: "much much better, and
+nearly acceptable, but I think we can still push it further, there
+are some minor rendering problems, for example around the upper
+portions of the button and the setting button also has low
+resolution. if we fix the resolution and low-bit quirks it could be
+perfect."** One sentence, two measured roots, both in the geometry
+layer — and both fixed there. Every version ships again in the one
+release, all 16 lanes rebuilt from the tagged tree.
+
+**Root one: every path vertex was an INT32.** The D115 ABI ruling
+("only integer/enum/pointer parameters are bound") had rejected
+GDI+'s float entry points — correctly, since by-value floats ride XMM
+registers the syscall layer never fills — but it also rejected the
+one entry point whose floats travel BY POINTER: GdipAddPathPolygon's
+PointF vertex array, the exact route the gradient brushes already
+use. The int32 polygon sampler therefore quantized every arc,
+capsule and rounded-corner vertex to the pixel grid BEFORE
+anti-aliasing ever ran — AA smoothed the polygon's edges, but the
+polygon itself was a pixel-grid approximation of the curve it
+sampled. That was the owner's "low resolution" power icon (an r=8
+ring, 36 sampled vertices snapping, collapsing and jumping) and the
+menu button's 14-vertex highlight arc; the integer stroke scaler
+additionally truncated the design's 1.9 px icon stroke to 1 and the
+capsule re-expanded it to a 2 px band, while D121's square-cap
+workaround (for the integer degeneration that beaded the arrows)
+made every 2 px stroke end blunt. The painter now speaks the PointF
+variant, all three samplers emit sub-pixel vertices (arcPointsF,
+rrectPointsF, capsulePointsF), strokes run at true 1.9/2/2.6 px
+widths with TRUE round caps at every radius, and the geometry tests
+tightened from ~1 px to 0.01 px with TestArcPointsFSubPixelPrecision
+as the tripwire against quantization creeping back (the round-cap
+regression now runs at r=0.5/1/2/3 with a
+consecutive-vertex-distinctness assertion; dedupPtsF keeps outlines
+minimal where two float computations of one point round together).
+
+**Root two: the "low-bit band" was two translucent layers one row
+apart.** Pixel-profiling the owner's screenshot down the cap's top:
+the sheen gradient is smooth (one notch per row), but a separate
+2 px top-bevel bar at 45% white stacked on it composited into a
+two-row near-white band (#f38a84 directly above #ef635c) with a hard
+step back to ~20% — each layer individually smooth, the STEP between
+them the artifact (the same SourceOver-strata class as D121's
+onions). The bevel is deleted; one smooth gradient carries the gloss.
+The menu button's highlight arc additionally rode the disc's OUTER
+radius — half its 2 px stroke sat on the dark background reading as
+a dull gray arc — it now runs inset 2 px inside the glass.
+
+**A wine-oracle blind spot is now on record (DECISIONS D122.4):
+wine's GDI+ rasterizes GdipFillPath ALIASED regardless of
+SmoothingModeAntiAlias** (measured: the cap's corner edge steps from
+face to background in one pixel, no blend rows; the owner's real
+screenshots carry blend tones). The oracle therefore verifies
+GEOMETRY — positions, extents, containment, layer stacks, strays —
+never edge smoothing; smoothness rounds must argue from the
+geometry (sub-pixel vertices + the AA every real Windows applies).
+This round's wine battery on the built exe and the shipping dist
+exe: cap-top profile one-notch-per-row with no step in either
+state, power glyph solid and centered (88 white pixels in the glyph
+box), menu crescent inside the boundary with the disc's edge a
+clean ring, dots dead-center (319.5/36.0 vs disc center), solid
+arrowheads with round-capped V, idle cap at the bottom with its cue
+zone, sheet toggles and Exit-row icon clean — plus VLM passes on
+all three screens.
+
+**The release: v0.8.11 (id 426570192), all 16 assets** — the APK
+(versionCode 48/1.6.18/minSdk 26/targetSdk 36, the pinned D85 debug
+certificate verified), the Wails apps 64/32, the two float-geometry
+lite exes (10,948,608 / 10,551,808 B), the headless engines, the
+Linux web editions, the native Linux app, the two debs (NATIVE this
+time — the first build.sh pass had quietly skipped the webkit lane
+when a corrupt liblzma deb failed the fetch, purged and re-fetched),
+the AppImages, and the offline/setup packs. All 16 byte-verified on
+re-download through the API (16/16, octet-stream Accept). The
+v0.8.10 page now carries the superseding pointer (its lite exes
+render the integer-quantized glyphs and the bevel-banded cap top).
+
+The friction log for this round: the sandbox held the toolchains
+this time (Go, JDK, Android SDK, wails, gomobile all survived; only
+the Go build cache and browser caches needed clearing), but the
+disk filled FOUR times mid-lane — twice during the desktop lanes
+(go build cache + a corrupt liblzma deb in the jammy stack that
+failed the whole webkit fetch), once during the APK lane (gomobile's
+/tmp staging), forcing cache purges and foreground re-runs between
+lanes; the background-procs-die-between-Bash-calls rule held again
+(build.sh and fetch-stack both had to run in the foreground); the
+wine prefix was deleted after verification to fund the offline pack
+(the oracle recipe — pathshift v7, zlib1.dll, wineserver wrapper —
+is persisted in my-project/scripts and /home/z/wine-shim, so it
+rebuilds deterministically); and the release script's final call
+was cut by a session timeout AFTER the upload completed — the API
+showed all 16 assets present, and the byte-verification run after
+resuming confirmed the publish had finished before the cut.
