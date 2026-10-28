@@ -6151,3 +6151,97 @@ inventory, re-run with the full PATH; and the disk cleanup briefly
 deleted the TRACKED build/ directory (restored from git before the
 release script's clean-tree check refused to proceed — the check
 did its job).
+
+## The reliable-simple round — v0.8.9 (2026-10-28, 1.6.16, versionCode 46 — D120)
+
+**The owner's report on the v0.8.8 screen, sharper than ever: "1.
+numbers and letters collided. 2. low quality render. 3. there is a
+white glow which isn't correctly rendered. if you can't render those
+without dependency, remove those effects and make them simpler, but
+reliable and without visual bug."** That last clause is the ruling
+this whole round executes — and the standing design law for the lite
+painter from now on (DECISIONS.md D120). Every version ships again in
+the one release, all 16 lanes rebuilt from the tagged tree.
+
+**The diagnosis was code-first this time, and the code did not
+disappoint.** Pixel-profiling the owner's 444.png found the white blob
+exactly where the LED's glow should have been green (bright neutral
+pixels at the LED+expand zone — the second real-Windows divergence of
+the same GDI+ path-gradient class wine keeps rendering correctly), and
+the VLM read the pile precisely ("00:00:11 / |181 KB / |107 KB"
+stacked through the eyebrow and hero). But the collision's root cause
+sat in plain sight in the painter: **drawTimer and drawStats received
+the row's BOTTOM edge as a box height and drew into rects anchored at
+the window's TOP** — DrawText's DT_VCENTER then centered each row at
+half the window, stacking the timer and byte totals into the middle of
+the status column, on EVERY machine, wine included, since the D115
+beauty round. Four verification rounds missed it because every VLM
+check asked "is the timer present?", never "is the timer inside its
+row?" The new ruling: visual verification asserts GEOMETRY (disjoint
+bands per row), not presence.
+
+**A second dead bug fell out of the audit: the ghost tile's fade was
+wired to nothing.** ghostFrom/ghostTo/ghostStart were written on every
+state change but ghostAlpha never advanced — the ghost play-tile
+stayed on the connected screen forever (the owner's leftover "YouTube
+logo"), and the status stack never re-flowed. The fade now runs on the
+paint clock (450 ms, the reference's ease).
+
+**The white glow: the path-gradient class is BANNED, not patched.**
+D119 fixed the count semantics and kept the rrect glows "count always
+accepted" — and the owner's real Windows STILL rendered the LED's
+green glow as a white blob. Two strikes, same class, opposite
+parameter theories: the honest conclusion is that the class's
+real-Windows behavior is neither reproducible from wine nor
+predictable from the docs, so it is gone entirely — the three
+path-gradient proc bindings no longer exist in the syscall layer,
+glowRRect is a layered-solid onion (the construction the track aura
+already proved), the cap's halo is one quiet static ring, the LED's
+animated glow rings are removed (the color-changing bar says
+everything the glow said). **The lite painter's whole vocabulary is
+now three deterministic primitives: solid fills, linear gradients,
+clips.** Nothing can default to opaque white anymore — there is no
+path gradient left to default.
+
+**The "low quality render" reads got the same simplification.** The
+hero word's "soft shadow" was a second OPAQUE black text draw offset
+2 px down (GDI text has no alpha — the hero read smudged); it now
+draws once, crisp. The halftone dot layer — the last web texture the
+design blends in — is removed (the owner's standing noise complaint;
+the background is the smooth gradient the browser shows between dots,
+hf-noise 0.11 measured). The cap's sheen band is softened to ~22%
+white over 22 px so gloss no longer reads as a white wash.
+
+**Verification (the D120 template — geometry, not presence):** 23 lite
+tests + vet ×3 (linux, windows/amd64, windows/386) + the proc audit
+clean; the wine oracle rebuilt for this round (wine 10.0 this time —
+Go 1.27's runtime needs bcryptprimitives.dll, which wine 8 does not
+ship; the harness notes live in this round's worklog) ran the real
+exe end-to-end: the connected screen measured **five disjoint text
+bands at client y 93/120/154/174/197** (eyebrow / hero / sub / timer /
+stats — the pile is gone), **the LED zone measured green 92 px, white
+0** (the blob is gone), the ghost zone reads as pure background, and
+the VLM scored the screen 9/10 with every line readable, the arrows
+reading as arrows, and "no white blobs, rings, or wrongly rendered
+glows". The shipping exe from dist/ verified identically before
+upload (and the wine-run log it leaves beside the exe was deleted
+from dist/ — the v0.8.8 lesson, applied before it could repeat).
+
+**The release (id 426165372):** all 16 assets rebuilt from the
+v0.8.9 tag — the APK (versionCode 46 / 1.6.16, minSdk 26, targetSdk
+36, the pinned D85 debug cert c76bb7c6…8551d), the Wails Windows apps
+64/32, the two lite exes (10,956,288 / 10,562,560 B; PE strings
+"Younblock Lite" + "1.6.16" present, zero 1.6.15 leftovers), the
+headless engines, the Linux web editions, the native Linux app, the
+debs, the AppImages, and the offline/setup packs. All 16 byte-verified
+on re-download through the API; the repo's Latest is v0.8.9; main is
+pushed to 5240022 (the D120 commit the tag stands on). The v0.8.8 page
+now carries the superseding pointer (its lite exes render the
+colliding-rows screen; every other v0.8.8 asset was fine).
+
+The friction log for this round: the sandbox wiped everything again
+(the fourth time — repo, Go, wine, toolchain all rebuilt), wine 8
+could not run Go 1.27 exes (bcryptprimitives.dll missing — wine 10
+solved it), the disk filled once mid-lane (the go build cache and the
+lane outputs together; cleaned between lanes), and the release run
+itself was clean — no re-runs needed.
