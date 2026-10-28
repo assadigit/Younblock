@@ -57,6 +57,21 @@ android {
         // place (the same pinned debug certificate, D85). The
         // versionName moves to 1.6.12 in lockstep with
         // internal/config AppVersion.
+        // versionCode 46: the reliable-simple round (D120) — the lite
+        // desktop exe's THREE owner-reported defects are fixed: the
+        // timer and byte-total rows drew into rects anchored at the
+        // window's top (DrawText's vertical centering stacked them
+        // through the eyebrow and hero — "numbers and letters
+        // collided"), the ghost tile's fade was dead state (written,
+        // never advanced — the tile never left the connected screen),
+        // and the path-gradient glow class STILL collapsed to an
+        // opaque-white rim on the owner's real Windows (the LED's
+        // green glow measured as a white blob) while wine kept
+        // rendering it correctly — so per the owner's ruling the class
+        // is removed entirely: halos are layered-solid onions, both
+        // texture layers are gone, the hero draws one crisp pass, the
+        // sheen is a softer clipped band. Still no Android change; the
+        // lockstep-only bump rule applies once more.
         // versionCode 45: the quiet round (D119) — the lite desktop
         // exe's screen is CLEAN now: the 5% grain (unreproducible in
         // GDI+, measured 5x noisier than the reference) is gone, the
@@ -364,8 +379,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 45
-        versionName = "1.6.15"
+        versionCode = 46
+        versionName = "1.6.16"
     }
 
     signingConfigs {

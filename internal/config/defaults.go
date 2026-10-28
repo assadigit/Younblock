@@ -14,25 +14,27 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version. 1.6.15
-// rides the quiet round (D119): the lite exe's screen is clean — the
-// 5% grain is gone (its mix-blend-mode overlay has no GDI+ equivalent
-// and the plain-alpha copy rendered 5x noisier than the reference),
-// the cap's sheen no longer collapses into an opaque white disc on
-// real Windows (a full-circle path gradient whose repeated closing
-// point made SetSurroundColorsWithCount reject the count, leaving the
-// surround at GDI+'s default opaque white — wine's laxer GDI+ accepted
-// it, so only the owner's machine ever showed it), the menu button's
-// shadow and the sheet's toggle thumbs no longer white-ring, the track's
-// aura is a layered onion that hugs the track's OUTSIDE (the old
-// cone bled green through the semi-transparent track fill), and the
-// cap word renders in the design's uppercase. The engine itself is
-// unchanged — the bump keeps the About line in lockstep with the
-// APK's versionName (the build.gradle.kts comment block records
+// AppVersion — shown in the UI and reported by --version. 1.6.16
+// rides the reliable-simple round (D120), answering the owner's
+// three-defect report on 1.6.15: the timer and byte-total rows drew
+// into rects anchored at the window's TOP (DrawText's vertical
+// centering then stacked them through the eyebrow and hero — "numbers
+// and letters collided"); the ghost tile's fade was dead state
+// (ghostFrom/To were written but ghostAlpha never advanced, so the
+// tile never left the connected screen); and the path-gradient glow
+// class still collapsed to GDI+'s opaque-white rim on the owner's real
+// Windows (the LED's green glow measured as a white blob) while wine
+// rendered it correctly — so per the owner's ruling ("remove those
+// effects and make them simpler, but reliable"), the class is gone
+// entirely: every halo is now a layered-solid onion, both texture
+// layers are gone, the hero word draws once (no opaque-black shadow
+// pass), and the sheen is a softer clipped linear band. The engine
+// itself is unchanged — the bump keeps the About line in lockstep with
+// the APK's versionName (the build.gradle.kts comment block records
 // why). NOTE: the lite exe's version-info resource
 // (cmd/younblock-lite/rsrc_windows_*.syso) reads this constant —
 // scripts/gen_lite_resources.py regenerates it.
-const AppVersion = "1.6.15"
+const AppVersion = "1.6.16"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

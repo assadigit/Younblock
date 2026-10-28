@@ -27,14 +27,14 @@
 package mobile
 
 import (
-        "encoding/json"
-        "fmt"
-        "strings"
-        "sync"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
 
-        "github.com/assadigit/Younblock/internal/engine"
-        "github.com/assadigit/Younblock/internal/platform/android"
-        "github.com/assadigit/Younblock/internal/webui"
+	"github.com/assadigit/Younblock/internal/engine"
+	"github.com/assadigit/Younblock/internal/platform/android"
+	"github.com/assadigit/Younblock/internal/webui"
 )
 
 // SocketProtector protects one engine-upstream socket before it connects.
@@ -44,46 +44,46 @@ import (
 // aborts the dial (fail safe: an unprotected socket would loop back into
 // the TUN).
 type SocketProtector interface {
-        // Protect exempts one file descriptor from the VPN's routing.
-        Protect(fd int32) bool
+	// Protect exempts one file descriptor from the VPN's routing.
+	Protect(fd int32) bool
 }
 
 // EventSink receives engine events and notices. Event names today:
 // "state" (full state JSON), "stats" (counters sample), "notice"
 // ({"kind":"failure"|"recovery","text":"..."}).
 type EventSink interface {
-        OnEvent(name string, json string)
+	OnEvent(name string, json string)
 }
 
 // Engine is the bound engine facade. All JSON methods forward to the
 // engine's string API verbatim (internal/engine/jsonapi.go).
 type Engine struct {
-        mu sync.Mutex
+	mu sync.Mutex
 
-        eng  *engine.Engine
-        plat *android.Platform
-        sink EventSink // nil means no bridge callbacks
+	eng  *engine.Engine
+	plat *android.Platform
+	sink EventSink // nil means no bridge callbacks
 
-        webUI    *webui.Server
-        webUISrv chan struct{} // closed when the Serve goroutine returned
+	webUI    *webui.Server
+	webUISrv chan struct{} // closed when the Serve goroutine returned
 
-        tun *tunState // the live TUN stack (nil when none); see tun.go
+	tun *tunState // the live TUN stack (nil when none); see tun.go
 
-        // shellVersion (M8-p, ADR-0015) is the APK's identity string as
-        // Kotlin reports it from PackageManager ("1.6.7 (versionCode 34)"), so
-        // a pasted diagnostic report names the exact build it came from —
-        // versionName rides the unified line (1.6.7 since the one-UI round;
-        // 1.6.6 across the earlier debug rounds). Guarded by mu.
-        shellVersion string
+	// shellVersion (M8-p, ADR-0015) is the APK's identity string as
+	// Kotlin reports it from PackageManager ("1.6.7 (versionCode 34)"), so
+	// a pasted diagnostic report names the exact build it came from —
+	// versionName rides the unified line (1.6.7 since the one-UI round;
+	// 1.6.6 across the earlier debug rounds). Guarded by mu.
+	shellVersion string
 
-        // deviceInfo / netInfo (M8-af, ADR-0043, spec W9): the phone's
-        // identity and the radio's, as Kotlin reads them — the debug.23
-        // consultation's §1.4 data gaps ("device model not recorded",
-        // "ISP not recorded" — the reference projects' tuning tables
-        // are per-ISP, and mobile networks and home lines filter
-        // differently). Empty until Kotlin sets them.
-        deviceInfo string
-        netInfo    string
+	// deviceInfo / netInfo (M8-af, ADR-0043, spec W9): the phone's
+	// identity and the radio's, as Kotlin reads them — the debug.23
+	// consultation's §1.4 data gaps ("device model not recorded",
+	// "ISP not recorded" — the reference projects' tuning tables
+	// are per-ISP, and mobile networks and home lines filter
+	// differently). Empty until Kotlin sets them.
+	deviceInfo string
+	netInfo    string
 }
 
 // NewEngine builds the engine for the Android shell: the platform adapter
@@ -106,12 +106,12 @@ type Engine struct {
 // then a started engine honestly holds at "connecting": it never
 // reports "on" while nothing can route.
 func NewEngine(configDir string, protector SocketProtector, sink EventSink) (*Engine, error) {
-        m, err := newEngineForTest(configDir, protector, sink, nil)
-        if err != nil {
-                return nil, err
-        }
-        m.plat.SetStartReady(false)
-        return m, nil
+	m, err := newEngineForTest(configDir, protector, sink, nil)
+	if err != nil {
+		return nil, err
+	}
+	m.plat.SetStartReady(false)
+	return m, nil
 }
 
 // newEngineForTest is NewEngine's test seam: same construction path, with
@@ -120,127 +120,134 @@ func NewEngine(configDir string, protector SocketProtector, sink EventSink) (*En
 // The start gate is left OPEN (host tests drive it explicitly through
 // m.plat / SetVpnReady); NewEngine is the only path that arms it closed.
 func newEngineForTest(configDir string, protector SocketProtector, sink EventSink, mutate func(*engine.Options)) (*Engine, error) {
-        var protect android.ProtectFunc
-        if protector != nil {
-                p := protector
-                protect = p.Protect
-        }
-        var notify android.NotifyFunc
-        if sink != nil {
-                s := &protectedSink{target: sink}
-                notify = func(kind engine.NoticeKind, text string) {
-                        payload, err := json.Marshal(map[string]string{"kind": string(kind), "text": text})
-                        if err != nil {
-                                return
-                        }
-                        s.OnEvent("notice", string(payload))
-                }
-        }
-        plat := android.New(android.Options{
-                ConfigDir: configDir,
-                Protect:   protect,
-                Notify:    notify,
-        })
-        // M8-aa (debug.19, versionCode 18): the report header names the exact
-        // debug round — versionName stays 1.6.6 across rounds, the -debug.NN
-        // suffix is what a pasted report maps to its release.
-        // M8-ad (debug.22, versionCode 21): the long-lived-connection round.
-        // M8-af (debug.24, versionCode 23): the prove-before-change round.
-        // M8-ag (debug.25, versionCode 24): the breaker-stops-starving round.
-        // M8-ah (debug.26, versionCode 25): the dead-cluster memory round.
-        // M8-ai (debug.27, versionCode 26): the pool keeps its food round.
-        // M8-aj (debug.28, versionCode 27): the lane retires round.
-        // M8-ak (debug.29, versionCode 28): the method-documentation round.
-        // M8-am (debug.30, versionCode 29): the release-candidate polish
-        // round — the owner's two pre-release asks: the real launcher
-        // icon (his icon.ico mark) and the connect-time YouTube
-        // hand-off (ADR-0051, D104/D105).
-        // M8-an (debug.31, versionCode 30): the wait-until-ready round
-        // — the hand-off now waits for the engine's warm gate
-        // (ADR-0052) and the dead-cluster marks persist across
-        // sessions (ADR-0053).
-        // M8-ao (debug.32, versionCode 31): the logo-icon round
-        // — the owner's younblock-logo-v1.png becomes the
-        // launcher icon (ADR-0054, D108; playback untouched).
-        // M8-ap (debug.33, versionCode 32): the refresh-half removal
-        // round (ADR-0055, D109).
-        // UI v3 (debug.34, versionCode 33): the main-screen rework
-        // (docs/ui-v3).
-        // The one-UI round (1.6.7-debug.1, versionCode 34): the classic
-        // editions retire, every edition ships the same v3 screen, and
-        // all versions ride one GitHub release from here on. The base
-        // moved 1.6.6 -> 1.6.7 with the unified line, so the debug
-        // counter restarts at .1; the versionCode keeps climbing.
-        // The Android 14 fix round (1.6.7-debug.2, versionCode 35):
-        // the connect-crash fix (specialUse FGS type on API 34+,
-        // hardening, and the any-version sweep — Android 8 through 16)
-        // rides the shell + frontend only; the engine below is untouched.
-        // The initial UI/UX polish round (1.6.7-debug.3, versionCode 36):
-        // the Android back button now closes the open modal (the menu
-        // sheet, the diagnostics view) instead of leaving the app — the
-        // shell probes window.YounblockUI.back() (lib/shellback.ts) and
-        // falls back to the default back whenever the page says no, so
-        // the behavior is only ever additive; plus the Chromium half of
-        // the thin scrollbars (the Android WebView — this UI's main
-        // surface — previously showed Firefox-only styling). Shell +
-        // frontend only; the engine below is untouched.
-        // The refinement round + platform alignment (1.6.7-debug.4,
-        // versionCode 37): the owner's directed UI round (UI-SPEC (2).md
-        // v7) — the key-cap lever, the state backgrounds, the circles
-        // removed — plus the shells' alignment around it (the 360x780
-        // reference design size, the idle pre-paint colors). Frontend +
-        // shell resources only; the engine below is untouched.
-        // The official-release line (1.6.8, versionCode 38): the debug
-        // naming retires — the owner's ruling ("do not call it debug
-        // version anymore. it's an official release"). Rides the
-        // proportion round (the 360x640 window, the quiet half-size
-        // timer), the settings-panel collision fix (the sheet's
-        // z-index 20/30), and the Android lane's release shape
-        // (hostnames off by default, R21 — no DEBUG BUILD line).
-        // Frontend + shell + version line only; the engine below is
-        // untouched.
-        // The lite desktop edition's debut (1.6.11, versionCode 41,
-        // D114): younblock-lite-desktop — the dependency-free Windows
-        // shell over this same engine (one .exe, a plain Win32 window,
-        // no WebView2, nothing to install), built by the
-        // build-lite-desktop.sh lane. No mobile/Android change rides
-        // this round — the version bump rides the version-line
-        // lockstep only (the shell reports this string to the About
-        // page).
-        // 1.6.15 (D119) rides the quiet round — the lite exe's
-        // screen is clean (the grain is gone, the white-disc sheen is
-        // gone on real Windows, the aura hugs the track's outside,
-        // the cap word is uppercase) — still no mobile/Android
-        // change; the lockstep-only bump rule applies again.
-        // 1.6.14 (D118) rides the look-right round — the lite
-        // exe's three silent GDI+ defects are fixed and the reference's
-        // typeface (Space Grotesk) rides inside the exe — still no
-        // mobile/Android change; the lockstep-only bump rule applies again.
-        // 1.6.13 (D117) rides the runs-anywhere round — the lite
-        // exe's two fatal startup bugs are fixed and it now runs (and
-        // logs) everywhere — still no mobile/Android change; the
-        // lockstep-only bump rule applies again.
-        // 1.6.12 (D115) rides the lite beauty round — the lite screen
-        // becomes the v3 main screen (the lever, the gradients, the
-        // sheet) — still no mobile/Android change; the lockstep-only
-        // bump rule applies again.
-        opts := engine.Options{Platform: plat, Version: "1.6.15"}
-        if mutate != nil {
-                mutate(&opts)
-        }
-        eng, err := engine.New(opts)
-        if err != nil {
-                return nil, fmt.Errorf("mobile: %w", err)
-        }
-        m := &Engine{eng: eng, plat: plat, sink: sink}
-        if sink != nil {
-                eng.SetEventSink(&protectedSink{target: sink})
-        }
-        // M8-p (ADR-0015): the facade owns evidence the engine cannot see —
-        // the TUN counters and the shell version — so the diagnostic report
-        // the WebView copies carries them too (engine.SetReportExtra).
-        eng.SetReportExtra(m.diagnosticsExtra)
-        return m, nil
+	var protect android.ProtectFunc
+	if protector != nil {
+		p := protector
+		protect = p.Protect
+	}
+	var notify android.NotifyFunc
+	if sink != nil {
+		s := &protectedSink{target: sink}
+		notify = func(kind engine.NoticeKind, text string) {
+			payload, err := json.Marshal(map[string]string{"kind": string(kind), "text": text})
+			if err != nil {
+				return
+			}
+			s.OnEvent("notice", string(payload))
+		}
+	}
+	plat := android.New(android.Options{
+		ConfigDir: configDir,
+		Protect:   protect,
+		Notify:    notify,
+	})
+	// M8-aa (debug.19, versionCode 18): the report header names the exact
+	// debug round — versionName stays 1.6.6 across rounds, the -debug.NN
+	// suffix is what a pasted report maps to its release.
+	// M8-ad (debug.22, versionCode 21): the long-lived-connection round.
+	// M8-af (debug.24, versionCode 23): the prove-before-change round.
+	// M8-ag (debug.25, versionCode 24): the breaker-stops-starving round.
+	// M8-ah (debug.26, versionCode 25): the dead-cluster memory round.
+	// M8-ai (debug.27, versionCode 26): the pool keeps its food round.
+	// M8-aj (debug.28, versionCode 27): the lane retires round.
+	// M8-ak (debug.29, versionCode 28): the method-documentation round.
+	// M8-am (debug.30, versionCode 29): the release-candidate polish
+	// round — the owner's two pre-release asks: the real launcher
+	// icon (his icon.ico mark) and the connect-time YouTube
+	// hand-off (ADR-0051, D104/D105).
+	// M8-an (debug.31, versionCode 30): the wait-until-ready round
+	// — the hand-off now waits for the engine's warm gate
+	// (ADR-0052) and the dead-cluster marks persist across
+	// sessions (ADR-0053).
+	// M8-ao (debug.32, versionCode 31): the logo-icon round
+	// — the owner's younblock-logo-v1.png becomes the
+	// launcher icon (ADR-0054, D108; playback untouched).
+	// M8-ap (debug.33, versionCode 32): the refresh-half removal
+	// round (ADR-0055, D109).
+	// UI v3 (debug.34, versionCode 33): the main-screen rework
+	// (docs/ui-v3).
+	// The one-UI round (1.6.7-debug.1, versionCode 34): the classic
+	// editions retire, every edition ships the same v3 screen, and
+	// all versions ride one GitHub release from here on. The base
+	// moved 1.6.6 -> 1.6.7 with the unified line, so the debug
+	// counter restarts at .1; the versionCode keeps climbing.
+	// The Android 14 fix round (1.6.7-debug.2, versionCode 35):
+	// the connect-crash fix (specialUse FGS type on API 34+,
+	// hardening, and the any-version sweep — Android 8 through 16)
+	// rides the shell + frontend only; the engine below is untouched.
+	// The initial UI/UX polish round (1.6.7-debug.3, versionCode 36):
+	// the Android back button now closes the open modal (the menu
+	// sheet, the diagnostics view) instead of leaving the app — the
+	// shell probes window.YounblockUI.back() (lib/shellback.ts) and
+	// falls back to the default back whenever the page says no, so
+	// the behavior is only ever additive; plus the Chromium half of
+	// the thin scrollbars (the Android WebView — this UI's main
+	// surface — previously showed Firefox-only styling). Shell +
+	// frontend only; the engine below is untouched.
+	// The refinement round + platform alignment (1.6.7-debug.4,
+	// versionCode 37): the owner's directed UI round (UI-SPEC (2).md
+	// v7) — the key-cap lever, the state backgrounds, the circles
+	// removed — plus the shells' alignment around it (the 360x780
+	// reference design size, the idle pre-paint colors). Frontend +
+	// shell resources only; the engine below is untouched.
+	// The official-release line (1.6.8, versionCode 38): the debug
+	// naming retires — the owner's ruling ("do not call it debug
+	// version anymore. it's an official release"). Rides the
+	// proportion round (the 360x640 window, the quiet half-size
+	// timer), the settings-panel collision fix (the sheet's
+	// z-index 20/30), and the Android lane's release shape
+	// (hostnames off by default, R21 — no DEBUG BUILD line).
+	// Frontend + shell + version line only; the engine below is
+	// untouched.
+	// The lite desktop edition's debut (1.6.11, versionCode 41,
+	// D114): younblock-lite-desktop — the dependency-free Windows
+	// shell over this same engine (one .exe, a plain Win32 window,
+	// no WebView2, nothing to install), built by the
+	// build-lite-desktop.sh lane. No mobile/Android change rides
+	// this round — the version bump rides the version-line
+	// lockstep only (the shell reports this string to the About
+	// page).
+	// 1.6.16 (D120) rides the reliable-simple round — the lite
+	// exe's text rows sit in their own bands (the timer/stats
+	// collision is fixed), the ghost tile really fades out, and
+	// the path-gradient glow class is gone entirely (halos are
+	// layered solids — nothing can collapse to white on real
+	// Windows) — still no mobile/Android change; the lockstep-only
+	// bump rule applies again.
+	// 1.6.15 (D119) rides the quiet round — the lite exe's
+	// screen is clean (the grain is gone, the white-disc sheen is
+	// gone on real Windows, the aura hugs the track's outside,
+	// the cap word is uppercase) — still no mobile/Android
+	// change; the lockstep-only bump rule applies again.
+	// 1.6.14 (D118) rides the look-right round — the lite
+	// exe's three silent GDI+ defects are fixed and the reference's
+	// typeface (Space Grotesk) rides inside the exe — still no
+	// mobile/Android change; the lockstep-only bump rule applies again.
+	// 1.6.13 (D117) rides the runs-anywhere round — the lite
+	// exe's two fatal startup bugs are fixed and it now runs (and
+	// logs) everywhere — still no mobile/Android change; the
+	// lockstep-only bump rule applies again.
+	// 1.6.12 (D115) rides the lite beauty round — the lite screen
+	// becomes the v3 main screen (the lever, the gradients, the
+	// sheet) — still no mobile/Android change; the lockstep-only
+	// bump rule applies again.
+	opts := engine.Options{Platform: plat, Version: "1.6.16"}
+	if mutate != nil {
+		mutate(&opts)
+	}
+	eng, err := engine.New(opts)
+	if err != nil {
+		return nil, fmt.Errorf("mobile: %w", err)
+	}
+	m := &Engine{eng: eng, plat: plat, sink: sink}
+	if sink != nil {
+		eng.SetEventSink(&protectedSink{target: sink})
+	}
+	// M8-p (ADR-0015): the facade owns evidence the engine cannot see —
+	// the TUN counters and the shell version — so the diagnostic report
+	// the WebView copies carries them too (engine.SetReportExtra).
+	eng.SetReportExtra(m.diagnosticsExtra)
+	return m, nil
 }
 
 // GetState returns the state JSON ({"phase":"off",...}).
@@ -288,9 +295,9 @@ func (m *Engine) GetAppInfo() string { return m.eng.GetAppInfoJSON() }
 // the diagnostic report's android section so a pasted report names the
 // exact debug round it came from. Empty until set; never fails.
 func (m *Engine) SetShellVersion(v string) {
-        m.mu.Lock()
-        m.shellVersion = v
-        m.mu.Unlock()
+	m.mu.Lock()
+	m.shellVersion = v
+	m.mu.Unlock()
 }
 
 // SetDeviceInfo records the phone's identity (M8-af, ADR-0043, spec
@@ -300,12 +307,12 @@ func (m *Engine) SetShellVersion(v string) {
 // — the consultation's unrecorded-phone-model data gap, closed. No
 // unique identifiers (no serial, no IMEI): the model string only.
 func (m *Engine) SetDeviceInfo(manufacturer, model string, sdkInt int32) {
-        if manufacturer == "" && model == "" {
-                return
-        }
-        m.mu.Lock()
-        m.deviceInfo = fmt.Sprintf("%s %s android %d", strings.TrimSpace(manufacturer), strings.TrimSpace(model), sdkInt)
-        m.mu.Unlock()
+	if manufacturer == "" && model == "" {
+		return
+	}
+	m.mu.Lock()
+	m.deviceInfo = fmt.Sprintf("%s %s android %d", strings.TrimSpace(manufacturer), strings.TrimSpace(model), sdkInt)
+	m.mu.Unlock()
 }
 
 // SetNetworkInfo records the radio's identity (M8-af, ADR-0043, spec
@@ -318,18 +325,18 @@ func (m *Engine) SetDeviceInfo(manufacturer, model string, sdkInt int32) {
 // tuning tables are per-ISP (MCI 80-250 fragments, Irancell 10-40),
 // and no report has ever said which one the tester rode.
 func (m *Engine) SetNetworkInfo(netType, operator, mccmnc string) {
-        if netType == "" {
-                netType = "unknown"
-        }
-        if operator == "" {
-                operator = "unknown"
-        }
-        if mccmnc == "" {
-                mccmnc = "unknown"
-        }
-        m.mu.Lock()
-        m.netInfo = fmt.Sprintf("type=%s operator=%s mccmnc=%s", netType, operator, mccmnc)
-        m.mu.Unlock()
+	if netType == "" {
+		netType = "unknown"
+	}
+	if operator == "" {
+		operator = "unknown"
+	}
+	if mccmnc == "" {
+		mccmnc = "unknown"
+	}
+	m.mu.Lock()
+	m.netInfo = fmt.Sprintf("type=%s operator=%s mccmnc=%s", netType, operator, mccmnc)
+	m.mu.Unlock()
 }
 
 // diagnosticsExtra is the report section the facade installs on the
@@ -340,36 +347,36 @@ func (m *Engine) SetNetworkInfo(netType, operator, mccmnc string) {
 // in the report's style — no addresses, no hostnames (the R21 redaction
 // applies to this section too).
 func (m *Engine) diagnosticsExtra() string {
-        var b strings.Builder
-        m.mu.Lock()
-        shell := m.shellVersion
-        device := m.deviceInfo
-        net := m.netInfo
-        t := m.tun
-        m.mu.Unlock()
-        if shell != "" {
-                fmt.Fprintf(&b, "android shell: %s\n", shell)
-        }
-        // M8-af (ADR-0043, spec W9): the environment lines the
-        // consultation's §1.4 asked for — phone model and network
-        // identity, per-ISP filtering made visible.
-        if device != "" {
-                fmt.Fprintf(&b, "device: %s\n", device)
-        }
-        if net != "" {
-                fmt.Fprintf(&b, "net: %s\n", net)
-        }
-        if t == nil {
-                b.WriteString("tun: inactive\n")
-        } else {
-                st := t.stack.Stats()
-                // M8-z (ADR-0027 §8.4): v6Dropped rides the tun line — the
-                // engine-side counters cannot see the stack's own discards.
-                fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d v6Dropped=%d\n",
-                        st.FlowsOpened, st.FlowsRSTUnmapped, st.FlowsOverCap,
-                        st.DoorFailures, st.DNSQueries, st.UDPDropped, st.V6Dropped)
-        }
-        return strings.TrimSuffix(b.String(), "\n")
+	var b strings.Builder
+	m.mu.Lock()
+	shell := m.shellVersion
+	device := m.deviceInfo
+	net := m.netInfo
+	t := m.tun
+	m.mu.Unlock()
+	if shell != "" {
+		fmt.Fprintf(&b, "android shell: %s\n", shell)
+	}
+	// M8-af (ADR-0043, spec W9): the environment lines the
+	// consultation's §1.4 asked for — phone model and network
+	// identity, per-ISP filtering made visible.
+	if device != "" {
+		fmt.Fprintf(&b, "device: %s\n", device)
+	}
+	if net != "" {
+		fmt.Fprintf(&b, "net: %s\n", net)
+	}
+	if t == nil {
+		b.WriteString("tun: inactive\n")
+	} else {
+		st := t.stack.Stats()
+		// M8-z (ADR-0027 §8.4): v6Dropped rides the tun line — the
+		// engine-side counters cannot see the stack's own discards.
+		fmt.Fprintf(&b, "tun: active flows=%d rstUnmapped=%d overCap=%d doorFailures=%d dnsQueries=%d udpDropped=%d v6Dropped=%d\n",
+			st.FlowsOpened, st.FlowsRSTUnmapped, st.FlowsOverCap,
+			st.DoorFailures, st.DNSQueries, st.UDPDropped, st.V6Dropped)
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // SetVpnReady is the M5 lifecycle door (D77): true once the VPN consent
@@ -396,15 +403,15 @@ func (m *Engine) SetVpnReady(ready bool) { m.plat.SetStartReady(ready) }
 // honest-stop path owns a serving engine; log it), or {"error":"BAD_CODE"}
 // for any code outside the whitelisted vocabulary.
 func (m *Engine) FailStart(code string) string {
-        switch code {
-        case "NO_TARGET_APPS":
-        default:
-                return `{"error":"BAD_CODE"}`
-        }
-        if !m.plat.RefuseStart(code) {
-                return `{"error":"NOT_HELD"}`
-        }
-        return `{"error":null}`
+	switch code {
+	case "NO_TARGET_APPS":
+	default:
+		return `{"error":"BAD_CODE"}`
+	}
+	if !m.plat.RefuseStart(code) {
+		return `{"error":"NOT_HELD"}`
+	}
+	return `{"error":null}`
 }
 
 // RoutedApps is the M6 settings surface for the Kotlin service: the
@@ -424,18 +431,18 @@ func (m *Engine) FailStart(code string) string {
 // broken enough to lose its settings must refuse, not silently route
 // anything.
 func (m *Engine) RoutedApps() string {
-        apps := m.eng.Settings().Apps
-        if apps == nil {
-                apps = []string{} // marshal [] — an explicit, honest empty list
-        }
-        out, err := json.Marshal(map[string][]string{"apps": apps})
-        if err != nil {
-                // Unreachable for a []string; if it ever fires, fail toward the
-                // empty list — the NO_TARGET_APPS refusal owns what happens next,
-                // never route-everything.
-                out = []byte(`{"apps":[]}`)
-        }
-        return string(out)
+	apps := m.eng.Settings().Apps
+	if apps == nil {
+		apps = []string{} // marshal [] — an explicit, honest empty list
+	}
+	out, err := json.Marshal(map[string][]string{"apps": apps})
+	if err != nil {
+		// Unreachable for a []string; if it ever fires, fail toward the
+		// empty list — the NO_TARGET_APPS refusal owns what happens next,
+		// never route-everything.
+		out = []byte(`{"apps":[]}`)
+	}
+	return string(out)
 }
 
 // AutoOpenYouTube is the M8-am settings surface for the Kotlin service
@@ -451,14 +458,14 @@ func (m *Engine) RoutedApps() string {
 // ruling; LoadFor applies it to fresh installs and pre-v8 files) — the
 // facade reports whatever the engine's normalized settings hold.
 func (m *Engine) AutoOpenYouTube() string {
-        out, err := json.Marshal(map[string]bool{"enabled": m.eng.Settings().AutoOpenYouTube})
-        if err != nil {
-                // Unreachable for a bool; if it ever fires, fail toward
-                // DISABLED — an unasked-for app launch is worse than a
-                // missed one, never the reverse.
-                return `{"enabled":false}`
-        }
-        return string(out)
+	out, err := json.Marshal(map[string]bool{"enabled": m.eng.Settings().AutoOpenYouTube})
+	if err != nil {
+		// Unreachable for a bool; if it ever fires, fail toward
+		// DISABLED — an unasked-for app launch is worse than a
+		// missed one, never the reverse.
+		return `{"enabled":false}`
+	}
+	return string(out)
 }
 
 // StartWebUI starts the in-process loopback control server (ADR-0005) on
@@ -466,48 +473,48 @@ func (m *Engine) AutoOpenYouTube() string {
 // While it runs, engine events fan out to the SSE hub AND the EventSink.
 // Idempotent: returns the existing URL if already running.
 func (m *Engine) StartWebUI(port int32) (string, error) {
-        m.mu.Lock()
-        defer m.mu.Unlock()
-        if m.webUI != nil {
-                return m.webUI.URL(), nil
-        }
-        srv := webui.New(m.eng, int(port))
-        // webui.New just installed its hub as the engine's only sink; put the
-        // bridge back in alongside it (hub first: the page, then the shell).
-        if m.sink != nil {
-                m.eng.SetEventSink(&fanoutSink{hub: srv.Events(), bridge: &protectedSink{target: m.sink}})
-        }
-        if _, err := srv.Listen(); err != nil {
-                return "", fmt.Errorf("mobile: webui: %w", err)
-        }
-        m.webUI = srv
-        m.webUISrv = make(chan struct{})
-        go func() {
-                defer close(m.webUISrv)
-                _ = srv.Serve()
-        }()
-        return srv.URL(), nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.webUI != nil {
+		return m.webUI.URL(), nil
+	}
+	srv := webui.New(m.eng, int(port))
+	// webui.New just installed its hub as the engine's only sink; put the
+	// bridge back in alongside it (hub first: the page, then the shell).
+	if m.sink != nil {
+		m.eng.SetEventSink(&fanoutSink{hub: srv.Events(), bridge: &protectedSink{target: m.sink}})
+	}
+	if _, err := srv.Listen(); err != nil {
+		return "", fmt.Errorf("mobile: webui: %w", err)
+	}
+	m.webUI = srv
+	m.webUISrv = make(chan struct{})
+	go func() {
+		defer close(m.webUISrv)
+		_ = srv.Serve()
+	}()
+	return srv.URL(), nil
 }
 
 // StopWebUI closes the control server (idempotent). The EventSink keeps
 // receiving engine events afterwards.
 func (m *Engine) StopWebUI() {
-        m.mu.Lock()
-        srv := m.webUI
-        srvDone := m.webUISrv
-        m.webUI = nil
-        m.webUISrv = nil
-        m.mu.Unlock()
-        if srv == nil {
-                return
-        }
-        _ = srv.Close()
-        if srvDone != nil {
-                <-srvDone
-        }
-        if m.sink != nil {
-                m.eng.SetEventSink(&protectedSink{target: m.sink})
-        }
+	m.mu.Lock()
+	srv := m.webUI
+	srvDone := m.webUISrv
+	m.webUI = nil
+	m.webUISrv = nil
+	m.mu.Unlock()
+	if srv == nil {
+		return
+	}
+	_ = srv.Close()
+	if srvDone != nil {
+		<-srvDone
+	}
+	if m.sink != nil {
+		m.eng.SetEventSink(&protectedSink{target: m.sink})
+	}
 }
 
 // Shutdown stops the TUN stack (if any), the webui and the engine,
@@ -515,35 +522,35 @@ func (m *Engine) StopWebUI() {
 // after it returns; the engine's sink contract (no events after
 // Shutdown) is inherited as-is.
 func (m *Engine) Shutdown() {
-        m.StopTun()
-        m.StopWebUI()
-        m.eng.Shutdown()
+	m.StopTun()
+	m.StopWebUI()
+	m.eng.Shutdown()
 }
 
 // protectedSink guards the bridge: a throwing Kotlin callback must not
 // kill the engine goroutine that emitted the event. The event is dropped
 // in that case (nothing else is safe to do from here).
 type protectedSink struct {
-        target EventSink
+	target EventSink
 }
 
 func (p *protectedSink) OnEvent(name string, payload string) {
-        defer func() { _ = recover() }()
-        p.target.OnEvent(name, payload)
+	defer func() { _ = recover() }()
+	p.target.OnEvent(name, payload)
 }
 
 // fanoutSink delivers one event to both consumers: the SSE hub (the
 // WebView page) first, the bridge (the Kotlin shell) second.
 type fanoutSink struct {
-        hub    engine.EventSink
-        bridge EventSink
+	hub    engine.EventSink
+	bridge EventSink
 }
 
 func (f *fanoutSink) OnEvent(name string, payload string) {
-        if f.hub != nil {
-                f.hub.OnEvent(name, payload)
-        }
-        if f.bridge != nil {
-                f.bridge.OnEvent(name, payload)
-        }
+	if f.hub != nil {
+		f.hub.OnEvent(name, payload)
+	}
+	if f.bridge != nil {
+		f.bridge.OnEvent(name, payload)
+	}
 }

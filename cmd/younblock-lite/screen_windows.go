@@ -7,18 +7,23 @@
 // both into one double-buffered memory DC.
 //
 // Every visual value below is ported from the tokens file: the state
-// gradient backgrounds with their 700 ms cross-fade, the halftone dot
-// texture (the 5% grain is web-only — D119: its mix-blend-mode overlay
-// has no GDI+ equivalent and a plain-alpha copy reads as static), the
-// glass header with the red brand tile, the status column (ghost play
-// tile, eyebrow, 32 px hero word, sub line, tabular timer, arrowed byte
-// totals), the Open YouTube card, and the signature key-cap lever — the
-// recessed 128x272 track with the sliding 112x124 satin-red cap, its
-// 9 px side wall, grip ridges, LED, power icon and letterspaced cap
-// label, driven by the same gesture rules (tap, drag-follow, 45%
-// commit threshold, springy 550 ms travel) and the same breathing
-// auras, on the same timings. The menu sheet slides up from the
-// bottom in the reference's surfaces.
+// gradient backgrounds with their 700 ms cross-fade, the glass header
+// with the red brand tile, the status column (ghost play tile, eyebrow,
+// 32 px hero word, sub line, tabular timer, arrowed byte totals), the
+// Open YouTube card, and the signature key-cap lever — the recessed
+// 128x272 track with the sliding 112x124 satin-red cap, its 9 px side
+// wall, grip ridges, LED, power icon and letterspaced cap label, driven
+// by the same gesture rules (tap, drag-follow, 45% commit threshold,
+// springy 550 ms travel) and the breathing track aura. The menu sheet
+// slides up from the bottom in the reference's surfaces.
+//
+// D120's reliability ruling (the owner's words: "if you can't render
+// those without dependency, remove those effects and make them simpler,
+// but reliable"): the screen now uses exactly three deterministic GDI+
+// primitives — solid fills, linear gradients, and clips. The path-
+// gradient glow class and both texture layers (grain D119, halftone
+// dots D120) are gone; every halo is a layered-solid onion; every text
+// row is anchored inside its own band.
 //
 // Text stays on plain GDI (weights 400-700, ClearType, per-character
 // drawing where the design letterspaces); every shape is a
@@ -164,7 +169,11 @@ func (w *liteWindow) paintScreen(hdc uintptr, width, height int32) {
 	}
 
 	w.drawBackground(g, width, height, sc, now)
-	w.drawTextures(g, width, height)
+	// The ghost's fade runs on the paint clock (D120: ghostFrom/To were
+	// written on every state change but ghostAlpha itself never advanced,
+	// so the ghost tile stayed on screen after connecting — dead
+	// animation state, the layout never re-flowed).
+	w.ghostAlpha = lerp(w.ghostFrom, w.ghostTo, easeCss(animPhase(now, w.ghostStart, 450)))
 	w.drawLever(g, sc, now)
 	w.drawHeader(g, hdc, width)
 	w.drawStatus(g, hdc, width, height, sc, now)
@@ -211,19 +220,6 @@ func (w *liteWindow) drawBackground(g uintptr, width, height int32, sc Screen, n
 			fillRectI(g, br, 0, 0, width, height)
 			deleteBrush(br)
 		}
-	}
-}
-
-// drawTextures blits the pre-rendered halftone dot layer (fading in
-// toward the bottom, 7 px grid, 1 px dots). The reference's second
-// texture — the 5% grain — is web-only (D119): it rides a
-// mix-blend-mode overlay in the CSS, and a plain-alpha approximation
-// reads as static (the owner's measured noise was 5x the reference's;
-// GDI+ has no blend modes, so the honest port drops the layer and keeps
-// the smooth gradient the browser shows underneath it).
-func (w *liteWindow) drawTextures(g uintptr, width, height int32) {
-	if w.dotBmp != 0 {
-		drawImageTile(g, w.dotBmp, 0, 0, width, height, 0, 0, width, height)
 	}
 }
 
@@ -385,8 +381,10 @@ func (w *liteWindow) drawStatus(g uintptr, hdc uintptr, width, height int32, sc 
 	w.gdiText(hdc, w.fEyebrow, "YouTube", wRect{0, y, width, y + hLabel}, dtCenter|dtVCenter|dtSingleLine, scaleAlpha(subCol, 0.85))
 	y += hLabel + w.px(4)
 
-	// The hero word: 32/700 with the reference's soft text shadow.
-	w.gdiText(hdc, w.fHeadline, sc.Headline, wRect{0, y, width, y + hHead}, dtCenter|dtVCenter|dtSingleLine, argb(0x40, 0x00, 0x00, 0x00), w.px(0), w.px(2))
+	// The hero word: 32/700, one crisp pass (D120: the old "soft shadow"
+	// was a second OPAQUE black draw offset 2 px down — GDI text carries
+	// no alpha, so the hero read smudged; the honest simple port is a
+	// clean single draw).
 	w.gdiText(hdc, w.fHeadline, sc.Headline, wRect{0, y, width, y + hHead}, dtCenter|dtVCenter|dtSingleLine, tokText)
 	y += hHead
 
@@ -411,19 +409,24 @@ func (w *liteWindow) drawStatus(g uintptr, hdc uintptr, width, height int32, sc 
 	}
 	y += hSub
 
-	// The timer (tabular boxes: digit 0.8em, colon 0.4em).
+	// The timer (tabular boxes: digit 0.8em, colon 0.4em). D120: the row
+	// draws inside ITS OWN band [y, y+h) — the old call passed the row's
+	// BOTTOM edge while the character rects were anchored at the window's
+	// TOP, so DrawText's vertical centering stacked the timer and the byte
+	// totals into the middle of the status column, through the eyebrow
+	// and the hero word (the owner's "numbers and letters collided").
 	if sc.ShowTimer {
 		ms := time.Since(sc.ConnectedAt).Milliseconds()
 		if ms < 0 {
 			ms = 0
 		}
-		w.drawTimer(hdc, formatDuration(ms), width, y+hTimer)
+		w.drawTimer(hdc, formatDuration(ms), width, y, hTimer)
 		y += hTimer
 	}
 
-	// The byte totals with their arrows.
+	// The byte totals with their arrows — the same band rule.
 	if sc.ShowStats {
-		w.drawStats(hdc, g, sc, width, y+hStats)
+		w.drawStats(hdc, g, sc, width, y, hStats)
 	}
 }
 
@@ -440,9 +443,10 @@ func (w *liteWindow) subColor(sc Screen, now int64) uint32 {
 	return to
 }
 
-// drawTimer paints HH:MM:SS in fixed per-character boxes (the digits
-// never jitter).
-func (w *liteWindow) drawTimer(hdc uintptr, s string, width, boxH int32) {
+// drawTimer paints HH:MM:SS in fixed per-character boxes inside the
+// row's own band [y, y+h) (the digits never jitter, and never leave
+// their row — D120).
+func (w *liteWindow) drawTimer(hdc uintptr, s string, width, y, h int32) {
 	old, _, _ := procSelectObject.Call(hdc, uintptr(w.fTimer))
 	defer procSelectObject.Call(hdc, old)
 	procSetBkMode.Call(hdc, transparentBk)
@@ -464,7 +468,7 @@ func (w *liteWindow) drawTimer(hdc uintptr, s string, width, boxH int32) {
 			bw = colonW
 			col = scaleAlpha(tokText, 0.72)
 		}
-		rc := wRect{x, 0, x + bw, boxH}
+		rc := wRect{x, y, x + bw, y + h}
 		procSetTextColor.Call(hdc, gdiRGB(col))
 		w.drawTextHdc(hdc, string(c), rc, dtCenter|dtVCenter|dtSingleLine)
 		x += bw
@@ -472,8 +476,8 @@ func (w *liteWindow) drawTimer(hdc uintptr, s string, width, boxH int32) {
 }
 
 // drawStats paints the two arrowed byte totals (arrows 14 px, gap 6,
-// groups 18 px apart).
-func (w *liteWindow) drawStats(hdc uintptr, g uintptr, sc Screen, width, boxH int32) {
+// groups 18 px apart) inside the row's own band [y, y+h) — D120.
+func (w *liteWindow) drawStats(hdc uintptr, g uintptr, sc Screen, width, y, h int32) {
 	down := formatBytes(sc.DownBytes)
 	up := formatBytes(sc.UpBytes)
 	var dw, uw int32
@@ -488,15 +492,15 @@ func (w *liteWindow) drawStats(hdc uintptr, g uintptr, sc Screen, width, boxH in
 	groupGap := w.px(18)
 	total := (arrowW+gap)*2 + dw + uw + groupGap
 	x := (width - total) / 2
-	cy := boxH / 2
+	cy := y + h/2
 	col := w.subColor(sc, time.Now().UnixMilli())
 	w.drawArrowDown(g, x+arrowW/2, cy, col)
 	x += arrowW + gap
-	w.gdiText(hdc, w.fStats, down, wRect{x - w.px(8), 0, x + dw + w.px(8), boxH}, dtLeft|dtVCenter|dtSingleLine, col)
+	w.gdiText(hdc, w.fStats, down, wRect{x - w.px(8), y, x + dw + w.px(8), y + h}, dtLeft|dtVCenter|dtSingleLine, col)
 	x += dw + groupGap
 	w.drawArrowUp(g, x+arrowW/2, cy, col)
 	x += arrowW + gap
-	w.gdiText(hdc, w.fStats, up, wRect{x - w.px(8), 0, x + uw + w.px(8), boxH}, dtLeft|dtVCenter|dtSingleLine, col)
+	w.gdiText(hdc, w.fStats, up, wRect{x - w.px(8), y, x + uw + w.px(8), y + h}, dtLeft|dtVCenter|dtSingleLine, col)
 }
 
 // drawHint paints the quiet line above the card slot.
@@ -767,21 +771,18 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 		w.fillRRectB(g, capX, capY, capW, capH, w.px(lyCapR), br)
 		deleteBrush(br)
 	}
-	// The sheen (radial 130%x40% at 50% 0%: rgba(255,255,255,.2) ->
-	// transparent 70%). Measured on the reference render, the visible
-	// gloss is a top-edge wash: ~28-31% white at the very top (right
-	// under the 45% bevel line), nearly full cap width, fading to zero
-	// by ~28 px down. Ported as a vertical gradient band confined to the
-	// cap's own silhouette by a GDI+ clip (D119: no path gradients here
-	// — the old circle brush rendered as an OPAQUE WHITE DISC on real
-	// Windows while wine showed it soft, so the class is banned from the
-	// cap; linear gradients and clips are deterministic everywhere).
+	// The sheen (radial 130%x40% at 50% 0% in the CSS), ported as a
+	// vertical gradient band confined to the cap's own silhouette by a
+	// GDI+ clip — linear gradients and clips are deterministic on every
+	// GDI+ (D119). D120 softened the wash (~22% white at the very top,
+	// fading to zero by ~22 px down): the old 30% band read as a white
+	// glow on the owner's screen rather than gloss.
 	if cp := newPath(fillModeWinding); cp != 0 {
 		addPathPolygon(cp, rrectPoints(capX, capY, capW, capH, w.px(lyCapR), 12))
 		setClipPath(g, cp)
-		shH := w.px(28)
+		shH := w.px(22)
 		if br := newVGradient(capX, capY, capW, shH,
-			[]uint32{0x4DFFFFFF, 0x47FFFFFF, 0x00FFFFFF},
+			[]uint32{0x38FFFFFF, 0x2EFFFFFF, 0x00FFFFFF},
 			[]float32{0, 0.35, 1}); br != 0 {
 			fillRectI(g, br, capX, capY, capW, shH)
 			deleteBrush(br)
@@ -811,61 +812,28 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 	w.drawPowerIcon(g, cx, capY+w.px(100), w.px(24))
 }
 
-// drawCapGlow is the cap's animated halo (pulsepill / glow keyframes).
+// drawCapGlow is the cap's quiet halo — one static layered ring in the
+// state's glow color (D120: the pulsepill/glow keyframe animations are
+// gone with the path-gradient class; the halo is subtle, deterministic,
+// and never churns. The state still speaks — through the aura, the LED,
+// and the cap word.)
 func (w *liteWindow) drawCapGlow(g uintptr, x, y, cw, chh int32, sc Screen, now int64) {
-	var expand int32
-	var alpha float64
-	switch sc.State {
-	case ScreenConnecting:
-		// pulsepill 1.1s: 0/100% 22px .25; 45% 80px .85.
-		p := animCycle(now, w.stateEntered, 1100)
-		env := math.Sin(math.Pi * p)
-		// The keyframe peaks at 45%, close enough to a sine's 50%.
-		expand = w.px(22) + int32(float64(w.px(58))*env)
-		alpha = 0.25 + 0.60*env
-	case ScreenConnected:
-		expand, alpha = w.px(26), 0.28 // glow's resting arm
-	default:
-		// glow 4s: 0/100% 26px .28; 50% 52px .5.
-		p := animCycle(now, w.stateEntered, 4000)
-		env := math.Sin(math.Pi * p)
-		expand = w.px(26) + int32(float64(w.px(26))*env)
-		alpha = 0.28 + 0.22*env
-	}
+	_ = now
 	c := stateColors[sc.State].PillGlow
-	base := float64(c>>24) / 255.0
-	if base <= 0 {
-		base = 0.30
+	if c == 0 {
+		return
 	}
-	c = scaleAlpha(c, alpha/base)
-	w.glowRRect(g, x, y, cw, chh, w.px(lyCapR), expand, c)
+	w.glowRRect(g, x, y, cw, chh, w.px(lyCapR), w.px(12), c)
 }
 
-// drawLed paints the 24x4 LED bar with its inset shadow and animated
-// glow (blink while connecting, breath while connected).
+// drawLed paints the 24x4 LED bar with its inset shadow — the plain,
+// reliable indicator (D120: the animated glow rings are gone; on the
+// owner's real Windows they rendered as the white blob, and a bar that
+// changes color says everything the glow said).
 func (w *liteWindow) drawLed(g uintptr, cx, y int32, sc Screen, now int64) {
 	led := w.ledColor(sc, now)
 	lw, lh := w.px(24), w.px(4)
 	x := cx - lw/2
-	// The animated glow.
-	glow := stateColors[sc.State].LEDGlow
-	if glow != 0 {
-		var env float64
-		switch sc.State {
-		case ScreenConnecting: // blink: full <-> faint, 1 s
-			p := animCycle(now, w.stateEntered, 1000)
-			env = 0.25 + 0.75*math.Cos(math.Pi*p)*math.Cos(math.Pi*p)
-			if p > 0.5 {
-				env = 0.25 + 0.75*(2*(p-0.5))*(2*(p-0.5))
-			}
-		case ScreenConnected: // ledbreath 3.4s: 6px <-> 16px 2px
-			env = 0.5 + 0.5*math.Sin(math.Pi*animCycle(now, w.stateEntered, 3400))
-		default:
-			env = 0.5
-		}
-		expand := w.px(4) + int32(float64(w.px(7))*env)
-		w.glowRRect(g, x, y, lw, lh, lh/2, expand, scaleAlpha(glow, env))
-	}
 	// The bar with its inset top shadow.
 	w.fillRRect(g, x, y, lw, lh, lh/2, led)
 	w.fillRRect(g, x+w.px(2), y, lw-w.px(4), w.px(1), 1, argb(0x66, 0x00, 0x00, 0x00))
@@ -1391,43 +1359,48 @@ func (w *liteWindow) strokePolyline(g uintptr, pts []wPoint, width int32, c uint
 	fillPath(g, b, p)
 }
 
-// glowRRect paints an outward soft halo around a rounded rect: the
-// path-gradient glow over an enlarged copy of the shape.
+// glowRRect paints an outward soft halo around a rounded rect as a
+// layered onion of solid rounded rects (D120: the path-gradient glow —
+// GdipCreatePathGradientFromPath + SetSurroundColorsWithCount — is
+// GONE from this painter. On the owner's real Windows the surround
+// call silently fails and the fill collapses to GDI+'s opaque-white
+// default rim — the white-blob family reported twice now — while wine
+// renders it correctly every time, so the class is unverifiable and
+// therefore banned. Layered solids render identically on every GDI+
+// there has ever been: the stacked SourceOver alphas make the
+// near-gaussian falloff, strongest at the shape's edge, gone at the
+// halo's rim.)
 func (w *liteWindow) glowRRect(g uintptr, x, y, wid, hei, r, expand int32, c uint32) {
 	if expand <= 0 || c>>24 == 0 {
 		return
 	}
-	p := newPath(fillModeWinding)
-	if p == 0 {
-		return
+	for _, s := range []struct {
+		e float64 // the ring's reach, as a fraction of expand
+		a float64 // the ring's alpha share at the shape's edge
+	}{{0.25, 0.34}, {0.50, 0.24}, {0.75, 0.16}, {1.00, 0.09}} {
+		e := int32(float64(expand) * s.e)
+		if e < 1 {
+			continue
+		}
+		rr := r + e
+		if rr > (wid+2*e)/2 {
+			rr = (wid + 2*e) / 2
+		}
+		if rr > (hei+2*e)/2 {
+			rr = (hei + 2*e) / 2
+		}
+		w.fillRRect(g, x-e, y-e, wid+2*e, hei+2*e, rr, scaleAlpha(c, s.a))
 	}
-	defer deletePath(p)
-	rr := r + expand
-	if rr > (wid+2*expand)/2 {
-		rr = (wid + 2*expand) / 2
-	}
-	if rr > (hei+2*expand)/2 {
-		rr = (hei + 2*expand) / 2
-	}
-	pts := rrectPoints(x-expand, y-expand, wid+2*expand, hei+2*expand, rr, 12)
-	addPathPolygon(p, pts)
-	br := newPathGlow(p, c, 0, int32(len(pts)))
-	if br == 0 {
-		return
-	}
-	defer deleteBrush(br)
-	fillPath(g, br, p)
 }
 
-// (D119: glowEllipse and glowEllipseIn — soft halos built as full-circle
-// path gradients — are GONE. Their 360-degree polygons carried a repeated
-// closing point, so SetSurroundColorsWithCount was rejected by the real
-// Windows GDI+ and the fill collapsed to the default opaque-white
-// surround: a solid white disc where the cap's sheen belonged and a
-// white-ringed blob under the menu button, while wine rendered both
-// correctly the whole time. Every remaining glow rides rrectPoints —
-// 52 distinct boundary points, count always accepted — and the sheen is
-// a clipped linear-gradient band. No full-circle path gradients remain.)
+// (D119/D120 history: glowEllipse and glowEllipseIn — full-circle
+// path gradients — were removed in D119 (their repeated closing point
+// made the real Windows GDI+ reject the surround-color count, leaving
+// an opaque-white disc); D120 finished the ruling by removing the path-
+// gradient class ENTIRELY — the rrect glows still diverged to a white
+// rim on the owner's real Windows while wine showed them soft, so no
+// path gradient exists in this painter anymore, at any count. Halos are
+// layered solid onions; gloss is a clipped linear gradient.)
 
 // focusRing paints the 3 px focus outline around a rounded rect.
 func (w *liteWindow) focusRing(g uintptr, rc wRect, r int32) {

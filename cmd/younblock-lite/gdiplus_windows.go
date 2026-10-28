@@ -33,33 +33,26 @@ import (
 var modGdiPlus = windows.NewLazySystemDLL("gdiplus.dll")
 
 var (
-	procGdiplusStartup                    = modGdiPlus.NewProc("GdiplusStartup")
-	procGdiplusShutdown                   = modGdiPlus.NewProc("GdiplusShutdown")
-	procGdipCreateFromHDC                 = modGdiPlus.NewProc("GdipCreateFromHDC")
-	procGdipDeleteGraphics                = modGdiPlus.NewProc("GdipDeleteGraphics")
-	procGdipSetSmoothingMode              = modGdiPlus.NewProc("GdipSetSmoothingMode")
-	procGdipCreatePath                    = modGdiPlus.NewProc("GdipCreatePath")
-	procGdipDeletePath                    = modGdiPlus.NewProc("GdipDeletePath")
-	procGdipAddPathLineI                  = modGdiPlus.NewProc("GdipAddPathLineI")
-	procGdipAddPathPolygonI               = modGdiPlus.NewProc("GdipAddPathPolygonI")
-	procGdipAddPathEllipseI               = modGdiPlus.NewProc("GdipAddPathEllipseI")
-	procGdipClosePathFigure               = modGdiPlus.NewProc("GdipClosePathFigure")
-	procGdipCreateSolidFill               = modGdiPlus.NewProc("GdipCreateSolidFill")
-	procGdipDeleteBrush                   = modGdiPlus.NewProc("GdipDeleteBrush")
-	procGdipCreateLineBrush               = modGdiPlus.NewProc("GdipCreateLineBrush")
-	procGdipSetLinePresetBlend            = modGdiPlus.NewProc("GdipSetLinePresetBlend")
-	procGdipCreatePathGradientFromPath    = modGdiPlus.NewProc("GdipCreatePathGradientFromPath")
-	procGdipSetPathGradientCenterColor    = modGdiPlus.NewProc("GdipSetPathGradientCenterColor")
-	procGdipSetPathGradientSurroundColors = modGdiPlus.NewProc("GdipSetPathGradientSurroundColorsWithCount")
-	procGdipSetClipPath                   = modGdiPlus.NewProc("GdipSetClipPath")
-	procGdipResetClip                     = modGdiPlus.NewProc("GdipResetClip")
-	procGdipFillPath                      = modGdiPlus.NewProc("GdipFillPath")
-	procGdipFillEllipseI                  = modGdiPlus.NewProc("GdipFillEllipseI")
-	procGdipFillRectangleI                = modGdiPlus.NewProc("GdipFillRectangleI")
-	procGdipCreateBitmapFromScan0         = modGdiPlus.NewProc("GdipCreateBitmapFromScan0")
-	procGdipDisposeImage                  = modGdiPlus.NewProc("GdipDisposeImage")
-	procGdipGetImageGraphicsContext       = modGdiPlus.NewProc("GdipGetImageGraphicsContext")
-	procGdipDrawImageRectRectI            = modGdiPlus.NewProc("GdipDrawImageRectRectI")
+	procGdiplusStartup         = modGdiPlus.NewProc("GdiplusStartup")
+	procGdiplusShutdown        = modGdiPlus.NewProc("GdiplusShutdown")
+	procGdipCreateFromHDC      = modGdiPlus.NewProc("GdipCreateFromHDC")
+	procGdipDeleteGraphics     = modGdiPlus.NewProc("GdipDeleteGraphics")
+	procGdipSetSmoothingMode   = modGdiPlus.NewProc("GdipSetSmoothingMode")
+	procGdipCreatePath         = modGdiPlus.NewProc("GdipCreatePath")
+	procGdipDeletePath         = modGdiPlus.NewProc("GdipDeletePath")
+	procGdipAddPathLineI       = modGdiPlus.NewProc("GdipAddPathLineI")
+	procGdipAddPathPolygonI    = modGdiPlus.NewProc("GdipAddPathPolygonI")
+	procGdipAddPathEllipseI    = modGdiPlus.NewProc("GdipAddPathEllipseI")
+	procGdipClosePathFigure    = modGdiPlus.NewProc("GdipClosePathFigure")
+	procGdipCreateSolidFill    = modGdiPlus.NewProc("GdipCreateSolidFill")
+	procGdipDeleteBrush        = modGdiPlus.NewProc("GdipDeleteBrush")
+	procGdipCreateLineBrush    = modGdiPlus.NewProc("GdipCreateLineBrush")
+	procGdipSetLinePresetBlend = modGdiPlus.NewProc("GdipSetLinePresetBlend")
+	procGdipSetClipPath        = modGdiPlus.NewProc("GdipSetClipPath")
+	procGdipResetClip          = modGdiPlus.NewProc("GdipResetClip")
+	procGdipFillPath           = modGdiPlus.NewProc("GdipFillPath")
+	procGdipFillEllipseI       = modGdiPlus.NewProc("GdipFillEllipseI")
+	procGdipFillRectangleI     = modGdiPlus.NewProc("GdipFillRectangleI")
 )
 
 // gdiplusStartupInput is GdiplusStartup's ABI struct (version 1, no
@@ -81,10 +74,7 @@ const (
 	smoothingModeAntiAlias = 4
 	fillModeAlternate      = 0 // even-odd: overlapping subfigures punch holes
 	fillModeWinding        = 1 // non-zero: overlapping subfigures union
-	wrapModeClamp          = 4
 	wrapModeTileFlipXY     = 3 // the linear-gradient brush rejects Clamp (D118)
-	unitPixel              = 2
-	pixelFormat32bppARGB   = 0x26200A
 )
 
 // gdiplusToken is the one startup token (runUI's lifetime).
@@ -223,47 +213,6 @@ func newVGradient(x, y, w, h int32, colors []uint32, positions []float32) uintpt
 	return b
 }
 
-// newPathGlow builds a path-gradient brush over an already-built path
-// of npts boundary points: centerColor at the path's centroid fading to
-// the surround color at its boundary — the outward-glow primitive the
-// v3 screen's soft shadows and auras are made of. The surround color
-// must be written to EVERY boundary point (SetSurroundColorsWithCount
-// paints only the first `count` and leaves the rest at GDI+'s default
-// OPAQUE WHITE — a single color leaves a hard white ring on the glow's
-// boundary, the D118 white-line bug). The count is the CALLER's to
-// name: every glow path here is a polygon we sampled ourselves, so the
-// count is known without asking the path (wine's gdiplus does not even
-// export GdipGetPathPointCount — a D117-class lazy-proc trap).
-//
-// D119's harder lesson lives here too: the count must be the path's
-// boundary-point count AS GDI+ SEES IT. A full-circle polygon that
-// repeats its closing point (49 points for a 48-point figure) makes
-// the real Windows GDI+ REJECT the call — InvalidParameter — and the
-// surround colors stay at their opaque-white default, filling the
-// whole path with white. Wine's gdiplus accepts the over-count, so a
-// wine-verified glow can still be a white disc on real Windows: never
-// trust wine alone for path-gradient count semantics (rrectPoints and
-// the de-duplicated arcPoints are the shapes this file may glow with).
-func newPathGlow(path uintptr, center, surround uint32, npts int32) uintptr {
-	if path == 0 {
-		return 0
-	}
-	var b uintptr
-	if r, _, _ := procGdipCreatePathGradientFromPath.Call(path, uintptr(unsafe.Pointer(&b))); !gpOK(r) {
-		return 0
-	}
-	procGdipSetPathGradientCenterColor.Call(b, uintptr(center))
-	if npts < 1 {
-		npts = 1
-	}
-	cols := make([]uint32, npts)
-	for i := range cols {
-		cols[i] = surround
-	}
-	procGdipSetPathGradientSurroundColors.Call(b, uintptr(unsafe.Pointer(&cols[0])), uintptr(unsafe.Pointer(&npts)))
-	return b
-}
-
 // ---- clipping (deterministic fills inside a silhouette) ----
 
 // combineModeReplace is GDI+'s CombineModeReplace (the clip becomes
@@ -318,120 +267,4 @@ func fillRectI(g, brush uintptr, x, y, w, h int32) {
 	if g != 0 && brush != 0 {
 		procGdipFillRectangleI.Call(g, brush, uintptr(x), uintptr(y), uintptr(w), uintptr(h))
 	}
-}
-
-// ---- bitmap layers (per-pixel ARGB, drawn with their own alpha) ----
-
-// fixedMem owns a GDI DIB section's pixel memory — OS-owned, never
-// moved by any GC — the contract GdipCreateBitmapFromScan0's
-// non-copying scan0 pointer demands. The section lives until free()
-// deletes the bitmap handle (disposeTextures disposes the GDI+ image
-// first).
-type fixedMem struct {
-	hbmp uintptr
-	ptr  unsafe.Pointer
-	sz   int
-}
-
-// wBitmapInfoHeader is BITMAPINFOHEADER (a top-down 32bpp BI_RGB DIB
-// is all the ARGB layers need).
-type wBitmapInfoHeader struct {
-	Size          int32
-	Width         int32
-	Height        int32 // negative = top-down rows
-	Planes        uint16
-	BitCount      uint16
-	Compression   int32 // BI_RGB
-	SizeImage     int32
-	XPelsPerMeter int32
-	YPelsPerMeter int32
-	ClrUsed       int32
-	ClrImportant  int32
-}
-
-// newFixedMem allocates a w*h 32bpp DIB section and returns its pixel
-// memory as a byte slice (the caller keeps the fixedMem alive for as
-// long as the GDI+ bitmap wraps it).
-func newFixedMem(w, h int32) (fixedMem, []byte) {
-	if w <= 0 || h <= 0 {
-		return fixedMem{}, nil
-	}
-	bmi := wBitmapInfoHeader{
-		Size:     int32(unsafe.Sizeof(wBitmapInfoHeader{})),
-		Width:    w,
-		Height:   -h, // top-down: row 0 is the top row
-		Planes:   1,
-		BitCount: 32,
-	}
-	var ptr unsafe.Pointer
-	hbmp, _, _ := procCreateDIBSection.Call(
-		0, uintptr(unsafe.Pointer(&bmi)),
-		0, // DIB_RGB_COLORS
-		uintptr(unsafe.Pointer(&ptr)),
-		0, 0,
-	)
-	if hbmp == 0 || ptr == nil {
-		return fixedMem{}, nil
-	}
-	m := fixedMem{hbmp: hbmp, ptr: ptr, sz: int(w*h) * 4}
-	return m, unsafe.Slice((*byte)(ptr), m.sz)
-}
-
-func (m fixedMem) free() {
-	if m.hbmp != 0 {
-		procDeleteObject.Call(m.hbmp)
-	}
-}
-
-// newScan0Bitmap wraps fixed DIB-section memory as a GDI+ ARGB bitmap
-// (the memory stays owned by the caller for the bitmap's whole life).
-func newScan0Bitmap(w, h int32, mem fixedMem) uintptr {
-	if w <= 0 || h <= 0 || mem.ptr == nil {
-		return 0
-	}
-	var bmp uintptr
-	stride := int32(4) * w
-	if r, _, _ := procGdipCreateBitmapFromScan0.Call(
-		uintptr(w), uintptr(h), uintptr(stride),
-		pixelFormat32bppARGB, uintptr(mem.ptr),
-		uintptr(unsafe.Pointer(&bmp)),
-	); !gpOK(r) {
-		return 0
-	}
-	return bmp
-}
-
-func disposeImage(img uintptr) {
-	if img != 0 {
-		procGdipDisposeImage.Call(img)
-	}
-}
-
-// imageGraphics opens a GDI+ graphics that renders INTO a bitmap (used
-// once, while the pre-rendered texture layers are built).
-func imageGraphics(bmp uintptr) uintptr {
-	if bmp == 0 {
-		return 0
-	}
-	var g uintptr
-	if r, _, _ := procGdipGetImageGraphicsContext.Call(bmp, uintptr(unsafe.Pointer(&g))); !gpOK(r) {
-		return 0
-	}
-	procGdipSetSmoothingMode.Call(g, smoothingModeAntiAlias)
-	return g
-}
-
-// drawImageTile blits one bitmap region 1:1 into a destination rect on
-// the graphics — the per-pixel alpha is honored by the default
-// SourceOver compositing.
-func drawImageTile(g, img uintptr, dx, dy, dw, dh, sx, sy, sw, sh int32) {
-	if g == 0 || img == 0 {
-		return
-	}
-	procGdipDrawImageRectRectI.Call(
-		g, img,
-		uintptr(dx), uintptr(dy), uintptr(dw), uintptr(dh),
-		uintptr(sx), uintptr(sy), uintptr(sw), uintptr(sh),
-		unitPixel, 0, 0, 0,
-	)
 }

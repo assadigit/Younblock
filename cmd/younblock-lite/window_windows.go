@@ -78,10 +78,8 @@ type liteWindow struct {
 	fHint, fCap, fCardTitle, fCardSub                 windows.Handle
 	fSheetTitle, fRowTitle, fRowHint                  windows.Handle
 
-	// layout + pre-rendered texture layers (rebuilt on resize/DPI)
-	lay    layout
-	dotBmp uintptr
-	dotMem fixedMem
+	// layout (rebuilt on resize/DPI)
+	lay layout
 
 	// the screen state + its animation anchors
 	scr                Screen
@@ -194,7 +192,6 @@ func runUI(app *App) {
 	}
 	procKillTimer.Call(uintptr(w.hwnd), pollTimerID)
 	w.stopAnimTimer()
-	w.disposeTextures()
 	w.deleteFonts()
 }
 
@@ -497,70 +494,7 @@ func (w *liteWindow) relayout() {
 	rows := w.sheetRows(0, w.lay.sheetW, 0)
 	w.lay.sheetH = rows[len(rows)-1].rc.Bottom + w.px(14) + w.px(36) + w.px(16)
 
-	w.buildTextures(width, height)
 	w.invalidate()
-}
-
-// disposeTextures frees the pre-rendered layers.
-func (w *liteWindow) disposeTextures() {
-	if w.dotBmp != 0 {
-		disposeImage(w.dotBmp)
-		w.dotBmp = 0
-	}
-	w.dotMem.free()
-	w.dotMem = fixedMem{}
-}
-
-// buildTextures pre-renders the state-independent layers once per
-// resize: the halftone dot grid (7 px pitch, 1 px dots, alpha ramping
-// in below 35% of the height). The reference's 5% grain tile is gone
-// (D119): the web version renders it through a mix-blend-mode overlay,
-// and a plain-alpha approximation is measured 5x noisier than the
-// reference — static, not texture — so the lite screen keeps the
-// browser's smooth gradient instead.
-func (w *liteWindow) buildTextures(width, height int32) {
-	w.disposeTextures()
-	if width <= 0 || height <= 0 {
-		return
-	}
-
-	// The halftone dots.
-	if mem, _ := newFixedMem(width, height); mem.ptr != nil {
-		w.dotMem = mem
-		if bmp := newScan0Bitmap(width, height, mem); bmp != 0 {
-			w.dotBmp = bmp
-			if g := imageGraphics(bmp); g != 0 {
-				step := w.px(7)
-				if step < 3 {
-					step = 3
-				}
-				r := w.px(1)
-				if r < 1 {
-					r = 1
-				}
-				d := 2 * r
-				// The mask ramps 0 -> 1 from 35% height to
-				// the bottom; alpha = 0.075 * mask.
-				for y := int32(0); y < height; y += step {
-					frac := float64(y) / float64(height)
-					mask := clamp01((frac - 0.35) / 0.65)
-					a := uint32(0.075 * 255 * mask)
-					if a == 0 {
-						continue
-					}
-					b := newSolidBrush(argb(a, 0xFF, 0xFF, 0xFF))
-					if b == 0 {
-						continue
-					}
-					for x := int32(0); x < width; x += step {
-						procGdipFillEllipseI.Call(g, b, uintptr(x), uintptr(y), uintptr(d), uintptr(d))
-					}
-					deleteBrush(b)
-				}
-				deleteGraphics(g)
-			}
-		}
-	}
 }
 
 // ---- the message pump ----

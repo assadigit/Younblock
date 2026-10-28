@@ -3064,3 +3064,63 @@ fourth the eye caught in the numbers.
 5. Next decision ID: D120. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+---
+
+**D120 — the reliable-simple round: the owner's ruling made law.**
+The owner's report on the v0.8.8 lite screen: "1. numbers and letters
+collided. 2. low quality render. 3. there is a white glow which isn't
+correctly rendered. if you can't render those without dependency,
+remove those effects and make them simpler, but reliable and without
+visual bug." That last sentence is the ruling this round executes —
+and the standing design law for the lite painter from here on.
+
+1. **The collision was geometry, not rendering.** drawTimer and
+   drawStats received the row's BOTTOM edge as a box height and drew
+   into rects anchored at the window's TOP; DrawText's DT_VCENTER
+   then centered each row at half the window — stacking the timer and
+   the byte totals through the eyebrow and the hero on EVERY machine,
+   wine included, since D115. It survived four verification rounds
+   because VLM checks asked "is the timer present?" never "is the
+   timer inside its row?" Ruling: visual verification must assert
+   GEOMETRY (disjoint bands per row), not just presence — the
+   d120_verify_connected.py measurement (five disjoint bands at
+   client y 93/120/154/174/197) is the new template.
+
+2. **Dead animation state is a bug even when it "looks calm".**
+   ghostFrom/ghostTo/ghostStart were written on every state change
+   but ghostAlpha never advanced — an animation wired to nothing.
+   The ghost tile stayed on the connected screen and the layout
+   never re-flowed. Ruling: every *From/*To/*Start triple must have
+   its per-frame consumer, or it does not ship.
+
+3. **The path-gradient class is BANNED — the second strike.** D119
+   fixed the count semantics (full-circle closing point) and kept
+   the rrect glows "count always accepted". The owner's real
+   Windows STILL rendered the LED's green glow as a white blob
+   (pixel-measured in this round's 444.png) while wine rendered it
+   green every time. Two strikes, same class, opposite parameter
+   theories — the honest conclusion is that the class's real-Windows
+   behavior is not reproducible from wine and not predictable from
+   the docs. Per the owner's ruling the ENTIRE class is removed:
+   GdipCreatePathGradientFromPath and its two setters no longer
+   exist in the syscall layer; every halo is a layered-solid onion
+   (SourceOver stacking makes the falloff); gloss is a clipped
+   linear gradient. The lite painter's whole vocabulary is now
+   three deterministic primitives: solid fills, linear gradients,
+   clips. If a future design needs more, the bar is: it must render
+   identically on wine AND be unfalsifiable-by-construction on real
+   Windows, or it gets simplified instead.
+
+4. **Simplification is an acceptable port.** The halftone dots (the
+   second web texture), the hero's fake "soft shadow" (an opaque
+   black double-draw — GDI text has no alpha), the cap's pulsing
+   halo keyframes, and the LED's breathing glow are all removed.
+   What remains renders sharp and calm: one crisp text pass per
+   row, a smooth state gradient, a satin red cap with a soft sheen,
+   a quiet aura. The owner's words close the argument: simpler, but
+   reliable and without visual bug.
+
+5. Next decision ID: D121. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

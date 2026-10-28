@@ -92,7 +92,6 @@ var (
 	procEllipse                = modGdi32.NewProc("Ellipse")
 	procMoveToEx               = modGdi32.NewProc("MoveToEx")
 	procLineTo                 = modGdi32.NewProc("LineTo")
-	procCreateDIBSection       = modGdi32.NewProc("CreateDIBSection")
 	procCreateCompatibleDC     = modGdi32.NewProc("CreateCompatibleDC")
 	procCreateCompatibleBitmap = modGdi32.NewProc("CreateCompatibleBitmap")
 	procBitBlt                 = modGdi32.NewProc("BitBlt")

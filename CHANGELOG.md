@@ -12,6 +12,64 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 — the reliable-simple round; 1.6.16, versionCode 46 — D120)
+
+- **The lite screen's text rows sit in their own bands, the ghost
+  tile really fades out, and no glow can turn white on real
+  Windows anymore — the owner's report on the v0.8.8 screen
+  ("1. numbers and letters collided, 2. low quality render,
+  3. there is a white glow which isn't correctly rendered") is
+  root-caused in the code and by pixel-measurement, and answered
+  with the owner's own standing ruling: what cannot render
+  reliably without dependencies gets REMOVED, not approximated.**
+  1. **The collision was a rect-anchor bug, present on every
+     machine since the beauty round.** The timer and the arrowed
+     byte totals were drawn into rectangles anchored at the
+     WINDOW's top with their row's BOTTOM edge passed as the
+     height — so DrawText's vertical centering stacked both rows
+     into the middle of the status column, through the eyebrow
+     and the hero word (exactly the owner's "00:00:11 / -1181
+     KB / -107 KB" pile). Every text row now draws inside its
+     own band `[y, y+h)`; the arrows ride the row's own center.
+     Wine-oracle verification: eyebrow, hero, sub, timer, stats
+     measured at five disjoint bands (client y 93/120/154/174/197).
+  2. **The dead ghost animation.** `ghostFrom/ghostTo/ghostStart`
+     were written on every state change but `ghostAlpha` itself
+     never advanced — the ghost play-tile stayed on the connected
+     screen forever, shoving the status stack down and reading as
+     a leftover "YouTube logo". The fade now runs on the paint
+     clock (450 ms, the reference's ease), and the stack
+     re-centers as it collapses.
+  3. **The white glow was the path-gradient class itself — a
+     wine blind spot D119's count fix could not close.** The
+     owner's screenshot shows the LED's GREEN glow rendering as
+     a WHITE blob (measured: bright neutral pixels exactly at
+     the LED+expand zone) while wine rendered it green every
+     time — `SetSurroundColorsWithCount` semantics keep
+     diverging on real Windows GDI+ no matter how correct the
+     count is by construction. Per the owner's ruling the whole
+     class is now GONE from the painter: `glowRRect` is a
+     layered-solid onion (the construction the aura already
+     proved deterministic), the cap's animated halo is one quiet
+     static ring, the LED's animated glow rings are removed (the
+     color-changing bar says everything the glow said), and the
+     three path-gradient proc bindings are deleted from the
+     syscall layer. Nothing in the painter can default to
+     opaque white anymore — there is no path gradient left to
+     default.
+  4. **The "low quality render" reads.** The hero word's "soft
+     shadow" was a second OPAQUE black text draw offset 2 px
+     down (GDI text has no alpha) — the hero read smudged; it
+     now draws once, crisp. The halftone dot layer — the last
+     texture the web design blends in — is removed (the owner's
+     standing noise complaint; the background is the smooth
+     gradient the browser shows between dots, hf-noise 0.11
+     measured). The cap's sheen band is softened to ~22% white
+     over 22 px so gloss no longer reads as a white wash.
+  The engine, the zero-dependency contract, the gestures and
+  the copy are unchanged. The bump is the version-line lockstep
+  (1.6.16 / versionCode 46); no Android change rides this round.
+
 ### Fixed (2026-10-28 — the quiet round; 1.6.15, versionCode 45 — D119)
 
 - **The lite exe's screen is quiet and clean — the owner's three

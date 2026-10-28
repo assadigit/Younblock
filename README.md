@@ -429,7 +429,16 @@ full-circle glow quirk that turned the cap's gloss into a white disc on real
 Windows, while the Wine test harness showed it soft every time, is designed
 out: the gloss is now a clipped gradient band and every remaining glow is a
 shape whose parameters cannot be mis-counted. The lever's halo also hugs the
-outside of its slot now, and the cap word reads STOP, not Stop.)
+outside of its slot now, and the cap word reads STOP, not Stop. And 1.6.16,
+D120, made it reliable: the live figures sat in the wrong rectangles since the
+beauty round — the timer and byte totals piled into the middle of the screen —
+and that is fixed with every text row measured in its own band; the leftover
+YouTube tile now really fades out on connect; and after the same glow quirk
+struck a second time on real Windows, the whole soft-glow mechanism that kept
+diverging there was removed outright per the owner's own rule — simpler
+layered shapes that render the same on every Windows, nothing that can
+collapse into a white blob, and a cleaner flat background in place of the
+dot texture that read as noise.)
 
 ## Building it yourself (optional)
 
