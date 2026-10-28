@@ -399,10 +399,16 @@ session timer and byte totals, the **Open YouTube** card while connected, and th
 app reads). It is drawn natively with the Windows system's own graphics (GDI/GDI+ —
 inside every Windows since forever), which is how it stays beautiful AND
 dependency-free; the exe is still one small file. The rendering is deliberately
-**honest-simple** (D120/D121): glows, grain and halftones that a browser composites
+**honest-simple** (D120-D122): glows, grain and halftones that a browser composites
 for free but GDI+ would band or bead are simply NOT drawn — every line is a solid
 stroke, every fill a crisp shape, so the lite screen cannot show a banded glow, a
-beaded arrowhead or a blobby halo on any machine. The design's own typeface —
+beaded arrowhead or a blobby halo on any machine. And since 1.6.18 every curve is
+sampled at **float precision** (GdipAddPathPolygon's PointF vertices, which travel
+by pointer — the ABI-safe route): the power icon's ring, the menu button's
+highlight and every chevron and arrow carry sub-pixel geometry for GDI+'s
+anti-aliasing to smooth, strokes run at their true 1.9/2/2.6 px widths with true
+round caps, and the cap's gloss is one smooth gradient instead of stacked
+translucent strata. The design's own typeface —
 **Space Grotesk**, the geometric sans the reference mockups are set in — is embedded
 inside the exe (1.6.14+, ~350 KB, registered privately for the process only;
 nothing is installed, and if that ever fails it honestly falls back to your

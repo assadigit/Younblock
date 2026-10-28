@@ -3189,3 +3189,76 @@ soft-effect emulations.
 5. Next decision ID: D122. (D102 remains reserved for Ali's
    method-policy ruling — the per-flow preset retry question, which
    predates these.)
+
+**D122 — the float-geometry round: precision is an ABI question, not
+a rendering one; stacked translucent layers are the low-bit look.**
+The owner's follow-up on the v0.8.10 lite screen: "much much better,
+and nearly acceptable... there are some minor rendering problems, for
+example around the upper portions of the button and the setting
+button also has low resolution. if we fix the resolution and low-bit
+quirks it could be perfect." Measured, the report decomposed into two
+roots, and both were in the geometry layer, not the compositor.
+
+1. **GdipAddPathPolygon (PointF) is inside the integer/pointer ABI
+   rule — GdipAddPathPolygonI never should have been the binding.**
+   The D115 ruling ("only entry points whose parameters are ALL
+   integers, enums or pointers are bound") rejected GDI+'s float
+   entry points because by-value floats travel in XMM registers the
+   syscall layer never fills — and then threw the baby out with the
+   bathwater: the POLYGON entry point's floats travel by POINTER
+   (the vertex array), which the rule explicitly allows (PointF
+   gradients already used it). The int32 sampler quantized every
+   arc, capsule and rounded-corner vertex to the pixel grid BEFORE
+   anti-aliasing ran — AA smoothed the polygon's edges, but the
+   polygon itself was a pixel-grid approximation of the curve. The
+   owner's "low resolution" power icon was an r=8 ring whose 36
+   sampled vertices snapped to integers (adjacent vertices
+   collapsing and jumping); the "setting button" highlight was a
+   14-vertex int arc. Ruling: bind the PointF variant, sample at
+   float precision (arcPointsF, rrectPointsF, capsulePointsF,
+   fpt), and the geometry tests' tolerances drop from ~1 px to
+   0.01 px — TestArcPointsFSubPixelPrecision is the tripwire; if
+   anyone ever "simplifies" the samplers back to integers, the
+   build fails.
+
+2. **Stroke state that cannot exist at integer precision must not
+   be approximated at integer precision.** The design's strokes are
+   1.9/2/2.6 px with round caps. The int pipeline truncated 1.9 to
+   1, re-expanded it to a 2 px band, and D121's square-cap
+   workaround (which fixed the beaded-dots degeneration of int
+   round caps) made every 2 px stroke end blunt. With float
+   capsules the true widths and TRUE round caps return at every
+   radius — the cap arcs never collapse, and the D121 round-caps
+   regression test now runs at r=0.5/1/2/3 with a
+   consecutive-vertex distinctness assertion (dedupPtsF keeps the
+   outlines minimal where two float computations of the same point
+   round together). Square caps are retired, not banned: if a
+   future design wants them, they are one branch away.
+
+3. **A "low-bit band" is usually TWO smooth layers one row apart,
+   not one bad gradient.** The cap's top ("upper portions of the
+   button") measured as: a 2-row near-white band (the 45% bevel
+   bar) sitting directly on the sheen's ~20% with a hard step —
+   each layer individually smooth, the STEP between them the
+   artifact. Same class as D121's onions: SourceOver stacks
+   translucency as discrete strata. Ruling: one visual intent, ONE
+   gradient layer — the bevel is deleted, the sheen (D120-tuned
+   stops) carries the gloss alone. The menu button's highlight
+   additionally rode the disc's outer radius (half the stroke on
+   the background, reading as a dull gray arc): it now runs inset
+   inside the glass — a highlight belongs to the surface it
+   highlights.
+
+4. **The wine oracle rasterizes GdipFillPath ALIASED regardless of
+   SmoothingModeAntiAlias** (measured D122: the cap's corner edge
+   steps from face color to background in one pixel, no blend
+   rows; the owner's real-Windows screenshots carry blend tones).
+   Consequence, now on record: the oracle verifies GEOMETRY —
+   positions, extents, containment, layer stacks, strays — and
+   never edge smoothing. Rounds that claim smoothness must argue
+   from the geometry (sub-pixel vertices + the AA every real
+   Windows applies), not from wine screenshots.
+
+5. Next decision ID: D123. (D102 remains reserved for Ali's
+   method-policy ruling — the per-flow preset retry question, which
+   predates these.)

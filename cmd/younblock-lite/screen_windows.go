@@ -29,19 +29,37 @@
 // shadows, the menu button's stacked shadow) read as 4-bit banded
 // rings on the owner's screen, so they are all gone too: shapes now
 // separate by edge, color and contrast alone, never by glow. The
-// 2-3 px stroke capsules take square caps (round-cap polygons
-// degenerated into beaded dots at that radius — the send/receive
-// arrows, the swipe cues), and the power icon anchors on its true
-// center (it sat 12 px right of the cap's axis).
+// power icon anchors on its true center (it sat 12 px right of the
+// cap's axis).
+//
+// D122 is the float-geometry round: the owner's "minor rendering
+// problems — fix the resolution and low-bit quirks" were measured to
+// two roots. (1) Every path vertex was an INT32 — GdipAddPathPolygonI
+// quantized each arc and capsule to the pixel grid before GDI+'s
+// anti-aliasing ever ran, so the power icon's r=8 arc and the menu
+// button's highlight read as low-resolution polygons (and the 1.9 px
+// icon stroke had been truncated to a 2 px square-capped band). The
+// path layer now speaks GdipAddPathPolygon — the PointF variant whose
+// vertex array travels by POINTER, floats in memory, inside the
+// integer/pointer ABI rule — so every sampler (arcPointsF,
+// rrectPointsF, capsulePointsF) emits sub-pixel vertices, strokes run
+// at their true float widths with true round caps at every radius
+// (the D121 square-cap workaround retires), and AntiAlias finally
+// smooths genuinely smooth curves. (2) The cap's top wore TWO stacked
+// white layers — the sheen plus a hard 2 px 45% bevel bar — which
+// composited into a two-row near-white band with a hard step (the
+// "low-bit" look): the bevel is deleted, one smooth gradient carries
+// the gloss. The menu button's highlight arc rode the disc's OUTER
+// radius — half of it drawn on the dark background as a dull gray
+// arc; it now runs inset inside the glass.
 //
 // Text stays on plain GDI (weights 400-700, ClearType, per-character
 // drawing where the design letterspaces); every shape is a
-// polygon-sampled GDI+ path (see gdiplus_windows.go for why the
-// float-arg entry points are avoided).
+// float-polygon-sampled GDI+ path (see gdiplus_windows.go for why the
+// float-arg entry points are avoided and the PointF array is not).
 package main
 
 import (
-	"math"
 	"strings"
 	"time"
 	"unsafe"
@@ -250,12 +268,12 @@ func (w *liteWindow) drawHeader(g uintptr, hdc uintptr, width int32) {
 
 	// The white play triangle (the CSS border triangle: 9/5/5 at
 	// left 13, top 7 of the 34x24 tile).
-	tri := []wPoint{
-		{mk.Left + w.px(13), mk.Top + w.px(7)},
-		{mk.Left + w.px(13), mk.Top + w.px(17)},
-		{mk.Left + w.px(22), mk.Top + w.px(12)},
+	tri := []gPointF{
+		fpt(float64(mk.Left+w.px(13)), float64(mk.Top+w.px(7))),
+		fpt(float64(mk.Left+w.px(13)), float64(mk.Top+w.px(17))),
+		fpt(float64(mk.Left+w.px(22)), float64(mk.Top+w.px(12))),
 	}
-	w.fillPoly(g, tri, argb(0xFF, 0xFF, 0xFF, 0xFF))
+	w.fillPolyF(g, tri, argb(0xFF, 0xFF, 0xFF, 0xFF))
 
 	// The wordmark (17 px / 600).
 	tr := wRect{mk.Right + w.px(10), mk.Top - w.px(6), width - m - w.px(60), mk.Bottom + w.px(6)}
@@ -267,8 +285,13 @@ func (w *liteWindow) drawHeader(g uintptr, hdc uintptr, width int32) {
 
 // drawMenuButton paints the filled glass circle with its top highlight
 // and three dots. D121: the stacked-ellipse drop shadow is gone with
-// the glow class (the owner read the banded rings as low quality); the
-// crisp circle and dots are the whole button.
+// the glow class (the owner read the banded rings as low quality). D122:
+// the top highlight is a float arc INSET inside the disc — the old one
+// rode the disc's OUTER radius, so half its 2 px stroke sat on the dark
+// background (28% white there reads as a dull gray arc), on 14
+// int-snapped vertices with square caps: the owner's "setting button
+// has low resolution". Sub-pixel vertices, true round caps and the
+// 2 px inset put the whole highlight on the glass.
 func (w *liteWindow) drawMenuButton(g uintptr) {
 	rc := w.lay.menuBtn
 	d := rc.Right - rc.Left
@@ -280,12 +303,10 @@ func (w *liteWindow) drawMenuButton(g uintptr) {
 		deleteBrush(br)
 	}
 	// The inset top highlight (inset 0 1px 0 rgba(255,255,255,.28)):
-	// a bright arc band over the top half.
-	top := arcPoints(cx, cy, d/2, d/2, 190, 160, 14)
-	for i := range top {
-		top[i].Y += w.px(1)
-	}
-	w.strokePolyline(g, top, w.px(2), argb(0x47, 0xFF, 0xFF, 0xFF))
+	// a bright arc band over the top half, radius d/2-2.
+	inset := float64(w.pxf(2))
+	top := arcPointsF(float64(cx), float64(cy), float64(d)/2-inset, float64(d)/2-inset, 200, 140, 24)
+	w.strokePolylineF(g, top, w.strokeWF(2), argb(0x47, 0xFF, 0xFF, 0xFF))
 
 	// Three dots, 20 px type with 1 px letterspacing — dot radius
 	// ~1.8, spacing 9.
@@ -365,7 +386,7 @@ func (w *liteWindow) drawStatus(g uintptr, hdc uintptr, width, height int32, sc 
 		tx1 := gx + int32(float64(w.px(61))*s)
 		tym := y + int32(float64(w.px(33))*s)
 		ty1 := y + int32(float64(w.px(47))*s)
-		w.fillPoly(g, []wPoint{{tx0, ty0}, {tx0, ty1}, {tx1, tym}}, tcol)
+		w.fillPolyF(g, []gPointF{fpt(float64(tx0), float64(ty0)), fpt(float64(tx0), float64(ty1)), fpt(float64(tx1), float64(tym))}, tcol)
 	}
 	if gh > 0 {
 		y += gh + gapAfterGhost
@@ -547,10 +568,10 @@ func (w *liteWindow) drawCard(g uintptr, hdc uintptr, sc Screen, now int64) {
 	}
 	w.fillRRect(g, ix+w.px(1), iy+w.px(1), iw-w.px(2), w.px(2), w.px(2), scaleAlpha(argb(0x59, 0xFF, 0xFF, 0xFF), alpha))
 	// The white triangle (13/9/9 at left 19, top 11).
-	w.fillPoly(g, []wPoint{
-		{ix + w.px(19), iy + w.px(11)},
-		{ix + w.px(19), iy + w.px(29)},
-		{ix + w.px(32), iy + w.px(20)},
+	w.fillPolyF(g, []gPointF{
+		fpt(float64(ix+w.px(19)), float64(iy+w.px(11))),
+		fpt(float64(ix+w.px(19)), float64(iy+w.px(29))),
+		fpt(float64(ix+w.px(32)), float64(iy+w.px(20))),
 	}, scaleAlpha(argb(0xFF, 0xFF, 0xFF, 0xFF), alpha))
 
 	// The text lines.
@@ -692,8 +713,15 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 	// GDI+ (D119). D120 softened the wash (~22% white at the very top,
 	// fading to zero by ~22 px down): the old 30% band read as a white
 	// glow on the owner's screen rather than gloss.
+	// D122: the separate top-bevel bar (2 px at 45% white) is DELETED —
+	// stacked on the sheen it made a two-row near-white band with a hard
+	// step back to ~20% one row below (measured in the owner's
+	// screenshot: #f38a84 over the face, then #ef635c — the "low-bit
+	// banding around the upper portions of the button"). One smooth
+	// gradient, the D120-tuned stops, carries the gloss alone: no
+	// second layer, no step, nothing to band.
 	if cp := newPath(fillModeWinding); cp != 0 {
-		addPathPolygon(cp, rrectPoints(capX, capY, capW, capH, w.px(lyCapR), 12))
+		addPathPolygon(cp, rrectPointsF(float64(capX), float64(capY), float64(capW), float64(capH), float64(w.px(lyCapR)), 12))
 		setClipPath(g, cp)
 		shH := w.px(22)
 		if br := newVGradient(capX, capY, capW, shH,
@@ -702,9 +730,6 @@ func (w *liteWindow) drawCap(g uintptr, track wRect, sc Screen, now int64) {
 			fillRectI(g, br, capX, capY, capW, shH)
 			deleteBrush(br)
 		}
-		// The top bevel (inset 0 1px 0 rgba(255,255,255,.45)) — inside
-		// the same clip so it can never poke over the rounded corners.
-		w.fillRRect(g, capX+w.px(2), capY+w.px(1), capW-w.px(4), w.px(2), w.px(2), argb(0x73, 0xFF, 0xFF, 0xFF))
 		resetClip(g)
 		deletePath(cp)
 	}
@@ -806,30 +831,43 @@ func (w *liteWindow) drawCapLabel(cx, y, capW int32, sc Screen) {
 
 // drawPowerIcon paints the thin-line power icon (24-grid: the stem
 // M12 3v8 and the 269-degree arc) centered on (cx, cy) — the arc's
-// center (12, 12.41) is the glyph's visual anchor. D121: the old
-// grid-origin anchor landed the glyph center half the grid right of
-// the passed point, so the cap's icon sat 12 px off-center relative
-// to STOP (measured in the owner's screenshot: glyph center x 187 vs
-// cap center 175) — the exact misalignment the owner reported.
+// center (12, 12.41) is the glyph's visual anchor. D121 centered the
+// glyph on its true center (it had sat 12 px off the cap's axis —
+// measured in the owner's screenshot); D122 redraws it at float
+// precision: the int-snapped 36-gon ring was the owner's "low
+// resolution" icon — the vertices quantized the r=8 arc to the pixel
+// grid before anti-aliasing ever ran, and the 1.9 px stroke had been
+// truncated to a 2 px square-capped band. Float vertices, the true
+// 1.9 px width and round caps restore the reference's glyph.
 func (w *liteWindow) drawPowerIcon(g uintptr, cx, cy, size int32) {
 	s := float64(size) / 24.0
-	pt := func(u, v float64) wPoint {
-		return wPoint{cx + int32(math.Round((u-12)*s)), cy + int32(math.Round((v-12.41)*s))}
+	fx, fy := float64(cx), float64(cy)
+	pt := func(u, v float64) gPointF {
+		return fpt(fx+(u-12)*s, fy+(v-12.41)*s)
 	}
-	// The drop shadow (drop-shadow(0 1px 0 rgba(90,0,0,.45))).
+	// The drop shadow (drop-shadow(0 1px 0 rgba(90,0,0,.45))) — the
+	// same geometry 1 px down, under the white icon.
 	sh := argb(0x73, 0x5A, 0x00, 0x00)
-	sw := w.strokeW(1.9)
-	// Stem: (12,3) -> (12,11).
-	w.strokePolyline(g, []wPoint{pt(12, 4), pt(12, 12)}, sw, sh)
-	// Arc: center (12, 12.41), r 8, from 224.6 degrees, -269.2 sweep
-	// (counter-clockwise: the gap stays at the top). The radius rides
-	// s alone — the caller's size already carries the DPI.
-	rad := int32(math.Round(8 * s))
-	arc := arcPoints(pt(12, 12.41).X, pt(12, 12.41).Y, rad, rad, 224.6, -269.2, 36)
-	w.strokePolyline(g, arc, sw, sh)
+	sw := w.strokeWF(1.9)
+	drop := float64(w.pxf(1))
+	shift := func(pts []gPointF) []gPointF {
+		out := make([]gPointF, len(pts))
+		for i, p := range pts {
+			out[i] = gPointF{X: p.X, Y: float32(float64(p.Y) + drop)}
+		}
+		return out
+	}
+	// Stem: (12,3) -> (12,11). Arc: center (12, 12.41), r 8, from
+	// 224.6 degrees, -269.2 sweep (counter-clockwise: the gap stays
+	// at the top).
+	stem := []gPointF{pt(12, 3), pt(12, 11)}
+	arcC := pt(12, 12.41)
+	arc := arcPointsF(float64(arcC.X), float64(arcC.Y), 8*s, 8*s, 224.6, -269.2, 36)
+	w.strokePolylineF(g, shift(stem), sw, sh)
+	w.strokePolylineF(g, shift(arc), sw, sh)
 	// The white icon over it.
-	w.strokePolyline(g, []wPoint{pt(12, 3), pt(12, 11)}, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
-	w.strokePolyline(g, arc, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
+	w.strokePolylineF(g, stem, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
+	w.strokePolylineF(g, arc, sw, argb(0xFF, 0xFF, 0xFF, 0xFF))
 }
 
 // ---- icons ----
@@ -837,75 +875,81 @@ func (w *liteWindow) drawPowerIcon(g uintptr, cx, cy, size int32) {
 // drawChevronUp paints one "^" cue chevron — the 28x16 icon, stroke
 // 2.6, exact geometry (M4 13 L14 4 L24 13).
 func (w *liteWindow) drawChevronUp(g uintptr, cx, cy int32, col uint32) {
-	sw := w.strokeW(2.6)
-	x0, y0 := cx-w.px(14), cy-w.px(8)
-	pts := []wPoint{
-		{x0 + w.px(4), y0 + w.px(13)},
-		{x0 + w.px(14), y0 + w.px(4)},
-		{x0 + w.px(24), y0 + w.px(13)},
+	sw := w.strokeWF(2.6)
+	x0, y0 := float64(cx-w.px(14)), float64(cy-w.px(8))
+	pts := []gPointF{
+		fpt(x0+float64(w.px(4)), y0+float64(w.px(13))),
+		fpt(x0+float64(w.px(14)), y0+float64(w.px(4))),
+		fpt(x0+float64(w.px(24)), y0+float64(w.px(13))),
 	}
-	w.strokePolyline(g, pts, sw, col)
+	w.strokePolylineF(g, pts, sw, col)
 }
 
 // drawChevronDown paints the connected state's double down-chevron
 // (20x20, stroke 2): M5 4l5 5 5-5 M5 10l5 5 5-5.
 func (w *liteWindow) drawChevronDown(g uintptr, cx, cy, size int32, col uint32) {
-	sw := w.strokeW(2)
+	sw := w.strokeWF(2)
 	s := float64(size) / 20.0
-	x0, y0 := cx-size/2, cy-size/2
-	pt := func(u, v float64) wPoint { return wPoint{x0 + int32(u*s), y0 + int32(v*s)} }
-	w.strokePolyline(g, []wPoint{pt(5, 4), pt(10, 9), pt(15, 4)}, sw, col)
-	w.strokePolyline(g, []wPoint{pt(5, 10), pt(10, 15), pt(15, 10)}, sw, col)
+	x0, y0 := float64(cx-size/2), float64(cy-size/2)
+	pt := func(u, v float64) gPointF { return fpt(x0+u*s, y0+v*s) }
+	w.strokePolylineF(g, []gPointF{pt(5, 4), pt(10, 9), pt(15, 4)}, sw, col)
+	w.strokePolylineF(g, []gPointF{pt(5, 10), pt(10, 15), pt(15, 10)}, sw, col)
 }
 
 // drawChevronRight paints the sheet rows' ">" (20-grid, stroke 2).
 func (w *liteWindow) drawChevronRight(g uintptr, cx, cy, size int32, col uint32) {
-	sw := w.strokeW(2)
+	sw := w.strokeWF(2)
 	s := float64(size) / 24.0
-	x0, y0 := cx-size/2, cy-size/2
-	pt := func(u, v float64) wPoint { return wPoint{x0 + int32(u*s), y0 + int32(v*s)} }
-	w.strokePolyline(g, []wPoint{pt(9, 6), pt(15, 12), pt(9, 18)}, sw, col)
+	x0, y0 := float64(cx-size/2), float64(cy-size/2)
+	pt := func(u, v float64) gPointF { return fpt(x0+u*s, y0+v*s) }
+	w.strokePolylineF(g, []gPointF{pt(9, 6), pt(15, 12), pt(9, 18)}, sw, col)
 }
 
 // drawAlertTriangle paints the amber sub-line's warning icon (18 px,
 // stroke 2, lucide's triangle with the bang).
 func (w *liteWindow) drawAlertTriangle(g uintptr, x, y int32, col uint32) {
 	s := float64(w.px(18)) / 24.0
-	sw := w.strokeW(2)
-	pt := func(u, v float64) wPoint { return wPoint{x + int32(u*s), y + int32(v*s)} }
+	sw := w.strokeWF(2)
+	fx, fy := float64(x), float64(y)
+	pt := func(u, v float64) gPointF { return fpt(fx+u*s, fy+v*s) }
 	// M10.29 3.86 L1.82 18 a2 2 0 0 0 1.71 3 h16.94 a2 2 0 0 0 1.71-3 L13.71 3.86 a2 2 0 0 0-3.42 0 z
-	outline := []wPoint{pt(10.29, 3.86), pt(1.82, 18), pt(3.53, 20.73), pt(20.47, 20.73), pt(22.18, 18), pt(13.71, 3.86)}
-	w.strokePolyline(g, outline, sw, col)
+	outline := []gPointF{pt(10.29, 3.86), pt(1.82, 18), pt(3.53, 20.73), pt(20.47, 20.73), pt(22.18, 18), pt(13.71, 3.86)}
+	w.strokePolylineF(g, outline, sw, col)
 	// The bang: M12 9 v4 and the dot at 16.5.
-	w.strokePolyline(g, []wPoint{pt(12, 9), pt(12, 13)}, sw, col)
-	w.fillEllipse(g, pt(12, 16.5).X+sw/2, pt(12, 16.5).Y+sw/2, sw/2, col)
+	w.strokePolylineF(g, []gPointF{pt(12, 9), pt(12, 13)}, sw, col)
+	dot := pt(12, 16.5)
+	w.fillPolyF(g, arcPointsF(float64(dot.X)+sw/2, float64(dot.Y)+sw/2, sw/2, sw/2, 0, 360, 12), col)
 }
 
 // drawArrowDown / drawArrowUp paint the stats' 14 px lucide arrows.
 func (w *liteWindow) drawArrowDown(g uintptr, cx, cy int32, col uint32) {
-	sw := w.strokeW(2)
+	sw := w.strokeWF(2)
 	s := float64(w.px(14)) / 24.0
-	pt := func(u, v float64) wPoint { return wPoint{cx + int32(u*s) - w.px(7), cy + int32(v*s) - w.px(7)} }
-	w.strokePolyline(g, []wPoint{pt(12, 5), pt(12, 19)}, sw, col)
-	w.strokePolyline(g, []wPoint{pt(19, 12), pt(12, 19), pt(5, 12)}, sw, col)
+	fx, fy := float64(cx), float64(cy)
+	p7 := float64(w.px(7))
+	pt := func(u, v float64) gPointF { return fpt(fx+u*s-p7, fy+v*s-p7) }
+	w.strokePolylineF(g, []gPointF{pt(12, 5), pt(12, 19)}, sw, col)
+	w.strokePolylineF(g, []gPointF{pt(19, 12), pt(12, 19), pt(5, 12)}, sw, col)
 }
 
 func (w *liteWindow) drawArrowUp(g uintptr, cx, cy int32, col uint32) {
-	sw := w.strokeW(2)
+	sw := w.strokeWF(2)
 	s := float64(w.px(14)) / 24.0
-	pt := func(u, v float64) wPoint { return wPoint{cx + int32(u*s) - w.px(7), cy + int32(v*s) - w.px(7)} }
-	w.strokePolyline(g, []wPoint{pt(12, 19), pt(12, 5)}, sw, col)
-	w.strokePolyline(g, []wPoint{pt(5, 12), pt(12, 5), pt(19, 12)}, sw, col)
+	fx, fy := float64(cx), float64(cy)
+	p7 := float64(w.px(7))
+	pt := func(u, v float64) gPointF { return fpt(fx+u*s-p7, fy+v*s-p7) }
+	w.strokePolylineF(g, []gPointF{pt(12, 19), pt(12, 5)}, sw, col)
+	w.strokePolylineF(g, []gPointF{pt(5, 12), pt(12, 5), pt(19, 12)}, sw, col)
 }
 
 // drawXIcon paints the sheet close "X" (18 px, stroke 2).
 func (w *liteWindow) drawXIcon(g uintptr, cx, cy, size int32, col uint32) {
-	sw := w.strokeW(2)
+	sw := w.strokeWF(2)
 	s := float64(size) / 24.0
-	x0, y0 := cx-size/2, cy-size/2
-	pt := func(u, v float64) wPoint { return wPoint{x0 + int32(u*s), y0 + int32(v*s)} }
-	w.strokePolyline(g, []wPoint{pt(6, 6), pt(18, 18)}, sw, col)
-	w.strokePolyline(g, []wPoint{pt(18, 6), pt(6, 18)}, sw, col)
+	x0, y0 := float64(cx-size/2), float64(cy-size/2)
+	pt := func(u, v float64) gPointF { return fpt(x0+u*s, y0+v*s) }
+	w.strokePolylineF(g, []gPointF{pt(6, 6), pt(18, 18)}, sw, col)
+	w.strokePolylineF(g, []gPointF{pt(18, 6), pt(6, 18)}, sw, col)
 }
 
 // ---- the menu sheet ----
@@ -1035,10 +1079,10 @@ func (w *liteWindow) drawSheetActionRow(g uintptr, hdc uintptr, rc wRect, title,
 	c := icx + ic/2
 	cy := icy + ic/2
 	s := float64(ic) / 36.0
-	w.fillPoly(g, []wPoint{
-		{c - int32(5*s), cy - int32(7*s)},
-		{c - int32(5*s), cy + int32(7*s)},
-		{c + int32(8*s), cy},
+	w.fillPolyF(g, []gPointF{
+		fpt(float64(c)-5*s, float64(cy)-7*s),
+		fpt(float64(c)-5*s, float64(cy)+7*s),
+		fpt(float64(c)+8*s, float64(cy)),
 	}, tokRed400)
 
 	// The texts.
@@ -1147,11 +1191,16 @@ func (w *liteWindow) drawFocusRings(g uintptr, sc Screen, now int64) {
 
 // ---- the shape primitives on this window's DPI ----
 
-// strokeW scales a logical stroke width, never below 1 device px.
-func (w *liteWindow) strokeW(logical float64) int32 {
-	v := int32(float64(w.dpi) * logical / 96)
-	if v < 1 {
-		v = 1
+// strokeWF scales a logical stroke width to device pixels at FLOAT
+// precision. D122: the old integer strokeW truncated the design's 1.9
+// px icon stroke to 1 and then re-expanded it to a 2 px band — every
+// glyph line was 5% fat and sat half a pixel off its grid. The float
+// width rides the float capsule geometry exactly; nothing thinner than
+// half a device pixel survives anti-aliasing usefully.
+func (w *liteWindow) strokeWF(logical float64) float64 {
+	v := float64(w.dpi) * logical / 96
+	if v < 0.5 {
+		v = 0.5
 	}
 	return v
 }
@@ -1160,7 +1209,10 @@ func (w *liteWindow) strokeW(logical float64) int32 {
 // created and deleted per call on purpose: the screen animates alpha
 // every frame, and a color-keyed cache would grow without bound (the
 // one leak this painter must never have). GDI+ solid fills are cheap
-// objects; the call rate here is a few dozen per frame.
+// objects; the call rate here is a few dozen per frame. D122: the
+// outline is sampled at float precision — the corner arcs carry
+// sub-pixel vertices, so AntiAlias smooths real curves, not pixel
+// staircases.
 func (w *liteWindow) fillRRect(g uintptr, x, y, wid, hei, r int32, c uint32) {
 	b := newSolidBrush(c)
 	if b == 0 {
@@ -1172,7 +1224,7 @@ func (w *liteWindow) fillRRect(g uintptr, x, y, wid, hei, r int32, c uint32) {
 		return
 	}
 	defer deletePath(p)
-	addPathPolygon(p, rrectPoints(x, y, wid, hei, r, 12))
+	addPathPolygon(p, rrectPointsF(float64(x), float64(y), float64(wid), float64(hei), float64(r), 12))
 	fillPath(g, b, p)
 }
 
@@ -1183,7 +1235,7 @@ func (w *liteWindow) fillRRectB(g uintptr, x, y, wid, hei, r int32, brush uintpt
 		return
 	}
 	defer deletePath(p)
-	addPathPolygon(p, rrectPoints(x, y, wid, hei, r, 12))
+	addPathPolygon(p, rrectPointsF(float64(x), float64(y), float64(wid), float64(hei), float64(r), 12))
 	fillPath(g, brush, p)
 }
 
@@ -1200,8 +1252,12 @@ func (w *liteWindow) fillRRectRing(g uintptr, x, y, wid, hei, r, thickness int32
 		return
 	}
 	defer deletePath(p)
-	outer := rrectPoints(x, y, wid, hei, r, 12)
-	inner := rrectPoints(x+thickness, y+thickness, wid-2*thickness, hei-2*thickness, maxI32(r-thickness, 0), 12)
+	outer := rrectPointsF(float64(x), float64(y), float64(wid), float64(hei), float64(r), 12)
+	ri := float64(r - thickness)
+	if ri < 0 {
+		ri = 0
+	}
+	inner := rrectPointsF(float64(x+thickness), float64(y+thickness), float64(wid-2*thickness), float64(hei-2*thickness), ri, 12)
 	// Reverse the inner outline so the winding rule carves the hole.
 	for i, j := 0, len(inner)-1; i < j; i, j = i+1, j-1 {
 		inner[i], inner[j] = inner[j], inner[i]
@@ -1224,8 +1280,8 @@ func (w *liteWindow) fillEllipseB(g uintptr, cx, cy, r int32, brush uintptr) {
 	fillEllipseI(g, brush, cx-r, cy-r, 2*r, 2*r)
 }
 
-// fillPoly fills a closed polygon (a color arg).
-func (w *liteWindow) fillPoly(g uintptr, pts []wPoint, c uint32) {
+// fillPolyF fills a closed polygon (a color arg).
+func (w *liteWindow) fillPolyF(g uintptr, pts []gPointF, c uint32) {
 	b := newSolidBrush(c)
 	if b == 0 {
 		return
@@ -1241,9 +1297,13 @@ func (w *liteWindow) fillPoly(g uintptr, pts []wPoint, c uint32) {
 	}
 }
 
-// strokePolyline fills a round-capped, round-joined stroke along the
-// points with the given width — the capsule union.
-func (w *liteWindow) strokePolyline(g uintptr, pts []wPoint, width int32, c uint32) {
+// strokePolylineF fills a round-capped, round-joined stroke along the
+// points with the given width — the capsule union. D122: float
+// vertices and float widths — the design's 1.9/2/2.6 px strokes render
+// at their true widths with true round caps at every radius (the D121
+// square-cap workaround for integer degeneracy is retired — float cap
+// arcs never collapse).
+func (w *liteWindow) strokePolylineF(g uintptr, pts []gPointF, width float64, c uint32) {
 	if len(pts) < 2 || width <= 0 {
 		return
 	}
@@ -1258,11 +1318,8 @@ func (w *liteWindow) strokePolyline(g uintptr, pts []wPoint, width int32, c uint
 	}
 	defer deletePath(p)
 	r := width / 2
-	if r < 1 {
-		r = 1
-	}
 	for i := 0; i+1 < len(pts); i++ {
-		addPathPolygon(p, capsulePoints(pts[i].X, pts[i].Y, pts[i+1].X, pts[i+1].Y, r))
+		addPathPolygon(p, capsulePointsF(float64(pts[i].X), float64(pts[i].Y), float64(pts[i+1].X), float64(pts[i+1].Y), r))
 	}
 	fillPath(g, b, p)
 }
@@ -1288,8 +1345,8 @@ func (w *liteWindow) focusRing(g uintptr, rc wRect, r int32) {
 		return
 	}
 	defer deletePath(p)
-	outer := rrectPoints(rc.Left-w.px(3), rc.Top-w.px(3), (rc.Right-rc.Left)+2*w.px(3), (rc.Bottom-rc.Top)+2*w.px(3), r+w.px(3), 12)
-	inner := rrectPoints(rc.Left, rc.Top, rc.Right-rc.Left, rc.Bottom-rc.Top, r, 12)
+	outer := rrectPointsF(float64(rc.Left-w.px(3)), float64(rc.Top-w.px(3)), float64((rc.Right-rc.Left)+2*w.px(3)), float64((rc.Bottom-rc.Top)+2*w.px(3)), float64(r+w.px(3)), 12)
+	inner := rrectPointsF(float64(rc.Left), float64(rc.Top), float64(rc.Right-rc.Left), float64(rc.Bottom-rc.Top), float64(r), 12)
 	for i, j := 0, len(inner)-1; i < j; i, j = i+1, j-1 {
 		inner[i], inner[j] = inner[j], inner[i]
 	}

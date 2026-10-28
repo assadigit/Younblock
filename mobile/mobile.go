@@ -231,7 +231,7 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
 	// becomes the v3 main screen (the lever, the gradients, the
 	// sheet) — still no mobile/Android change; the lockstep-only
 	// bump rule applies again.
-	opts := engine.Options{Platform: plat, Version: "1.6.17"}
+	opts := engine.Options{Platform: plat, Version: "1.6.18"}
 	if mutate != nil {
 		mutate(&opts)
 	}

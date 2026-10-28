@@ -14,8 +14,22 @@ import (
 // AppName — the app's display name; the one place to rename it.
 const AppName = "Younblock"
 
-// AppVersion — shown in the UI and reported by --version. 1.6.17
-// rides the polished-simple round (D121), answering the owner's
+// AppVersion — shown in the UI and reported by --version. 1.6.18
+// rides the float-geometry round (D122), answering the owner's
+// follow-up on 1.6.17 ("much much better... fix the resolution and
+// low-bit quirks"): every path vertex is now FLOAT (GdipAddPathPolygon
+// — the PointF variant, floats by pointer, inside the integer/pointer
+// ABI rule), so the power icon's arc, the menu button's highlight and
+// every chevron, arrow and X render at sub-pixel precision under
+// GDI+'s anti-aliasing instead of the pixel-grid-quantized polygons of
+// the int32 sampler (the "low resolution" look); strokes run at their
+// true widths (1.9/2/2.6 px) with true round caps at every radius (the
+// D121 square-cap workaround retires); the cap's hard 2-row 45%
+// top-bevel bar is deleted (stacked on the sheen it read as a low-bit
+// band — one smooth gradient carries the gloss); the menu button's
+// highlight arc runs inset INSIDE the glass instead of straddling the
+// outer edge half-over-background.
+// 1.6.17 rode the polished-simple round (D121), answering the owner's
 // six-point report on 1.6.16: the power icon sat 12 px right of the
 // cap's axis (the grid-origin anchor — now centered on the glyph
 // itself), the "YouTube unblocked." sub line is gone by order, the
@@ -45,7 +59,7 @@ const AppName = "Younblock"
 // why). NOTE: the lite exe's version-info resource
 // (cmd/younblock-lite/rsrc_windows_*.syso) reads this constant —
 // scripts/gen_lite_resources.py regenerates it.
-const AppVersion = "1.6.17"
+const AppVersion = "1.6.18"
 
 // ListenHost — the proxy listens only on this machine, never on the network.
 const ListenHost = "127.0.0.1"

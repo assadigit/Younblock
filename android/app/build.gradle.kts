@@ -392,8 +392,8 @@ android {
         // certificate -- D85). The D84 rule: every debug build
         // bumps this. D103: the APK asset is named
         // v1.6.6-debug30.apk.
-        versionCode = 47
-        versionName = "1.6.17"
+        versionCode = 48
+        versionName = "1.6.18"
     }
 
     signingConfigs {

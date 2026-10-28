@@ -12,6 +12,67 @@ every release are on the
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 — the float-geometry round; 1.6.18, versionCode 48 — D122)
+
+- **The lite screen's remaining "resolution and low-bit quirks" are
+  fixed at the geometry layer: the owner's follow-up on v0.8.10
+  ("much much better, and nearly acceptable... there are some minor
+  rendering problems, for example around the upper portions of the
+  button and the setting button also has low resolution. if we fix
+  the resolution and low-bit quirks it could be perfect") measured
+  to two roots — integer-snapped path vertices and stacked
+  semi-transparent layers — and both are gone.**
+  1. **Every path vertex is FLOAT now.** The lite painter bound
+     GdipAddPathPolygonI (int32 vertices): the polygon sampler
+     quantized every arc and capsule to the pixel grid BEFORE
+     GDI+'s anti-aliasing ever ran — AA smoothed the polygon's
+     edges, but a polygon whose vertices snap to whole pixels is a
+     crude approximation of the curve it samples. That was the
+     owner's "low resolution" power icon (an r=8 ring on the
+     integer grid) and menu-button highlight. The painter now
+     speaks GdipAddPathPolygon — the PointF variant, whose vertex
+     array travels by POINTER (floats in memory, inside the
+     integer/pointer ABI rule that keeps the syscall layer safe):
+     arcPointsF / rrectPointsF / capsulePointsF emit sub-pixel
+     vertices, and AntiAlias finally smooths genuinely smooth
+     curves. The geometry tests tightened from ~1 px tolerances to
+     0.01 px (TestArcPointsFSubPixelPrecision is the tripwire
+     against quantization creeping back).
+  2. **True stroke widths and true round caps at every radius.**
+     The integer stroke scaler truncated the design's 1.9 px icon
+     stroke to 1 and the capsule re-expanded it to a 2 px band, and
+     D121's square-cap workaround (for the integer degeneration
+     that beaded the arrows) made every 2 px stroke end blunt. With
+     float capsules both retire: strokes run at their exact
+     1.9/2/2.6 px widths, and round-cap arcs at any radius never
+     collapse (the D121 dots cannot return — the round-cap
+     regression test runs at r=0.5, 1, 2, 3).
+  3. **The cap's top band ("upper portions of the button") was a
+     stacked-layer step.** The sheen gradient (22% white fading to
+     zero) is smooth — but a separate 2 px top-bevel bar at 45%
+     white stacked on it composited into a two-row near-white band
+     with a hard step back to ~20% (measured in the owner's
+     screenshot: #f38a84 rows directly above #ef635c). The bevel
+     is deleted; one smooth gradient, the D120-tuned stops, carries
+     the gloss alone. Wine-oracle profile: one notch per row down
+     the whole top, no step anywhere.
+  4. **The menu button's highlight arc rode the disc's OUTER
+     radius** — half its 2 px stroke sat on the dark background,
+     where 28% white reads as a dull gray arc, on 14 int-snapped
+     vertices with square caps (the "setting button has low
+     resolution"). It now runs inset 2 px INSIDE the glass at
+     float precision with round caps: nothing leaves the disc
+     (wine-oracle run map confirms the crescent stays inside the
+     boundary, and the disc's own edge is a clean ring).
+  5. **Oracle note (recorded in DECISIONS D122): wine's GDI+
+     rasterizes GdipFillPath ALIASED regardless of
+     SmoothingModeAntiAlias** — the wine oracle verifies geometry
+     (positions, extents, layer stacks, strays), never edge
+     smoothing; the owner's real Windows supplies the AA (their
+     screenshots carry the blend tones). The float-geometry round
+     is exactly what makes that AA finally have true curves to
+     smooth.
+
 ### Fixed (2026-10-28 — the polished-simple round; 1.6.17, versionCode 47 — D121)
 
 - **The lite screen is polished and artifact-free — the owner's

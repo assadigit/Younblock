@@ -15,9 +15,16 @@
 // registers the syscall interface never fills. Every float the screen
 // needs therefore reaches GDI+ through MEMORY (PointF and blend-array
 // pointers) or not at all:
-//   - rounded shapes are polygon-sampled paths (GdipAddPathPolygonI),
-//   - strokes are filled capsule paths (round caps and joins by
-//     construction),
+//   - rounded shapes and strokes are polygon-sampled paths
+//     (GdipAddPathPolygon — the PointF variant: the vertex array is a
+//     POINTER, so the floats live in memory and the ABI rule holds),
+//   - D122: the vertices are FLOAT, not int — GdipAddPathPolygonI's
+//     int32 vertices quantized every curve to the pixel grid BEFORE
+//     anti-aliasing ever ran, which was the owner's "low resolution"
+//     power icon and menu button (the AA smoothed the polygon's edges,
+//     but a polygon whose vertices snap to whole pixels is a crude
+//     approximation of the curve it samples). Sub-pixel vertices +
+//     AntiAlias = reference-quality curves,
 //   - gradients take their geometry as PointF pointers and their color
 //     stops as an ARGB array + REAL* positions,
 //   - text stays on plain GDI (CreateFontIndirectW carries integer
@@ -40,9 +47,7 @@ var (
 	procGdipSetSmoothingMode   = modGdiPlus.NewProc("GdipSetSmoothingMode")
 	procGdipCreatePath         = modGdiPlus.NewProc("GdipCreatePath")
 	procGdipDeletePath         = modGdiPlus.NewProc("GdipDeletePath")
-	procGdipAddPathLineI       = modGdiPlus.NewProc("GdipAddPathLineI")
-	procGdipAddPathPolygonI    = modGdiPlus.NewProc("GdipAddPathPolygonI")
-	procGdipAddPathEllipseI    = modGdiPlus.NewProc("GdipAddPathEllipseI")
+	procGdipAddPathPolygon     = modGdiPlus.NewProc("GdipAddPathPolygon")
 	procGdipClosePathFigure    = modGdiPlus.NewProc("GdipClosePathFigure")
 	procGdipCreateSolidFill    = modGdiPlus.NewProc("GdipCreateSolidFill")
 	procGdipDeleteBrush        = modGdiPlus.NewProc("GdipDeleteBrush")
@@ -65,10 +70,8 @@ type gdiplusStartupInput struct {
 }
 
 // gPointF is GDI+'s PointF — always passed BY POINTER here, so its
-// floats live in memory, never in registers.
-type gPointF struct {
-	X, Y float32
-}
+// floats live in memory, never in registers. (Defined in geom.go —
+// the float samplers are OS-neutral and unit-tested on every host.)
 
 const (
 	smoothingModeAntiAlias = 4
@@ -139,27 +142,11 @@ func deletePath(p uintptr) {
 	}
 }
 
-func addPathPolygon(p uintptr, pts []wPoint) bool {
+func addPathPolygon(p uintptr, pts []gPointF) bool {
 	if p == 0 || len(pts) == 0 {
 		return false
 	}
-	r, _, _ := procGdipAddPathPolygonI.Call(p, uintptr(unsafe.Pointer(&pts[0])), uintptr(len(pts)))
-	return gpOK(r)
-}
-
-func addPathEllipse(p uintptr, x, y, w, h int32) bool {
-	if p == 0 {
-		return false
-	}
-	r, _, _ := procGdipAddPathEllipseI.Call(p, uintptr(x), uintptr(y), uintptr(w), uintptr(h))
-	return gpOK(r)
-}
-
-func addPathLine(p uintptr, x1, y1, x2, y2 int32) bool {
-	if p == 0 {
-		return false
-	}
-	r, _, _ := procGdipAddPathLineI.Call(p, uintptr(x1), uintptr(y1), uintptr(x2), uintptr(y2))
+	r, _, _ := procGdipAddPathPolygon.Call(p, uintptr(unsafe.Pointer(&pts[0])), uintptr(len(pts)))
 	return gpOK(r)
 }
 

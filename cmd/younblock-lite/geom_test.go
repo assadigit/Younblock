@@ -1,9 +1,16 @@
 // geom_test.go — the screen's pure geometry, tested on any host: the
 // rounded-rect sampler (points in bounds, corners on their circles),
 // the capsule stroke primitive (every point within the stroke radius of
-// its segment, caps at both ends), the arc sampler, and the CSS
-// cubic-bezier easings (endpoints exact, overshoot where the design's
-// cap curve asks for it).
+// its segment, round caps at both ends at EVERY radius), the arc
+// sampler, and the CSS cubic-bezier easings (endpoints exact, overshoot
+// where the design's cap curve asks for it).
+//
+// D122 tightened every geometric tolerance from ~1 px to ~0.01 px: the
+// samplers emit FLOAT vertices, so an error above a hundredth of a
+// pixel means the integer quantization crept back — the exact defect
+// that made the D121 build's glyphs read as "low resolution" (the
+// int-snapped vertices quantized every curve to the pixel grid before
+// GDI+'s anti-aliasing ever ran).
 package main
 
 import (
@@ -12,7 +19,7 @@ import (
 )
 
 func TestRrectPointsBounds(t *testing.T) {
-	pts := rrectPoints(100, 50, 200, 120, 20, 12)
+	pts := rrectPointsF(100, 50, 200, 120, 20, 12)
 	if len(pts) != 4*13 { // 12 steps + endpoint per corner
 		t.Fatalf("rrect points = %d, want 52", len(pts))
 	}
@@ -26,10 +33,11 @@ func TestRrectPointsBounds(t *testing.T) {
 		t.Errorf("first point = %v, want (100,70)", pts[0])
 	}
 	// Corner centers: every TL-arc point sits on the circle around
-	// (120, 70) with radius 20 (1px tolerance for the rounding).
+	// (120, 70) with radius 20 — at FLOAT precision the tolerance is
+	// a hundredth of a pixel, not the old integer-rounded 1 px.
 	for _, p := range pts[:13] {
 		d := math.Hypot(float64(p.X-120), float64(p.Y-70))
-		if math.Abs(d-20) > 1.01 {
+		if math.Abs(d-20) > 0.01 {
 			t.Errorf("TL arc point %v distance %f, want 20", p, d)
 		}
 	}
@@ -38,22 +46,22 @@ func TestRrectPointsBounds(t *testing.T) {
 func TestRrectClampsRadius(t *testing.T) {
 	// A radius wider than half the shape clamps to the inscribed
 	// circle (a stadium), never inverting the geometry.
-	pts := rrectPoints(0, 0, 40, 20, 99, 8)
+	pts := rrectPointsF(0, 0, 40, 20, 99, 8)
 	for _, p := range pts {
 		if p.X < 0 || p.X > 40 || p.Y < 0 || p.Y > 20 {
 			t.Fatalf("stadium point %v out of bounds", p)
 		}
 	}
 	// r=0 degenerates to the plain rectangle.
-	pts = rrectPoints(0, 0, 10, 10, 0, 12)
+	pts = rrectPointsF(0, 0, 10, 10, 0, 12)
 	if len(pts) != 4 {
 		t.Fatalf("plain rect points = %d, want 4", len(pts))
 	}
 }
 
-func TestCapsulePoints(t *testing.T) {
-	var x1, y1, x2, y2, r int32 = 100, 100, 200, 100, 5
-	pts := capsulePoints(x1, y1, x2, y2, r)
+func TestCapsulePointsF(t *testing.T) {
+	const x1, y1, x2, y2, r = 100.0, 100.0, 200.0, 100.0, 5.0
+	pts := capsulePointsF(x1, y1, x2, y2, r)
 	if len(pts) < 10 {
 		t.Fatalf("capsule points = %d, want a sampled ring", len(pts))
 	}
@@ -67,7 +75,7 @@ func TestCapsulePoints(t *testing.T) {
 		} else {
 			d = math.Abs(float64(p.Y - y1))
 		}
-		if d > float64(r)+1.01 {
+		if d > r+0.01 {
 			t.Fatalf("capsule point %v distance %f > r", p, d)
 		}
 	}
@@ -75,10 +83,10 @@ func TestCapsulePoints(t *testing.T) {
 	// and another within r of (x2+r, y2).
 	reachL, reachR := false, false
 	for _, p := range pts {
-		if math.Hypot(float64(p.X-(x1-r)), float64(p.Y-y1)) <= float64(r)+1.01 {
+		if math.Hypot(float64(p.X-(x1-r)), float64(p.Y-y1)) <= r+0.01 {
 			reachL = true
 		}
-		if math.Hypot(float64(p.X-(x2+r)), float64(p.Y-y2)) <= float64(r)+1.01 {
+		if math.Hypot(float64(p.X-(x2+r)), float64(p.Y-y2)) <= r+0.01 {
 			reachR = true
 		}
 	}
@@ -86,39 +94,114 @@ func TestCapsulePoints(t *testing.T) {
 		t.Fatalf("capsule caps missing (left=%v right=%v)", reachL, reachR)
 	}
 	// A degenerate zero-length segment is a disk.
-	pts = capsulePoints(10, 10, 10, 10, 4)
+	pts = capsulePointsF(10, 10, 10, 10, 4)
 	if len(pts) < 8 {
 		t.Fatalf("disk points = %d", len(pts))
 	}
 	for _, p := range pts {
-		if math.Hypot(float64(p.X-10), float64(p.Y-10)) > 5.01 {
+		if math.Hypot(float64(p.X-10), float64(p.Y-10)) > 4.01 {
 			t.Fatalf("disk point %v escapes the radius", p)
 		}
 	}
 }
 
-func TestArcPoints(t *testing.T) {
+// TestCapsulePointsFRoundCapsAtEveryRadius — the D122 root fix, as a
+// regression: at EVERY radius (0.5, 1, 2 — the screen's real stroke
+// radii) the capsule emits the full round-cap ring, never collapses,
+// never repeats a vertex, never self-intersects into the beaded dots
+// of D121's int geometry. Float cap-arc points are distinct by
+// construction; this test is the tripwire if anyone ever reintroduces
+// integer vertex snapping to "simplify" the sampler.
+func TestCapsulePointsFRoundCapsAtEveryRadius(t *testing.T) {
+	for _, r := range []float64{0.5, 1, 2, 3} {
+		pts := capsulePointsF(100, 100, 110.5, 104.25, r)
+		if len(pts) < 20 {
+			t.Fatalf("r=%v capsule points = %d, want the full round-cap ring (>= 20)", r, len(pts))
+		}
+		// No two consecutive vertices coincide (the int-collapse
+		// that self-intersected the winding fill).
+		for i := range pts {
+			a, b := pts[i], pts[(i+1)%len(pts)]
+			if a == b {
+				t.Fatalf("r=%v consecutive coincident vertices at %d: %v", r, i, a)
+			}
+		}
+		// Stroke containment: every vertex within r of the segment.
+		for _, p := range pts {
+			d := segDist(float64(p.X), float64(p.Y), 100, 100, 110.5, 104.25)
+			if d > r+0.01 {
+				t.Fatalf("r=%v capsule vertex %v distance %f > r", r, p, d)
+			}
+		}
+		// The outline is a simple polygon: non-zero signed area.
+		area := 0.0
+		for i := range pts {
+			a, b := pts[i], pts[(i+1)%len(pts)]
+			area += float64(a.X)*float64(b.Y) - float64(b.X)*float64(a.Y)
+		}
+		if math.Abs(area) < 1e-9 {
+			t.Fatalf("r=%v capsule has zero area: %v", r, pts)
+		}
+	}
+}
+
+// segDist is the point-to-segment distance (the capsule tests' helper).
+func segDist(px, py, x1, y1, x2, y2 float64) float64 {
+	dx, dy := x2-x1, y2-y1
+	l2 := dx*dx + dy*dy
+	if l2 < 1e-12 {
+		return math.Hypot(px-x1, py-y1)
+	}
+	t := ((px-x1)*dx + (py-y1)*dy) / l2
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+	return math.Hypot(px-(x1+t*dx), py-(y1+t*dy))
+}
+
+func TestArcPointsF(t *testing.T) {
 	// 0 -> 90 degrees on a circle around the origin: start at +x,
 	// end at +y (screen down).
-	pts := arcPoints(0, 0, 10, 10, 0, 90, 9)
-	if pts[0].X != 10 || pts[0].Y != 0 {
+	pts := arcPointsF(0, 0, 10, 10, 0, 90, 9)
+	if math.Abs(float64(pts[0].X-10)) > 1e-4 || math.Abs(float64(pts[0].Y)) > 1e-4 {
 		t.Errorf("arc start = %v, want (10,0)", pts[0])
 	}
-	if pts[len(pts)-1].X != 0 || pts[len(pts)-1].Y != 10 {
+	if math.Abs(float64(pts[len(pts)-1].X)) > 1e-4 || math.Abs(float64(pts[len(pts)-1].Y-10)) > 1e-4 {
 		t.Errorf("arc end = %v, want (0,10)", pts[len(pts)-1])
 	}
 }
 
-// TestArcPointsFullCircleNoDuplicate is the D119 regression: a 360-degree
+// TestArcPointsFSubPixelPrecision — THE D122 assertion: an arc whose
+// center and radius are NOT integers must land every vertex on its
+// true circle to within a hundredth of a pixel. The int32 sampler this
+// replaces snapped each vertex to the pixel grid (errors up to ~0.7 px
+// on an r=8 arc) — the quantization the owner read as a low-resolution
+// icon long before anti-aliasing ever got a chance.
+func TestArcPointsFSubPixelPrecision(t *testing.T) {
+	pts := arcPointsF(183.5, 327.25, 8.3, 8.3, 224.6, -269.2, 36)
+	if len(pts) != 37 {
+		t.Fatalf("partial arc: %d points, want 37", len(pts))
+	}
+	for _, p := range pts {
+		d := math.Hypot(float64(p.X-183.5), float64(p.Y-327.25))
+		if math.Abs(d-8.3) > 0.01 {
+			t.Fatalf("arc vertex %v distance %f from center, want 8.3 (sub-pixel)", p, d)
+		}
+	}
+}
+
+// TestArcPointsFFullCircleNoDuplicate is the D119 regression: a 360-degree
 // sweep must close WITHOUT repeating the starting point. A polygon that
 // counts its own closing point hands SetSurroundColorsWithCount a count
 // the real Windows GDI+ rejects — and a rejected call leaves the path
 // gradient's surround colors at their opaque-white default (the white
 // disc on the cap). Wine's laxer GDI+ accepted the over-count, which is
 // why only the owner's real machine ever showed it.
-func TestArcPointsFullCircleNoDuplicate(t *testing.T) {
+func TestArcPointsFFullCircleNoDuplicate(t *testing.T) {
 	for _, steps := range []int{16, 48} {
-		pts := arcPoints(0, 0, 10, 10, 0, 360, steps)
+		pts := arcPointsF(0, 0, 10, 10, 0, 360, steps)
 		if len(pts) != steps {
 			t.Errorf("full circle steps=%d: %d points, want %d (no repeated closing point)", steps, len(pts), steps)
 		}
@@ -132,11 +215,6 @@ func TestArcPointsFullCircleNoDuplicate(t *testing.T) {
 				t.Errorf("full circle point %v off radius 10", p)
 			}
 		}
-	}
-	// Partial arcs keep their exact endpoints (the strokes rely on it).
-	pts := arcPoints(0, 0, 10, 10, 224.6, -269.2, 36)
-	if len(pts) != 37 {
-		t.Errorf("partial arc: %d points, want 37", len(pts))
 	}
 }
 
@@ -210,46 +288,19 @@ func TestAnimPhases(t *testing.T) {
 	}
 }
 
-// TestCapsulePointsSquareCaps — D121: a 2 px stroke (r = 1) must emit
-// the four-corner square-cap quad, never the round-cap arcs: at this
-// radius the arc points collapse into near-coincident integers whose
-// polygon self-intersects and GDI+'s winding fill leaves only beaded
-// fragments (the owner's dotted send/receive arrows).
-func TestCapsulePointsSquareCaps(t *testing.T) {
-	pts := capsulePoints(100, 100, 110, 104, 1)
-	if len(pts) != 4 {
-		t.Fatalf("r=1 capsule points = %d, want the 4-point square-cap quad", len(pts))
-	}
-	// Every point sits exactly r from the segment's line.
-	for _, p := range pts {
-		d := math.Abs(float64((p.X-100)*4-(p.Y-100)*10)) / math.Hypot(4, 10)
-		if math.Abs(d-1) > 1.01 {
-			t.Fatalf("square-cap point %v distance %f, want 1", p, d)
-		}
-	}
-	// The quad must be a simple (non-self-intersecting) polygon: its
-	// signed area is non-zero and the two diagonals both cross inside.
-	area := 0.0
-	for i := range pts {
-		a, b := pts[i], pts[(i+1)%len(pts)]
-		area += float64(a.X)*float64(b.Y) - float64(b.X)*float64(a.Y)
-	}
-	if area == 0 {
-		t.Fatalf("square-cap quad has zero area: %v", pts)
-	}
-}
-
-// TestArcPointsCenterAnchoring — the power icon's glyph center is the
+// TestArcPointsFCenterAnchoring — the power icon's glyph center is the
 // arc's center (12, 12.41) on the 24 grid (D121): a full ring sampled
-// around a center must keep every point within r of it.
-func TestArcPointsCenterAnchoring(t *testing.T) {
-	pts := arcPoints(200, 200, 8, 8, 0, 360, 36)
+// around a center must keep every point within a hundredth of a pixel
+// of its true radius (D122 tightened this from 1 px — the anchor was
+// right, the pixel-snapped ring around it was not).
+func TestArcPointsFCenterAnchoring(t *testing.T) {
+	pts := arcPointsF(200, 200, 8, 8, 0, 360, 36)
 	if len(pts) < 20 {
 		t.Fatalf("ring points = %d, want a sampled ring", len(pts))
 	}
 	for _, p := range pts {
 		d := math.Hypot(float64(p.X-200), float64(p.Y-200))
-		if math.Abs(d-8) > 1.01 {
+		if math.Abs(d-8) > 0.01 {
 			t.Fatalf("ring point %v distance %f from center, want 8", p, d)
 		}
 	}
