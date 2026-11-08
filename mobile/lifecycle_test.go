@@ -1,5 +1,5 @@
 // lifecycle_test.go — the M5 core connection lifecycle suite (docs/
-// android-port 05 §M5, DECISIONS.md D77/D78), host-runnable against the
+// android-port 05 §M5, docs/DECISIONS.md D77/D78), host-runnable against the
 // REAL engine and the REAL tunstack, exactly like the M4 suites.
 //
 // What this suite proves, in the M5 vocabulary:

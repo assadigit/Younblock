@@ -2,7 +2,7 @@
 
 > ⛔ **CANCELLED — D97 (2026-10-18, A0-R3): the account gate will
 > never be built; nothing below will be implemented. See
-> `00-start-here.md` and `DECISIONS.md` D97. Kept as history.**
+> `docs/00-start-here.md` and `docs/DECISIONS.md` D97. Kept as history.**
 
 **Status:** draft for Ali's review; every numbered requirement carries
 its verification idea for the A-series implementation. Requirements the

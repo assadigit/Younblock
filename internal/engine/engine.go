@@ -50,7 +50,7 @@ type StateError struct {
 
 // StateFail says which self-test step failed last and its code, so the UI
 // can tell a secure-DNS problem from a YouTube-tunnel one (R13: nothing
-// changes silently — not failures either; DECISIONS.md D44).
+// changes silently — not failures either; docs/DECISIONS.md D44).
 type StateFail struct {
         Step string `json:"step"`
         Code string `json:"code"`
@@ -73,7 +73,7 @@ type State struct {
         Warm bool `json:"warm"`
         // LatencyMs is the last measured YouTube round-trip through the whole
         // chain (secure lookup + connect + request), refreshed by every health
-        // check while on (user-requested "ping"; DECISIONS.md D41). Nil when no
+        // check while on (user-requested "ping"; docs/DECISIONS.md D41). Nil when no
         // measurement exists (off, or nothing succeeded yet).
         LatencyMs *int64      `json:"latencyMs,omitempty"`
         Fail      *StateFail  `json:"fail,omitempty"`

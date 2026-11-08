@@ -8,7 +8,7 @@ desktop baseline (§A) is recorded and green.
 
 | Item | Selected value | Why | Evidence/date |
 |---|---|---|---|
-| Minimum Android API | **26** — VERIFIED at M3 | Carries forward Ali's prior decision (root 04-android-spec.md §5); FGS rules and per-app routing need ≥21; 26 covers the FGS-era requirements. The tun2socks/gVisor stack libraries impose no higher floor (pure Go). `aapt2 dump badging` reports `minSdkVersion:'26'` | Verified 2026-10-16 (M3, in the shipped APK) |
+| Minimum Android API | **26** — VERIFIED at M3 | Carries forward Ali's prior decision (docs/04-android-spec.md §5); FGS rules and per-app routing need ≥21; 26 covers the FGS-era requirements. The tun2socks/gVisor stack libraries impose no higher floor (pure Go). `aapt2 dump badging` reports `minSdkVersion:'26'` | Verified 2026-10-16 (M3, in the shipped APK) |
 | Target/compile API | **36** — VERIFIED at M3 | Sideload distribution (ADR-0012) means Play's target-API policy is not binding; Android 16 / API 36 is the newest stable with the FGS `connectedDevice` rules settled. `targetSdkVersion:'36'`, `compileSdkVersion 36` in the APK badging | Verified 2026-10-16 (M3) |
 | Android ABIs | arm64-v8a (primary), armeabi-v7a (secondary), x86_64 (debug/emulator only) | Device reach; Go compile matrix green on all four (doc 01 §5) | Verified 2026-10-16 (compile level); **runtime level in the M3 AAR/APK**: `native-code: 'arm64-v8a' 'armeabi-v7a' 'x86_64'` |
 | JDK version | **21.0.8 (Temurin, with javac)** | Gradle 9.8.1 launcher + AGP 9.2.0 + gomobile all verified on it | Verified 2026-10-16 (M3) |
@@ -159,7 +159,7 @@ DEVICE, POST_NOTIFICATIONS, BIND_VPN_SERVICE service attribute,
 verify OK (debug cert). One engine regression caught and fixed at the
 source while building D81: the immediate double-Start test failed
 because D82's honest cancel exposed the spawn-race zombie the old test
-codified (see DECISIONS.md D82); the full suite green twice after.
+codified (see docs/DECISIONS.md D82); the full suite green twice after.
 Exit baseline: vet clean; `go test -count=1 ./...` 17/17 packages ok
 twice; svelte-check 0/0; vite clean; matrix 4/4 ABIs -mod=vendor
 (18 non-main packages per ABI; arm64 links the full tree).
@@ -497,7 +497,7 @@ release-keystore ceremony script):
 - Docs: doc 07 §8 (D88), doc 10 §1 (the helper-asset note), README
   (the signed-lane section — closing the hole where doc 07 §8 pointed
   at "README backup steps" that did not exist), .gitignore (the
-  release-keystore + backup patterns), DECISIONS.md D88, PROGRESS.md,
+  release-keystore + backup patterns), docs/DECISIONS.md D88, docs/PROGRESS.md,
   CHANGELOG.md, doc 09 handoff fields, SESSION_HANDOFF_PROMPT.md
   (post-D88 edition incl. the ~/sdk wipe state).
 
@@ -535,7 +535,7 @@ that note — 8,579 → 9,017 chars). The honest framing recorded in the
 note: the repo is private, so the flag carried no public meaning; the
 build is still the debug-signed device-test build, and nothing about
 the artifacts changed (D84's no-identical-re-release rule respected —
-a flag flip is metadata, not a build). Docs updated: DECISIONS.md
+a flag flip is metadata, not a build). Docs updated: docs/DECISIONS.md
 D89, docs 06/07/09/10, README, PROGRESS, CHANGELOG,
 SESSION_HANDOFF_PROMPT. No lanes ran — ZERO Go/Svelte/app code
 touched; versionCode stays 3; ~/sdk remains wiped (the reinstall
@@ -893,7 +893,7 @@ consistency check across Ali's devices + the still-expected
 diagnostics report for the video-start delay + the D93 desktop
 check). Next decision D94.
 
-### M8-m — the complete gap analysis + the account-gate direction — analysis-only, 2026-10-18 (DECISIONS.md D94)
+### M8-m — the complete gap analysis + the account-gate direction — analysis-only, 2026-10-18 (docs/DECISIONS.md D94)
 
 No build, no code change: the round was a full read-only audit (the
 gap report delivered in chat + the worklog's consolidated records).
@@ -907,7 +907,7 @@ cross-compile checks) is the top QA gap; (2) the desktop release lane
 is dormant — the last desktop artifacts (v0.7.6) predate D86–D93, nine
 rounds of fixes sit under CHANGELOG "Unreleased"; (3) no frontend unit
 tests exist (svelte-check + the session's manual browser exercises are
-the whole UI defense); (4) mobile.zip compliance re-verified
+the whole UI defense); (4) legacy/mobile.zip compliance re-verified
 independently: 100% of every round's instructions applied, the open
 item is data (VERIFIED_SITES), not code. D94 opens the account-gate
 feature lane (login authorization, a user database, admin user
@@ -963,7 +963,7 @@ questions + recommendations, 01-requirements AUTH-001…031, 02
 -review with the drafted privacy copy). Design-first per D94: nothing
 built, no ADR beyond the one grounded in D94 ruling 1 (engine-enforced
 gate — doc 08's ADR-AUTH-0001); the six questions stay OPEN — D95+ in
-DECISIONS.md is reserved for Ali's rulings, and no recommendation was
+docs/DECISIONS.md is reserved for Ali's rulings, and no recommendation was
 recorded as if ruled. Next Task IDs: M8-n (the device round, still
 awaiting Ali's feedback) and A1 (the auth backend) — A1 runs only
 after the rulings. Next decision D95.
@@ -991,7 +991,7 @@ account, no data collection" (doc 07 §1, doc 10 §2, the in-app
 Privacy sheet, README) — were always literally true and stay so
 permanently; the copy change D94 anticipated never ships.
 
-Session actions (all docs): D97 written in DECISIONS.md (verbatim
+Session actions (all docs): D97 written in docs/DECISIONS.md (verbatim
 quote, supersession, what survives, what it does NOT decide — the
 cancellation governs the gate only; website/distribution/release-lane
 questions stay untouched); `docs/auth/` bannered CANCELLED on all six
@@ -1002,7 +1002,7 @@ record — it is a network constraint, not a feature property); doc 07
 retired; doc 10's status block carries the closing note; doc 09's
 handoff fields rewritten for the single remaining workstream;
 README's docs map updated; CHANGELOG's Planned section rewritten as
-cancelled; PROGRESS.md entry added; SESSION_HANDOFF_PROMPT.md
+cancelled; docs/PROGRESS.md entry added; SESSION_HANDOFF_PROMPT.md
 rewritten for M8-n-only.
 
 Verification this round: docs-only, so no build/test lane applies;
@@ -1065,7 +1065,7 @@ releases." The round's work:
   TestDialHostWinnerCancelsLosers and
   TestHandshakeTimeoutDefaultCoversDoorBudget (the lockstep with the
   config constant + the covers-the-door-budget invariant).
-- **D98 recorded** (DECISIONS.md): every release page carries the debug
+- **D98 recorded** (docs/DECISIONS.md): every release page carries the debug
   APK asset from now on — the standing M8-i-era offer, answered by
   Ali's message; debug.4's missing APK was the observable trigger.
 - **Baseline after the changes, all green (D74 order):** svelte-check

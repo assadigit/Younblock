@@ -8,7 +8,7 @@
 > altogether, no auth needed anymore." Younblock stays ONE
 > free-for-all app — no login, no accounts, no auth server, no
 > editions. **D95 and D96 are superseded** (kept as history in
-> DECISIONS.md); every open question below — (a), (c)–(f) and (g1)–(g4)
+> docs/DECISIONS.md); every open question below — (a), (c)–(f) and (g1)–(g4)
 > — closed as MOOT, never ruled on its merits; **ADR-AUTH-0001
 > (doc 08) is retired**; the A1/A2/A3 implementation ladder is
 > cancelled and those Task IDs retire. The privacy claims the gate was
@@ -18,7 +18,7 @@
 > this banner, as the design record of a feature that never existed in
 > code; if auth is ever re-opened, a new decision supersedes D97 and
 > the pack is revalidated against the then-current tree first. Full
-> ruling and its bounds: `DECISIONS.md` D97.
+> ruling and its bounds: `docs/DECISIONS.md` D97.
 
 **Repository:** <https://github.com/assadigit/Younblock>
 **Documentation location:** `docs/auth/`
@@ -73,7 +73,7 @@ code. It opens with Ali's own words (D94) as its charter:
 Each needs Ali's ruling before any implementation starts. The
 recommendations are the design team's; **they are not decisions** —
 recording them as if ruled would fake Ali's choices. D95+ in
-DECISIONS.md is reserved for the rulings. **(b) is now ruled (D95);
+docs/DECISIONS.md is reserved for the rulings. **(b) is now ruled (D95);
 (a) has the platform analysis Ali asked for; (g) is new (D96).**
 
 | # | Question | Recommendation / status | Where specified |
@@ -99,7 +99,7 @@ DECISIONS.md is reserved for the rulings. **(b) is now ruled (D95);
   gate (never silently — D94 ruling 2), release notes updated, the
   debug-circle build carries it for Ali's device round.
 - Each step: baseline green after it, scoped commits, evidence recorded
-  in doc 06 / PROGRESS.md; each debug build that changes app code bumps
+  in doc 06 / docs/PROGRESS.md; each debug build that changes app code bumps
   `versionCode` and goes through the regular-release lane (D89).
 
 ## Relation to the existing spec pack

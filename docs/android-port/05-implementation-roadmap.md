@@ -514,7 +514,7 @@ battery/reboot/revocation and live-observation halves ⛔ with the shared
 device checklist. M7 is marked ✅ host-complete on the M3–M6
 precedent.**
 
-### M8-a — Ali's two product rulings, implemented — ✅ host-complete 2026-10-17 (pre-M8 scope amendment; DECISIONS.md D83)
+### M8-a — Ali's two product rulings, implemented — ✅ host-complete 2026-10-17 (pre-M8 scope amendment; docs/DECISIONS.md D83)
 
 Not a planned milestone: Ali answered the two standing product
 questions between M7 and M8, and the answers changed shipped behavior,
@@ -570,7 +570,7 @@ M8 freezes the release artifacts.
   carries the launcher-intent `<queries>` and exactly doc 07 §6's
   permission inventory, apksigner OK (debug cert).
 
-### M8 — Package, verify, hand off — ✅ host-complete 2026-10-17 (DECISIONS.md D84)
+### M8 — Package, verify, hand off — ✅ host-complete 2026-10-17 (docs/DECISIONS.md D84)
 
 The keystore ruling arrived at the open and reshaped the milestone:
 **the debug-APK-only test circle (D84)** — "yes keep it debug

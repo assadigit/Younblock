@@ -1,6 +1,6 @@
 // Package webui serves the Younblock control UI and its JSON API over
 // localhost HTTP — the transport of the single-executable Linux edition
-// (DECISIONS.md D50). Every engine method the Wails shell binds is
+// (docs/DECISIONS.md D50). Every engine method the Wails shell binds is
 // exposed as a small JSON endpoint with the same payload, and engine
 // events are pushed to the page as Server-Sent Events, so the very same
 // Svelte bundle runs unchanged: its http adapter (frontend/src/lib/

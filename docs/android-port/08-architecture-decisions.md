@@ -70,8 +70,8 @@ Update records when evidence changes.
   protect; Platform interface; string JSON API); whole module compiles
   for all four Android ABIs; the identical architecture ships in
   production (tun2socks-family VPN apps; Jigsaw Intra for
-  gomobile+VpnService+DoH); prior product decision by Ali (root
-  04-android-spec.md §0-3) reached the same conclusion.
+  gomobile+VpnService+DoH); prior product decision by Ali (
+  docs/04-android-spec.md §0-3) reached the same conclusion.
 - **Fallback (documented, not primary):** the engine's HTTP proxy is
   directly usable by proxy-capable browsers (Firefox Android via
   about:config) — a zero-permission narrow mode, disclosed as such.
@@ -88,7 +88,7 @@ Update records when evidence changes.
   object graphs cross the boundary.
 - **Evidence:** x/mobile BSD-3-Clause, actively maintained (pushed
   2026-10-11); the JSON API's shape was chosen years ago exactly for
-  gomobile's no-slices-of-structs constraint (root 04-android-spec.md
+  gomobile's no-slices-of-structs constraint (docs/04-android-spec.md
   §4; jsonapi.go confirms); compile matrix green on all ABIs.
 - **Alternatives rejected:** handwritten JNI (gomobile industrializes
   it); separate local process (lifecycle cost; its one advantage —
@@ -215,7 +215,7 @@ gVisor netstack direct (alternative), hev-socks5-tunnel (fallback)
 circle of friends; Play is out of scope
 
 - **Status:** Accepted 2026-10-16 (carries forward Ali's prior
-  decision, root 04-android-spec.md §0/§7).
+  decision, docs/04-android-spec.md §0/§7).
 - **Policy:** debug APK for testing; release APK signed with a
   locally-generated keystore that is never committed; README gets
   plain-language backup instructions; Play Protect's sideload warning
@@ -1400,7 +1400,7 @@ pre-resolution every 5 minutes (M8-z, work item C)
      background (≤3 in flight), so the next fresh per-video hostname
      often lands on a warm cache entry. The codes persist to
      `googlevideo-codes.txt` in the app's private config directory:
-     checked against DECISIONS.md's privacy rules — R21 governs LOGS
+     checked against docs/DECISIONS.md's privacy rules — R21 governs LOGS
      and the report (hostnames off by default), and the D-entries
      govern disclosures; the app's own private state already carries
      settings.json and the usage store, and an sn-<code> is an

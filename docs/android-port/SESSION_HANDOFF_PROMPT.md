@@ -117,7 +117,7 @@ side) or his rebuilt desktop exe:
   (doc 10 row 3 + doc 09 handoff carry its exact wording): whether a
   flow that exhausts its raced round under one preset should be
   retried once with the NEXT preset. If he rules, record it in
-  DECISIONS.md as D102 BEFORE any code.
+  docs/DECISIONS.md as D102 BEFORE any code.
 - **If the report is absent**, say so plainly and ask for it (menu —
   Diagnostics is the first row — Copy, paste it here) — do NOT guess.
   Offer the honest alternatives; do not invent work.
@@ -163,11 +163,11 @@ side) or his rebuilt desktop exe:
    rulings; record his rulings there BEFORE any code.
 2. Read the spec pack, at minimum: doc 09 (handoff), doc 10 (the
    debug.17 edition + §"Device test circle"), doc 06 (the
-   M8-c…M8-y records), doc 08 + `DECISIONS.md` (D1-D103;
+   M8-c…M8-y records), doc 08 + `docs/DECISIONS.md` (D1-D103;
    read D97, D98, D99, D100, D101, D103 in full; **ADR-0023 is the
    M8-y decision; ADR-0022 the M8-x one it builds on — now verified
    on-device by Ali's words**),
-   and the tail of `PROGRESS.md`.
+   and the tail of `docs/PROGRESS.md`.
 3. Verify the environment (section below) and the tree:
    `git status -sb`, `git log --oneline -3` (expect the M8-y commit
    on top — the negative re-ask + the penalty box + ADR-0023, over
@@ -259,7 +259,7 @@ If the sandbox was wiped (repo / toolchain / Go missing):
   (D101/ADR-0016).
 - When you finish: update doc 06 (the evidence record), doc 07 §9 /
   doc 10 (checklist rows with Ali's evidence), doc 09 §"Current
-  handoff fields", `PROGRESS.md`, `DECISIONS.md` (from D102, as
+  handoff fields", `docs/PROGRESS.md`, `docs/DECISIONS.md` (from D102, as
   rulings land), `CHANGELOG.md`; append the worklog entry (Task ID
   M8-y / M8-z / …); commit and push; cut the debug release with the
   bumped versionCode when APP code changed — **always attach the

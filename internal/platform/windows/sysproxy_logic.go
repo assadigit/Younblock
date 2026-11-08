@@ -71,7 +71,7 @@ type backupFile struct {
 // restoring only what is still ours. Earlier versions pointed Windows at
 // our PAC script (AutoConfigURL); v1.3.0 switched to the manual values
 // after field reports that some browsers never picked the PAC up
-// (DECISIONS.md D46): a PAC left in the registry would take precedence
+// (docs/DECISIONS.md D46): a PAC left in the registry would take precedence
 // over the manual values in WinINet, so any AutoConfigURL — ours from an
 // older version, or the user's own — is cleared while we are active and
 // put back on Restore.

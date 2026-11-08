@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # build-lite-desktop.sh — the lite desktop edition's lane
-# (younblock-lite-desktop, DECISIONS.md D114): the dependency-free
+# (younblock-lite-desktop, docs/DECISIONS.md D114): the dependency-free
 # Windows shell — the same engine as every edition behind a plain
 # Win32 window instead of the WebView2 screen.
 #

@@ -72,7 +72,7 @@ func TestPlanLegacyReproducesPythonRule(t *testing.T) {
 	if got := Plan(299, Legacy, seededRand(1), PresetConfig(Legacy)); len(got) != 1 || got[0] != 299 {
 		t.Errorf("legacy(299) = %v, want [299]", got)
 	}
-	// 520 bytes: up to 299 cut points, up to 300 segments (see DECISIONS.md D8).
+	// 520 bytes: up to 299 cut points, up to 300 segments (see docs/DECISIONS.md D8).
 	for seed := int64(0); seed < 100; seed++ {
 		pieces := Plan(520, Legacy, seededRand(seed), PresetConfig(Legacy))
 		checkPieces(t, 520, pieces, 0)
@@ -87,7 +87,7 @@ func TestPlanLegacyReproducesPythonRule(t *testing.T) {
 		t.Errorf("legacy(301) produced %d pieces, want <= 300", len(pieces))
 	}
 	checkPieces(t, 301, pieces, 0)
-	// Exactly 300 bytes: the Python crashes here; ours clamps (DECISIONS.md D8).
+	// Exactly 300 bytes: the Python crashes here; ours clamps (docs/DECISIONS.md D8).
 	pieces = Plan(300, Legacy, seededRand(7), PresetConfig(Legacy))
 	checkPieces(t, 300, pieces, 0)
 	if len(pieces) > 299 { // 298 available positions + final segment

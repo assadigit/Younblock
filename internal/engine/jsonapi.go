@@ -636,7 +636,7 @@ func (e *Engine) GetDiagnosticReport() string {
 }
 
 // OpenLogsFolderJSON returns the log folder path; opening a file browser is
-// shell behavior (DECISIONS.md) so the UI layer handles it.
+// shell behavior (docs/DECISIONS.md) so the UI layer handles it.
 func (e *Engine) OpenLogsFolderJSON() string {
 	return marshalJSON(map[string]string{"path": e.logDir()})
 }

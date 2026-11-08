@@ -3,7 +3,7 @@
 All three formats wrap **the same static Linux binary** (`cmd/core` built
 with the embedded UI, `--web`). There is nothing format-specific inside
 the app — one change to the main version lands in every edition the next
-time `./build.sh` runs (DECISIONS.md D52/D53).
+time `./build.sh` runs (docs/DECISIONS.md D52/D53).
 
 | Format | Script | Best for |
 |---|---|---|
@@ -41,7 +41,7 @@ packaging/flatpak/build-flatpak.sh    dist/younblock-linux-amd64 1.4.1
 
 - Start-with-OS writes `~/.config/autostart/younblock.desktop` with an
   `Exec=` line that names the **edition's launcher** (`/usr/bin/younblock`,
-  the `.AppImage` file, or `flatpak run <id>`) — see D54 in DECISIONS.md.
+  the `.AppImage` file, or `flatpak run <id>`) — see D54 in docs/DECISIONS.md.
 - The Flatpak edition keeps its settings in its sandbox
   (`~/.var/app/io.github.assadigit.Younblock`); the .deb and AppImage
   share `~/.config/Younblock`. Its permissions (session bus + host

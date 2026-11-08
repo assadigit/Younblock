@@ -185,7 +185,7 @@ func newEngineForTest(configDir string, protector SocketProtector, sink EventSin
 	// surface — previously showed Firefox-only styling). Shell +
 	// frontend only; the engine below is untouched.
 	// The refinement round + platform alignment (1.6.7-debug.4,
-	// versionCode 37): the owner's directed UI round (UI-SPEC (2).md
+	// versionCode 37): the owner's directed UI round (docs/UI-SPEC (2).md
 	// v7) — the key-cap lever, the state backgrounds, the circles
 	// removed — plus the shells' alignment around it (the 360x780
 	// reference design size, the idle pre-paint colors). Frontend +

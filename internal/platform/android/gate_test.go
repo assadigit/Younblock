@@ -1,5 +1,5 @@
 // gate_test.go — the M5 start-gate semantics of the Android adapter
-// (DECISIONS.md D77): the zero value is open (the adapter's no-op form
+// (docs/DECISIONS.md D77): the zero value is open (the adapter's no-op form
 // must never hold a connect run), SetStartReady arms/opens/re-arms, a
 // cancellation releases the waiter with the ctx error, and one open
 // wakes every waiter.

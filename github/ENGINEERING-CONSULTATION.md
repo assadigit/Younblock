@@ -406,7 +406,7 @@ The full 200-line log window (18:46:13.773 → 18:47:38.548) is preserved in the
 
 - Build: commit `a57a215` ("M8-ae: the wire-discipline round (ADR-0040/0041/0042) — debug.23, versionCode 22"); APK `v1.6.6-debug23.apk` (55,283,553 B, SHA-256 `c5d48c50a8c56e061b3c002db04d9711aa139668e7eaae848ed9db3a7c718c7c`), signed with the project's pinned debug key; release `v1.6.6-android-debug.23` (id 418735179).
 - Code map: `internal/proxy/tunnel.go` (flow lifecycle: race, stall tiers, substitution, breaker feed), `internal/proxy/server.go` (good pool, penalty box, probe jobs, door blocking), `internal/engine/engine.go` (background lanes: prewarm, probe trickle, brownout gate), `internal/doh/` (resolver), `internal/fragment/` (hello presets), `internal/config/defaults.go` (every knob, one-line comments), `mobile/` (Android TUN + shell), `backend.py` (the Python reference).
-- Decision log: `docs/android-port/08-architecture-decisions.md` (ADR-0001…0042, the full design history); `DECISIONS.md`, `PROGRESS.md`, `CHANGELOG.md` at the repo root.
+- Decision log: `docs/android-port/08-architecture-decisions.md` (ADR-0001…0042, the full design history); `docs/DECISIONS.md`, `docs/PROGRESS.md`, `CHANGELOG.md` at the repo root.
 
 ---
 

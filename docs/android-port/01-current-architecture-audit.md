@@ -28,8 +28,8 @@ the Android compile-target evidence is in §5.
 | Go dependencies | `github.com/wailsapp/wails/v2 v2.16.0`, `golang.org/x/net v0.61.0`, `golang.org/x/sync v0.24.0`, `golang.org/x/sys v0.49.0`, `github.com/energye/systray v1.0.3`, `github.com/go-toast/toast v0.0.0-20190211030409` — all vendored in the committed `vendor/` tree | `go.mod`, `vendor/modules.txt` |
 | Frontend package manager | npm; Svelte 5 + Vite 8 + TypeScript (svelte-check); lockfile committed | `frontend/package.json`, `package-lock.json` |
 | Wails version/config | CLI `v2.16.0` (must match go.mod); `wails.json` productName "Younblock", productVersion 1.6.6 | `wails.json`; worklog Task 2 |
-| Existing test suites | 13 Go packages with tests (all passing — §7); svelte-check 0/0; vite production build clean; no CI (releases are cut by the agent sessions per PROGRESS.md) | `go test ./...`; §7 |
-| Existing release workflow | `build.sh` (14 artifacts: 4 Windows exes, 2 cores, 2 Linux web binaries, 3 debs, 3 AppImages), `build.bat`, `build-offline-pack.sh` (offline zip), GitHub Releases with SHA-256 notes; releases v0.7.0…v0.7.6 published | `build.sh`; PROGRESS.md release records |
+| Existing test suites | 13 Go packages with tests (all passing — §7); svelte-check 0/0; vite production build clean; no CI (releases are cut by the agent sessions per docs/PROGRESS.md) | `go test ./...`; §7 |
+| Existing release workflow | `build.sh` (14 artifacts: 4 Windows exes, 2 cores, 2 Linux web binaries, 3 debs, 3 AppImages), `build.bat`, `build-offline-pack.sh` (offline zip), GitHub Releases with SHA-256 notes; releases v0.7.0…v0.7.6 published | `build.sh`; docs/PROGRESS.md release records |
 
 Note on the worktree: the sandbox rehydrated with every tracked file's
 executable bit flipped (1531 files, **zero** content changes — verified
@@ -283,7 +283,7 @@ Findings:
 - **Engine API surface for a platform-neutral binding**: already exists
   — `internal/engine/jsonapi.go` is string-in/string-out (a constraint
   gomobile imposes: no slices-of-structs/maps across the boundary; the
-  repo anticipated this — root `04-android-spec.md` §4 documents it).
+  repo anticipated this — `docs/04-android-spec.md` §4 documents it).
 - **Licensing**: all current deps permissive (BSD/Apache-2.0/MIT- family);
   the Android candidates audited: gVisor Apache-2.0, xjasonlyu/tun2socks
   MIT (5.5k stars, pushed 2026-10-11), hev-socks5-tunnel MIT (pushed
@@ -332,7 +332,7 @@ Node v24.21.0, wails CLI v2.16.0, `core.fileMode=false` local).
 | `cd frontend && svelte-check` | **0 errors, 0 warnings** |
 | `cd frontend && vite build` | clean, ~1 s |
 | `wails dev` / GUI | **not possible in this sandbox** (no webkit2gtk — standing limitation since v0.7.0 sessions); E2E uses the vite preview adapter |
-| Full artifact build (`./build.sh`) | last executed 2026-10-16 at tag v0.7.6: 14/14 artifacts + offline pack, release published and round-trip verified (16/16 SHA-256) — see PROGRESS.md "Release v0.7.6" |
+| Full artifact build (`./build.sh`) | last executed 2026-10-16 at tag v0.7.6: 14/14 artifacts + offline pack, release published and round-trip verified (16/16 SHA-256) — see docs/PROGRESS.md "Release v0.7.6" |
 
 Desktop regression comparison baseline for Android work = this table,
 re-run on every milestone that touches shared code (06-build-and-test

@@ -52,7 +52,7 @@ func (c *healthChecker) QuickCheck(ctx context.Context, method config.Method) bo
 			return false
 		}
 	}
-	c.eng.recordLatency(steps) // the "ping" display (DECISIONS.md D41)
+	c.eng.recordLatency(steps) // the "ping" display (docs/DECISIONS.md D41)
 	return true
 }
 

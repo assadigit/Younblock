@@ -22,8 +22,8 @@ proxy" API, and Chrome for Android offers no user proxy setting.
 Therefore traffic must be captured at the network layer with
 `VpnService`, reassembled to TCP streams by a userspace stack, and
 delivered to the engine's front door. Every seam this requires already
-exists in the code (§4), and the repo's own prior Android spec (root
-`04-android-spec.md`, Ali-approved) locked the same conclusion before
+exists in the code (§4), and the repo's own prior Android spec (
+`docs/04-android-spec.md`, Ali-approved) locked the same conclusion before
 this pack existed.
 
 ## 2. Routing alternatives — evidence collected
@@ -122,7 +122,7 @@ this gate** — the remaining items are explicit M3/M4 exit criteria.
 | Strategy | Evidence gathered | Verdict |
 |---|---|---|
 | Kotlin + Jetpack Compose native UI | Strongest lifecycle/accessibility integration; but duplicates TWO existing production UIs (pro + classic); the design system (tokens, choreography, reduced-motion) is Svelte/CSS | Rejected for v1 — revisit only if WebView proves unacceptable (ADR-0005) |
-| **Existing Svelte UI inside Android WebView** | Frontend builds as pure static assets; the **http adapter already speaks JSON+SSE** and ships in the Linux web edition since v0.7.2 (D50) — so the UI needs **zero changes** if the app serves it from an in-process loopback `webui` server (same code as `cmd/core --web`); pro screen responsive-verified to 300×620 (Phase 20); reduced-motion respected; classic screen also available (`?ui=classic`) | **SELECTED** (ADR-0005) — Ali's locked "one engine, one UI" (root 04-android-spec.md), now realized with even less new code than the old plan's JS bridge |
+| **Existing Svelte UI inside Android WebView** | Frontend builds as pure static assets; the **http adapter already speaks JSON+SSE** and ships in the Linux web edition since v0.7.2 (D50) — so the UI needs **zero changes** if the app serves it from an in-process loopback `webui` server (same code as `cmd/core --web`); pro screen responsive-verified to 300×620 (Phase 20); reduced-motion respected; classic screen also available (`?ui=classic`) | **SELECTED** (ADR-0005) — Ali's locked "one engine, one UI" (docs/04-android-spec.md), now realized with even less new code than the old plan's JS bridge |
 | Web app/PWA only | Cannot capture traffic; no service lifecycle | Rejected |
 
 Two transport variants for the WebView (ADR-0005): (a) **loopback

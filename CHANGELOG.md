@@ -3,7 +3,7 @@
 All notable changes to Younblock are documented here. Versions are the
 GitHub release tags (what you download); the in-app version is noted beside
 each one. The full engineering narrative behind every entry lives in
-PROGRESS.md, and the reasoning in DECISIONS.md (D-numbers referenced below).
+docs/PROGRESS.md, and the reasoning in docs/DECISIONS.md (D-numbers referenced below).
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 dates are Asia/Tehran. Binaries, SHA-256 checksums and upgrade notes for
@@ -575,7 +575,7 @@ every release are on the
   letter-spacing scales with the size (2px → 1px) and the tabular
   digit boxes keep the numbers steady as before.
 
-### Changed (2026-10-24 — the refinement round's platform alignment + the one release restored; v0.8.3, 1.6.7-debug.4, versionCode 37 — UI-SPEC (2).md v7)
+### Changed (2026-10-24 — the refinement round's platform alignment + the one release restored; v0.8.3, 1.6.7-debug.4, versionCode 37 — docs/UI-SPEC (2).md v7)
 
 - **The refinement round's screen is now the one screen on every
   version — Windows, Linux and Android alike.** The lever is a physical
@@ -1778,7 +1778,7 @@ every release are on the
   data collection" privacy claims stay literally true, permanently.
   The six-document design pack survives under `docs/auth/` as the
   bannered record of the cancelled feature; D95/D96 remain in
-  DECISIONS.md as superseded history; all auth open questions
+  docs/DECISIONS.md as superseded history; all auth open questions
   closed as moot, never ruled on their merits.
 
 ### Fixed (host-side, 2026-10-18 — A0 session; no app-facing change, no new build)
@@ -1939,7 +1939,7 @@ every release are on the
   in this environment (docs/android-port 05 M4).
 - Decisions D75 (gVisor-direct stack selection) and D76 (the TUN fd
   contract: non-blocking before handover, single-owner) in
-  DECISIONS.md; gVisor vendored (+6 MB) per the vendor-means-vendor
+  docs/DECISIONS.md; gVisor vendored (+6 MB) per the vendor-means-vendor
   rule.
 
 ## [v0.7.6] — 2026-10-16 (app 1.6.6)

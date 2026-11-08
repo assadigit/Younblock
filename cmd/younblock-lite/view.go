@@ -4,7 +4,7 @@
 // shell: the same engine, the same settings file and the same Windows
 // system-proxy mechanism as the main desktop app, behind a hand-drawn
 // native window instead of the WebView2 screen — one .exe, nothing to
-// install (DECISIONS.md D114). This round (D115) lifts the lite screen to
+// install (docs/DECISIONS.md D114). This round (D115) lifts the lite screen to
 // the v3 main screen itself: the same four data-states, the same T-table
 // copy, the same live figures (timer, session bytes) and the same sub-line
 // rules the Svelte screen implements (frontend/src/lib/v3.ts +

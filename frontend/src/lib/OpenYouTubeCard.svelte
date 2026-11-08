@@ -1,6 +1,6 @@
 <script lang="ts">
   // OpenYouTubeCard.svelte — the connected state's card slot content
-  // (the refinement round, UI-SPEC (2).md §3 item 9: glass style, only
+  // (the refinement round, docs/UI-SPEC (2).md §3 item 9: glass style, only
   // while connected — unchanged behavior): opens the YouTube app through
   // the existing Kotlin shell bridge (window.YounblockShell.openYouTube —
   // the bridge falls back to the browser when the app is not installed);

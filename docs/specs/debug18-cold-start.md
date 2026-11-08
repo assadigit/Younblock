@@ -10,7 +10,7 @@ Save this file in the repo as `docs/specs/debug18-cold-start.md` and follow it e
 ```
 You are the engineer for the Younblock repo (Go engine, Android VPN build via gomobile, desktop via Wails).
 Read docs/specs/debug18-cold-start.md completely, then execute EVERYTHING in it, in the order given in section 9, without asking me any questions.
-Rules: if the spec conflicts with DECISIONS.md or an existing ADR, follow the repo decision, write a short ADR explaining the deviation, and continue. If something is ambiguous, pick the safest option, record it in the ADR, and continue. Never leave a manual step for me.
+Rules: if the spec conflicts with docs/DECISIONS.md or an existing ADR, follow the repo decision, write a short ADR explaining the deviation, and continue. If something is ambiguous, pick the safest option, record it in the ADR, and continue. Never leave a manual step for me.
 Deliver: code, tests (all green), ADRs, release notes, the built debug.18 APK (versionCode 17), and the final summary described in section 11.
 ```
 
@@ -127,7 +127,7 @@ Requirements:
 ### 6.4 Pre-resolve learned googlevideo nodes
 - When a name `rr<N>---sn-<code>.googlevideo.com` or `r<N>---sn-<code>.googlevideo.com` resolves, remember the `sn-<code>` part only (cap 64 codes, in memory).
 - At engine start (after the DoH connection is warm) and every 5 minutes, resolve `rr1`…`rr5` of each remembered code in the background, at most 3 lookups in flight, so the next fresh hostname is already cached.
-- Persisting the codes to a small file in the app data directory is allowed only if it does not conflict with DECISIONS.md privacy rules (check D-entries and file 03 R21). If it conflicts, keep memory-only and note it in the ADR.
+- Persisting the codes to a small file in the app data directory is allowed only if it does not conflict with docs/DECISIONS.md privacy rules (check D-entries and file 03 R21). If it conflicts, keep memory-only and note it in the ADR.
 - Tests: bursts of 10 concurrent distinct names create exactly 1 dial (count dials in the test); hedge returns the second server's answer when the first stalls; prewarm only touches remembered codes.
 
 ## 7. Work item D — UDP/QUIC fast fallback (fixes H3)
@@ -164,7 +164,7 @@ Requirements:
 
 ## 9. Order of work
 
-1. Read the repo: `DECISIONS.md`, ADR-0008 to ADR-0023, the files named above. Run the full test suite once and record the baseline.
+1. Read the repo: `docs/DECISIONS.md`, ADR-0008 to ADR-0023, the files named above. Run the full test suite once and record the baseline.
 2. Work item A, then B (the likely cause of the minute delay).
 3. Work item E (diagnostics) — so the build proves itself even if A–B are not the whole story.
 4. Work item C (DoH).

@@ -51,7 +51,7 @@ These rules apply to every session in this repository, for every agent.
 - **Milestones and sub-milestones.** After each verified sub-milestone: commit with a clear message, then push. If the session dies, nothing is lost. Every commit must leave the project in a working state.
 - **Small verified steps.** Change, check, then continue. Do not pile up unverified edits.
 - **Stay in scope.** Make the smallest change that fully solves the request. Report unrelated problems instead of fixing them. No drive-by refactors, mass renames or surprise dependency upgrades.
-- **No giant files ("god-modules").** One file, one responsibility. Roughly: over ~400 lines, consider splitting; over ~800 lines, split or justify in `DECISIONS.md`. Put new code in a new, well-named module instead of enlarging an oversized file. Group files in sensible folders.
+- **No giant files ("god-modules").** One file, one responsibility. Roughly: over ~400 lines, consider splitting; over ~800 lines, split or justify in `docs/DECISIONS.md`. Put new code in a new, well-named module instead of enlarging an oversized file. Group files in sensible folders.
 - **Reuse before creating.** Search for an existing helper or pattern first. Add a new dependency only when clearly needed, and say why.
 - **Never invent** functions, packages, flags, file paths or results. Check they exist in the installed version.
 - **Never weaken tests, linters or checks to get green.** Fix the cause. If a check is genuinely wrong, explain and ask.
@@ -88,7 +88,7 @@ Before **any** change to a database or store (schema change, migration, bulk wri
 ## 7. Secrets and credentials
 
 - When the owner gives credentials, accept and use them for the task. They are temporary and will be revoked when development ends.
-- **Never** put credentials in any tracked file, commit message, log, screenshot, report, `DECISIONS.md` or `CHANGELOG.md`. Keep them in environment variables, a git-ignored `.env`, or the platform's secret store (for example `wrangler secret`).
+- **Never** put credentials in any tracked file, commit message, log, screenshot, report, `docs/DECISIONS.md` or `CHANGELOG.md`. Keep them in environment variables, a git-ignored `.env`, or the platform's secret store (for example `wrangler secret`).
 - Make sure `.gitignore` covers `.env` and other secret files **before** first use.
 - Scan the staged changes for keys, tokens and passwords **before every commit**. If something slipped in: stop, remove it, and if it was already pushed, tell the owner immediately and ask them to rotate it.
 - Screenshots and uploaded files can contain secrets or personal data (customer names, emails). Check before committing. Redact or keep them out of git.
@@ -147,7 +147,7 @@ Milestones: ✅ M1 <name> · ✅ M2 <name> · ⬜ M3 <name>
 What changed (plain words): <2-4 bullets about what the owner will notice>
 Where it is now: <pushed to branch X / live at URL / not deployed because…>
 What I checked: <what I tested, and what I could not test>
-Decisions made: <short list, details are in DECISIONS.md>
+Decisions made: <short list, details are in docs/DECISIONS.md>
 Needs your attention: <questions in A/B/C/D form, reminders>
 Next session: <prompt below / nothing needed>
 ```
