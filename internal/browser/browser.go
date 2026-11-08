@@ -1,5 +1,5 @@
 // Package browser holds the pure logic for the optional "open a dedicated
-// Chrome session" feature (user-requested; DECISIONS.md D40): the command
+// Chrome session" feature (user-requested; docs/DECISIONS.md D40): the command
 // line and the Chrome lookup rules. The actual process spawn is shell
 // behavior and lives in the app package, so everything here is
 // platform-neutral and testable (file 01, section 3, rule 3).
@@ -21,7 +21,7 @@ const StartURL = "https://www.youtube.com/"
 
 // Args builds the Chrome command line for a dedicated session through the
 // local proxy. The flags replicate the old app's launcher exactly
-// (legacy/frontend.py, recorded in DECISIONS.md D2/D40):
+// (legacy/frontend.py, recorded in docs/DECISIONS.md D2/D40):
 //
 //	--user-data-dir=<profile>            separate profile, so the flags apply
 //	                                     while the user's Chrome keeps running

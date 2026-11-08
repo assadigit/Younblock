@@ -261,10 +261,10 @@ done
 rm -f "$ASSET_LIST"
 
 # ---------------------------------------------------------------------------
-# [7] The record: what shipped, for PROGRESS.md.
+# [7] The record: what shipped, for docs/PROGRESS.md.
 # ---------------------------------------------------------------------------
 echo
-echo "=== RELEASE RECORD (for PROGRESS.md) ==="
+echo "=== RELEASE RECORD (for docs/PROGRESS.md) ==="
 echo "tag: $TAG   release id: $RELEASE_ID   url: https://github.com/$REPO/releases/tag/$TAG"
 curl -s -H "$(auth_header)" "https://api.github.com/repos/$REPO/releases/$RELEASE_ID/assets" |
   python3 -c 'import json,sys

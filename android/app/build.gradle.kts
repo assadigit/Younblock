@@ -175,7 +175,7 @@ android {
         // place (the same pinned debug certificate -- D85). D103: the
         // APK asset is named v1.6.8.apk.
         // versionCode 37: the refinement round — the owner's directed
-        // UI round (UI-SPEC (2).md v7, younblock-ui-reference (1).html)
+        // UI round (docs/UI-SPEC (2).md v7, younblock-ui-reference (1).html)
         // plus the platform alignment. The lever is a physical key cap
         // (satin red top face over a 9px #8f130e side wall, resting above
         // the track floor; press sinks it 6px), pulled UP to connect and

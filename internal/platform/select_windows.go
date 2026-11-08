@@ -22,7 +22,7 @@ var (
 // New returns the platform adapter for this build. If the Windows adapter
 // cannot initialize (for example the config directory is unavailable), the
 // stub is returned so the app still runs without system-proxy support;
-// that fallback is recorded in DECISIONS.md.
+// that fallback is recorded in docs/DECISIONS.md.
 func New() engine.Platform {
 	once.Do(func() {
 		p, err := windows.New(stdLogger{})

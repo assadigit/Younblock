@@ -2,8 +2,8 @@
 
 **Status:** FINALIZED (Phase 1 / M2, 2026-10-16). Module and package
 names below are the real ones from the audited repository (doc 01); the
-Android-side names follow the repo's own prior plan (root
-`04-android-spec.md`) reconciled with this pack's decisions (doc 08).
+Android-side names follow the repo's own prior plan (
+`docs/04-android-spec.md`) reconciled with this pack's decisions (doc 08).
 Nothing in this document is a placeholder.
 
 ## 1. Design goals

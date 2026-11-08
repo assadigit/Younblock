@@ -1,5 +1,5 @@
 // Package usage stores the per-session data-usage history (the round-3
-// feature, feature-spec.md in Ali's mobile.zip): one JSON file per
+// feature, feature-spec.md in Ali's legacy/mobile.zip): one JSON file per
 // installation holding up to 500 finished sessions — times and byte
 // totals only, never a website name — plus the last 15-second autosave of
 // a running session for crash recovery. Nothing is ever sent anywhere;

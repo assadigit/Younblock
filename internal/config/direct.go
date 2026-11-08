@@ -1,5 +1,5 @@
 // direct.go — the never-processed top-level domains (Ali's ruling,
-// DECISIONS.md D83, 2026-10-17): "keep every domain with .ir blocked —
+// docs/DECISIONS.md D83, 2026-10-17): "keep every domain with .ir blocked —
 // when opening any domain with .ir, this app must not be used and its
 // routes should not work."
 //

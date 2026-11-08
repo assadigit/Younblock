@@ -120,7 +120,7 @@ const GoogleVideoCodeCap = 64
 // memory-only). The codes are infrastructure node identifiers, not
 // browsing history (the same code serves every rr variant of a
 // location), and the file lives in the app's private data directory
-// beside settings.json and the usage store — DECISIONS.md's privacy
+// beside settings.json and the usage store — docs/DECISIONS.md's privacy
 // rules (R21 log redaction, D-entries on user data) are about logs and
 // disclosures, not the app's own private state; the ADR records the
 // check.
@@ -837,7 +837,7 @@ const ConnectOnLaunch = false
 // OpenBrowserOnConnect — open a dedicated Chrome window (its own session,
 // pointed at this app's proxy) when the app turns on. This is the old Python
 // app's behavior; the new default is off because the spec's approach sets
-// the system proxy instead (user-requested option; DECISIONS.md D40).
+// the system proxy instead (user-requested option; docs/DECISIONS.md D40).
 const OpenBrowserOnConnect = false
 
 // SelfTestURL — what the built-in test fetches through the proxy (expects 204).
@@ -1053,7 +1053,7 @@ func DefaultDomains() []string {
 }
 
 // DefaultApps returns the built-in per-app allow-list: the YouTube app
-// plus the four mainstream browsers (Ali's ruling, DECISIONS.md D87 —
+// plus the four mainstream browsers (Ali's ruling, docs/DECISIONS.md D87 —
 // "Add chrome to the default addlist as well, also firefox, opera,
 // brave browser", received in the same feedback round that D86 opened:
 // the first ruling put the YouTube app on the list, and this second

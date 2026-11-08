@@ -1,6 +1,6 @@
 @echo off
 rem build-lite-desktop.bat - the lite desktop edition on a Windows
-rem machine (younblock-lite-desktop, DECISIONS.md D114). The whole
+rem machine (younblock-lite-desktop, docs/DECISIONS.md D114). The whole
 rem build needs ONLY Go on PATH - no Node, no WebView2, no wails CLI:
 rem the lite UI is plain Win32 GDI, so this is the one edition whose
 rem build is a single command. The icon and version info are committed

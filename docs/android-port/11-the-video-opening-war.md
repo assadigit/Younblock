@@ -6,7 +6,7 @@ each video is gone"). This document exists because the tester asked
 for it directly: *"document whatever you did to not miss this
 accomplishment/method."* It is the synthesis; the round-by-round
 primary sources are `08-architecture-decisions.md` (ADR-0027 through
-ADR-0050), `PROGRESS.md` (the M8 sections), and the CHANGELOG.
+ADR-0050), `docs/PROGRESS.md` (the M8 sections), and the CHANGELOG.
 **§5.1, same day: the verdict** — the debug.29 field report answered
 the question §5 decomposed. **§5.2–5.3, same day: the hand-off's
 field result** — debug.30's report convicted the second-zero fire
@@ -484,6 +484,6 @@ shipped.
 
 *Primary sources: ADR-0027…ADR-0055 in
 [`08-architecture-decisions.md`](08-architecture-decisions.md); the
-M8 sections of the repository `PROGRESS.md`; the CHANGELOG's debug
+M8 sections of the repository `docs/PROGRESS.md`; the CHANGELOG's debug
 build entries; the release notes of
 `v1.6.6-android-debug.18` … `v1.6.6-android-debug.33`.*

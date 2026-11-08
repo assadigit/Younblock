@@ -11,7 +11,7 @@ Input document: `ENGINEERING-CONSULTATION.md` (field report of debug.23, version
 ```
 You are the engineer for the Younblock repo (Go engine, Android VPN build via gomobile).
 Read ENGINEERING-CONSULTATION.md and docs/specs/debug24-media-starvation.md completely, then execute EVERYTHING in the spec in the order of section 8, without asking me any questions.
-Rules: if the spec conflicts with DECISIONS.md or an existing ADR, follow the repo decision, write a short ADR explaining the deviation, and continue. If something is ambiguous, pick the safest option, record it in the ADR, and continue. Never leave a manual step for me, except the optional file in work item W8.
+Rules: if the spec conflicts with docs/DECISIONS.md or an existing ADR, follow the repo decision, write a short ADR explaining the deviation, and continue. If something is ambiguous, pick the safest option, record it in the ADR, and continue. Never leave a manual step for me, except the optional file in work item W8.
 Deliver: code, tests (all green), ADRs, release notes with the tester protocol, the built debug.24 APK (versionCode 23), and the final summary from section 10.
 ```
 
@@ -90,7 +90,7 @@ Files: `internal/engine/engine.go`, `internal/proxy/server.go`, new `internal/pr
 
 ## 5. Order of work
 
-1. Read the consultation file, `DECISIONS.md`, the ADRs for debug.18–23, and the code for flows, fragmentation, substitution and the breaker. Run the full test suite for a baseline.
+1. Read the consultation file, `docs/DECISIONS.md`, the ADRs for debug.18–23, and the code for flows, fragmentation, substitution and the breaker. Run the full test suite for a baseline.
 2. W1, W2, W3, W9 (evidence).
 3. W4 (switches), then W7 (probe and network test), then W8.
 4. W5, W6.

@@ -7,7 +7,7 @@
 // from Linux exactly like younblock-core.exe does. The window itself
 // lives in window_windows.go.
 //
-// Why hand-rolled Win32 at all (DECISIONS.md D114): the main desktop
+// Why hand-rolled Win32 at all (docs/DECISIONS.md D114): the main desktop
 // rides Wails + WebView2 — a runtime Windows must have installed. The
 // lite edition's promise is "copy the exe, double-click, it works":
 // GDI and user32 have shipped inside every Windows since forever, so

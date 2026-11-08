@@ -1,6 +1,6 @@
 <script lang="ts">
   // LeverButton.svelte — the physical key cap on its recessed track
-  // (the refinement round, UI-SPEC (2).md §2/§3, every value ported from
+  // (the refinement round, docs/UI-SPEC (2).md §2/§3, every value ported from
   // younblock-ui-reference (1).html).
   //
   // The pill is a 3D KEY CAP: a satin red top face with a solid 9px side

@@ -48,7 +48,7 @@ const (
 // RestoreProxy is an addition to the spec's list, needed by the
 // RestoreWindowsProxy API entry (file 01, section 10) and the
 // --restore-proxy flag: it puts back whatever system proxy state the
-// platform changed (recorded in DECISIONS.md).
+// platform changed (recorded in docs/DECISIONS.md).
 type Platform interface {
 	// Name reports "windows", "android" or "stub".
 	Name() string
@@ -74,7 +74,7 @@ type Platform interface {
 	RestoreProxy() error
 }
 
-// StartGater is an optional Platform extension (roadmap M5, DECISIONS.md
+// StartGater is an optional Platform extension (roadmap M5, docs/DECISIONS.md
 // D77): a platform whose product semantics require an external
 // permission or readiness before traffic may route implements it, and
 // the engine's connect run then waits for the door to open BEFORE the

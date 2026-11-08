@@ -1,5 +1,5 @@
 <!-- App.svelte — the Younblock main screen (the refinement round,
-     UI-SPEC (2).md v7; every visual value ported from
+     docs/UI-SPEC (2).md v7; every visual value ported from
      younblock-ui-reference (1).html; the proportion round re-centers
      the rhythm on the 360×640 design screen).
      One flex column — header, status block centered in the free space

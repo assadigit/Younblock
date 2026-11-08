@@ -1,7 +1,7 @@
 package mobile
 
 // failstart_test.go — the M7 platform-refusal door through the real
-// facade (docs/android-port 05 §M7, DECISIONS.md D81): the shell calls
+// facade (docs/android-port 05 §M7, docs/DECISIONS.md D81): the shell calls
 // FailStart when the platform cannot honestly proceed (none of the
 // allow-list's apps installed), and the gate-held connect run fails
 // through the engine's ordinary path — phase "error" with the typed

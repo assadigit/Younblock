@@ -688,7 +688,7 @@ phone, and debug.2/debug.1 superseded and kept as history),
 and §2 the **public v1 DRAFT**, unpublished until the ⛔ device gates
 close or Ali explicitly accepts shipping with them recorded as known
 limitations. Every claim traces to implementation evidence (docs
-01–09, DECISIONS.md D1–D103, of which D97 cancels the gate D94 had
+01–09, docs/DECISIONS.md D1–D103, of which D97 cancels the gate D94 had
 announced, D98 rules the APK asset onto every release page, D99 names
 it with the version, D100 is the diagnostics-surface ruling, and D101
 is the variant rule: a surface ships in the variant the edition
@@ -1328,7 +1328,7 @@ start on Android should now behave like the Windows app** (ADR-0013):
 — **installs directly over debug.5** in place; settings survive
 (but not usage history — it starts fresh with this build's new
 file). It carries ONE theme: **Ali's uploaded instruction rounds
-(mobile.zip) applied to the one shared screen, so the phone, the
+(legacy/mobile.zip) applied to the one shared screen, so the phone, the
 Windows desktops, the Linux editions and the web edition render the
 same UI by construction** (D92):
 

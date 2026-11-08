@@ -1,5 +1,5 @@
 // v3.ts — the main screen's state model and copy (the refinement round,
-// UI-SPEC (2).md). The four data-states are driven ONLY by the engine's
+// docs/UI-SPEC (2).md). The four data-states are driven ONLY by the engine's
 // real status events: idle→idle, connecting→connecting, connect error→
 // failed, on→connected. Values (colors, sizes, motion) all come from
 // docs/ui-v3/younblock-tokens.css, imported by pro.ts; the copy is the

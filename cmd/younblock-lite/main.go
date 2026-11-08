@@ -1,5 +1,5 @@
 // Command younblock-lite is the lite desktop edition
-// (younblock-lite-desktop, DECISIONS.md D114/D115): the
+// (younblock-lite-desktop, docs/DECISIONS.md D114/D115): the
 // dependency-free Windows shell over the same engine — one .exe, a
 // native window, no WebView2, no browser runtime, no installer, no
 // DLLs beside it. Copy it to any Windows 10+ box and double-click:

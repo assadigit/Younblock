@@ -1,7 +1,7 @@
 //go:build windows
 
 // browser_windows.go — spawns and ends the optional dedicated Chrome
-// session (user-requested; DECISIONS.md D40). Windows-only: it looks Chrome
+// session (user-requested; docs/DECISIONS.md D40). Windows-only: it looks Chrome
 // up in the registry and the standard folders, launches it with the legacy
 // flags from internal/browser, and ends it when the engine turns off. Like
 // every Windows adapter it is never run during development on Linux; the

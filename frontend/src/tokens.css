@@ -1,6 +1,6 @@
 /* tokens.css — the legacy surface layer under the Younblock screen: the
    menu sheet's and the diagnostics view's tokens (kept unchanged by the
-   refinement round, UI-SPEC (2).md §1). The main screen's own tokens now
+   refinement round, docs/UI-SPEC (2).md §1). The main screen's own tokens now
    live in docs/ui-v3/younblock-tokens.css (scoped to .yb-screen, ported
    from younblock-ui-reference (1).html). Contrast notes that still apply:
    --red-400 on dark 4.6:1, secondary text 5.0–5.7:1. */

@@ -6,7 +6,7 @@
 // rules, so the !android term routes Android to select_android.go; the
 // audit doc 01 §5 recorded the previous belief that android fell through
 // to select_other.go/stub, which was wrong — corrected this session,
-// DECISIONS.md D71), and the call-recording stub everywhere else.
+// docs/DECISIONS.md D71), and the call-recording stub everywhere else.
 package platform
 
 import (
@@ -27,7 +27,7 @@ var (
 // New returns the platform adapter for this build. If the Linux adapter
 // cannot initialize (for example the config directory is unavailable),
 // the stub is returned so the app still runs without system-proxy
-// support — the same fallback select_windows.go records in DECISIONS.md.
+// support — the same fallback select_windows.go records in docs/DECISIONS.md.
 func New() engine.Platform {
 	once.Do(func() {
 		p, err := linux.New()

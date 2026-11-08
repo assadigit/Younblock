@@ -26,7 +26,7 @@ import org.json.JSONObject
  * unwinds honestly on every path to "off" — user stop, engine error,
  * [onRevoke] (equal to disconnect plus re-consent on next connect).
  *
- * M5 adds the lifecycle contract (doc 05 §M5, DECISIONS.md D77/D78):
+ * M5 adds the lifecycle contract (doc 05 §M5, docs/DECISIONS.md D77/D78):
  *
  *   - The start gate: the engine's connect run is HELD at "connecting"
  *     (platform start gate) until this service establishes the TUN and

@@ -1,5 +1,5 @@
 // Package linux implements the Linux platform adapter for the Younblock
-// single-executable Linux edition (DECISIONS.md D50): the same neutral
+// single-executable Linux edition (docs/DECISIONS.md D50): the same neutral
 // engine, a web UI served by the binary, and the desktop integration done
 // through freedesktop.org standards instead of the Windows registry —
 // gsettings for the system proxy, ~/.config/autostart for start-with-OS,
@@ -78,7 +78,7 @@ const gnomeProxySchema = "org.gnome.system.proxy"
 // from this sandbox (both desktops appear to follow org.gnome.system.proxy
 // through GLib), so those two entries are speculative extra coverage that
 // costs nothing when the schema is absent. Confirming on a real Mint box
-// is Ali's manual step (DECISIONS.md D50).
+// is Ali's manual step (docs/DECISIONS.md D50).
 var supportedProxySchemas = []string{
         gnomeProxySchema,
         "org.cinnamon.system.proxy",

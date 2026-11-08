@@ -202,7 +202,7 @@ The owner's next ruling, verbatim in intent: *from now on, release all
 versions in the same release; update the UI of all versions — they must
 be consistent, so when we change the UI all versions change the same;
 currently the APK UI differs from the other versions.* Two decisions
-land with it (DECISIONS.md D110/D111): the classic editions retire (one
+land with it (docs/DECISIONS.md D110/D111): the classic editions retire (one
 screen everywhere) and every version rides one GitHub release (built by
 the new `release-unified.sh`).
 
@@ -259,7 +259,7 @@ edition's screen reads the same signals from the same engine.
 | `build.sh` | the classic lanes are gone (no `VITE_UI_VARIANT` bakes, no `windowSize=360x760` overrides, no classic deb/AppImage); every artifact list updated |
 | `build.bat` | the same retirement for the Windows-native lane |
 | `main.go` | header + `windowSize` comment: one edition, the v3 design window (360×640) as the only default |
-| `release-unified.sh` | **new** — the unified release lane (D111): builds EVERY version (build.sh + build-android.sh + the offline pack, best-effort), renames the APK per D103, pushes the tag, creates ONE GitHub release, uploads every artifact, re-downloads and byte-compares each one, prints the release record for PROGRESS.md. The token rides `GITHUB_TOKEN` (never the repo) |
+| `release-unified.sh` | **new** — the unified release lane (D111): builds EVERY version (build.sh + build-android.sh + the offline pack, best-effort), renames the APK per D103, pushes the tag, creates ONE GitHub release, uploads every artifact, re-downloads and byte-compares each one, prints the release record for docs/PROGRESS.md. The token rides `GITHUB_TOKEN` (never the repo) |
 
 **Versioning (the unified line):** `AppVersion` 1.6.6 → **1.6.7**,
 `wails.json` 1.6.7, `versionCode` 33 → **34**, `versionName` 1.6.7,
@@ -292,7 +292,7 @@ debug.34 in place (the pinned D85 certificate). The round's comments in
 The unified release — tag **v0.8.0**, every version in it — is created
 by `release-unified.sh` after this commit; the artifact record (release
 id, asset ids, sizes, SHA-256 digests, the byte-identical re-download
-verifications) lands in PROGRESS.md and CHANGELOG.md with the docs
+verifications) lands in docs/PROGRESS.md and CHANGELOG.md with the docs
 follow-up commit, per the repo's convention.
 
 ## Deviations and notes

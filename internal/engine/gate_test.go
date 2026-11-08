@@ -1,5 +1,5 @@
 // gate_test.go — host-runnable tests for the M5 platform start gate
-// (DECISIONS.md D77): the engine's connect run waits for an optional
+// (docs/DECISIONS.md D77): the engine's connect run waits for an optional
 // platform door BEFORE the listener, holding the phase at "connecting"
 // outside the start budget; cancellations (Stop, a second Start) exit
 // quietly and never overwrite the canceller's phase transition.

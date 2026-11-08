@@ -1,5 +1,5 @@
 // vpnstate.go — the M5 honest routing report (docs/android-port 05 §M5,
-// doc 04 §5/§8; DECISIONS.md D78). The engine's phase alone is an
+// doc 04 §5/§8; docs/DECISIONS.md D78). The engine's phase alone is an
 // ENGINE truth ("the proxy path works"); the Android product's
 // "Connected" claim is a ROUTING truth: the engine serving AND a stack
 // bound to its door. VpnState is the one call that answers that
